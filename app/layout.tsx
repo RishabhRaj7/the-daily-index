@@ -5,6 +5,7 @@ import ReadingProgressBar from "@/components/chrome/ReadingProgressBar";
 import OnboardingGate from "@/components/onboarding/OnboardingGate";
 import { MY_CARDS } from "@/lib/config/cards";
 import { getF1Roster } from "@/lib/live/f1";
+import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
   title: "The Daily Index",
@@ -34,6 +35,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           {children}
           <OnboardingGate creditCards={MY_CARDS} f1Roster={f1Roster} />
         </EditionProvider>
+        <Analytics />
       </body>
     </html>
   );
