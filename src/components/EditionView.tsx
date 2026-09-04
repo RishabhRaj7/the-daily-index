@@ -355,14 +355,17 @@ export default function EditionView({
         .then(({ summaries, brief: apiBrief, pickBlurbs, editorsNote: apiNote }) => {
           if (controller.signal.aborted) return;
           const idToUrl = new Map(summaryArticles.map((a) => [a.id, a.url]));
-          const askedNow = new Set((toAsk.length > 0 ? toAsk : summaryArticles).map((a) => a.url));
+          // When only the brief is missing, the request includes existing
+          // articles as context. Their summaries are not new work and must
+          // not make the banner claim there is something to apply.
+          const askedNow = new Set((force ? summaryArticles : toAsk).map((a) => a.url));
 
           const byUrl: Record<string, string> = {};
           const changed: Record<string, string> = {};
           for (const [id, text] of Object.entries(summaries ?? {})) {
             const url = idToUrl.get(id);
             if (!url || typeof text !== "string" || !text.trim()) continue;
-            if (!force && !askedNow.has(url)) continue;
+            if (!askedNow.has(url)) continue;
             byUrl[url] = text;
             if (text.trim() !== currentBody.get(url)) changed[url] = text;
           }
