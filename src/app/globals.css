@@ -1,0 +1,192 @@
+@import "tailwindcss";
+
+:root {
+  --paper: #f7f3e9;
+  --ink: #1b1a17;
+  --ink-soft: #4a463d;
+  --masthead-red: #a6291d;
+  --rule: rgba(27, 26, 23, 0.18);
+  --up: #1e5f3e;
+  --down: #a6291d;
+  --card-bg: rgba(27, 26, 23, 0.035);
+  --card-border: rgba(27, 26, 23, 0.12);
+}
+
+html[data-edition="evening"] {
+  --paper: #000000;
+  --ink: #f2e3c2;
+  --ink-soft: #c9b98f;
+  --masthead-red: #e0574a;
+  --rule: rgba(242, 227, 194, 0.18);
+  --up: #4fd68c;
+  --down: #ef6a5e;
+  --card-bg: rgba(242, 227, 194, 0.045);
+  --card-border: rgba(242, 227, 194, 0.14);
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-masthead-red: var(--masthead-red);
+  --color-rule: var(--rule);
+  --color-up: var(--up);
+  --color-down: var(--down);
+  --color-card-bg: var(--card-bg);
+  --color-card-border: var(--card-border);
+  --font-headline: "Fraunces", ui-serif, Georgia, serif;
+  --font-body: "Source Serif 4", ui-serif, Georgia, serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-label: "Oswald", ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  background-color: var(--paper);
+}
+
+body {
+  background-color: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  background-image: var(--paper-grain);
+  font-feature-settings: "kern", "liga", "onum";
+}
+
+/* Morning ⇄ evening: every rule, fill and glyph cross-fades together so no
+   section snaps ahead of the rest. Disabled for reduced-motion readers. */
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+  transition:
+    background-color 0.45s ease,
+    border-color 0.45s ease,
+    color 0.45s ease,
+    fill 0.45s ease,
+    stroke 0.45s ease !important;
+}
+
+/* Typographic roles — one voice per job. */
+.font-headline { font-family: var(--font-headline); }
+.font-body { font-family: var(--font-body); }
+.font-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum", "lnum";
+}
+
+/* Newspaper "boxed item": heavy top rule, hairline bottom, no radius, no fill.
+   Replaces the old bordered-card look used by sidebars and widgets. */
+.paper-box {
+  border-top: 2px solid var(--ink);
+  border-bottom: 1px solid var(--rule);
+  padding: 0.75rem 0 1rem;
+  border-radius: 0;
+  background: transparent;
+}
+.paper-box-tight {
+  padding: 0.5rem 0 0.75rem;
+}
+
+/* Subtle paper-grain noise, generated inline so no asset is needed. */
+:root {
+  --paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.02 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.font-label {
+  font-family: var(--font-label);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.hairline {
+  border-color: var(--rule);
+}
+
+.drop-cap::first-letter {
+  font-family: var(--font-headline);
+  float: left;
+  font-size: 4.2rem;
+  line-height: 0.78;
+  padding-right: 0.4rem;
+  padding-top: 0.2rem;
+  margin-bottom: -0.1rem;
+  font-weight: 700;
+  color: var(--masthead-red);
+}
+
+.pull-quote {
+  font-family: var(--font-headline);
+  font-style: italic;
+  font-weight: 500;
+  line-height: 1.25;
+  border-top: 2px solid var(--masthead-red);
+  border-bottom: 1px solid var(--rule);
+  padding: 0.75rem 0;
+  color: var(--ink);
+  text-wrap: balance;
+}
+.pull-quote::before {
+  content: "\201C";
+  color: var(--masthead-red);
+  margin-right: 0.15em;
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee-track {
+  animation: marquee 38s linear infinite;
+}
+
+.marquee-track:hover,
+.marquee-track:focus-within {
+  animation-play-state: paused;
+}
+
+@keyframes stamp-in {
+  0% {
+    transform: scale(2.4) rotate(-14deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(0.92) rotate(-14deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(-14deg);
+    opacity: 1;
+  }
+}
+
+.ink-stamp {
+  animation: stamp-in 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
+  }
+  .ink-stamp {
+    animation: none;
+  }
+}
+
+/* Visible keyboard focus everywhere — the paper should be navigable, not
+   just readable. */
+:focus-visible {
+  outline: 2px solid var(--masthead-red);
+  outline-offset: 2px;
+}
+
+/* Section anchors (#grapevine, story ids) shouldn't hide under anything. */
+section[id],
+article[id] {
+  scroll-margin-top: 1rem;
+}
