@@ -22,8 +22,12 @@ export async function POST() {
   }
   try {
     revalidatePath("/", "page");
+    revalidatePath("/", "layout");
   } catch (err) {
     console.error("[refresh] revalidatePath failed:", err);
   }
-  return Response.json({ ok: true, refreshedAt: new Date().toISOString() });
+  return Response.json(
+    { ok: true, refreshedAt: new Date().toISOString() },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }

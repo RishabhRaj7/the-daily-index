@@ -238,3 +238,38 @@ F1 drivers use a chip multi-select directly (not `SuggestionInput`) since all 22
   Reddit (custom posts, mod tools) and is hosted by Reddit — it cannot be imported
   by an external Next.js site, and Devvit explicitly cannot read a user's
   subscribed subreddits. Standard OAuth (this app) remains the right integration.
+
+---
+
+## Changes in this pass (refresh → summarise, "tap to update")
+
+### Bugs
+1. **"Refresh edition" / hard reload never re-summarised.** Summaries were
+   cached in `sessionStorage` under `daily-index:summaries:v2:<date>`.
+   `sessionStorage` survives `location.reload()` (and DevTools "Disable cache"
+   only affects HTTP). The mount effect returned early whenever that key
+   existed — even when it held `{}` from a failed call, or covered none of the
+   articles in the freshly printed edition — so `/api/summarize` was never
+   called again that day.
+2. **"Tap to update" sometimes did nothing.** The result lived only in
+   `sessionStorage` and the tap re-read it. If `setItem` threw, the map was
+   empty, the route answered 500 (still JSON, so `.then` ran), or every
+   "summary" was the RSS snippet handed straight back (no `GEMINI_API_KEY`,
+   off-topic rejections), the banner said *ready* but applying changed nothing.
+
+### Fixes
+- `lib/summary-cache.ts` — single home for the client AI cache (`summaries:v3`
+  record `{ byUrl, asked, extrasAsked }`, brief/picks/note keys, purge helper,
+  one-shot `daily-index:force-summarize` flag).
+- `PullToRefreshStamp` purges those caches and sets the force flag *before*
+  reloading, so the new edition is summarised from scratch.
+- `EditionView.runSummarize(force)` replaces the mount effect:
+  - applies cached summaries for matching URLs silently, then asks the model
+    only about URLs it has never asked about (new stories after a reload);
+  - `force` (refresh button, retry) ignores the cache entirely;
+  - keeps the response in a ref (`pendingRef`) so the tap applies from memory;
+  - shows *ready* only when ≥1 summary differs from what is printed, otherwise
+    a self-dismissing "Edition already up to date" pill;
+  - non-2xx / network / 90 s timeout → "Summaries unavailable — tap to retry".
+- `/api/summarize` and `/api/refresh` send `Cache-Control: no-store`; the
+  refresh route also revalidates the root layout.

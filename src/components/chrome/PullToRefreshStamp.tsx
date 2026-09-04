@@ -1,18 +1,27 @@
 "use client";
 
 import { useState } from "react";
+import { clearSummaryCaches, requestForcedSummarize } from "@/lib/summary-cache";
 
 // "Refresh edition" — purges the server-side caches via /api/refresh and then
 // does a full page reload, so every section (news, sports, markets, Reddit,
 // weather, AI summaries, Editor's Picks) is fetched and rendered from scratch.
 // The old `router.refresh()` only re-ran the server component against warm
 // fetch caches, which is why the button appeared to do nothing.
+//
+// The AI summaries live in sessionStorage, which survives a reload (and is
+// untouched by the browser's "disable cache" switch). If we left them in
+// place, EditionView would see a cache hit for today and never call
+// /api/summarize for the freshly printed edition — so we purge them here and
+// leave a one-shot flag asking the next mount to summarise from scratch.
 export default function PullToRefreshStamp() {
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = async () => {
     if (refreshing) return;
     setRefreshing(true);
+    clearSummaryCaches();
+    requestForcedSummarize();
     try {
       await Promise.race([
         fetch("/api/refresh", { method: "POST" }),

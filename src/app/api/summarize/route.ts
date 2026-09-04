@@ -46,13 +46,19 @@ export async function POST(req: Request) {
 
     const brief = articles.length > 0 ? await generateEditionBrief(articles, map) : null;
 
-    return Response.json({
-      summaries: Object.fromEntries(map),
-      brief,
-      pickBlurbs,
-      editorsNote,
-    });
-  } catch {
-    return Response.json(empty, { status: 500 });
+    return Response.json(
+      {
+        summaries: Object.fromEntries(map),
+        brief,
+        pickBlurbs,
+        editorsNote,
+      },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  } catch (err) {
+    console.error("[summarize] request failed:", err);
+    // Non-2xx so the client shows "tap to retry" instead of caching an empty
+    // result as if the edition had been summarised.
+    return Response.json(empty, { status: 500, headers: { "Cache-Control": "no-store" } });
   }
 }

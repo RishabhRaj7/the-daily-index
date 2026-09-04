@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   Edition,
   EditionBrief,
@@ -31,6 +31,17 @@ import {
   recordIssueOpened,
 } from "@/lib/reader-memory";
 import { fallbackEditorsNote } from "@/lib/live/editorial-ai";
+import {
+  consumeForcedSummarize,
+  mergeSummaryRecord,
+  readBrief,
+  readNote,
+  readPickBlurbs,
+  readSummaryRecord,
+  writeBrief,
+  writeNote,
+  writePickBlurbs,
+} from "@/lib/summary-cache";
 import Masthead from "@/components/masthead/Masthead";
 import HeroStory from "@/components/story/HeroStory";
 import EditorsDesk from "@/components/widgets/EditorsDesk";
@@ -47,6 +58,15 @@ import EditionBriefPanel from "@/components/widgets/EditionBriefPanel";
 
 type WeatherState = "loading" | "ready" | "failed";
 const WEATHER_TIMEOUT_MS = 9000;
+
+// idle      — nothing to show
+// loading   — /api/summarize in flight
+// done      — new summaries are waiting; the reader taps the banner to apply
+// unchanged — the model had nothing new to add (auto-dismisses)
+// failed    — the call errored; banner offers a retry
+export type SummaryState = "idle" | "loading" | "done" | "unchanged" | "failed";
+const SUMMARIZE_TIMEOUT_MS = 90_000;
+const UNCHANGED_DISMISS_MS = 3500;
 
 const EMPTY_GRAPEVINE: GrapevineData = {
   picks: [],
@@ -88,7 +108,12 @@ export default function EditionView({
   const [f1Stories, setF1Stories] = useState(initialF1Stories);
   const [footballStories, setFootballStories] = useState(initialFootballStories);
   const [tennisStories, setTennisStories] = useState(initialTennisStories);
-  const [summaryState, setSummaryState] = useState<"idle" | "loading" | "done">("idle");
+  const [summaryState, setSummaryState] = useState<SummaryState>("idle");
+  // Freshly fetched summaries that the reader hasn't applied yet. Held in
+  // memory (not just sessionStorage) so "tap to update" always has something
+  // concrete to apply even if storage is full or disabled.
+  const pendingRef = useRef<Record<string, string>>({});
+  const inFlightRef = useRef<AbortController | null>(null);
   const [brief, setBrief] = useState<EditionBrief | null>(null);
   const [personalization, setPersonalization] = useState<Personalization>(DEFAULT_PERSONALIZATION);
   const [liveWeather, setLiveWeather] = useState<WeatherNow | null>(null);
@@ -193,104 +218,213 @@ export default function EditionView({
     }));
   }, []);
 
+  // "Tap to update" — swap the RSS snippets for the summaries we are holding.
+  // Reads from memory first; sessionStorage is only a fallback so a full
+  // storage (or Safari private mode) can never turn the tap into a no-op.
   const handleApplySummaries = useCallback(() => {
-    const today = edition.isoDate;
-    try {
-      const cached = sessionStorage.getItem(`daily-index:summaries:v2:${today}`);
-      if (cached) applyMap(JSON.parse(cached) as Record<string, string>);
-      const cachedBrief = sessionStorage.getItem(`daily-index:brief:${today}`);
-      if (cachedBrief) setBrief(JSON.parse(cachedBrief));
-    } catch {}
+    let map = pendingRef.current;
+    if (Object.keys(map).length === 0) {
+      map = readSummaryRecord(edition.isoDate)?.byUrl ?? {};
+    }
+    if (Object.keys(map).length > 0) applyMap(map);
+    pendingRef.current = {};
     setSummaryState("idle");
   }, [applyMap, edition.isoDate]);
 
-  useEffect(() => {
-    if (isArchive || memory === null) return;
-    const today = edition.isoDate;
-    const cacheKey = `daily-index:summaries:v2:${today}`;
-    const briefKey = `daily-index:brief:${today}`;
-    const picksKey = `daily-index:picks:${today}`;
-    const noteKey = `daily-index:note:${today}`;
+  // Runs the AI pass for this edition.
+  //
+  //   force = false (page load): apply whatever is cached for today, then ask
+  //           the model only about articles we have never asked about — new
+  //           stories after a refresh, or everything if the cache is empty.
+  //   force = true  ("Refresh edition", retry after failure): ignore the cache
+  //           and summarise the whole edition again.
+  //
+  // The old effect returned early whenever *any* cache key existed for today,
+  // which is why a reload (hard or not) never summarised again.
+  const runSummarize = useCallback(
+    (force: boolean) => {
+      if (isArchive || memory === null) return;
+      const today = edition.isoDate;
 
-    // Deterministic desk note shows immediately; the AI one replaces it if/when it arrives.
-    const prof = buildProfile(memory);
-    const weekday = new Date().toLocaleDateString("en-GB", { weekday: "long" });
-    setEditorsNote((cur) => cur ?? { text: fallbackEditorsNote(prof, { weekday, heroHeadline: hero?.headline }), source: "desk" });
+      const prof = buildProfile(memory);
+      const weekday = new Date().toLocaleDateString("en-GB", { weekday: "long" });
+      setEditorsNote(
+        (cur) =>
+          cur ?? { text: fallbackEditorsNote(prof, { weekday, heroHeadline: hero?.headline }), source: "desk" },
+      );
 
-    try {
-      const cached = sessionStorage.getItem(cacheKey);
+      const cached = force ? null : readSummaryRecord(today);
+      const cachedUrls = new Set(cached ? Object.keys(cached.byUrl) : []);
+      const askedUrls = new Set(cached ? cached.asked : []);
+      const currentUrls = new Set(summaryArticles.map((a) => a.url));
+
+      // If we already asked for the brief / blurbs / note once today, don't
+      // ask again on every reload just because the model returned nothing.
+      const extrasDone = cached?.extrasAsked === true;
+      let haveBrief = extrasDone;
+      let havePicks = extrasDone;
+      let haveNote = extrasDone;
+
       if (cached) {
-        applyMap(JSON.parse(cached) as Record<string, string>);
-        const cachedBrief = sessionStorage.getItem(briefKey);
-        if (cachedBrief) setBrief(JSON.parse(cachedBrief));
-        const cachedPicks = sessionStorage.getItem(picksKey);
-        if (cachedPicks) applyPickBlurbs(JSON.parse(cachedPicks));
-        const cachedNote = sessionStorage.getItem(noteKey);
-        if (cachedNote) setEditorsNote({ text: cachedNote, source: "ai" });
+        // Silently re-apply what the reader already accepted for these URLs.
+        const hit: Record<string, string> = {};
+        for (const url of currentUrls) if (cached.byUrl[url]) hit[url] = cached.byUrl[url];
+        if (Object.keys(hit).length > 0) applyMap(hit);
+
+        const cachedBrief = readBrief<EditionBrief>(today);
+        if (cachedBrief) {
+          setBrief(cachedBrief);
+          haveBrief = true;
+        }
+        const cachedPicks = readPickBlurbs(today);
+        if (cachedPicks) {
+          applyPickBlurbs(cachedPicks);
+          havePicks = havePicks || Object.keys(cachedPicks).length > 0;
+        }
+        const cachedNote = readNote(today);
+        if (cachedNote) {
+          setEditorsNote({ text: cachedNote, source: "ai" });
+          haveNote = true;
+        }
+      }
+
+      const toAsk = force
+        ? summaryArticles
+        : summaryArticles.filter((a) => !cachedUrls.has(a.url) && !askedUrls.has(a.url));
+      const picksToAsk = force || !havePicks ? grapevine.picks : [];
+      const wantNote = force || !haveNote;
+      const wantBrief = force || !haveBrief;
+
+      if (toAsk.length === 0 && picksToAsk.length === 0 && !wantNote && !wantBrief) {
+        setSummaryState("idle");
         return;
       }
-    } catch {}
+      // Nothing new to summarise and the brief/note are already on the page.
+      if (toAsk.length === 0 && picksToAsk.length === 0 && summaryArticles.length === 0) {
+        setSummaryState("idle");
+        return;
+      }
 
-    if (summaryArticles.length === 0 && grapevine.picks.length === 0) return;
+      inFlightRef.current?.abort();
+      const controller = new AbortController();
+      inFlightRef.current = controller;
+      const timer = setTimeout(() => controller.abort(), SUMMARIZE_TIMEOUT_MS);
 
-    setSummaryState("loading");
-    fetch("/api/summarize", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        articles: summaryArticles,
-        picks: grapevine.picks.map((p) => ({
-          id: p.id,
-          title: p.title,
-          snippet: p.snippet,
-          domain: p.domain,
-          why: p.why,
-        })),
-        reader: {
-          profile: prof,
-          weekday,
-          dateLabel: edition.date,
-          heroHeadline: hero?.headline,
-          recentHeadlines: engagementsSince(memory, 7).slice(-6).map((e) => e.headline),
-        },
-      }),
-    })
-      .then((r) => r.json())
-      .then(
-        ({
-          summaries,
-          brief: apiBrief,
-          pickBlurbs,
-          editorsNote: apiNote,
-        }: {
-          summaries: Record<string, string>;
-          brief: EditionBrief | null;
-          pickBlurbs?: Record<string, string>;
-          editorsNote?: string | null;
-        }) => {
+      setSummaryState("loading");
+      // Snapshot the snippet each article is currently printed with, so we can
+      // tell a real summary from the model handing the RSS text straight back.
+      const currentBody = new Map(summaryArticles.map((a) => [a.url, (a.snippet ?? "").trim()]));
+
+      fetch("/api/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        signal: controller.signal,
+        body: JSON.stringify({
+          // When only the brief is missing we still need the article list so
+          // the server can write it; summaries for already-asked URLs are
+          // simply ignored below.
+          articles: toAsk.length > 0 ? toAsk : wantBrief ? summaryArticles : [],
+          picks: picksToAsk.map((p) => ({
+            id: p.id,
+            title: p.title,
+            snippet: p.snippet,
+            domain: p.domain,
+            why: p.why,
+          })),
+          reader: wantNote
+            ? {
+                profile: prof,
+                weekday,
+                dateLabel: edition.date,
+                heroHeadline: hero?.headline,
+                recentHeadlines: engagementsSince(memory, 7).slice(-6).map((e) => e.headline),
+              }
+            : undefined,
+        }),
+      })
+        .then(async (r) => {
+          if (!r.ok) throw new Error(`summarize ${r.status}`);
+          return (await r.json()) as {
+            summaries?: Record<string, string>;
+            brief?: EditionBrief | null;
+            pickBlurbs?: Record<string, string>;
+            editorsNote?: string | null;
+          };
+        })
+        .then(({ summaries, brief: apiBrief, pickBlurbs, editorsNote: apiNote }) => {
+          if (controller.signal.aborted) return;
           const idToUrl = new Map(summaryArticles.map((a) => [a.id, a.url]));
+          const askedNow = new Set((toAsk.length > 0 ? toAsk : summaryArticles).map((a) => a.url));
+
           const byUrl: Record<string, string> = {};
+          const changed: Record<string, string> = {};
           for (const [id, text] of Object.entries(summaries ?? {})) {
             const url = idToUrl.get(id);
-            if (url && text) byUrl[url] = text;
+            if (!url || typeof text !== "string" || !text.trim()) continue;
+            if (!force && !askedNow.has(url)) continue;
+            byUrl[url] = text;
+            if (text.trim() !== currentBody.get(url)) changed[url] = text;
           }
-          // Not applied yet — the reader taps the banner so text never shifts
-          // under them mid-read. handleApplySummaries reads this cache.
-          try {
-            sessionStorage.setItem(cacheKey, JSON.stringify(byUrl));
-            if (apiBrief) sessionStorage.setItem(briefKey, JSON.stringify(apiBrief));
-            if (pickBlurbs) sessionStorage.setItem(picksKey, JSON.stringify(pickBlurbs));
-            if (apiNote) sessionStorage.setItem(noteKey, apiNote);
-          } catch {}
+
+          // Persist everything we learned (including "asked, got snippet back")
+          // so the next load doesn't re-request it; keep only the entries that
+          // would visibly change the page for the reader to apply.
+          mergeSummaryRecord(today, byUrl, Array.from(askedNow), {
+            extrasAsked: force || picksToAsk.length > 0 || wantNote || wantBrief,
+          });
+          if (apiBrief) writeBrief(today, apiBrief);
+          if (pickBlurbs && Object.keys(pickBlurbs).length > 0) writePickBlurbs(today, pickBlurbs);
+          if (apiNote) writeNote(today, apiNote);
+
           if (apiBrief) setBrief(apiBrief);
           if (pickBlurbs) applyPickBlurbs(pickBlurbs);
           if (apiNote) setEditorsNote({ text: apiNote, source: "ai" });
-          setSummaryState("done");
-        },
-      )
-      .catch(() => setSummaryState("done"));
+
+          pendingRef.current = changed;
+          setSummaryState(Object.keys(changed).length > 0 ? "done" : "unchanged");
+        })
+        .catch((err) => {
+          if (controller.signal.aborted && inFlightRef.current !== controller) return; // superseded
+          console.warn("[summarize] failed:", err);
+          pendingRef.current = {};
+          setSummaryState("failed");
+        })
+        .finally(() => {
+          clearTimeout(timer);
+          if (inFlightRef.current === controller) inFlightRef.current = null;
+        });
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [memory === null]);
+    [isArchive, memory, edition.isoDate, edition.date, hero?.headline, summaryArticles, grapevine.picks, applyMap, applyPickBlurbs],
+  );
+
+  const runSummarizeRef = useRef(runSummarize);
+  useEffect(() => {
+    runSummarizeRef.current = runSummarize;
+  }, [runSummarize]);
+
+  // Kick off once reader memory is loaded. A one-shot flag left behind by
+  // "Refresh edition" forces a from-scratch pass on the fresh edition.
+  useEffect(() => {
+    if (isArchive || memory === null) return;
+    const force = consumeForcedSummarize();
+    runSummarizeRef.current(force);
+    return () => {
+      inFlightRef.current?.abort();
+      inFlightRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isArchive, memory === null]);
+
+  const handleRetrySummaries = useCallback(() => runSummarizeRef.current(true), []);
+
+  // "Nothing new" pill dismisses itself.
+  useEffect(() => {
+    if (summaryState !== "unchanged") return;
+    const t = setTimeout(() => setSummaryState("idle"), UNCHANGED_DISMISS_MS);
+    return () => clearTimeout(t);
+  }, [summaryState]);
 
   // --- assemble -----------------------------------------------------------
   const rank = useCallback(
@@ -388,7 +522,11 @@ export default function EditionView({
   return (
     <main className="flex-1">
       {summaryState !== "idle" && (
-        <SummaryBanner state={summaryState} onApply={handleApplySummaries} />
+        <SummaryBanner
+          state={summaryState}
+          onApply={handleApplySummaries}
+          onRetry={handleRetrySummaries}
+        />
       )}
       {!isArchive && (
         <EditionBriefPanel brief={brief} date={edition.date} isLoading={summaryState === "loading"} />
