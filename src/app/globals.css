@@ -190,3 +190,48 @@ section[id],
 article[id] {
   scroll-margin-top: 1rem;
 }
+
+/* ---- Page rhythm ---------------------------------------------------------
+   Every section on the front page is a `.paper-section`: a double rule on
+   top (heavy + hairline, the classic newspaper section break), identical
+   padding above and below, and a small folio in the top-right corner. The
+   header inside always sits at the same distance from the rule, so the
+   reader never has to hunt for where one section ends and the next starts. */
+.paper-section {
+  position: relative;
+  border-top: 3px solid var(--ink);
+  padding: 1.6rem 0 2.75rem;
+}
+.paper-section::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 2px;
+  height: 1px;
+  background: var(--ink);
+}
+.paper-section:last-child {
+  padding-bottom: 2rem;
+}
+.section-folio {
+  position: absolute;
+  right: 0;
+  top: 0.45rem;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  color: var(--ink-soft);
+  letter-spacing: 0.04em;
+}
+.section-head {
+  margin-bottom: 1.25rem;
+}
+
+/* Hairline column divider used by the front-page grid (hero | desk). */
+@media (min-width: 768px) {
+  .col-rule {
+    border-left: 1px solid var(--rule);
+    padding-left: 2rem;
+  }
+}

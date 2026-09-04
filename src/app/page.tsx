@@ -108,12 +108,12 @@ export default async function Home() {
 
   // Interests (names only) — used to weight Editor's Picks toward the reader.
   const interestsRaw = parseInterestsCookie(cookieStore.get("daily-index:interests")?.value);
-  const followedCard = MY_CARDS.find((c) => c.id === interestsRaw.card);
+  const followedCards = MY_CARDS.filter((c) => interestsRaw.cards.includes(c.id));
   // Driver names are resolved after the roster fetch below (see interests).
   const interestsBase = {
     ...interestsRaw,
-    // Resolve the card ID to a matchable name, e.g. "Axis Atlas".
-    card: followedCard ? `${followedCard.issuer} ${followedCard.name}` : "",
+    // Resolve card IDs to matchable names, e.g. "Axis Bank Axis Atlas".
+    cards: followedCards.map((c) => `${c.issuer} ${c.name}`),
   };
 
   const multiSport = userSports.length > 1;
@@ -292,7 +292,7 @@ export default async function Home() {
     ...hateWatchStories,
   ]
     .filter((s) => s.sourceUrl)
-    .map((s) => ({ id: s.id, url: s.sourceUrl!, snippet: s.body[0] ?? "" }));
+    .map((s) => ({ id: s.id, url: s.sourceUrl!, snippet: s.body[0] ?? "", title: s.headline }));
 
   const edition: Edition = {
     ...editionMeta(),

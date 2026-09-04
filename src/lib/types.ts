@@ -156,7 +156,7 @@ export interface GrapevineData {
 // about. Mirrors a subset of Personalization.
 export interface ReaderInterests {
   city: string;
-  card: string;
+  cards: string[];
   f1Drivers: string[];
   f1Team: string;
   footballClub: string;
@@ -308,7 +308,7 @@ export interface Edition {
 export interface Personalization {
   onboarded: boolean;
   homeCity: string;
-  cardFollowing: string;              // single card ID to follow in Plastic & Points
+  cardsFollowing: string[];           // card IDs to follow in Plastic & Points (checkbox list)
   sports: ("f1" | "football" | "tennis")[];
   favoriteF1Team: string;
   favoriteF1Drivers: string[];        // up to 2 driverIds

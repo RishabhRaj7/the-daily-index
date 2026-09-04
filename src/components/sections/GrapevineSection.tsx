@@ -108,12 +108,11 @@ export default function GrapevineSection({
     : (listed ?? "r/popular — add your subreddits in Settings");
 
   return (
-    <section id="grapevine" className="pb-8">
-      <SectionHeader sectionKey="grapevine" />
-      <p className="font-body italic text-sm text-ink-soft -mt-2 mb-5">
-        What a well-read friend would forward you this morning — every item links to a real story
-        fetched for today&rsquo;s edition. Nothing here is invented.
-      </p>
+    <section id="grapevine">
+      <SectionHeader
+        sectionKey="grapevine"
+        sub="What a well-read friend would forward you this morning — every item links to a real story from today's wire."
+      />
 
       <div className="grid md:grid-cols-2 md:divide-x hairline gap-y-8">
         <div className="md:pr-6">

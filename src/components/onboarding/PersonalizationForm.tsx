@@ -314,41 +314,36 @@ export default function PersonalizationForm({
         </label>
 
         <div>
-          <FieldLabel>Credit card you follow</FieldLabel>
-          <div className="divide-y hairline border-y hairline">
-            <label className="flex items-baseline gap-3 py-2 cursor-pointer">
-              <input
-                type="radio"
-                name="card-following"
-                checked={value.cardFollowing === ""}
-                onChange={() => onChange({ ...value, cardFollowing: "" })}
-                className="accent-[#a6291d]"
-              />
-              <span className="text-sm italic text-ink-soft">No card — general card news only</span>
-            </label>
-            {creditCards.map((c) => (
-              <label key={c.id} className="flex items-baseline gap-3 py-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="card-following"
-                  checked={value.cardFollowing === c.id}
-                  onChange={() => onChange({ ...value, cardFollowing: c.id })}
-                  className="accent-[#a6291d] shrink-0 translate-y-[1px]"
-                />
-                <span className="min-w-0">
-                  <span className="font-headline text-[15px] font-semibold leading-tight block">
-                    {c.name}
-                  </span>
-                  <span className="font-mono text-[11px] text-ink-soft block">
-                    {c.issuer} · {c.network} · {c.annualFee} fee
-                  </span>
-                </span>
-              </label>
-            ))}
+          <FieldLabel>Credit cards you follow</FieldLabel>
+          <div className="grid sm:grid-cols-2 gap-x-6">
+            {creditCards.map((c) => {
+              const checked = value.cardsFollowing.includes(c.id);
+              return (
+                <label
+                  key={c.id}
+                  className="flex items-center gap-3 py-2 cursor-pointer border-b hairline"
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() =>
+                      onChange({
+                        ...value,
+                        cardsFollowing: checked
+                          ? value.cardsFollowing.filter((id) => id !== c.id)
+                          : [...value.cardsFollowing, c.id],
+                      })
+                    }
+                    className="accent-[#a6291d] shrink-0 w-4 h-4"
+                  />
+                  <span className="font-headline text-[15px] leading-tight">{c.name}</span>
+                </label>
+              );
+            })}
           </div>
           <Hint>
-            Stories mentioning your card&rsquo;s issuer lead the section, and its fact file prints
-            at the top.
+            Leave all unticked for general card news. Ticked cards get their fact file at the top of
+            Plastic &amp; Points, and stories mentioning their issuers lead the section.
           </Hint>
         </div>
       </Chapter>

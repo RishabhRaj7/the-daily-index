@@ -72,26 +72,40 @@ const ICONS: Partial<Record<SectionKey, React.ReactNode>> = {
   ),
 };
 
+// Every section opens the same way: a heavy ink rule, then a header line
+// with the section glyph, the name, a hairline, and an optional folio
+// (section number / count) on the right. Identical on every section so the
+// eye learns exactly where one ends and the next begins.
 export default function SectionHeader({
   label,
   sectionKey,
+  folio,
+  sub,
 }: {
   label?: string;
   sectionKey?: SectionKey;
+  /** Right-aligned small print, e.g. "§ 3 · 5 stories". */
+  folio?: string;
+  /** One italic line beneath the name — the section's kicker/description. */
+  sub?: string;
 }) {
   const resolvedLabel = label ?? (sectionKey ? SECTION_META[sectionKey].label : "");
+  const resolvedSub = sub;
   const icon = sectionKey ? ICONS[sectionKey] : null;
 
   return (
-    <div className="mb-4">
-      <div className="h-[3px] bg-masthead-red w-full mb-2" />
-      <div className="flex items-center gap-2">
-        {icon && (
-          <div className="text-masthead-red shrink-0 flex items-center">{icon}</div>
-        )}
-        <h2 className="font-label text-sm shrink-0">{resolvedLabel}</h2>
+    <header className="section-head">
+      <div className="flex items-center gap-2.5">
+        {icon && <div className="text-masthead-red shrink-0 flex items-center">{icon}</div>}
+        <h2 className="font-label text-[13px] sm:text-sm shrink-0 leading-none">{resolvedLabel}</h2>
         <div className="h-px flex-1 bg-rule" />
+        {folio && (
+          <span className="font-mono text-[10px] text-ink-soft shrink-0 leading-none">{folio}</span>
+        )}
       </div>
-    </div>
+      {resolvedSub && resolvedSub !== resolvedLabel && (
+        <p className="font-headline italic text-[13px] text-ink-soft mt-1.5 leading-snug">{resolvedSub}</p>
+      )}
+    </header>
   );
 }

@@ -8,7 +8,7 @@ export default function CircuitBoardSection({
   stories: Story[];
 }) {
   return (
-    <section id="circuit-board" className="pb-8">
+    <section id="circuit-board">
       <SectionHeader sectionKey="circuit-board" />
       <div className="divide-y hairline">
         {stories.map((s) => (

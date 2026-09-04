@@ -251,7 +251,7 @@ export default function PaddockNotesSection({
   const sectionLabel = SECTION_META["paddock-notes"].label;
 
   return (
-    <section id="paddock-notes" className="pb-8">
+    <section id="paddock-notes">
       <SectionHeader label={sectionLabel} sectionKey="paddock-notes" />
 
       {!multiSport ? (

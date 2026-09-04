@@ -15,10 +15,10 @@ export default function MarketPulseSection({
   mood: MarketMood | null;
 }) {
   return (
-    <section id="market-pulse" className="pb-8">
-      <SectionHeader sectionKey="market-pulse" />
+    <section id="market-pulse">
+      <SectionHeader sectionKey="market-pulse" folio={indices.length > 0 ? "live tape" : undefined} />
       {indices.length > 0 && (
-        <div className="flex justify-end -mt-3 mb-2">
+        <div className="flex justify-end mb-2">
           <LiveBadge />
         </div>
       )}

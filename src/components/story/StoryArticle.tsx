@@ -20,7 +20,7 @@ export default function StoryArticle({
   const [expanded, setExpanded] = useState(lead);
 
   return (
-    <article id={domId} className="py-6 first:pt-0">
+    <article id={domId} className="py-5 first:pt-0 last:pb-0">
       {story.personal && (
         <div className="font-label text-[10px] text-masthead-red mb-1">
           For you · {story.personal}
@@ -31,7 +31,7 @@ export default function StoryArticle({
           className={
             lead
               ? "font-headline text-2xl sm:text-3xl md:text-4xl font-semibold leading-tight min-w-0"
-              : "font-headline text-lg sm:text-xl md:text-2xl font-semibold leading-snug min-w-0"
+              : "font-headline text-lg sm:text-xl md:text-[1.4rem] font-semibold leading-snug min-w-0 text-balance"
           }
         >
           {story.headline}
@@ -45,10 +45,12 @@ export default function StoryArticle({
         </p>
       )}
 
-      <div className="font-label text-[11px] text-ink-soft flex flex-wrap gap-x-3 gap-y-1 mb-3">
+      <div className="font-label text-[10px] text-ink-soft flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 mb-3">
         {story.dateline && <span>{story.dateline}</span>}
-        <span className="font-mono normal-case">{story.readTimeMin} min read</span>
-        <span className="font-mono normal-case">Updated {story.lastUpdated}</span>
+        {story.readTimeMin > 1 && (
+          <span className="font-mono normal-case tracking-normal">{story.readTimeMin} min read</span>
+        )}
+        <span className="font-mono normal-case tracking-normal">{story.lastUpdated}</span>
       </div>
 
       {story.stats && story.stats.length > 0 && <StatCallout stats={story.stats} />}

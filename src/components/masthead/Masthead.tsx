@@ -5,6 +5,7 @@ import EditionToggle from "./EditionToggle";
 import WeatherCornerBox from "./WeatherCornerBox";
 import ListenButton from "@/components/extras/ListenButton";
 import PullToRefreshStamp from "@/components/chrome/PullToRefreshStamp";
+import SettingsLink from "@/components/chrome/SettingsLink";
 
 export default function Masthead({
   edition,
@@ -35,9 +36,7 @@ export default function Masthead({
               The Morgue
             </Link>
           )}
-          <Link href="/settings" className="underline">
-            Settings
-          </Link>
+          <SettingsLink className="underline">Settings</SettingsLink>
         </div>
       </div>
 

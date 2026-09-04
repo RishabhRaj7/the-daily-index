@@ -51,8 +51,67 @@ async function fetchArticleText(url: string): Promise<string | null> {
 // Input: array of { id, url, snippet } — id is used to key the output map.
 // Output: Map<id, summary> — falls back to the raw snippet for any article
 // that couldn't be summarised (parse failure, API error, etc.).
+export interface SummarizeInput {
+  id: string;
+  url: string;
+  snippet: string;
+  /** The headline as printed. Anchors the model to the right story and lets
+   *  us reject summaries that drifted onto a different article. */
+  title?: string;
+}
+
+// Phrases that make a summary read like a template rather than a paragraph a
+// person wrote. If the model slips one in we strip the sentence.
+const ROBOTIC_OPENERS =
+  /(^|\.\s+)(it|this|that)\s+(matters|is (significant|important|notable))\s+because[^.]*\.\s*/gi;
+
+function humanise(text: string): string {
+  return text
+    .replace(ROBOTIC_OPENERS, (m, lead: string) => (lead === "" ? "" : lead))
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+// Words in a headline that carry meaning — used to check the summary is
+// about the same story as the headline it will sit under.
+function keyTokens(s: string): string[] {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(
+      (t) =>
+        t.length >= 4 &&
+        !["with", "from", "that", "this", "after", "over", "into", "amid", "says", "said", "will", "have", "been", "were", "what", "when", "your", "their", "about", "more", "than", "just", "here", "live", "news", "report", "update"].includes(t),
+    );
+}
+
+function looksOnTopic(title: string | undefined, summary: string): boolean {
+  if (!title) return true;
+  const toks = keyTokens(title);
+  if (toks.length === 0) return true;
+  const hay = summary.toLowerCase();
+  const hits = toks.filter((t) => hay.includes(t.slice(0, Math.min(t.length, 6)))).length;
+  // Short headlines: any one hit; longer ones: at least a quarter.
+  return hits >= Math.max(1, Math.ceil(toks.length * 0.25));
+}
+
+// Some publishers serve a paywall, consent page or their homepage instead of
+// the article. Only trust fetched text when it plainly matches the headline.
+function fetchedTextMatches(title: string | undefined, text: string): boolean {
+  if (!title) return true;
+  const toks = keyTokens(title);
+  if (toks.length === 0) return true;
+  const hay = text.slice(0, 2000).toLowerCase();
+  const hits = toks.filter((t) => hay.includes(t.slice(0, Math.min(t.length, 6)))).length;
+  return hits >= Math.max(1, Math.ceil(toks.length * 0.3));
+}
+
+// Summarises all articles in a single Gemini call.
+// Output: Map<id, summary> — falls back to the raw snippet for any article
+// that couldn't be summarised (parse failure, off-topic result, API error).
 export async function batchSummarize(
-  articles: Array<{ id: string; url: string; snippet: string }>,
+  articles: SummarizeInput[],
 ): Promise<Map<string, string>> {
   const fallback = new Map(articles.map((a) => [a.id, a.snippet]));
   if (!aiEnabled() || articles.length === 0) return fallback;
@@ -63,25 +122,37 @@ export async function batchSummarize(
   // Fetch full article text in parallel — plain HTTP, no AI quota used here.
   const texts = await Promise.all(articles.map((a) => fetchArticleText(a.url)));
 
-  // Build the unified prompt.
   const articleBlocks = articles
     .map((a, i) => {
-      const content = texts[i] ?? a.snippet;
+      const fetched = texts[i];
+      const content =
+        fetched && fetchedTextMatches(a.title, fetched) ? fetched : a.snippet || "(no body available)";
       const source = a.url.replace(/^https?:\/\/(www\.)?/, "").split("/")[0];
-      return `[${i}] ${source}\n${content}`;
+      return `<article index="${i}" source="${source}">
+HEADLINE: ${a.title ?? "(untitled)"}
+TEXT: ${content}
+</article>`;
     })
-    .join("\n\n---\n\n");
+    .join("\n\n");
 
-  const prompt = `You are writing article summaries for "The Daily Index", a personal daily news digest app.
+  const prompt = `You write the short news items for "The Daily Index", a one-reader morning paper. Your reader is a smart adult who wants to know what happened, quickly, in the voice of a good newspaper — not a press release and not an AI.
 
-For each article below, write a 3–5 sentence summary. Cover who, what, where, when, and why it matters. Write in plain prose — no bullet points, no markdown, no headers.
+For each <article> below, write ONE paragraph of three to five sentences that stands in for the story. Each summary will be printed directly beneath its HEADLINE, so it must be about that headline's story and nothing else.
 
-Return a JSON array with exactly one object per article, in the SAME ORDER as the input. Use this exact schema:
-[{"i": 0, "summary": "..."}, {"i": 1, "summary": "..."}, ...]
+How to write it:
+- Lead with the news itself: what actually happened, who did it, and the concrete detail (numbers, names, places, dates) that makes it real.
+- Then give the context a reader needs — what led here, what's at stake, what happens next — folded naturally into the prose. Vary how you do this from item to item.
+- Sound like a person. Use plain, specific verbs. Sentences can vary in length. Contractions are fine.
+- Stay strictly within the facts in TEXT (or the HEADLINE if TEXT is thin). Never invent quotes, figures or outcomes. If the text is only a headline, write one or two honest sentences rather than padding.
+- If TEXT clearly describes a different story than the HEADLINE (wrong page, homepage, paywall), write from the HEADLINE alone.
 
-Do not include any text outside the JSON array.
+Never do these:
+- Do not use the phrases "It matters because", "This matters because", "This is significant", "In summary", "Overall", "In conclusion", "The article", "The piece", "The author", "This development", "underscores", "highlights", "showcases", "delve", "landscape", "pivotal", "crucial", "game-changer", "testament".
+- Do not begin every paragraph the same way. Do not end every paragraph with a why-it-matters sentence.
+- No bullet points, markdown, headers, hashtags or emoji. No first person.
 
---- ARTICLES ---
+Return ONLY a JSON array with exactly one object per article, in the same order, using this schema:
+[{"i": 0, "summary": "..."}, {"i": 1, "summary": "..."}]
 
 ${articleBlocks}`;
 
@@ -94,9 +165,14 @@ ${articleBlocks}`;
     const out = new Map(articles.map((a) => [a.id, a.snippet]));
     for (const item of parsed) {
       const article = articles[item.i];
-      if (article && typeof item.summary === "string" && item.summary.trim()) {
-        out.set(article.id, item.summary.trim());
+      if (!article || typeof item.summary !== "string") continue;
+      const summary = humanise(item.summary);
+      if (summary.length < 40) continue;
+      if (!looksOnTopic(article.title, summary)) {
+        console.warn("[batchSummarize] off-topic summary rejected for:", article.title);
+        continue;
       }
+      out.set(article.id, summary);
     }
     return out;
   } catch (err) {
@@ -138,7 +214,7 @@ export async function generateEditionBrief(
 
   const content = items.map((s) => `${s.section}: ${s.text}`).join("\n\n");
 
-  const prompt = `You are the editor of "The Daily Index", a personal news digest. Write a scannable "at a glance" brief — one bullet per section, max 20 words each.
+  const prompt = `You edit "The Daily Index", a one-reader morning paper. Write the "at a glance" strip: one line per section, at most 18 words, in the clipped voice of a front-page index — the fact first, no throat-clearing, no "matters because", no adjectives doing the work of facts.
 
 ${content}
 
@@ -169,7 +245,7 @@ export async function summarizeTrend(
     model: process.env.GEMINI_MODEL ?? "gemini-2.0-flash",
   });
 
-  const prompt = `This Reddit post on r/${subreddit} has ${upvotes.toLocaleString()} upvotes and ${comments.toLocaleString()} comments: "${title}". In 2 concise sentences, explain what this story is about and why it's generating so much discussion. Be specific and informative.`;
+  const prompt = `A post on r/${subreddit} titled "${title}" has ${upvotes.toLocaleString()} upvotes and ${comments.toLocaleString()} comments. In two plain sentences, as a well-read friend would put it, say what the post is about and what people are likely arguing over. Use only what the title tells you — don't invent details. No "it matters because", no hype words, no emoji.`;
 
   try {
     const result = await model.generateContent(prompt);

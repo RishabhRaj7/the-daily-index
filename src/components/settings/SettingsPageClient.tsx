@@ -12,6 +12,7 @@ import PersonalizationForm from "@/components/onboarding/PersonalizationForm";
 import RedditConnect from "@/components/settings/RedditConnect";
 import Link from "next/link";
 import { clearMemory, loadMemory } from "@/lib/reader-memory";
+import { SETTINGS_RETURN_KEY } from "@/components/chrome/SettingsLink";
 
 const MAX_SUBS = 8;
 
@@ -40,6 +41,24 @@ export default function SettingsPageClient({
     () => baseline !== "" && JSON.stringify(draft) !== baseline,
     [draft, baseline],
   );
+
+  // Discard the draft and close settings. Going *back* restores the paper
+  // from the router's cache instantly; pushing "/" would re-run the whole
+  // server render (fetching every feed again), which reads like a reload.
+  const handleClose = () => {
+    if (baseline) {
+      try {
+        setDraft(JSON.parse(baseline) as Personalization);
+      } catch {}
+    }
+    let cameFromPaper = false;
+    try {
+      cameFromPaper = sessionStorage.getItem(SETTINGS_RETURN_KEY) === "back";
+      sessionStorage.removeItem(SETTINGS_RETURN_KEY);
+    } catch {}
+    if (cameFromPaper && window.history.length > 1) router.back();
+    else router.push("/");
+  };
 
   const handleSave = () => {
     savePersonalization({ ...draft, onboarded: true });
@@ -117,10 +136,10 @@ export default function SettingsPageClient({
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <button
             type="button"
-            onClick={() => router.push("/")}
+            onClick={handleClose}
             className="text-sm underline text-ink-soft"
           >
-            ← {dirty ? "Discard" : "Back to the paper"}
+            ← {dirty ? "Discard changes" : "Back to the paper"}
           </button>
           <span className="font-mono text-[11px] text-ink-soft hidden sm:block">
             {saved ? "Saved — reprinting…" : dirty ? "Unsaved changes" : "Everything saved"}

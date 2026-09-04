@@ -8,7 +8,7 @@ export default function LedgerSection({
   stories: Story[];
 }) {
   return (
-    <section id="ledger" className="pb-8">
+    <section id="ledger">
       <SectionHeader sectionKey="ledger" />
       <div className="divide-y hairline">
         {stories.map((s) => (

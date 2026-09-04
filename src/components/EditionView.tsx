@@ -74,7 +74,7 @@ export default function EditionView({
   f1Live?: boolean;
   redditLive?: boolean;
   hateWatchStories?: Story[];
-  summaryArticles?: Array<{ id: string; url: string; snippet: string }>;
+  summaryArticles?: Array<{ id: string; url: string; snippet: string; title?: string }>;
   f1Stories?: Story[];
   footballStories?: Story[];
   tennisStories?: Story[];
@@ -157,9 +157,15 @@ export default function EditionView({
   }, [isArchive, personalization.homeCity]);
 
   // --- summaries / picks / editor's note -----------------------------------
-  const applyMap = useCallback((summaries: Record<string, string>) => {
+  // Summaries are keyed by the article URL, never by the positional story id
+  // ("wire-dateline-0"). Positional ids are reused across reloads while the
+  // feed order changes, so an id-keyed cache would print yesterday's third
+  // summary under today's third headline. URL-keying makes that impossible.
+  const applyMap = useCallback((byUrl: Record<string, string>) => {
     const enrich = (stories: Story[]) =>
-      stories.map((s) => (summaries[s.id] ? { ...s, body: [summaries[s.id]] } : s));
+      stories.map((s) =>
+        s.sourceUrl && byUrl[s.sourceUrl] ? { ...s, body: [byUrl[s.sourceUrl]] } : s,
+      );
     setEdition((prev) => ({
       ...prev,
       sections: {
@@ -190,7 +196,7 @@ export default function EditionView({
   const handleApplySummaries = useCallback(() => {
     const today = edition.isoDate;
     try {
-      const cached = sessionStorage.getItem(`daily-index:summaries:${today}`);
+      const cached = sessionStorage.getItem(`daily-index:summaries:v2:${today}`);
       if (cached) applyMap(JSON.parse(cached) as Record<string, string>);
       const cachedBrief = sessionStorage.getItem(`daily-index:brief:${today}`);
       if (cachedBrief) setBrief(JSON.parse(cachedBrief));
@@ -201,7 +207,7 @@ export default function EditionView({
   useEffect(() => {
     if (isArchive || memory === null) return;
     const today = edition.isoDate;
-    const cacheKey = `daily-index:summaries:${today}`;
+    const cacheKey = `daily-index:summaries:v2:${today}`;
     const briefKey = `daily-index:brief:${today}`;
     const picksKey = `daily-index:picks:${today}`;
     const noteKey = `daily-index:note:${today}`;
@@ -262,8 +268,16 @@ export default function EditionView({
           pickBlurbs?: Record<string, string>;
           editorsNote?: string | null;
         }) => {
+          const idToUrl = new Map(summaryArticles.map((a) => [a.id, a.url]));
+          const byUrl: Record<string, string> = {};
+          for (const [id, text] of Object.entries(summaries ?? {})) {
+            const url = idToUrl.get(id);
+            if (url && text) byUrl[url] = text;
+          }
+          // Not applied yet — the reader taps the banner so text never shifts
+          // under them mid-read. handleApplySummaries reads this cache.
           try {
-            sessionStorage.setItem(cacheKey, JSON.stringify(summaries ?? {}));
+            sessionStorage.setItem(cacheKey, JSON.stringify(byUrl));
             if (apiBrief) sessionStorage.setItem(briefKey, JSON.stringify(apiBrief));
             if (pickBlurbs) sessionStorage.setItem(picksKey, JSON.stringify(pickBlurbs));
             if (apiNote) sessionStorage.setItem(noteKey, apiNote);
@@ -347,7 +361,7 @@ export default function EditionView({
       <PlasticPointsSection
         stories={without(edition.sections.plasticPoints)}
         cards={edition.creditCards}
-        cardFollowing={personalization.cardFollowing}
+        cardsFollowing={personalization.cardsFollowing}
       />
     ),
     "market-pulse": () => (
@@ -385,19 +399,34 @@ export default function EditionView({
         weatherLive={liveWeather !== null}
       />
       <div className="max-w-5xl mx-auto px-4">
-        {hero && <HeroStory story={hero} />}
-        {!isArchive && profile && editorsNote && (
-          <EditorsDesk
-            note={editorsNote.text}
-            noteSource={editorsNote.source}
-            profile={profile}
-            onThisDay={personalOtd}
-            isSunday={isSunday}
-          />
+        {/* Front page: the lead story runs two-thirds wide; the Editor's Desk
+            sits in the right-hand column like a standing front-page box. */}
+        {hero && (
+          <div
+            className={
+              !isArchive && profile && editorsNote
+                ? "grid md:grid-cols-[minmax(0,1fr)_280px] gap-x-8 gap-y-8 pt-8 pb-10"
+                : "pt-8 pb-10"
+            }
+          >
+            <HeroStory story={hero} />
+            {!isArchive && profile && editorsNote && (
+              <EditorsDesk
+                note={editorsNote.text}
+                noteSource={editorsNote.source}
+                profile={profile}
+                onThisDay={personalOtd}
+                isSunday={isSunday}
+              />
+            )}
+          </div>
         )}
         <div>
-          {order.map((key) => (
-            <div key={key} className="mt-10">
+          {order.map((key, i) => (
+            <div key={key} className="paper-section">
+              <span className="section-folio" aria-hidden="true">
+                § {i + 1} / {order.length}
+              </span>
               {sectionRenderers[key]()}
             </div>
           ))}

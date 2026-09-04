@@ -1,4 +1,4 @@
-import Link from "next/link";
+import SettingsLink from "@/components/chrome/SettingsLink";
 import type { WeatherNow } from "@/lib/types";
 import SectionHeader from "@/components/story/SectionHeader";
 import LiveBadge from "@/components/widgets/LiveBadge";
@@ -26,7 +26,7 @@ export default function SkyReportSection({
 }) {
   if (!weather) {
     return (
-      <section id="sky-report" className="pb-8">
+      <section id="sky-report">
         <SectionHeader sectionKey="sky-report" />
         {status === "loading" ? (
           <div className="grid md:grid-cols-[1fr_220px] gap-6" aria-busy="true">
@@ -53,9 +53,9 @@ export default function SkyReportSection({
               We couldn&rsquo;t fetch conditions for{" "}
               <span className="font-mono">{city || "your home city"}</span> this time. If the city name
               looks off, fix it in{" "}
-              <Link href="/settings" className="text-masthead-red underline underline-offset-2">
+              <SettingsLink className="text-masthead-red underline underline-offset-2">
                 Settings
-              </Link>
+              </SettingsLink>
               ; otherwise the next refresh should sort it out. Look out of a window in the meantime.
             </p>
           </div>
@@ -65,7 +65,7 @@ export default function SkyReportSection({
   }
 
   return (
-    <section id="sky-report" className="pb-8">
+    <section id="sky-report">
       <SectionHeader sectionKey="sky-report" />
 
       <div className="grid md:grid-cols-[1fr_220px] gap-6">

@@ -4,14 +4,38 @@ import Link from "next/link";
 import type { IssueRecord, ReaderProfile } from "@/lib/types";
 import { SECTION_META } from "@/lib/sections";
 
-// "From the Editor's Desk" — a short note that proves the paper remembers
-// you, plus a small ledger of your reading habit. All data is local.
+// "From the Editor's Desk" — a standing front-page box in the right-hand
+// column: the morning note, then a compact ledger of the reader's habit.
+// Everything here is local to the browser.
 
 function formatShort(iso: string): string {
   return new Date(iso + "T12:00:00").toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
   });
+}
+
+function Stat({
+  label,
+  value,
+  unit,
+  note,
+}: {
+  label: string;
+  value: string | number;
+  unit?: string;
+  note?: string | null;
+}) {
+  return (
+    <div className="py-2.5 border-b hairline last:border-b-0">
+      <dt className="font-label text-[9px] text-ink-soft leading-none mb-1.5">{label}</dt>
+      <dd className="font-mono text-[22px] leading-none tabular-nums">
+        {value}
+        {unit && <span className="font-body text-xs text-ink-soft ml-1.5">{unit}</span>}
+      </dd>
+      {note && <dd className="font-mono text-[10px] text-ink-soft mt-1 truncate">{note}</dd>}
+    </div>
+  );
 }
 
 export default function EditorsDesk({
@@ -30,20 +54,19 @@ export default function EditorsDesk({
   const fav = profile.favouriteSection ? SECTION_META[profile.favouriteSection].kicker : null;
 
   return (
-    <aside
-      aria-label="From the Editor's Desk"
-      className="my-10 border-y-2 border-ink py-5 grid md:grid-cols-[1fr_260px] gap-8"
-    >
-      <div>
-        <div className="flex items-baseline gap-3 mb-2">
-          <h2 className="font-label text-[11px] text-masthead-red">From the Editor&rsquo;s Desk</h2>
-          <span className="font-mono text-[10px] text-ink-soft">
-            {noteSource === "ai" ? "written this morning" : "set in standing type"}
+    <aside aria-label="From the Editor's Desk" className="col-rule min-w-0 md:pt-1">
+      <div className="paper-box paper-box-tight">
+        <div className="flex items-baseline justify-between gap-3 mb-2">
+          <h2 className="font-label text-[10px] text-masthead-red leading-none">
+            From the Editor&rsquo;s Desk
+          </h2>
+          <span className="font-mono text-[9px] text-ink-soft leading-none shrink-0">
+            {noteSource === "ai" ? "written this morning" : "standing type"}
           </span>
         </div>
-        <p className="font-headline italic text-lg md:text-xl leading-relaxed text-ink">{note}</p>
+        <p className="font-headline italic text-[17px] leading-[1.45] text-ink">{note}</p>
         {isSunday && profile.totalIssues >= 3 && (
-          <p className="font-body text-sm text-ink-soft mt-3">
+          <p className="font-body text-[13px] text-ink-soft mt-3 leading-snug">
             It&rsquo;s Sunday —{" "}
             <Link href="/archive#week" className="text-masthead-red underline underline-offset-2">
               your week in review
@@ -53,50 +76,42 @@ export default function EditorsDesk({
         )}
       </div>
 
-      <dl className="md:border-l hairline md:pl-6 grid grid-cols-3 md:grid-cols-1 gap-x-4 gap-y-3 content-start">
-        <div>
-          <dt className="font-label text-[9px] text-ink-soft">Streak</dt>
-          <dd className="font-mono text-2xl leading-none mt-1 tabular-nums">
-            {profile.streak}
-            <span className="font-body text-xs text-ink-soft ml-1">
-              {profile.streak === 1 ? "day" : "days"}
-            </span>
-          </dd>
-          {profile.longestStreak > profile.streak && (
-            <dd className="font-mono text-[10px] text-ink-soft mt-0.5">best {profile.longestStreak}</dd>
-          )}
-        </div>
-        <div>
-          <dt className="font-label text-[9px] text-ink-soft">Issues opened</dt>
-          <dd className="font-mono text-2xl leading-none mt-1 tabular-nums">{profile.totalIssues}</dd>
-          {profile.firstOpened && (
-            <dd className="font-mono text-[10px] text-ink-soft mt-0.5">
-              since {formatShort(profile.firstOpened.slice(0, 10))}
-            </dd>
-          )}
-        </div>
-        <div>
-          <dt className="font-label text-[9px] text-ink-soft">Most read</dt>
-          <dd className="font-headline text-base leading-tight mt-1">{fav ?? "—"}</dd>
+      <dl className="mt-4 grid grid-cols-3 md:grid-cols-1 gap-x-4">
+        <Stat
+          label="Streak"
+          value={profile.streak}
+          unit={profile.streak === 1 ? "day" : "days"}
+          note={profile.longestStreak > profile.streak ? `best ${profile.longestStreak}` : null}
+        />
+        <Stat
+          label="Issues opened"
+          value={profile.totalIssues}
+          note={profile.firstOpened ? `since ${formatShort(profile.firstOpened.slice(0, 10))}` : null}
+        />
+        <div className="py-2.5 border-b hairline md:last:border-b-0">
+          <dt className="font-label text-[9px] text-ink-soft leading-none mb-1.5">Most read</dt>
+          <dd className="font-headline text-[15px] leading-tight">{fav ?? "—"}</dd>
           {profile.favouriteSource && (
-            <dd className="font-mono text-[10px] text-ink-soft mt-0.5 truncate">via {profile.favouriteSource}</dd>
+            <dd className="font-mono text-[10px] text-ink-soft mt-1 truncate">via {profile.favouriteSource}</dd>
           )}
         </div>
+      </dl>
 
-        {onThisDay.length > 0 && (
-          <div className="col-span-3 md:col-span-1 border-t hairline pt-3 mt-1">
-            <dt className="font-label text-[9px] text-ink-soft mb-1.5">Your front page, then</dt>
+      {onThisDay.length > 0 && (
+        <div className="mt-4 pt-3 border-t hairline">
+          <div className="font-label text-[9px] text-ink-soft leading-none mb-2">Your front page, then</div>
+          <ul className="space-y-2">
             {onThisDay.map(({ label, issue }) => (
-              <dd key={issue.isoDate} className="mb-2 last:mb-0">
+              <li key={issue.isoDate}>
                 <span className="font-mono text-[10px] text-ink-soft">
                   {label} · No. {issue.issue}
                 </span>
                 <p className="font-headline text-[13px] leading-snug">{issue.heroHeadline}</p>
-              </dd>
+              </li>
             ))}
-          </div>
-        )}
-      </dl>
+          </ul>
+        </div>
+      )}
     </aside>
   );
 }

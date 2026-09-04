@@ -197,3 +197,44 @@ F1 drivers use a chip multi-select directly (not `SuggestionInput`) since all 22
   `pickHeroStory` gives tagged stories +25 toward the lead; `StoryArticle` and
   the hero print a "For you · <interest>" kicker explaining the prominence.
 - New Topics input (ch. IV) feeds the same matchers at weight 6 everywhere.
+
+---
+
+## Changes in this pass (summaries, cards, settings, front-page design)
+
+### Why there is a database at all
+- Postgres holds exactly one thing: the `reddit_connection` row (Login-with-Reddit
+  refresh token + cached subscription list). Refresh tokens must never reach the
+  browser, so they need server-side storage. Every other preference lives in
+  localStorage + cookies. Without Reddit login the app is fully stateless.
+
+### Summaries (`lib/live/summarize.ts`, `EditionView.tsx`)
+- Prompt rewritten for natural newsroom prose; the "It matters because…" template
+  and other tells are banned in the prompt *and* stripped post-hoc (`humanise()`).
+- Each article is sent with its HEADLINE. Fetched page text is only used if it
+  matches the headline (paywall/homepage guard); returned summaries that don't
+  match their headline are rejected and the RSS snippet is kept.
+- Root cause of headline/body mix-ups: summaries were cached in sessionStorage
+  by *positional* id (`wire-dateline-0`) which is reused across reloads while the
+  feed order changes. The cache is now keyed by article URL (`summaries:v2`).
+
+### Cards
+- `Personalization.cardFollowing: string` → `cardsFollowing: string[]` (checkbox
+  list of names). `ReaderInterests.card` → `cards`. Old values migrate on load.
+- `lib/config/cards.ts` fact files corrected against issuer headline terms.
+
+### Settings
+- "← Back to the paper / Discard changes" resets the draft and calls
+  `router.back()` (instant, from router cache) when settings was opened from the
+  paper (`SettingsLink` sets a sessionStorage marker); otherwise `router.push("/")`.
+
+### Front page
+- Hero + Editor's Desk are one grid (lead 2/3, desk in the right column).
+- Every section is wrapped in `.paper-section`: double top rule, identical
+  padding, `§ n / N` folio. `SectionHeader` is uniform; no negative margins.
+
+### Reddit / Devvit
+- Devvit (`@devvit/web/server`) is Reddit's platform for apps that run *inside*
+  Reddit (custom posts, mod tools) and is hosted by Reddit — it cannot be imported
+  by an external Next.js site, and Devvit explicitly cannot read a user's
+  subscribed subreddits. Standard OAuth (this app) remains the right integration.

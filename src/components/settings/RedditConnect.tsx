@@ -75,13 +75,19 @@ export default function RedditConnect({
 
   if (!status.configured) {
     return (
-      <p className="text-[11px] text-ink-soft leading-relaxed">
-        Reddit login isn&rsquo;t switched on for this site yet — the site owner needs to add{" "}
-        <span className="font-mono">REDDIT_CLIENT_ID</span> and{" "}
-        <span className="font-mono">REDDIT_CLIENT_SECRET</span> (free, from{" "}
-        <span className="font-mono">reddit.com/prefs/apps</span>) to the server environment. The
-        hand-picked list below works regardless.
-      </p>
+      <div className="text-[11px] text-ink-soft leading-relaxed space-y-1.5">
+        <p>
+          Reddit login isn&rsquo;t switched on yet. It activates automatically once the server has{" "}
+          <span className="font-mono">REDDIT_CLIENT_ID</span> and{" "}
+          <span className="font-mono">REDDIT_CLIENT_SECRET</span> set — free from{" "}
+          <span className="font-mono">reddit.com/prefs/apps</span> (create a &ldquo;web app&rdquo;).
+        </p>
+        <p>
+          One more field matters: the app&rsquo;s <em>redirect uri</em> must be exactly{" "}
+          <span className="font-mono">{typeof window !== "undefined" ? window.location.origin : ""}/api/reddit/callback</span>.
+          The hand-picked list below works regardless.
+        </p>
+      </div>
     );
   }
 
