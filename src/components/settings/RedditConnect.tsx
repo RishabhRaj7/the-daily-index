@@ -5,6 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 interface Status {
   configured: boolean;
   connected: boolean;
+  /** False when the server has no database to remember a connected account. */
+  storage?: boolean;
   username?: string;
   subCount?: number;
 }
@@ -32,7 +34,11 @@ export default function RedditConnect({
       setMessage("Reddit account connected — your subscriptions now feed the column.");
       window.history.replaceState(null, "", window.location.pathname);
     } else if (params.get("reddit") === "error") {
-      setMessage("Reddit connection failed — nothing changed. You can retry below.");
+      setMessage(
+        params.get("reason") === "db"
+          ? "Reddit login needs a database to remember your account, and none is configured on this server. Your hand-picked list below still works."
+          : "Reddit connection failed — nothing changed. You can retry below.",
+      );
       window.history.replaceState(null, "", window.location.pathname);
     }
   }, []);
@@ -86,6 +92,18 @@ export default function RedditConnect({
           One more field matters: the app&rsquo;s <em>redirect uri</em> must be exactly{" "}
           <span className="font-mono">{typeof window !== "undefined" ? window.location.origin : ""}/api/reddit/callback</span>.
           The hand-picked list below works regardless.
+        </p>
+      </div>
+    );
+  }
+
+  if (status.storage === false) {
+    return (
+      <div className="text-[11px] text-ink-soft leading-relaxed space-y-1.5">
+        <p>
+          Reddit login is ready on the server but there&rsquo;s no database to remember your
+          account (<span className="font-mono">DATABASE_URL</span> isn&rsquo;t set). The
+          hand-picked subreddit list below works without one.
         </p>
       </div>
     );

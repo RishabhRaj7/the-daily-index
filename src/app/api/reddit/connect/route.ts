@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { redditAuthAvailable, redditCallbackUrl } from "@/lib/reddit-auth";
+import {
+  redditAuthAvailable,
+  redditCallbackUrl,
+  redditStorageAvailable,
+} from "@/lib/reddit-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +15,12 @@ export async function GET(req: Request) {
       { error: "Reddit API credentials are not configured on the server." },
       { status: 500 },
     );
+  }
+  if (!redditStorageAvailable()) {
+    // No database → nowhere to keep the refresh token. Bounce back with a
+    // readable reason rather than starting an OAuth dance we can't finish.
+    const origin = new URL(req.url).origin;
+    return NextResponse.redirect(`${origin}/settings?reddit=error&reason=db`);
   }
   const origin = new URL(req.url).origin;
   const redirectUri = redditCallbackUrl(origin);

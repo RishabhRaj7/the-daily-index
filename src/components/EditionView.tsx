@@ -376,6 +376,7 @@ export default function EditionView({
         data={grapevine}
         subreddits={feedSubreddits ?? personalization.subreddits}
         redditUser={redditUser}
+        dateKey={edition.isoDate}
       />
     ),
   };

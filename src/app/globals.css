@@ -235,3 +235,10 @@ article[id] {
     padding-left: 2rem;
   }
 }
+
+/* Puzzle Desk: brief wobble on a wrong Headline Scramble guess. */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-3px); }
+  75% { transform: translateX(3px); }
+}

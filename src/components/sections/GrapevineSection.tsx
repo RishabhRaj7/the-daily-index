@@ -3,12 +3,16 @@
 import type { EditorsPick, GrapevineData, TrendingTopic } from "@/lib/types";
 import SectionHeader from "@/components/story/SectionHeader";
 import LiveBadge from "@/components/widgets/LiveBadge";
+import PuzzleDesk from "@/components/widgets/PuzzleDesk";
 
 // The Grapevine: two newspaper columns, separated by a hairline, no cards.
 //   Left  — "You Should See This": real stories lifted from today's own wire
 //           pool, weighted toward the reader's interests. Nothing invented.
 //   Right — "Overheard on Reddit": top posts from the reader's subreddits via
-//           the official API, or an honest note about why the column is thin.
+//           the official API. When Reddit has nothing for us (blocked network,
+//           rate-limited, unconfigured) the same column becomes "The Puzzle
+//           Desk" — a couple of small games built from today's headlines —
+//           rather than printing an error. Same footprint either way.
 
 function ColumnHead({ title, sub, right }: { title: string; sub: string; right?: React.ReactNode }) {
   return (
@@ -92,13 +96,25 @@ export default function GrapevineSection({
   data,
   subreddits = [],
   redditUser = null,
+  dateKey,
 }: {
   data: GrapevineData;
   subreddits?: string[];
   redditUser?: string | null;
+  /** Edition date (YYYY-MM-DD); seeds the daily puzzle so it's stable on reload. */
+  dateKey?: string;
 }) {
+  // Seed from the edition date + the picks themselves so the puzzle only
+  // changes when the paper does.
+  const puzzleDateKey = `${dateKey ?? "edition"}:${data.picks.map((p) => p.id).join("|")}`;
   const picks = data.picks.slice(0, 5);
   const reddit = data.reddit.slice(0, 5);
+  const puzzleMode = reddit.length === 0;
+  const puzzleHeadlines = data.picks.map((p) => p.title);
+  const puzzleNote =
+    data.redditStatus === "unconfigured"
+      ? "Reddit isn't wired up yet — the Puzzle Desk keeps this column busy meanwhile."
+      : "Reddit's wire is quiet this edition — the Puzzle Desk keeps this column busy meanwhile.";
   const listed =
     subreddits.length > 0
       ? subreddits.slice(0, 3).map((s) => `r/${s}`).join(", ") + (subreddits.length > 3 ? " & more" : "")
@@ -134,23 +150,29 @@ export default function GrapevineSection({
         </div>
 
         <div className="md:pl-6">
-          <ColumnHead
-            title="Overheard on Reddit"
-            sub={`Top of the day in ${subLabel}`}
-            right={data.redditStatus === "live" ? <LiveBadge /> : undefined}
-          />
-          {reddit.length === 0 ? (
-            <p className="font-body italic text-sm text-ink-soft">
-              The Reddit column is empty this edition.
-            </p>
+          {puzzleMode ? (
+            <>
+              <ColumnHead
+                title="The Puzzle Desk"
+                sub="Two minutes of play, set from today's headlines"
+              />
+              <PuzzleDesk headlines={puzzleHeadlines} dateKey={puzzleDateKey} note={puzzleNote} />
+            </>
           ) : (
-            <ul className="divide-y hairline">
-              {reddit.map((t) => (
-                <RedditItem key={t.id} topic={t} />
-              ))}
-            </ul>
+            <>
+              <ColumnHead
+                title="Overheard on Reddit"
+                sub={`Top of the day in ${subLabel}`}
+                right={data.redditStatus === "live" ? <LiveBadge /> : undefined}
+              />
+              <ul className="divide-y hairline">
+                {reddit.map((t) => (
+                  <RedditItem key={t.id} topic={t} />
+                ))}
+              </ul>
+              <RedditStatusLine status={data.redditStatus} note={data.redditNote} />
+            </>
           )}
-          <RedditStatusLine status={data.redditStatus} note={data.redditNote} />
         </div>
       </div>
     </section>

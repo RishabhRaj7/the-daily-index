@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { db } from "@/db";
+import { getDb, isDatabaseConfigured } from "@/db";
 import { redditConnections, type RedditConnection } from "@/db/schema";
 
 // ---------------------------------------------------------------------------
@@ -33,7 +33,14 @@ export function redditAuthAvailable(): boolean {
   return oauthCreds() !== null;
 }
 
+/** Login-with-Reddit needs somewhere to keep the refresh token. */
+export function redditStorageAvailable(): boolean {
+  return isDatabaseConfigured();
+}
+
 export async function getRedditConnection(): Promise<RedditConnection | null> {
+  const db = getDb();
+  if (!db) return null;
   try {
     const rows = await db
       .select()
@@ -53,6 +60,10 @@ export async function saveRedditConnection(input: {
   accessToken?: string;
   accessExpiresAt?: Date;
 }): Promise<void> {
+  const db = getDb();
+  if (!db) {
+    throw new Error("Database not configured; cannot persist the Reddit connection.");
+  }
   await db
     .insert(redditConnections)
     .values({
@@ -76,6 +87,8 @@ export async function saveRedditConnection(input: {
 }
 
 export async function clearRedditConnection(): Promise<void> {
+  const db = getDb();
+  if (!db) return;
   try {
     await db.delete(redditConnections).where(eq(redditConnections.id, ROW_ID));
   } catch (err) {
@@ -134,7 +147,9 @@ async function refreshUserToken(conn: RedditConnection): Promise<string | null> 
   );
   if (!out) return null;
   try {
-    await db
+    const db = getDb();
+    if (db) {
+      await db
       .update(redditConnections)
       .set({
         accessToken: out.access,
@@ -142,6 +157,7 @@ async function refreshUserToken(conn: RedditConnection): Promise<string | null> 
         updatedAt: new Date(),
       })
       .where(eq(redditConnections.id, ROW_ID));
+    }
   } catch (err) {
     console.error("[reddit-auth] persist refreshed token failed:", err);
   }
@@ -218,10 +234,13 @@ export async function getUserSubreddits(): Promise<string[]> {
       );
     const unique = [...new Set(names)].slice(0, 100);
     if (unique.length > 0) {
-      await db
+      const db = getDb();
+      if (db) {
+        await db
         .update(redditConnections)
         .set({ subreddits: unique, subsFetchedAt: new Date(), updatedAt: new Date() })
         .where(eq(redditConnections.id, ROW_ID));
+      }
       return unique;
     }
     return cached;
