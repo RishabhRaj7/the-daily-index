@@ -10,6 +10,11 @@ import { getF1Roster } from "@/lib/live/f1";
 export const metadata: Metadata = {
   title: "The Daily Index",
   description: "An index of everything that matters today.",
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/favicon.ico",
+  },
 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
