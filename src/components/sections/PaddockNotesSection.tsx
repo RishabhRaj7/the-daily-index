@@ -18,6 +18,7 @@ import LiveBadge from "@/components/widgets/LiveBadge";
 import FavoriteDriverCard from "@/components/widgets/FavoriteDriverCard";
 import FootballSidebar from "@/components/widgets/FootballSidebar";
 import TennisSidebar from "@/components/widgets/TennisSidebar";
+import { useState } from "react";
 
 const SPORT_LABELS: Record<"f1" | "football" | "tennis", string> = {
   f1: "FORMULA 1",
@@ -99,9 +100,13 @@ export default function PaddockNotesSection({
     )
     .filter((s): s is F1Standing => s !== undefined);
 
-  const top5drivers = standings.slice(0, 5);
-  const top5constructors = constructorStandings.slice(0, 5);
   const multiSport = selectedSports.length > 1;
+  const [showAllDrivers, setShowAllDrivers] = useState(false);
+  const [showAllConstructors, setShowAllConstructors] = useState(false);
+  const visibleDrivers = showAllDrivers ? standings : standings.slice(0, 5);
+  const visibleConstructors = showAllConstructors
+    ? constructorStandings
+    : constructorStandings.slice(0, 5);
 
   // Normalized team name for comparison against constructor standings rows.
   const normFavTeam = favoriteF1Team.replace(/\s*F1 Team$/i, "").trim();
@@ -168,10 +173,10 @@ export default function PaddockNotesSection({
             </div>
             {live && <LiveBadge />}
           </div>
-          {top5drivers.length > 0 ? (
+          {standings.length > 0 ? (
             <table className="w-full text-xs">
               <tbody>
-                {top5drivers.map((s) => {
+                {visibleDrivers.map((s) => {
                   const driverTeamColor = teamColor(s.team);
                   return (
                     <tr key={s.position} className="border-t hairline first:border-t-0">
@@ -195,17 +200,26 @@ export default function PaddockNotesSection({
           ) : (
             <p className="text-xs text-ink-soft italic">Standings unavailable.</p>
           )}
+          {standings.length > 5 && (
+            <button
+              type="button"
+              onClick={() => setShowAllDrivers((value) => !value)}
+              className="font-label text-[10px] text-masthead-red underline mt-2"
+            >
+              {showAllDrivers ? "Show top 5" : `Show all ${standings.length} drivers`}
+            </button>
+          )}
         </div>
 
         {/* Constructors' Championship */}
-        {top5constructors.length > 0 && (
+        {constructorStandings.length > 0 && (
           <div className="paper-box">
             <div className="font-label text-[10px] text-ink-soft mb-2">
               Constructors&rsquo; Championship
             </div>
             <table className="w-full text-xs">
               <tbody>
-                {top5constructors.map((cs) => {
+                {visibleConstructors.map((cs) => {
                   const csNorm = cs.team.replace(/\s*F1 Team$/i, "").trim();
                   const csColor = teamColor(cs.team);
                   const isFav = normFavTeam.length > 0 && csNorm === normFavTeam;
@@ -231,6 +245,15 @@ export default function PaddockNotesSection({
                 })}
               </tbody>
             </table>
+            {constructorStandings.length > 5 && (
+              <button
+                type="button"
+                onClick={() => setShowAllConstructors((value) => !value)}
+                className="font-label text-[10px] text-masthead-red underline mt-2"
+              >
+                {showAllConstructors ? "Show top 5" : `Show all ${constructorStandings.length} teams`}
+              </button>
+            )}
           </div>
         )}
       </div>

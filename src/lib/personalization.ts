@@ -124,7 +124,7 @@ export const F1_TEAM_COLORS: Record<string, string> = {
   "Red Bull": "#3671C6",
   Mercedes: "#27F4D2",
   "Aston Martin": "#229971",
-  Alpine: "#00A1E8",
+  Alpine: "#FF87BC",
   Williams: "#64C4FF",
   RB: "#6692FF",
   "Kick Sauber": "#52E252",
@@ -148,16 +148,31 @@ export const F1_TEAM_ABBREV: Record<string, string> = {
   Haas: "HAS",
 };
 
-// Live standings report constructor names like "Alpine F1 Team" or
-// "RB F1 Team" — normalize before looking up a color.
+const F1_TEAM_ALIASES: Record<string, string> = {
+  "Red Bull Racing": "Red Bull",
+  "Red Bull Racing Honda RBPT": "Red Bull",
+  "Racing Bulls": "RB",
+  "RB F1 Team": "RB",
+  "Visa Cash App RB": "RB",
+  "Kick Sauber F1 Team": "Kick Sauber",
+  "Sauber": "Kick Sauber",
+  "Haas F1 Team": "Haas",
+  "Aston Martin Aramco": "Aston Martin",
+  "Aston Martin Aramco Mercedes": "Aston Martin",
+};
+
+function normalizeF1Team(teamName: string): string {
+  const withoutSuffix = teamName.replace(/\s*F1 Team$/i, "").trim();
+  return F1_TEAM_ALIASES[withoutSuffix] ?? withoutSuffix;
+}
+
 export function teamColor(teamName: string): string | undefined {
-  const normalized = teamName.replace(/\s*F1 Team$/i, "").trim();
-  return F1_TEAM_COLORS[normalized];
+  return F1_TEAM_COLORS[normalizeF1Team(teamName)];
 }
 
 // Returns team abbreviation for badge display.
 export function teamAbbrev(teamName: string): string {
-  const normalized = teamName.replace(/\s*F1 Team$/i, "").trim();
+  const normalized = normalizeF1Team(teamName);
   return F1_TEAM_ABBREV[normalized] ?? normalized.slice(0, 3).toUpperCase();
 }
 

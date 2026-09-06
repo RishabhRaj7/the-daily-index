@@ -83,7 +83,7 @@ export interface F1Standing {
 }
 
 export interface F1LastResult {
-  position: number;
+  position: number | null;
   driver: string;
   code: string;
   team: string;

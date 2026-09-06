@@ -139,8 +139,8 @@ export default function StartingGrid({
           <table className="w-full text-xs">
             <tbody>
               {visibleRows.map((r) => (
-                <tr key={r.position} className="border-t hairline first:border-t-0">
-                  <td className="py-1 font-mono w-5 text-ink-soft">{r.position}</td>
+                <tr key={`${r.position ?? "dnf"}-${r.code}`} className="border-t hairline first:border-t-0">
+                  <td className="py-1 font-mono w-5 text-ink-soft">{r.position ?? "—"}</td>
                   <td className="py-1 font-semibold">{r.driver}</td>
                   <td className="py-1 text-ink-soft truncate max-w-[80px]">{r.team}</td>
                   <td className="py-1 text-right font-mono text-ink-soft">
