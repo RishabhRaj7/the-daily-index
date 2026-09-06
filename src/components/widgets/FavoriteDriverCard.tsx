@@ -35,10 +35,10 @@ export default function FavoriteDriverCard({
           <dt className="text-[10px] text-ink-soft">Points</dt>
           <dd className="font-mono text-lg">{standing.points}</dd>
         </div>
-        {/*<div>
+        <div>
           <dt className="text-[10px] text-ink-soft">Wins</dt>
           <dd className="font-mono text-lg">{standing.wins}</dd>
-        </div>*/}
+        </div>
       </dl>
     </div>
   );
