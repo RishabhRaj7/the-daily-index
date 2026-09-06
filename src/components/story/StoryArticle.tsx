@@ -31,7 +31,7 @@ export default function StoryArticle({
           className={
             lead
               ? "font-headline text-2xl sm:text-3xl md:text-4xl font-semibold leading-tight min-w-0"
-              : "font-headline text-lg sm:text-xl md:text-[1.4rem] font-semibold leading-snug min-w-0 text-balance"
+                : "font-headline text-lg sm:text-xl md:text-[1.4rem] font-semibold leading-snug min-w-0 flex-1"
           }
         >
           {story.headline}

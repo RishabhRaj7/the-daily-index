@@ -229,6 +229,75 @@ async function fetchLiveResults(round: number): Promise<F1LiveResult[]> {
   }
 }
 
+async function fetchOpenF1LiveResults(): Promise<F1LiveResult[]> {
+  try {
+    const year = new Date().getUTCFullYear();
+    const sessionsRes = await fetch(
+      `https://api.openf1.org/v1/sessions?year=${year}&session_name=Race`,
+      { cache: "no-store" },
+    );
+    if (!sessionsRes.ok) return [];
+    const sessions = await sessionsRes.json() as {
+      session_key: number;
+      date_start: string;
+      date_end: string;
+    }[];
+    const now = Date.now();
+    const session = sessions
+      .filter((item) => {
+        const start = new Date(item.date_start).getTime();
+        const end = new Date(item.date_end).getTime();
+        return start <= now && now <= end;
+      })
+      .at(-1);
+    if (!session) return [];
+
+    const [positionsRes, driversRes] = await Promise.all([
+      fetch(`https://api.openf1.org/v1/position?session_key=${session.session_key}`, {
+        cache: "no-store",
+      }),
+      fetch(`https://api.openf1.org/v1/drivers?session_key=${session.session_key}`, {
+        cache: "no-store",
+      }),
+    ]);
+    if (!positionsRes.ok || !driversRes.ok) return [];
+    const positions = await positionsRes.json() as {
+      driver_number: number;
+      position: number;
+      date: string;
+    }[];
+    const drivers = await driversRes.json() as {
+      driver_number: number;
+      full_name: string;
+      name_acronym: string;
+      team_name: string;
+    }[];
+    const latestByDriver = new Map<number, (typeof positions)[number]>();
+    for (const position of positions) {
+      const previous = latestByDriver.get(position.driver_number);
+      if (!previous || position.date > previous.date) {
+        latestByDriver.set(position.driver_number, position);
+      }
+    }
+    const driverByNumber = new Map(drivers.map((driver) => [driver.driver_number, driver]));
+    return [...latestByDriver.values()]
+      .sort((a, b) => a.position - b.position)
+      .map((position) => {
+        const driver = driverByNumber.get(position.driver_number);
+        return {
+          position: position.position,
+          driver: driver?.full_name ?? `Car ${position.driver_number}`,
+          code: driver?.name_acronym ?? "",
+          team: driver?.team_name ?? "",
+          interval: "Live",
+          status: "Running",
+        };
+      });
+  } catch {
+    return [];
+  }
+}
+
 async function fetchPolePosition(
   round: number,
 ): Promise<F1Race["polePosition"] | undefined> {
@@ -289,20 +358,26 @@ export async function getLiveF1(): Promise<LiveF1Data | null> {
       .find((r) => new Date(r.date).getTime() <= now);
     const latestStartedAt = latestStarted ? new Date(latestStarted.date).getTime() : 0;
     const raceInProgress = Boolean(latestStarted && now - latestStartedAt <= 6 * 60 * 60 * 1000);
+    const displayedRace = raceInProgress && latestStarted ? latestStarted : nextRace;
 
     // Fetch track image, pole position, and last race result in parallel.
-    const nextRaceCircuitUrl = circuitUrlById.get(String(nextRace.round));
-    const [circuitImageUrl, polePosition, lastRace, qualifyingGrid, liveResults] = await Promise.all([
-      nextRaceCircuitUrl
-        ? getWikipediaThumbnail(nextRaceCircuitUrl)
+    const displayedRaceCircuitUrl = circuitUrlById.get(String(displayedRace.round));
+    const [circuitImageUrl, polePosition, lastRace, qualifyingGrid, openF1LiveResults] = await Promise.all([
+      displayedRaceCircuitUrl
+        ? getWikipediaThumbnail(displayedRaceCircuitUrl)
         : Promise.resolve(undefined),
-      fetchPolePosition(nextRace.round),
+      fetchPolePosition(displayedRace.round),
       fetchLastRace(),
-      fetchQualifyingGrid(nextRace.round),
-      raceInProgress && latestStarted ? fetchLiveResults(latestStarted.round) : Promise.resolve([] as F1LiveResult[]),
+      fetchQualifyingGrid(displayedRace.round),
+      raceInProgress ? fetchOpenF1LiveResults() : Promise.resolve([] as F1LiveResult[]),
     ]);
-    if (circuitImageUrl) nextRace.circuitImageUrl = circuitImageUrl;
-    if (polePosition) nextRace.polePosition = polePosition;
+    const liveResults = openF1LiveResults.length > 0
+      ? openF1LiveResults
+      : raceInProgress && latestStarted
+        ? await fetchLiveResults(latestStarted.round)
+        : [];
+    if (circuitImageUrl) displayedRace.circuitImageUrl = circuitImageUrl;
+    if (polePosition) displayedRace.polePosition = polePosition;
     const racePhase = raceInProgress
       ? "race"
       : qualifyingGrid.length > 0
@@ -314,7 +389,7 @@ export async function getLiveF1(): Promise<LiveF1Data | null> {
       : [];
 
     return {
-      nextRace,
+      nextRace: displayedRace,
       upcoming,
       standings,
       constructorStandings,

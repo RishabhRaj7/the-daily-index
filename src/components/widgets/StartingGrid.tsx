@@ -43,6 +43,7 @@ export default function StartingGrid({
   }, [nextRace.circuit]);
   const [showAll, setShowAll] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const displayedRace = racePhase === "race" && currentRace ? currentRace : nextRace;
 
   useEffect(() => {
     const target = new Date(nextRace.date).getTime();
@@ -64,13 +65,15 @@ export default function StartingGrid({
   };
 
   const resultRows = racePhase === "race"
-    ? liveResults
+    ? liveResults.length > 0 ? liveResults : qualifyingGrid
     : racePhase === "qualifying"
       ? qualifyingGrid
       : lastRace?.results ?? [];
   const visibleRows = showAll ? resultRows : resultRows.slice(0, 5);
   const tableTitle = racePhase === "race"
-    ? `Live race — ${currentRace?.name ?? nextRace.name}`
+    ? liveResults.length > 0
+      ? `Live race — ${displayedRace.name}`
+      : `Starting grid — ${displayedRace.name}`
     : racePhase === "qualifying"
       ? `Race grid — ${nextRace.name}`
       : `Last race — ${lastRace?.flag ?? ""} ${lastRace?.name ?? ""}`;
@@ -84,10 +87,10 @@ export default function StartingGrid({
         {live && <LiveBadge />}
       </div>
       <div className="flex items-baseline gap-2">
-        <span className="text-2xl">{nextRace.flag}</span>
-        <span className="font-headline text-lg font-semibold">{nextRace.name}</span>
+        <span className="text-2xl">{displayedRace.flag}</span>
+        <span className="font-headline text-lg font-semibold">{displayedRace.name}</span>
       </div>
-      {nextRace.circuitImageUrl && (
+      {racePhase !== "race" && nextRace.circuitImageUrl && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={nextRace.circuitImageUrl}
@@ -99,15 +102,19 @@ export default function StartingGrid({
           }}
         />
       )}
-      <div className="font-mono text-2xl mt-2 tabular-nums" suppressHydrationWarning>
-        {remaining ?? "—"}
-      </div>
-      <div className="font-label text-[10px] text-ink-soft mt-0.5">
-        until lights out at {nextRace.circuit}
-      </div>
+      {racePhase !== "race" && (
+        <>
+          <div className="font-mono text-2xl mt-2 tabular-nums" suppressHydrationWarning>
+            {remaining ?? "—"}
+          </div>
+          <div className="font-label text-[10px] text-ink-soft mt-0.5">
+            until lights out at {nextRace.circuit}
+          </div>
+        </>
+      )}
 
       {/* Random track fact */}
-      {trackFact && (
+      {racePhase !== "race" && trackFact && (
         <div className="mt-3 pt-3 border-t hairline">
           <div className="font-label text-[10px] text-ink-soft mb-1">Track Fact</div>
           <p className="text-[11px] text-ink-soft italic leading-relaxed">{trackFact}</p>
