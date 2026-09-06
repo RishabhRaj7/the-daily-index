@@ -76,6 +76,11 @@ interface OpenF1Session {
   year: number;
 }
 
+interface OpenF1Meeting {
+  meeting_key: number;
+  circuit_image: string | null;
+}
+
 interface OpenF1Driver {
   driver_number: number;
   full_name: string;
@@ -147,7 +152,7 @@ async function openF1<T>(path: string, revalidate = 3600): Promise<T | null> {
   }
 }
 
-function raceFromSession(session: OpenF1Session, round: number): F1Race {
+function raceFromSession(session: OpenF1Session, round: number, circuitImageUrl?: string): F1Race {
   return {
     round,
     name: session.country_name === "United States" ? "United States Grand Prix" : `${session.country_name} Grand Prix`,
@@ -155,6 +160,7 @@ function raceFromSession(session: OpenF1Session, round: number): F1Race {
     flag: flagFor(session.country_name),
     circuit: session.circuit_short_name,
     date: session.date_start,
+    circuitImageUrl,
   };
 }
 
@@ -393,17 +399,21 @@ export async function getLiveF1(): Promise<LiveF1Data | null> {
   const nextIndex = sorted.findIndex((session) => new Date(session.date_start).getTime() > now);
   const nextSession = sorted[nextIndex >= 0 ? nextIndex : sorted.length - 1];
   const lastSession = [...sorted].reverse().find((session) => new Date(session.date_start).getTime() <= now);
-  const nextRace = raceFromSession(nextSession, nextIndex >= 0 ? nextIndex + 1 : sorted.length);
   const upcoming = sorted.slice(nextIndex >= 0 ? nextIndex : sorted.length, (nextIndex >= 0 ? nextIndex : sorted.length) + 5).map((session, index) => raceFromSession(session, (nextIndex >= 0 ? nextIndex : sorted.length) + index + 1));
   const nextRound = nextIndex >= 0 ? nextIndex + 1 : sorted.length;
 
   // Latest session in the whole season (used for standings so we get current team/driver lineup)
   const latestSession = sorted[sorted.length - 1];
 
-  const [nextRaceDrivers, latestDrivers] = await Promise.all([
+  const [nextRaceDrivers, latestDrivers, nextMeeting] = await Promise.all([
     getDrivers(nextSession.session_key),
     getDrivers(latestSession.session_key),
+    // The meetings endpoint carries the official F1 track-map image (circuit_image)
+    // for the circuit — sessions alone do not include it.
+    openF1<OpenF1Meeting[]>(`meetings?meeting_key=${nextSession.meeting_key}`, 21600),
   ]);
+  const circuitImageUrl = nextMeeting?.[0]?.circuit_image ?? undefined;
+  const nextRace = raceFromSession(nextSession, nextRound, circuitImageUrl);
   const [lastRace, qualifyingGrid, standings] = await Promise.all([
     fetchLatestSessionResults(),
     fetchStartingGrid(nextSession.session_key, nextRaceDrivers),
@@ -413,7 +423,7 @@ export async function getLiveF1(): Promise<LiveF1Data | null> {
   const resultReady = Boolean(lastSession && lastRace);
   const liveResults = paidLiveProvider && lastSession ? await paidLiveProvider.getLiveResults(lastSession.session_key) : [];
   return {
-    nextRace: resultReady && lastSession ? raceFromSession(nextSession, nextRound) : nextRace,
+    nextRace: resultReady && lastSession ? raceFromSession(nextSession, nextRound, circuitImageUrl) : nextRace,
     upcoming,
     standings: standings.drivers,
     constructorStandings: standings.teams,
