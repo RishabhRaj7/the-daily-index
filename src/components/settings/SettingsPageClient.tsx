@@ -9,6 +9,7 @@ import {
   savePersonalization,
 } from "@/lib/personalization";
 import PersonalizationForm from "@/components/onboarding/PersonalizationForm";
+import DigestPreferencesEditor from "@/components/settings/DigestPreferencesEditor";
 import RedditConnect from "@/components/settings/RedditConnect";
 import Link from "next/link";
 import { clearMemory, loadMemory } from "@/lib/reader-memory";
@@ -29,9 +30,14 @@ export default function SettingsPageClient({
   const [saved, setSaved] = useState(false);
   const [memoryCount, setMemoryCount] = useState<number>(0);
   const [forgot, setForgot] = useState(false);
+  // Two tabs: the classic paper personalisation, and the preference-driven
+  // digest JSON (same object that ships in default-preferences.json).
+  const [tab, setTab] = useState<"paper" | "digest">("paper");
 
   useEffect(() => {
     const loaded = loadPersonalization();
+    // Hydrate the client form from browser-local settings on mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDraft(loaded);
     setBaseline(JSON.stringify(loaded));
     setMemoryCount(loadMemory().visits.length);
@@ -85,10 +91,57 @@ export default function SettingsPageClient({
       <h1 className="font-headline text-4xl font-semibold mb-1">
         Make it yours
       </h1>
-      <p className="font-headline italic text-ink-soft mb-8 text-lg">
+      <p className="font-headline italic text-ink-soft mb-6 text-lg">
         Five decisions. Each one visibly changes tomorrow&rsquo;s front page.
       </p>
 
+      {/* Tab strip — "Paper" is everything this page always had; "Digest"
+          edits the preference JSON that drives the AI-built front page. */}
+      <div className="flex gap-1 mb-8 border-b hairline" role="tablist" aria-label="Settings tabs">
+        {(
+          [
+            { key: "paper", label: "Paper" },
+            { key: "digest", label: "Digest preferences" },
+          ] as const
+        ).map((t) => (
+          <button
+            key={t.key}
+            role="tab"
+            aria-selected={tab === t.key}
+            type="button"
+            onClick={() => setTab(t.key)}
+            className={`font-label text-xs px-4 py-2 -mb-px border-b-2 transition-colors cursor-pointer ${
+              tab === t.key
+                ? "border-masthead-red text-masthead-red"
+                : "border-transparent text-ink-soft hover:text-ink"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "digest" && (
+        <DigestPreferencesEditor
+          creditCards={creditCards}
+          cardsFollowing={draft.cardsFollowing}
+          sportsWatchedEntities={[
+            draft.favoriteFootballPlayer,
+            draft.favoriteFootballClub,
+            draft.favoriteFootballNationalTeam,
+            draft.favoriteTennisPlayer,
+          ].map((value) => value.trim()).filter(Boolean)}
+          onClose={handleClose}
+          onSavePaperDraft={() => {
+            savePersonalization({ ...draft, onboarded: true });
+            setBaseline(JSON.stringify(draft));
+            setSaved(true);
+          }}
+        />
+      )}
+
+      {tab === "paper" && (
+      <>
       <PersonalizationForm
         value={draft}
         onChange={(next) => {
@@ -130,8 +183,12 @@ export default function SettingsPageClient({
           )}
         </div>
       </section>
+      </>
+      )}
 
-      {/* Sticky action bar */}
+      {/* Sticky action bar — belongs to the Paper tab; the Digest tab saves
+          through its own bar. */}
+      {tab === "paper" && (
       <div className="fixed bottom-0 inset-x-0 z-40 border-t hairline bg-paper/95 backdrop-blur">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <button
@@ -153,6 +210,7 @@ export default function SettingsPageClient({
           </button>
         </div>
       </div>
+      )}
     </main>
   );
 }

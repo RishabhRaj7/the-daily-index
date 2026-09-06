@@ -3,6 +3,8 @@ import type {
   F1Race,
   F1Standing,
   F1LastRace,
+  F1GridResult,
+  F1LiveResult,
   F1ConstructorStanding,
   FootballStanding,
   TennisRanking,
@@ -47,6 +49,10 @@ export default function PaddockNotesSection({
   standings,
   constructorStandings = [],
   lastRace = null,
+  qualifyingGrid = [],
+  liveResults = [],
+  currentRace = null,
+  racePhase = "last-race",
   accentColor,
   favoriteF1Team = "",
   favoriteDriverIds = [],
@@ -67,6 +73,10 @@ export default function PaddockNotesSection({
   standings: F1Standing[];
   constructorStandings?: F1ConstructorStanding[];
   lastRace?: F1LastRace | null;
+  qualifyingGrid?: F1GridResult[];
+  liveResults?: F1LiveResult[];
+  currentRace?: F1Race | null;
+  racePhase?: "last-race" | "qualifying" | "race";
   accentColor?: string;
   favoriteF1Team?: string;
   favoriteDriverIds?: string[];
@@ -137,6 +147,10 @@ export default function PaddockNotesSection({
             nextRace={nextRace}
             upcoming={upcoming}
             lastRace={lastRace}
+            qualifyingGrid={qualifyingGrid}
+            liveResults={liveResults}
+            currentRace={currentRace}
+            racePhase={racePhase}
             accentColor={accentColor}
             live={live}
           />
@@ -228,8 +242,7 @@ export default function PaddockNotesSection({
     if (sport === "football") {
       return (
         <FootballSidebar
-          standings={footballStandings}
-          league={footballLeague}
+            leagues={[{ standings: footballStandings, league: footballLeague, leaders: [] }]}
           favoriteClub={favoriteFootballClub}
         />
       );

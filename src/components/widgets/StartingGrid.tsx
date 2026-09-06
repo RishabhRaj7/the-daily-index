@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { F1Race, F1LastRace } from "@/lib/types";
+import { useEffect, useMemo, useState } from "react";
+import type { F1GridResult, F1LiveResult, F1Race, F1LastRace } from "@/lib/types";
 import { CIRCUIT_FACTS } from "@/lib/config/circuit-facts";
 import LiveBadge from "./LiveBadge";
 
@@ -19,17 +19,30 @@ export default function StartingGrid({
   nextRace,
   upcoming,
   lastRace = null,
+  qualifyingGrid = [],
+  liveResults = [],
+  currentRace = null,
+  racePhase = "last-race",
   accentColor,
   live = false,
 }: {
   nextRace: F1Race;
   upcoming: F1Race[];
   lastRace?: F1LastRace | null;
+  qualifyingGrid?: F1GridResult[];
+  liveResults?: F1LiveResult[];
+  currentRace?: F1Race | null;
+  racePhase?: "last-race" | "qualifying" | "race";
   accentColor?: string;
   live?: boolean;
 }) {
   const [remaining, setRemaining] = useState<string | null>(null);
-  const [trackFact, setTrackFact] = useState<string | null>(null);
+  const trackFact = useMemo(() => {
+    const facts = CIRCUIT_FACTS[nextRace.circuit];
+    return facts && facts.length > 0 ? facts[0] : null;
+  }, [nextRace.circuit]);
+  const [showAll, setShowAll] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     const target = new Date(nextRace.date).getTime();
@@ -39,17 +52,32 @@ export default function StartingGrid({
     return () => clearInterval(id);
   }, [nextRace.date]);
 
-  useEffect(() => {
-    const facts = CIRCUIT_FACTS[nextRace.circuit];
-    if (facts && facts.length > 0) {
-      setTrackFact(facts[Math.floor(Math.random() * facts.length)]);
+  const refreshLiveRace = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await fetch("/api/refresh", { method: "POST" });
+      window.location.reload();
+    } finally {
+      setRefreshing(false);
     }
-  }, [nextRace.circuit]);
+  };
+
+  const resultRows = racePhase === "race"
+    ? liveResults
+    : racePhase === "qualifying"
+      ? qualifyingGrid
+      : lastRace?.results ?? [];
+  const visibleRows = showAll ? resultRows : resultRows.slice(0, 5);
+  const tableTitle = racePhase === "race"
+    ? `Live race — ${currentRace?.name ?? nextRace.name}`
+    : racePhase === "qualifying"
+      ? `Race grid — ${nextRace.name}`
+      : `Last race — ${lastRace?.flag ?? ""} ${lastRace?.name ?? ""}`;
 
   return (
     <div
-      className="paper-box"
-      style={accentColor ? { borderLeft: `4px solid ${accentColor}` } : undefined}
+      className="paper-box pl-5"
     >
       <div className="flex items-center justify-between mb-1">
         <div className="font-label text-[10px] text-ink-soft">Starting Grid</div>
@@ -78,20 +106,6 @@ export default function StartingGrid({
         until lights out at {nextRace.circuit}
       </div>
 
-      {/* Pole position — only shown when qualifying has happened */}
-      {nextRace.polePosition && (
-        <div className="mt-3 pt-3 border-t hairline">
-          <div className="font-label text-[10px] text-ink-soft mb-1">Pole Position</div>
-          <div className="flex items-baseline justify-between gap-2">
-            <div>
-              <span className="text-sm font-semibold">{nextRace.polePosition.driver}</span>
-              <span className="text-[11px] text-ink-soft ml-1.5">{nextRace.polePosition.team}</span>
-            </div>
-            <span className="font-mono text-sm tabular-nums">{nextRace.polePosition.time}</span>
-          </div>
-        </div>
-      )}
-
       {/* Random track fact */}
       {trackFact && (
         <div className="mt-3 pt-3 border-t hairline">
@@ -100,24 +114,44 @@ export default function StartingGrid({
         </div>
       )}
 
-      {/* Last race result — top 5 finishers */}
-      {lastRace && lastRace.results.length > 0 && (
+      {resultRows.length > 0 && (
         <div className="mt-3 pt-3 border-t hairline">
-          <div className="font-label text-[10px] text-ink-soft mb-1">
-            Last Race — {lastRace.flag} {lastRace.name}
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <div className="font-label text-[10px] text-ink-soft">{tableTitle}</div>
+            {racePhase === "race" && (
+              <button
+                type="button"
+                onClick={refreshLiveRace}
+                disabled={refreshing}
+                className="font-label text-[10px] text-masthead-red underline disabled:opacity-40"
+              >
+                {refreshing ? "Refreshing…" : "Refresh"}
+              </button>
+            )}
           </div>
           <table className="w-full text-xs">
             <tbody>
-              {lastRace.results.map((r) => (
+              {visibleRows.map((r) => (
                 <tr key={r.position} className="border-t hairline first:border-t-0">
                   <td className="py-1 font-mono w-5 text-ink-soft">{r.position}</td>
                   <td className="py-1 font-semibold">{r.driver}</td>
                   <td className="py-1 text-ink-soft truncate max-w-[80px]">{r.team}</td>
-                  <td className="py-1 text-right font-mono text-ink-soft">{r.time}</td>
+                  <td className="py-1 text-right font-mono text-ink-soft">
+                    {"interval" in r ? r.interval : r.time}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {resultRows.length > 5 && (
+            <button
+              type="button"
+              onClick={() => setShowAll((value) => !value)}
+              className="font-label text-[10px] text-masthead-red underline mt-2"
+            >
+              {showAll ? "Show top 5" : `Show all ${resultRows.length} drivers`}
+            </button>
+          )}
         </div>
       )}
 

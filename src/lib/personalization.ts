@@ -29,6 +29,14 @@ export function loadPersonalization(): Personalization {
     if (!raw) return DEFAULT_PERSONALIZATION;
     const parsed = JSON.parse(raw) as Partial<Personalization> & { cardFollowing?: string };
     const merged: Personalization = { ...DEFAULT_PERSONALIZATION, ...parsed };
+    const savedOrder = [...merged.sectionOrder].filter((key) => key !== "sports") as typeof SECTION_ORDER[number][];
+    const paddockIndex = savedOrder.indexOf("paddock-notes");
+    const insertAt = paddockIndex >= 0 ? paddockIndex + 1 : savedOrder.length;
+    savedOrder.splice(insertAt, 0, "sports");
+    merged.sectionOrder = [
+      ...savedOrder,
+      ...SECTION_ORDER.filter((key) => !savedOrder.includes(key)),
+    ];
     // Migration: the old single-card radio stored `cardFollowing: string`.
     if (!Array.isArray(merged.cardsFollowing)) {
       merged.cardsFollowing =

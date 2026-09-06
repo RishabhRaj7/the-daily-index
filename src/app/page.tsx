@@ -14,6 +14,7 @@ import { buildSectionsSync } from "@/lib/live/wire-to-story";
 import { getOnThisDay } from "@/lib/live/onthistday";
 import { getWordOfDay } from "@/lib/live/wordofday";
 import { getFootballStandings } from "@/lib/live/football-stats";
+import type { FootballLeagueData } from "@/lib/live/football-stats";
 import { getTennisRankings } from "@/lib/live/tennis-stats";
 import { MY_CARDS } from "@/lib/config/cards";
 import { buildEditorsPicks } from "@/lib/live/editors-picks";
@@ -73,6 +74,7 @@ function filterHateWatch(articles: WireBrief[], subject: string): WireBrief[] {
 
 export default async function Home() {
   const cookieStore = await cookies();
+  const redditEnabled = process.env.REDDIT_ENABLED === "true";
 
   // Subreddits preference
   const subredditsCookie = cookieStore.get("daily-index:subreddits");
@@ -125,6 +127,7 @@ export default async function Home() {
   let redditUser: string | null = null;
   let connectedSubs: string[] = [];
   try {
+    if (!redditEnabled) throw new Error("Reddit fetching disabled");
     const conn = await getRedditConnection();
     if (conn) {
       redditUser = conn.redditUsername;
@@ -176,7 +179,7 @@ export default async function Home() {
     userSports.includes("tennis")   ? getTennisNews(20)   : Promise.resolve([] as WireBrief[]),
     userSports.includes("football")
       ? getFootballStandings()
-      : Promise.resolve(null as { league: string; standings: FootballStanding[] } | null),
+      : Promise.resolve(null as { leagues: FootballLeagueData[] } | null),
     userSports.includes("tennis")
       ? getTennisRankings().then((rankings) => ({ rankings }))
       : Promise.resolve(null as { rankings: TennisRanking[] } | null),
@@ -184,7 +187,14 @@ export default async function Home() {
     getWorldIndiaWire(16),
     getMarketsWire(14),
     getCreditCardWire(),
-    getRedditTrending(5, effectiveSubreddits),
+    redditEnabled
+      ? getRedditTrending(5, effectiveSubreddits)
+      : Promise.resolve({
+          topics: [],
+          status: "unconfigured" as const,
+          note: "Reddit fetching is disabled by REDDIT_ENABLED.",
+          fetchedAt: new Date().toISOString(),
+        }),
     getLiveMarkets(),
     getOnThisDay(),
     getWordOfDay(),

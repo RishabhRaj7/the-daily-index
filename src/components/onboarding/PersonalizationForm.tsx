@@ -573,34 +573,14 @@ export default function PersonalizationForm({
         </div>
       </Chapter>
 
-      {/* IV. Topics to watch */}
-      <Chapter
-        numeral="IV."
-        title="Topics to watch"
-        effect="Any story mentioning these words jumps to the top of its section — and can lead the paper."
-      >
-        <div>
-          <TagInput
-            value={value.topics}
-            onChange={(topics) => onChange({ ...value, topics })}
-            max={10}
-            placeholder="e.g. RBI, monsoon, ISRO"
-          />
-          <Hint>
-            People, places, institutions, beats — “RBI”, “elections” aside (politics stays out),
-            “monsoon”, “startups”. Matched stories get a “For you” tag so you know why they lead.
-          </Hint>
-        </div>
-      </Chapter>
-
-      {/* V. Page order */}
+      {/* IV. Page order */}
       <Chapter
         numeral="V."
         title="Page order"
         effect="What prints, and in what order — top of the list prints first."
       >
         <ol className="divide-y hairline border-y hairline">
-          {SECTION_ORDER.map((key) => {
+          {[...value.sectionOrder, ...SECTION_ORDER.filter((key) => !value.sectionOrder.includes(key))].map((key) => {
             const active = value.sectionOrder.includes(key);
             const idx = value.sectionOrder.indexOf(key);
             return (

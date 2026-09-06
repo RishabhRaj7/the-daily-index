@@ -1,6 +1,7 @@
 export type SectionKey =
   | "dateline"
   | "paddock-notes"
+  | "sports"
   | "sky-report"
   | "circuit-board"
   | "ledger"
@@ -96,6 +97,23 @@ export interface F1LastRace {
   circuit: string;
   date: string;
   results: F1LastResult[];
+}
+
+export interface F1GridResult {
+  position: number;
+  driver: string;
+  code: string;
+  team: string;
+  time: string;
+}
+
+export interface F1LiveResult {
+  position: number;
+  driver: string;
+  code: string;
+  team: string;
+  interval: string;
+  status: string;
 }
 
 export interface F1ConstructorStanding {
@@ -225,6 +243,19 @@ export interface FootballStanding {
   points: number;
 }
 
+export interface FootballLeader {
+  name: string;
+  team: string;
+  value: number;
+  displayValue: string;
+}
+
+export interface FootballLeaderCategory {
+  name: string;
+  label: string;
+  leaders: FootballLeader[];
+}
+
 export interface TennisRanking {
   rank: number;
   name: string;
@@ -293,6 +324,10 @@ export interface Edition {
     standings: F1Standing[];
     constructorStandings: F1ConstructorStanding[];
     lastRace: F1LastRace | null;
+    qualifyingGrid: F1GridResult[];
+    liveResults: F1LiveResult[];
+    currentRace: F1Race | null;
+    racePhase: "last-race" | "qualifying" | "race";
   } | null; // null when the F1 standings API is unreachable
   markets: {
     indices: MarketIndex[];

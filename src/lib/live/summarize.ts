@@ -29,7 +29,10 @@ function extractText(html: string): string {
     .trim();
 }
 
-async function fetchArticleText(url: string): Promise<string | null> {
+export async function fetchArticleText(
+  url: string,
+  maxChars?: number,
+): Promise<string | null> {
   try {
     const res = await fetch(url, {
       headers: {
@@ -40,7 +43,8 @@ async function fetchArticleText(url: string): Promise<string | null> {
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) return null;
-    const text = extractText(await res.text()).slice(0, 3000);
+    const extracted = extractText(await res.text());
+    const text = maxChars ? extracted.slice(0, maxChars) : extracted;
     return text.length >= 300 ? text : null;
   } catch {
     return null;
@@ -98,7 +102,7 @@ function looksOnTopic(title: string | undefined, summary: string): boolean {
 
 // Some publishers serve a paywall, consent page or their homepage instead of
 // the article. Only trust fetched text when it plainly matches the headline.
-function fetchedTextMatches(title: string | undefined, text: string): boolean {
+export function fetchedTextMatches(title: string | undefined, text: string): boolean {
   if (!title) return true;
   const toks = keyTokens(title);
   if (toks.length === 0) return true;

@@ -1,18 +1,32 @@
-import type { FootballStanding } from "@/lib/types";
+import type { FootballLeaderCategory, FootballStanding } from "@/lib/types";
 
-export async function getFootballStandings(): Promise<{
+export interface FootballLeagueData {
   league: string;
   standings: FootballStanding[];
-}> {
-  try {
-    const res = await fetch(
-      "https://site.api.espn.com/apis/v2/sports/soccer/eng.1/standings",
-      { next: { revalidate: 3600 } },
-    );
-    if (!res.ok) return { league: "Premier League", standings: [] };
+  leaders: FootballLeaderCategory[];
+}
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data: any = await res.json();
+export async function getFootballStandings(): Promise<{
+  leagues: FootballLeagueData[];
+}> {
+  const fetchLeague = async (league: string, code: string) => {
+    try {
+      const [standingsRes, leadersRes] = await Promise.all([
+        fetch(
+          `https://site.api.espn.com/apis/v2/sports/soccer/${code}/standings`,
+          { next: { revalidate: 3600 } },
+        ),
+        fetch(
+          `https://site.api.espn.com/apis/site/v2/sports/soccer/${code}/leaders`,
+          { next: { revalidate: 3600 } },
+        ),
+      ]);
+      if (!standingsRes.ok) return { league, standings: [] as FootballStanding[], leaders: [] };
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data: any = await standingsRes.json();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const leadersData: any = leadersRes.ok ? await leadersRes.json() : null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const entries: any[] = data?.children?.[0]?.standings?.entries ?? [];
 
@@ -36,8 +50,41 @@ export async function getFootballStandings(): Promise<{
       })
       .sort((a, b) => a.rank - b.rank);
 
-    return { league: "Premier League", standings };
-  } catch {
-    return { league: "Premier League", standings: [] };
-  }
+      // ESPN exposes categories such as goals and assists under `leaders`.
+      // Keep all useful categories so the sidebar can show new provider stats
+      // without another code change.
+      const leaders: FootballLeaderCategory[] = (leadersData?.leaders ?? [])
+        .filter((category: { leaders?: unknown[] }) => Array.isArray(category.leaders))
+        .map((category: {
+          name?: string;
+          displayName?: string;
+          leaders: Array<{
+            athlete?: { displayName?: string };
+            team?: { displayName?: string };
+            value?: number;
+            displayValue?: string;
+          }>;
+        }) => ({
+          name: category.name ?? "stat",
+          label: category.displayName ?? category.name ?? "Stat leaders",
+          leaders: category.leaders.slice(0, 3).map((leader) => ({
+            name: leader.athlete?.displayName ?? "Unknown player",
+            team: leader.team?.displayName ?? "",
+            value: Number(leader.value ?? 0),
+            displayValue: leader.displayValue ?? String(leader.value ?? 0),
+          })),
+        }))
+        .filter((category: FootballLeaderCategory) => category.leaders.length > 0);
+
+      return { league, standings, leaders };
+    } catch {
+      return { league, standings: [], leaders: [] };
+    }
+  };
+
+  const [laLiga, premierLeague] = await Promise.all([
+    fetchLeague("La Liga", "esp.1"),
+    fetchLeague("Premier League", "eng.1"),
+  ]);
+  return { leagues: [laLiga, premierLeague] };
 }

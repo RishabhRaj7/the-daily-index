@@ -81,7 +81,6 @@ function buildInterestTerms(interests: ReaderInterests, sports: string[]): Inter
   push(interests.tennisPlayer, 6);
   interests.cards.forEach((c) => push(c, 6));
   push(interests.city, 4);
-  interests.topics.forEach((t) => push(t, 3));
   if (sports.includes("f1")) push("Formula 1", 1, false, SPORT_POOLS);
   if (sports.includes("tennis")) push("Grand Slam", 1, false, SPORT_POOLS);
   return terms;

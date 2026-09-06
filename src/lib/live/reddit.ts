@@ -188,6 +188,15 @@ export async function getRedditTrending(
   limit = 5,
   subreddits?: string[],
 ): Promise<RedditResult> {
+  if (process.env.REDDIT_ENABLED !== "true") {
+    return {
+      topics: [],
+      status: "unconfigured",
+      note: "Reddit fetching is disabled by REDDIT_ENABLED.",
+      fetchedAt: new Date().toISOString(),
+    };
+  }
+
   const toFetch =
     subreddits && subreddits.length > 0 ? subreddits : [GLOBAL_FALLBACK_SUBREDDIT];
   const fetchedAt = new Date().toISOString();

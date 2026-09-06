@@ -13,6 +13,12 @@ export const SECTION_META: Record<SectionKey, SectionMeta> = {
     kicker: "Formula 1",
     slug: "paddock-notes",
   },
+  sports: {
+    key: "sports",
+    label: "Sports — Football & Tennis",
+    kicker: "Football & Tennis",
+    slug: "sports",
+  },
   "sky-report": {
     key: "sky-report",
     label: "Sky Report — Weather",
@@ -54,6 +60,7 @@ export const SECTION_META: Record<SectionKey, SectionMeta> = {
 export const SECTION_ORDER: SectionKey[] = [
   "dateline",
   "paddock-notes",
+  "sports",
   "sky-report",
   "circuit-board",
   "ledger",

@@ -273,3 +273,58 @@ F1 drivers use a chip multi-select directly (not `SuggestionInput`) since all 22
   - non-2xx / network / 90 s timeout → "Summaries unavailable — tap to retry".
 - `/api/summarize` and `/api/refresh` send `Cache-Control: no-store`; the
   refresh route also revalidates the root layout.
+
+---
+
+## Preference-driven digest (the current pipeline)
+
+The news pages are now built by a single preference-driven AI pass instead of
+per-article summarisation. Non-news surfaces (F1 sidebar, weather, Market
+Pulse, Grapevine, Editor's Desk, Reddit) are untouched.
+
+### Data flow
+
+```
+mount (EditionView)
+  └── runDigest() ── POST /api/digest { preferences } ──► server
+        server: collectCorpus()          (existing fetchers, unchanged:
+                  World/India, Markets, F1, Football, Tennis, Tech, Cards;
+                  URL-dedupe + dedupeWires)
+                generateDigest(prefs)    (ONE Gemini call; model answers with
+                  corpus indices → rehydrated into real title/url/source;
+                  heuristic fallback when no GEMINI_API_KEY)
+  ◄── { sections: { [sectionId]: [{ title, summary, source, url,
+        publishedAt, group?, priority, matchedEntity? }] }, engine, … }
+  └── banner "Your digest is ready — tap to update"
+        tap → applyDigest(): digest articles become Story[] and pour into
+        their display slot; slot-less sections render as standalone
+        <DigestSectionView/> after the standing sections.
+```
+
+### Preferences
+
+- Shipped defaults: `src/lib/preferences/default-preferences.json` — hand-editable.
+- Reader edits persist to localStorage only (`daily-index:digest-preferences`),
+  loaded via `loadDigestPreferences()`; missing/corrupt copies fall back to the
+  shipped JSON. `version` + `migratePreferences()` handle future shape changes.
+- Section types: `topic` (flat best-fit list), `grouped` (N per group, e.g.
+  World by country), `custom` (free-text instruction). Every section may carry
+  `watchEntities`, `preferredSources`, `excludeKeywords`, `prompt`, and a
+  `slot` (dateline | paddock-notes | circuit-board | ledger | plastic-points)
+  naming the existing paper section it feeds. `global` holds tone, exclude
+  keywords, max age, and summary length.
+- Settings page → "Digest preferences" tab edits the same JSON in a GUI
+  (structured fields + raw JSON view) and saves on-device; the front page
+  listens for the change event and re-runs the digest.
+
+### Trigger flow
+
+- Digest result waits in memory; the existing bottom banner becomes
+  "Your digest is ready — tap to update". Tapping applies digest + pending
+  summaries together.
+- Today's digest is cached in localStorage keyed by date + preferences hash
+  (`src/lib/digest-cache.ts`); a reload re-applies it silently, and editing
+  preferences invalidates it automatically. "Refresh edition" purges it.
+- `/api/summarize` still runs, but only for hate-watch stories, Editor's Picks
+  blurbs, and the Editor's Desk note. The "at a glance" brief is derived from
+  the digest itself (no extra model call).

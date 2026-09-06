@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { clearSummaryCaches, requestForcedSummarize } from "@/lib/summary-cache";
+import { clearDigestCache } from "@/lib/digest-cache";
 
 // "Refresh edition" — purges the server-side caches via /api/refresh and then
 // does a full page reload, so every section (news, sports, markets, Reddit,
@@ -21,6 +22,7 @@ export default function PullToRefreshStamp() {
     if (refreshing) return;
     setRefreshing(true);
     clearSummaryCaches();
+    clearDigestCache();
     requestForcedSummarize();
     try {
       await Promise.race([

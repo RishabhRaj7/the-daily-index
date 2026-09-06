@@ -49,7 +49,6 @@ export function buildMatchers(interests: ReaderInterests): InterestMatcher[] {
   push(interests.tennisPlayer, 7, ["Tennis"]);
   interests.cards.forEach((c) => push(c, 7));
   push(interests.city, 5);
-  interests.topics.forEach((t) => push(t, 6));
   return out;
 }
 
