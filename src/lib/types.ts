@@ -79,7 +79,7 @@ export interface F1Standing {
   code: string;
   team: string;
   points: number;
-  //wins: number;
+  wins: number;
 }
 
 export interface F1LastResult {

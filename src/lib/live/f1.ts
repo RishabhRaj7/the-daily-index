@@ -245,27 +245,12 @@ async function fetchStartingGrid(sessionKey: number, drivers: Map<number, OpenF1
   }));
 }
 
-// async function fetchWins(sessions: OpenF1Session[]): Promise<{ drivers: Map<number, number>; teams: Map<string, number> }> {
-//   const resultSets = await Promise.all(sessions.map((session) =>
-//     openF1<OpenF1Result[]>(`session_result?session_key=${session.session_key}`, 900),
-//   ));
-//   const driverWins = new Map<number, number>();
-//   const teamWins = new Map<string, number>();
-//   for (const results of resultSets) {
-//     for (const result of results ?? []) {
-//       if (result.position !== 1) continue;
-//       driverWins.set(result.driver_number, (driverWins.get(result.driver_number) ?? 0) + 1);
-//     }
-//   }
-//   return { 
-//     drivers: driverWins, teams: teamWins };
-// }
-
-async function fetchWins(sessions: OpenF1Session[]): Promise<{ drivers: Map<number, number>; }> {
+async function fetchWins(sessions: OpenF1Session[]): Promise<{ drivers: Map<number, number>; teams: Map<string, number> }> {
   const resultSets = await Promise.all(sessions.map((session) =>
     openF1<OpenF1Result[]>(`session_result?session_key=${session.session_key}`, 900),
   ));
   const driverWins = new Map<number, number>();
+  const teamWins = new Map<string, number>();
   for (const results of resultSets) {
     for (const result of results ?? []) {
       if (result.position !== 1) continue;
@@ -273,8 +258,23 @@ async function fetchWins(sessions: OpenF1Session[]): Promise<{ drivers: Map<numb
     }
   }
   return { 
-    drivers: driverWins };
+    drivers: driverWins, teams: teamWins };
 }
+
+// async function fetchWins(sessions: OpenF1Session[]): Promise<{ drivers: Map<number, number>; }> {
+//   const resultSets = await Promise.all(sessions.map((session) =>
+//     openF1<OpenF1Result[]>(`session_result?session_key=${session.session_key}`, 900),
+//   ));
+//   const driverWins = new Map<number, number>();
+//   for (const results of resultSets) {
+//     for (const result of results ?? []) {
+//       if (result.position !== 1) continue;
+//       driverWins.set(result.driver_number, (driverWins.get(result.driver_number) ?? 0) + 1);
+//     }
+//   }
+//   return { 
+//     drivers: driverWins };
+// }
 
 async function fetchStandings(
   sessions: OpenF1Session[],
@@ -309,7 +309,7 @@ async function fetchStandings(
       position: row.position_current,
       team: row.team_name,
       points: row.points_current,
-      //wins: wins.teams.get(row.team_name) ?? 0,
+      wins: wins.teams.get(row.team_name) ?? 0,
     })),
   };
 }
