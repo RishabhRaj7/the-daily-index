@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { WORDLE_ANSWERS, WORDLE_GUESSES } from "@/lib/wordle-words";
 
 // ---------------------------------------------------------------------------
 // The Puzzle Desk — fills the "Overheard on Reddit" column whenever Reddit has
@@ -8,15 +9,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 // error line, the reader gets something to fiddle with in exactly the same
 // space:
 //
-//   1. Headline Scramble — unscramble a word lifted from *today's* real
+//   1. Wordle — six guesses at today's five-letter word, with the classic
+//      green/amber/gray feedback. The same seeded word for every reader, all
+//      day; guesses must be real words.
+//   2. Headline Scramble — unscramble a word lifted from *today's* real
 //      Editor's Picks headlines (falls back to newsroom vocabulary).
-//   2. Noughts & Crosses — a quick game against "the Editor" (who is decent
+//   3. Noughts & Crosses — a quick game against "the Editor" (who is decent
 //      but beatable).
 //
 // Everything is client-side; scores persist in localStorage.
 // ---------------------------------------------------------------------------
 
-type Tab = "scramble" | "oxo";
+type Tab = "wordle" | "scramble" | "oxo";
 
 const STOPWORDS = new Set([
   "about", "after", "again", "against", "ahead", "along", "among", "amid", "because", "before",
@@ -120,12 +124,61 @@ function maskWord(headline: string, answer: string): string {
 // ---- persistence -----------------------------------------------------------
 
 const LS_KEY = "daily-index:puzzle-desk";
+
+type WordleStatus = "playing" | "won" | "lost";
+interface WordleDay {
+  key: string;
+  guesses: string[];
+  status: WordleStatus;
+  /** Position of the letter the daily hint revealed (0–4), if the reader asked. */
+  hintIndex?: number | null;
+}
+interface WordleStats {
+  played: number;
+  won: number;
+  streak: number;
+  bestStreak: number;
+  /** Wins by guess count, index 0 = solved in 1 … index 5 = solved in 6. */
+  dist: number[];
+  /** Today's in-progress or finished game, keyed by the edition's dateKey. */
+  day: WordleDay | null;
+}
+
 interface Saved {
   bestStreak: number;
   solvedTotal: number;
   oxo: { you: number; editor: number; draws: number };
+  wordle: WordleStats;
 }
-const DEFAULT_SAVED: Saved = { bestStreak: 0, solvedTotal: 0, oxo: { you: 0, editor: 0, draws: 0 } };
+
+const DEFAULT_SAVED: Saved = {
+  bestStreak: 0,
+  solvedTotal: 0,
+  oxo: { you: 0, editor: 0, draws: 0 },
+  wordle: { played: 0, won: 0, streak: 0, bestStreak: 0, dist: [0, 0, 0, 0, 0, 0], day: null },
+};
+
+function loadWordleStats(raw: Partial<WordleStats> | undefined): WordleStats {
+  const d = DEFAULT_SAVED.wordle;
+  if (!raw) return d;
+  const day = raw.day;
+  return {
+    played: raw.played ?? 0,
+    won: raw.won ?? 0,
+    streak: raw.streak ?? 0,
+    bestStreak: raw.bestStreak ?? 0,
+    dist: Array.isArray(raw.dist) && raw.dist.length === 6 ? raw.dist : [...d.dist],
+    day:
+      day && typeof day === "object" && Array.isArray(day.guesses)
+        ? {
+            key: typeof day.key === "string" ? day.key : "",
+            guesses: day.guesses.filter((g) => typeof g === "string"),
+            status: day.status === "won" || day.status === "lost" ? day.status : "playing",
+            hintIndex: typeof day.hintIndex === "number" ? day.hintIndex : null,
+          }
+        : null,
+  };
+}
 
 function loadSaved(): Saved {
   try {
@@ -136,6 +189,7 @@ function loadSaved(): Saved {
       bestStreak: parsed.bestStreak ?? 0,
       solvedTotal: parsed.solvedTotal ?? 0,
       oxo: { ...DEFAULT_SAVED.oxo, ...(parsed.oxo ?? {}) },
+      wordle: loadWordleStats(parsed.wordle),
     };
   } catch {
     return DEFAULT_SAVED;
@@ -148,6 +202,335 @@ function persist(s: Saved) {
   } catch {
     /* private mode etc. — scores just won't stick */
   }
+}
+
+// ---- Wordle -------------------------------------------------------------------
+
+type Mark = "correct" | "present" | "absent";
+
+// Classic Wordle scoring with correct duplicate-letter handling: exact
+// matches are claimed first, then a yellow only consumes a letter the answer
+// still has left over — so guessing "ROBOT" against an answer with one O
+// never lights up both O's.
+function scoreGuess(guess: string, answer: string): Mark[] {
+  const marks: Mark[] = ["absent", "absent", "absent", "absent", "absent"];
+  const remaining: Record<string, number> = {};
+  for (let i = 0; i < 5; i++) {
+    if (guess[i] === answer[i]) marks[i] = "correct";
+    else remaining[answer[i]] = (remaining[answer[i]] ?? 0) + 1;
+  }
+  for (let i = 0; i < 5; i++) {
+    if (marks[i] === "correct") continue;
+    const ch = guess[i];
+    if ((remaining[ch] ?? 0) > 0) {
+      marks[i] = "present";
+      remaining[ch] -= 1;
+    }
+  }
+  return marks;
+}
+
+const WORDLE_WIN_LINES = [
+  "On the first guess. The Editor suspects a leak in the composing room.",
+  "Two tries. Word of it is already around the newsroom.",
+  "Three tries — sharp as a fresh nib.",
+  "Four tries. Sound, steady typesetting.",
+  "Five tries. Filed just before the deadline.",
+  "Sixth and final guess. Made the edition by a whisker.",
+];
+
+const ORDINALS = ["first", "second", "third", "fourth", "fifth"];
+
+const WORDLE_KEYS = [
+  ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
+  ["A", "S", "D", "F", "G", "H", "J", "K", "L"],
+  ["ENTER", "Z", "X", "C", "V", "B", "N", "M", "⌫"],
+];
+
+// Tiny self-contained styles for the tile flip/pop so this component needs
+// nothing outside this file. Colors come from the paper's own palette
+// (--up green, paper, ink) plus Wordle's familiar amber.
+const WORDLE_CSS = `
+  .wl-tile { transition: background-color .12s ease var(--wl-d, 0ms), color .12s ease var(--wl-d, 0ms), border-color .12s ease var(--wl-d, 0ms); }
+  .wl-flip { animation: wl-flip .55s ease var(--wl-d, 0ms) both; backface-visibility: hidden; }
+  @keyframes wl-flip { 0%, 100% { transform: rotateX(0); } 50% { transform: rotateX(-90deg); } }
+  .wl-pop { animation: wl-pop .1s ease-in-out both; }
+  @keyframes wl-pop { 0% { transform: scale(0.8); } 100% { transform: scale(1); } }
+  .wl-mark { border-color: transparent; }
+  .wl-correct { background-color: var(--up, #1e5f3e); color: var(--paper, #f7f3e9); }
+  .wl-present { background-color: #c9b458; color: var(--paper, #f7f3e9); }
+  .wl-absent { background-color: #787c7e; color: var(--paper, #f7f3e9); }
+  @media (prefers-reduced-motion: reduce) {
+    .wl-flip, .wl-pop { animation: none; }
+  }
+`;
+
+function WordleGame({
+  dateKey,
+  saved,
+  onSaved,
+}: {
+  dateKey: string;
+  saved: Saved;
+  onSaved: (next: Saved) => void;
+}) {
+  // Seeded off the edition's DATE alone — never the full dateKey, which in
+  // the real app embeds story ids that change whenever the wire refreshes.
+  // That keeps the word identical all day, on every reload, for every reader.
+  // Falls back to the device's calendar date if the key carries no date.
+  const dateMatch = dateKey.match(/\d{4}-\d{2}-\d{2}/);
+  const dayKey = dateMatch ? dateMatch[0] : new Date().toLocaleDateString("en-CA");
+  const { answer, hintSpot } = useMemo(() => {
+    const rnd = mulberry32(hashString(`wordle:${dayKey}`));
+    const word = WORDLE_ANSWERS[Math.floor(rnd() * WORDLE_ANSWERS.length)];
+    // A second seeded draw picks which letter the daily hint reveals, so the
+    // hint is the same for everyone who asks today.
+    const spot = Math.floor(rnd() * 5);
+    return { answer: word, hintSpot: spot };
+  }, [dayKey]);
+
+  const restored = saved.wordle.day && saved.wordle.day.key === dayKey ? saved.wordle.day : null;
+  const [guesses, setGuesses] = useState<string[]>(restored?.guesses ?? []);
+  const [status, setStatus] = useState<WordleStatus>(restored?.status ?? "playing");
+  const [hintIndex, setHintIndex] = useState<number | null>(restored?.hintIndex ?? null);
+  const [current, setCurrent] = useState("");
+  const [note, setNote] = useState<string | null>(null);
+  const [bump, setBump] = useState(false);
+  const noteTimer = useRef<number | null>(null);
+
+  const flash = useCallback((msg: string) => {
+    setNote(msg);
+    if (noteTimer.current) window.clearTimeout(noteTimer.current);
+    noteTimer.current = window.setTimeout(() => setNote(null), 1800);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (noteTimer.current) window.clearTimeout(noteTimer.current);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!bump) return;
+    const t = window.setTimeout(() => setBump(false), 350);
+    return () => window.clearTimeout(t);
+  }, [bump]);
+
+  // Best mark earned by each letter so far — the keyboard never downgrades
+  // a green to an amber or gray (mirrors the duplicate-letter rules).
+  const keyMarks = useMemo(() => {
+    const rank: Record<Mark, number> = { absent: 0, present: 1, correct: 2 };
+    const best: Record<string, Mark> = {};
+    for (const g of guesses) {
+      const marks = scoreGuess(g, answer);
+      g.split("").forEach((ch, i) => {
+        const prev = best[ch];
+        if (!prev || rank[marks[i]] > rank[prev]) best[ch] = marks[i];
+      });
+    }
+    return best;
+  }, [guesses, answer]);
+
+  const submit = useCallback(() => {
+    if (status !== "playing") return;
+    if (current.length < 5) {
+      setBump(true);
+      flash("Not enough letters.");
+      return;
+    }
+    if (!WORDLE_GUESSES.has(current)) {
+      setBump(true);
+      flash("Not in the word list.");
+      return;
+    }
+    const nextGuesses = [...guesses, current];
+    const won = current === answer;
+    const nextStatus: WordleStatus = won ? "won" : nextGuesses.length >= 6 ? "lost" : "playing";
+    setGuesses(nextGuesses);
+    setCurrent("");
+    setStatus(nextStatus);
+
+    const w = saved.wordle;
+    const dist = [...w.dist];
+    if (won) dist[nextGuesses.length - 1] += 1;
+    const streak = nextStatus === "playing" ? w.streak : won ? w.streak + 1 : 0;
+    const wordle: WordleStats = {
+      played: w.played + (nextStatus === "playing" ? 0 : 1),
+      won: w.won + (won ? 1 : 0),
+      streak,
+      bestStreak: Math.max(w.bestStreak, streak),
+      dist,
+      day: { key: dayKey, guesses: nextGuesses, status: nextStatus, hintIndex },
+    };
+    onSaved({ ...saved, wordle });
+  }, [answer, current, dayKey, flash, guesses, hintIndex, onSaved, saved, status]);
+
+  // One hint per day: the desk reveals one position's letter (the same one
+  // for every reader), and it stays revealed across reloads.
+  const useHint = useCallback(() => {
+    if (status !== "playing" || hintIndex !== null) return;
+    setHintIndex(hintSpot);
+    onSaved({
+      ...saved,
+      wordle: { ...saved.wordle, day: { key: dayKey, guesses, status, hintIndex: hintSpot } },
+    });
+  }, [dayKey, guesses, hintIndex, hintSpot, onSaved, saved, status]);
+
+  const press = useCallback(
+    (key: string) => {
+      if (status !== "playing") return;
+      if (key === "ENTER") {
+        submit();
+        return;
+      }
+      if (key === "⌫") {
+        setCurrent((c) => c.slice(0, -1));
+        return;
+      }
+      if (/^[A-Z]$/.test(key)) setCurrent((c) => (c.length < 5 ? c + key : c));
+    },
+    [status, submit],
+  );
+
+  // Physical keyboard works alongside the on-screen one — but never steals
+  // keystrokes from a real input (e.g. the scramble's answer field).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (e.key === "Enter") press("ENTER");
+      else if (e.key === "Backspace") press("⌫");
+      else {
+        const k = e.key.toUpperCase();
+        if (/^[A-Z]$/.test(k)) press(k);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [press]);
+
+  const stats = saved.wordle;
+  const persistent =
+    status === "won"
+      ? WORDLE_WIN_LINES[Math.max(0, guesses.length - 1)]
+      : status === "lost"
+        ? `The word was ${answer}. The presses roll again tomorrow.`
+        : null;
+  const hintLine =
+    hintIndex !== null ? (
+      <>
+        The desk whispers: the {ORDINALS[hintIndex]} letter is{" "}
+        <span className="not-italic font-semibold text-masthead-red">{answer[hintIndex]}</span>.
+      </>
+    ) : null;
+
+  return (
+    <div>
+      <style>{WORDLE_CSS}</style>
+
+      <div className="flex items-baseline justify-between font-mono text-[10px] text-ink-soft">
+        <span>
+          {status === "won"
+            ? `Solved in ${guesses.length} of 6`
+            : status === "lost"
+              ? "Out of guesses"
+              : `Guess ${Math.min(guesses.length + 1, 6)} of 6`}
+        </span>
+        <span>
+          Won {stats.won} of {stats.played} · Streak {stats.streak}
+        </span>
+      </div>
+
+      {/* The board: six rows of five tiles, type-slug style to match the desk. */}
+      <div className="mt-3 grid grid-rows-6 gap-1 w-max" role="grid" aria-label="Wordle board">
+        {Array.from({ length: 6 }, (_, row) => {
+          const guess = guesses[row];
+          const isActive = !guess && row === guesses.length && status === "playing";
+          const marks = guess ? scoreGuess(guess, answer) : null;
+          return (
+            <div
+              key={row}
+              role="row"
+              className={`grid grid-cols-5 gap-1 ${isActive && bump ? "animate-[shake_0.3s_ease-in-out]" : ""}`}
+            >
+              {Array.from({ length: 5 }, (_, col) => {
+                const ch = guess ? guess[col] : isActive ? (current[col] ?? "") : "";
+                const mark = marks?.[col];
+                return (
+                  <span
+                    key={isActive ? `${col}-${ch || "e"}` : col}
+                    role="gridcell"
+                    aria-label={ch ? `Row ${row + 1}, letter ${ch}${mark ? `, ${mark}` : ""}` : `Row ${row + 1}, empty`}
+                    style={{ "--wl-d": `${col * 90}ms` } as React.CSSProperties}
+                    className={`wl-tile inline-grid place-items-center w-9 h-10 sm:w-10 sm:h-11 border hairline font-headline text-xl font-semibold leading-none select-none ${
+                      mark ? `wl-flip wl-mark wl-${mark}` : ""
+                    } ${isActive && ch ? "wl-pop" : ""}`}
+                  >
+                    {ch}
+                  </span>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* On-screen keyboard; earned marks colour the keys and never downgrade. */}
+      <div className="mt-3 flex flex-col gap-1 max-w-full" aria-label="On-screen keyboard">
+        {WORDLE_KEYS.map((rowKeys, rowIdx) => (
+          <div key={rowIdx} className="flex gap-1">
+            {rowKeys.map((key) => {
+              const mark = key.length === 1 ? keyMarks[key] : undefined;
+              const wide = key.length > 1;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => press(key)}
+                  disabled={status !== "playing"}
+                  aria-label={key === "⌫" ? "Delete letter" : key === "ENTER" ? "Submit guess" : `Letter ${key}`}
+                  className={`h-8 ${wide ? "flex-[1.6] px-1" : "flex-1"} grid place-items-center border hairline font-label text-[9px] rounded-[2px] transition-colors ${
+                    mark ? `wl-mark wl-${mark}` : "bg-card-bg"
+                  } ${status === "playing" ? "hover:bg-card-bg cursor-pointer" : "opacity-70"} ${
+                    mark && status === "playing" ? "hover:opacity-90" : ""
+                  }`}
+                >
+                  {key === "ENTER" ? "Enter" : key}
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      <p className="font-body italic text-[13px] text-ink-soft mt-3 leading-relaxed min-h-[2.5rem]">
+        {note ?? persistent ?? hintLine ?? (
+          <>
+            Six tries at today&rsquo;s five-letter word.{" "}
+            <span className="text-up not-italic">Green</span> is the right letter in the right spot;{" "}
+            <span className="wl-present not-italic px-1 pb-px">amber</span> is in the word but
+            elsewhere. Real words only — the same word for every reader, all day.
+          </>
+        )}
+      </p>
+
+      {status === "playing" && (
+        <div className="mt-1 flex gap-3 font-label text-[10px]">
+          <button
+            type="button"
+            onClick={useHint}
+            disabled={hintIndex !== null}
+            className="text-masthead-red underline underline-offset-2 disabled:opacity-40 disabled:no-underline"
+          >
+            {hintIndex !== null ? "Hint used" : "Hint: reveal one letter"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ---- Headline Scramble -----------------------------------------------------
@@ -288,13 +671,12 @@ function HeadlineScramble({
             ? item.headline
               ? <>Clue: &ldquo;{maskWord(item.headline, item.answer)}&rdquo;</>
               : <>Clue: a word you&rsquo;d hear in a newsroom, {item.answer.length} letters.</>
-            : item.headline
-              ? "This word appears in one of today's Editor's Picks."
-              : "A word from the pressroom.")}
-        {state === "wrong" && <span className="text-masthead-red not-italic"> Not quite — try again.</span>}
+            : state === "wrong"
+              ? "Not quite — the letters go back on the rack."
+              : "Rearrange the slugs into a word from today's paper.")}
       </p>
 
-      <form onSubmit={submit} className="mt-2 flex items-stretch gap-2">
+      <form onSubmit={submit} className="mt-3 flex gap-2">
         <input
           ref={inputRef}
           value={guess}
@@ -513,7 +895,7 @@ export default function PuzzleDesk({
   /** Optional one-line reason the column is on puzzle duty. */
   note?: string | null;
 }) {
-  const [tab, setTab] = useState<Tab>("scramble");
+  const [tab, setTab] = useState<Tab>("wordle");
   const [saved, setSaved] = useState<Saved>(DEFAULT_SAVED);
   const [mounted, setMounted] = useState(false);
 
@@ -535,6 +917,7 @@ export default function PuzzleDesk({
       <div className="flex items-center gap-4 border-b hairline -mt-1 mb-3" role="tablist" aria-label="Puzzle Desk games">
         {(
           [
+            { key: "wordle", label: "Wordle" },
             { key: "scramble", label: "Headline Scramble" },
             { key: "oxo", label: "Noughts & Crosses" },
           ] as { key: Tab; label: string }[]
@@ -558,6 +941,8 @@ export default function PuzzleDesk({
 
       {!mounted ? (
         <p className="font-body italic text-sm text-ink-soft py-4">Setting the type…</p>
+      ) : tab === "wordle" ? (
+        <WordleGame key={dateKey} dateKey={dateKey} saved={saved} onSaved={handleSaved} />
       ) : tab === "scramble" ? (
         <HeadlineScramble key={dateKey} items={items} saved={saved} onSaved={handleSaved} />
       ) : (
