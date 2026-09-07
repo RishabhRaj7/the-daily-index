@@ -72,6 +72,11 @@ GENERIC RULES FOR ALL SECTION TYPES:
 - Order each section's array by importance to THIS reader (priority 1 = most important).${paddockRule}
 - "watchEntities" outrank general stories: an average article about a watched entity beats a great article the reader didn't ask for.
 
+AT A GLANCE (return alongside the sections, in the same JSON object):
+- Independently of the sections above, choose the 6 most important headlines in the ENTIRE corpus for THIS reader — the six stories they must not miss today, best first, judged by the global rules, their watch topics and watched entities.
+- These picks are an overlay, not a section: an article chosen here is still eligible for whichever section it belongs in, and no more than one pick may cover the same underlying event.
+- For each pick return the corpus index and a "gist": at most 12 words, written like a newspaper headline in the tone above, that stands alone without the original title. Never invent facts not in the article text.
+
 CORPUS (${corpus.length} articles). "i" is the index you must reference; "pool" is the wire it came from; "age" is hours since publication:
 ${corpus
   .map(
@@ -86,7 +91,10 @@ Return ONLY a JSON object — no markdown fences, no commentary — with exactly
     "<sectionId>": [
       { "i": <corpus index>, "summary": "<your summary>", "priority": 1, "group": "<only where a rule above requires it>" }
     ]
-  }
+  },
+  "atAGlance": [
+    { "i": <corpus index>, "gist": "<at most 12 words, headline style>" }
+  ]
 }
-Include every section id listed above (use [] when nothing qualifies). Use only section ids and corpus indices that exist.`;
+Include every section id listed above (use [] when nothing qualifies). "atAGlance" always holds up to 6 picks. Use only section ids and corpus indices that exist.`;
 }

@@ -6,7 +6,9 @@
 //      preferences JSON to the model in one call. The model filters,
 //      prioritises and summarises per section and answers with corpus
 //      indices; we rehydrate real article metadata so no link can be
-//      invented. When the AI is unavailable a deterministic heuristic keeps
+//      invented. The same reply also carries "atAGlance": up to 6 top
+//      headlines across the whole corpus for the floating At a Glance
+//      panel. When the AI is unavailable a deterministic heuristic keeps
 //      the digest working.
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -20,6 +22,7 @@ import { getCreditCardWire } from "./credit-card-wire";
 import { fetchArticleText, fetchedTextMatches } from "./summarize";
 import { buildDigestPrompt } from "@/lib/preferences/prompt";
 import type {
+  AtAGlanceItem,
   CorpusArticle,
   DigestArticle,
   DigestPreferences,
@@ -219,6 +222,43 @@ function rehydrateSection(
   return out;
 }
 
+/**
+ * Rehydrate the model's "At a Glance" picks. Same guarantees as the
+ * sections: the reply carries corpus indices only, so every URL printed is
+ * one we actually fetched. Capped at 6, URL-deduped, and independent of the
+ * sections' usedUrls — these picks overlay the digest rather than compete
+ * with it for articles.
+ */
+function rehydrateAtAGlance(raw: unknown, corpus: CorpusArticle[]): AtAGlanceItem[] {
+  const MAX_PICKS = 6;
+  const entries = Array.isArray(raw) ? (raw as RawSelection[]) : [];
+  const out: AtAGlanceItem[] = [];
+  const seen = new Set<string>();
+
+  for (const entry of entries) {
+    if (out.length >= MAX_PICKS) break;
+    const idx = typeof entry.i === "number" ? entry.i : Number(entry.i);
+    const article = corpus[idx];
+    if (!article || seen.has(article.url)) continue;
+    seen.add(article.url);
+
+    const gist = typeof (entry as { gist?: unknown }).gist === "string"
+      ? ((entry as { gist?: unknown }).gist as string).trim()
+      : "";
+
+    out.push({
+      title: article.title,
+      summary: gist.length >= 4 ? gist : article.title,
+      source: article.source,
+      url: article.url,
+      publishedAt: article.postedAgo,
+      pool: article.pool,
+    });
+  }
+
+  return out;
+}
+
 // ---- heuristic fallback (no AI configured) -----------------------------------
 
 const POOL_HINTS: Record<string, string[]> = {
@@ -354,6 +394,46 @@ function heuristicDigest(
   return result;
 }
 
+/**
+ * "At a Glance" for the no-AI path: the sections were already ranked by the
+ * reader's preferences, so round-robin their top stories (best of each
+ * section in order, then runner-ups) until 6 picks — mirroring the AI
+ * overlay without a second opinion source.
+ */
+function heuristicAtAGlance(
+  prefs: DigestPreferences,
+  sections: Record<string, DigestArticle[]>,
+  corpus: CorpusArticle[],
+): AtAGlanceItem[] {
+  const MAX_PICKS = 6;
+  const poolByUrl = new Map(corpus.map((a) => [a.url, a.pool]));
+  const ordered = [...prefs.sections].sort((a, b) => a.order - b.order);
+  const out: AtAGlanceItem[] = [];
+  const seen = new Set<string>();
+
+  for (let rank = 0; out.length < MAX_PICKS; rank++) {
+    let tookAny = false;
+    for (const section of ordered) {
+      const article = (sections[section.id] ?? [])[rank];
+      if (!article || seen.has(article.url)) continue;
+      seen.add(article.url);
+      tookAny = true;
+      out.push({
+        title: article.title,
+        summary: article.title,
+        source: article.source,
+        url: article.url,
+        publishedAt: article.publishedAt,
+        pool: poolByUrl.get(article.url) ?? "World",
+      });
+      if (out.length >= MAX_PICKS) break;
+    }
+    if (!tookAny) break;
+  }
+
+  return out;
+}
+
 // ---- public entry point --------------------------------------------------------
 
 export async function generateDigest(prefs: DigestPreferences): Promise<DigestResult> {
@@ -361,8 +441,10 @@ export async function generateDigest(prefs: DigestPreferences): Promise<DigestRe
   const generatedAt = new Date().toISOString();
 
   if (!aiEnabled() || corpus.length === 0) {
+    const sections = heuristicDigest(prefs, corpus);
     return {
-      sections: heuristicDigest(prefs, corpus),
+      sections,
+      atAGlance: heuristicAtAGlance(prefs, sections, corpus),
       generatedAt,
       engine: "heuristic",
       corpusSize: corpus.length,
@@ -382,7 +464,10 @@ export async function generateDigest(prefs: DigestPreferences): Promise<DigestRe
     ]);
 
     const text = response.response.text().replace(/```(?:json)?/g, "").trim();
-    const parsed = JSON.parse(text) as { sections?: Record<string, unknown> };
+    const parsed = JSON.parse(text) as {
+      sections?: Record<string, unknown>;
+      atAGlance?: unknown;
+    };
     if (!parsed || typeof parsed.sections !== "object" || parsed.sections === null) {
       throw new Error("response missing sections map");
     }
@@ -399,11 +484,15 @@ export async function generateDigest(prefs: DigestPreferences): Promise<DigestRe
       );
     }
 
-    return { sections, generatedAt, engine: "ai", corpusSize: corpus.length };
+    const atAGlance = rehydrateAtAGlance(parsed.atAGlance, corpus);
+
+    return { sections, atAGlance, generatedAt, engine: "ai", corpusSize: corpus.length };
   } catch (err) {
     console.error("[digest] AI pass failed, falling back to heuristic:", err);
+    const sections = heuristicDigest(prefs, corpus);
     return {
-      sections: heuristicDigest(prefs, corpus),
+      sections,
+      atAGlance: heuristicAtAGlance(prefs, sections, corpus),
       generatedAt,
       engine: "heuristic",
       corpusSize: corpus.length,

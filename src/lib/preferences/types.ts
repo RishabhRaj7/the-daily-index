@@ -146,6 +146,26 @@ export interface DigestArticle {
   matchedEntity?: string;
 }
 
+/**
+ * One headline in the "At a Glance" overlay — the AI's pick of the stories
+ * this reader must not miss today, chosen from the ENTIRE corpus (it may
+ * also appear inside a digest section).
+ */
+export interface AtAGlanceItem {
+  title: string;
+  /** Very short, one-line gist of the story in the reader's tone. */
+  summary: string;
+  /** Publisher / domain, e.g. "bbc.co.uk". */
+  source: string;
+  /** Link to the full story — always a real corpus URL, never invented. */
+  url: string;
+  /** ISO timestamp when known, else the feed's own age string ("3h ago"). */
+  publishedAt: string;
+  /** Wire pool the article came from: World, Markets, F1, Football, Tennis,
+   *  Tech, Cards. */
+  pool: string;
+}
+
 /** One collated article fed to the AI (or the heuristic fallback). */
 export interface CorpusArticle {
   /** Index the model references in its reply — keeps responses small and
@@ -170,6 +190,13 @@ export interface CorpusArticle {
 export interface DigestResult {
   /** Keyed by digest-section id. Sections with nothing qualifying are []. */
   sections: Record<string, DigestArticle[]>;
+  /**
+   * The AI-curated "At a Glance" overlay: up to 6 top headlines picked from
+   * the whole corpus per the reader's preferences, best first. Optional so
+   * older cached digests (which predate it) still deserialize cleanly — the
+   * display layer falls back to deriving the brief from the sections then.
+   */
+  atAGlance?: AtAGlanceItem[];
   generatedAt: string;
   /** "ai" when the model produced it, "heuristic" for the offline fallback. */
   engine: "ai" | "heuristic";
