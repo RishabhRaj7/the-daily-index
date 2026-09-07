@@ -10,7 +10,12 @@ export default function FavoriteDriverCard({
   return (
     <div
       className="paper-box"
-      style={accentColor ? { borderLeft: `4px solid ${accentColor}` } : undefined}
+      style={{
+        paddingInline: "0.75rem",
+        borderTop: "none",
+        borderBottom: "none",
+        ...(accentColor ? { borderLeft: `4px solid ${accentColor}`, backgroundColor: `${accentColor}18` } : {}),
+      }}
     >
       <div className="font-label text-[10px] text-ink-soft mb-1">Your Driver</div>
       <div className="flex items-baseline justify-between">

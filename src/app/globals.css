@@ -84,6 +84,7 @@ html.theme-transition *::after {
   border-radius: 0;
   background: transparent;
 }
+
 .paper-box-tight {
   padding: 0.5rem 0 0.75rem;
 }

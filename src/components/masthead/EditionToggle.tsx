@@ -28,10 +28,14 @@ export default function EditionToggle() {
       {isManual && (
         <button
           onClick={resetToAuto}
-          className="underline text-ink-soft normal-case font-body tracking-normal"
-          title="Follow local time again"
+          className={`px-2 py-1 border hairline rounded-sm transition-colors ${
+            !isManual
+              ? "bg-masthead-red text-paper border-masthead-red"
+              : "text-ink-soft border-transparent hover:border-hairline"
+          }`}
+          aria-pressed={!isManual}
         >
-          auto
+          Auto
         </button>
       )}
     </div>
