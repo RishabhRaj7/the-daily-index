@@ -108,7 +108,8 @@ export default function PaddockNotesSection({
     ? constructorStandings
     : constructorStandings.slice(0, 5);
 
-  // Normalized team name for comparison against constructor standings rows.
+  // Normalized team name used only for the "Following" badge above — the
+  // standings tables below are fully decoupled from the user's selection.
   const normFavTeam = favoriteF1Team.replace(/\s*F1 Team$/i, "").trim();
 
   function storiesForSport(sport: "f1" | "football" | "tennis"): Story[] {
@@ -222,12 +223,10 @@ export default function PaddockNotesSection({
                 {visibleConstructors.map((cs) => {
                   const csNorm = cs.team.replace(/\s*F1 Team$/i, "").trim();
                   const csColor = teamColor(cs.team);
-                  const isFav = normFavTeam.length > 0 && csNorm === normFavTeam;
                   return (
                     <tr
                       key={cs.position}
-                      className={`border-t hairline first:border-t-0 ${isFav ? "font-semibold" : ""}`}
-                      style={isFav && accentColor ? { color: accentColor } : {}}
+                      className="border-t hairline first:border-t-0"
                     >
                       <td className="py-1 font-mono w-6">{cs.position}</td>
                       <td className="py-1">

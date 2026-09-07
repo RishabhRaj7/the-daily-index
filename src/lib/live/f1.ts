@@ -211,12 +211,14 @@ async function getDrivers(sessionKey: number): Promise<Map<number, OpenF1Driver>
 // }
 
 async function fetchLatestSessionResults(): Promise<F1LastRace | null> {
-  const [latestSessions, results] = await Promise.all([
-    openF1<OpenF1Session[]>(`sessions?session_key=latest`, 900),
-    openF1<OpenF1Result[]>(`session_result?session_key=latest`, 900),
-  ]);
+  // Sequential by design: identify the latest session first, then fetch its
+  // result, then the driver details needed to label the rows.
+  const latestSessions = await openF1<OpenF1Session[]>(`sessions?session_key=latest`, 900);
   const latestSession = latestSessions?.[0];
-  if (!latestSession || !results?.length) return null;
+  if (!latestSession) return null;
+
+  const results = await openF1<OpenF1Result[]>(`session_result?session_key=latest`, 900);
+  if (!results?.length) return null;
 
   if (Date.now() < new Date(latestSession.date_start).getTime() + RESULT_DELAY_MS) return null;
 
@@ -251,20 +253,24 @@ async function fetchStartingGrid(sessionKey: number, drivers: Map<number, OpenF1
   }));
 }
 
-async function fetchWins(sessions: OpenF1Session[]): Promise<{ drivers: Map<number, number>; teams: Map<string, number> }> {
-  const resultSets = await Promise.all(sessions.map((session) =>
-    openF1<OpenF1Result[]>(`session_result?session_key=${session.session_key}`, 900),
-  ));
+// One session_result request at a time — wins need a request per completed
+// race, making this the slowest data, so it always runs last, never in a burst.
+async function fetchWins(
+  sessions: OpenF1Session[],
+  drivers: Map<number, OpenF1Driver>,
+): Promise<{ drivers: Map<number, number>; teams: Map<string, number> }> {
   const driverWins = new Map<number, number>();
   const teamWins = new Map<string, number>();
-  for (const results of resultSets) {
+  for (const session of sessions) {
+    const results = await openF1<OpenF1Result[]>(`session_result?session_key=${session.session_key}`, 900);
     for (const result of results ?? []) {
       if (result.position !== 1) continue;
       driverWins.set(result.driver_number, (driverWins.get(result.driver_number) ?? 0) + 1);
+      const winningTeam = drivers.get(result.driver_number)?.team_name;
+      if (winningTeam) teamWins.set(winningTeam, (teamWins.get(winningTeam) ?? 0) + 1);
     }
   }
-  return { 
-    drivers: driverWins, teams: teamWins };
+  return { drivers: driverWins, teams: teamWins };
 }
 
 // async function fetchWins(sessions: OpenF1Session[]): Promise<{ drivers: Map<number, number>; }> {
@@ -282,27 +288,30 @@ async function fetchWins(sessions: OpenF1Session[]): Promise<{ drivers: Map<numb
 //     drivers: driverWins };
 // }
 
-async function fetchStandings(
-  sessions: OpenF1Session[],
-  drivers: Map<number, OpenF1Driver>,
-): Promise<{ drivers: F1Standing[]; teams: F1ConstructorStanding[] }> {
-  const [driverStandings, teamStandings, wins] = await Promise.all([
-    openF1<OpenF1ChampionshipDriver[]>(`championship_drivers?session_key=latest`, 900),
-    openF1<OpenF1ChampionshipTeam[]>(`championship_teams?session_key=latest`, 900),
-    fetchWins(sessions),
-  ]);
-
-  // team wins = sum of each team's drivers' wins
-  // for (const [driverNumber, count] of wins.drivers) {
-  //   const team = drivers.get(driverNumber)?.team_name;
-  //   if (team) wins.teams.set(team, (wins.teams.get(team) ?? 0) + count);
-  // }
-
-  const driverRows = (driverStandings ?? []).sort((a, b) => a.position_current - b.position_current);
-  const teamRows = (teamStandings ?? []).sort((a, b) => a.position_current - b.position_current);
-
+// Step 2 of the fetch order: the raw championship tables, requested one after
+// the other. Wins are deliberately NOT requested here — they need a request
+// per completed race and are merged in last (see toStandings).
+async function fetchChampionship(): Promise<{
+  driverRows: OpenF1ChampionshipDriver[];
+  teamRows: OpenF1ChampionshipTeam[];
+}> {
+  const driverStandings = await openF1<OpenF1ChampionshipDriver[]>(`championship_drivers?session_key=latest`, 900);
+  const teamStandings = await openF1<OpenF1ChampionshipTeam[]>(`championship_teams?session_key=latest`, 900);
   return {
-    drivers: driverRows.map((row) => ({
+    driverRows: (driverStandings ?? []).sort((a, b) => a.position_current - b.position_current),
+    teamRows: (teamStandings ?? []).sort((a, b) => a.position_current - b.position_current),
+  };
+}
+
+// Merges the raw championship tables with driver details and the win counts
+// (fetched separately, last) into the final sidebar standings.
+function toStandings(
+  championship: { driverRows: OpenF1ChampionshipDriver[]; teamRows: OpenF1ChampionshipTeam[] },
+  drivers: Map<number, OpenF1Driver>,
+  wins: { drivers: Map<number, number>; teams: Map<string, number> },
+): { drivers: F1Standing[]; teams: F1ConstructorStanding[] } {
+  return {
+    drivers: championship.driverRows.map((row) => ({
       position: row.position_current,
       driverId: drivers.get(row.driver_number)?.name_acronym.toLowerCase() ?? String(row.driver_number),
       name: driverLabel(drivers.get(row.driver_number), row.driver_number),
@@ -311,7 +320,7 @@ async function fetchStandings(
       points: row.points_current,
       wins: wins.drivers.get(row.driver_number) ?? 0,
     })),
-    teams: teamRows.map((row) => ({
+    teams: championship.teamRows.map((row) => ({
       position: row.position_current,
       team: row.team_name,
       points: row.points_current,
@@ -405,21 +414,37 @@ export async function getLiveF1(): Promise<LiveF1Data | null> {
   // Latest session in the whole season (used for standings so we get current team/driver lineup)
   const latestSession = sorted[sorted.length - 1];
 
-  const [nextRaceDrivers, latestDrivers, nextMeeting] = await Promise.all([
-    getDrivers(nextSession.session_key),
-    getDrivers(latestSession.session_key),
-    // The meetings endpoint carries the official F1 track-map image (circuit_image)
-    // for the circuit — sessions alone do not include it.
-    openF1<OpenF1Meeting[]>(`meetings?meeting_key=${nextSession.meeting_key}`, 21600),
-  ]);
+  // Everything below runs strictly one call at a time, in this order:
+  // 1) driver details → 2) driver + team standings (no wins) → 3) track image
+  // → 4) last session result → 5) remaining widgets (starting grid)
+  // → 6) wins (slowest — one request per completed race — so merged in last).
+
+  // 1) Driver details.
+  const nextRaceDrivers = await getDrivers(nextSession.session_key);
+  const latestDrivers = latestSession.session_key === nextSession.session_key
+    ? nextRaceDrivers
+    : await getDrivers(latestSession.session_key);
+
+  // 2) Driver + team championship standings (wins merged in step 6).
+  const championship = await fetchChampionship();
+
+  // 3) Track image — the meetings endpoint carries the official F1 track-map
+  // image (circuit_image); sessions alone do not include it.
+  const nextMeeting = await openF1<OpenF1Meeting[]>(`meetings?meeting_key=${nextSession.meeting_key}`, 21600);
   const circuitImageUrl = nextMeeting?.[0]?.circuit_image ?? undefined;
   const nextRace = raceFromSession(nextSession, nextRound, circuitImageUrl);
-  const [lastRace, qualifyingGrid, standings] = await Promise.all([
-    fetchLatestSessionResults(),
-    fetchStartingGrid(nextSession.session_key, nextRaceDrivers),
-    fetchStandings(sorted.filter((session) => new Date(session.date_start).getTime() <= now - RESULT_DELAY_MS), latestDrivers),
-    //fetchStandings(latestDrivers),
-  ]);
+
+  // 4) Last session result.
+  const lastRace = await fetchLatestSessionResults();
+
+  // 5) Everything else except wins — the next race's starting grid.
+  const qualifyingGrid = await fetchStartingGrid(nextSession.session_key, nextRaceDrivers);
+
+  // 6) Wins — the slowest calls, fetched last and merged into the standings
+  // from step 2.
+  const completedSessions = sorted.filter((session) => new Date(session.date_start).getTime() <= now - RESULT_DELAY_MS);
+  const wins = await fetchWins(completedSessions, latestDrivers);
+  const standings = toStandings(championship, latestDrivers, wins);
   const resultReady = Boolean(lastSession && lastRace);
   const liveResults = paidLiveProvider && lastSession ? await paidLiveProvider.getLiveResults(lastSession.session_key) : [];
   return {
