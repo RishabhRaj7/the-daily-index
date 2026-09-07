@@ -67,6 +67,7 @@ ${prefs.sections.map(describeSection).join("\n")}
 
 GENERIC RULES FOR ALL SECTION TYPES:
 - Select ONLY from the CORPUS below. An article may appear in at most ONE section — assign each article where it fits the reader best.
+- If two or more articles cover the same underlying event (same match, same announcement, same incident) even from different pools or sources, treat them as ONE story: pick only the best-sourced or most complete version and ignore the rest.
 - If fewer articles qualify than a section asks for, return fewer. Never pad a section with weak or off-topic articles.
 - Order each section's array by importance to THIS reader (priority 1 = most important).${paddockRule}
 - "watchEntities" outrank general stories: an average article about a watched entity beats a great article the reader didn't ask for.
