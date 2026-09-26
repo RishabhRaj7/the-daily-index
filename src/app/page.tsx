@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import type { Edition, FootballStanding, GrapevineData, TennisRanking, WireBrief } from "@/lib/types";
 import EditionView from "@/components/EditionView";
-import { getLiveF1, getF1Roster } from "@/lib/live/f1";
+import { getF1Schedule, getF1Roster } from "@/lib/live/f1";
 import { getF1News } from "@/lib/live/f1-news";
 import { getFootballNews } from "@/lib/live/football-news";
 import { getTennisNews } from "@/lib/live/tennis-news";
@@ -124,18 +124,19 @@ export default async function Home() {
   // Connected Reddit account (Login-with-Reddit): the reader's *actual*
   // subscriptions drive the column. A hand-picked list in Settings is merged
   // first so explicit choices always win; the rest fills from subscriptions.
-  let redditUser: string | null = null;
-  let connectedSubs: string[] = [];
-  try {
-    if (!redditEnabled) throw new Error("Reddit fetching disabled");
-    const conn = await getRedditConnection();
-    if (conn) {
-      redditUser = conn.redditUsername;
-      connectedSubs = await getUserSubreddits();
+  // The DB round-trip is started but NOT awaited here — it overlaps the big
+  // fetch block below instead of serialising ahead of it.
+  const redditConnectionPromise: Promise<{ user: string; subs: string[] } | null> = (async () => {
+    try {
+      if (!redditEnabled) return null;
+      const conn = await getRedditConnection();
+      if (!conn) return null;
+      return { user: conn.redditUsername, subs: await getUserSubreddits() };
+    } catch {
+      // DB unreachable — fall back to the cookie list below.
+      return null;
     }
-  } catch {
-    // DB unreachable — fall back to the cookie list below.
-  }
+  })();
 
   // When no subreddits configured, derive from sports so the Grapevine feels
   // relevant from day one.
@@ -146,17 +147,18 @@ export default async function Home() {
     "personalfinanceindia",
     "technology",
   ];
-  const effectiveSubreddits =
-    userSubreddits.length > 0
-      ? [...new Set([...userSubreddits, ...connectedSubs])].slice(0, 8)
-      : connectedSubs.length > 0
-        ? connectedSubs.slice(0, 8)
-        : fallbackSubs;
 
   // Fetch per-sport feeds independently so we can filter hate-watch from the
   // full set (before the perSport cap applied to the main section).
+  //
+  // F1 note: the sidebar used to be served by one `getLiveF1()` waterfall
+  // (~10 sequential upstream calls) on this page's critical path — a slow
+  // OpenF1 endpoint stalled the whole edition, and a failed one printed a
+  // dead "unavailable" until the next load. Now the page only fetches the
+  // fast schedule here; standings / last-race / grid stream into the sidebar
+  // via /api/f1 (see components/widgets/F1Sidebar.tsx).
   const [
-    liveF1,
+    f1Schedule,
     f1Roster,
     f1FeedRaw,
     footballFeedRaw,
@@ -167,12 +169,12 @@ export default async function Home() {
     worldWireAll,
     marketsWireAll,
     cardsWireAll,
-    redditResult,
+    redditBundle,
     liveMarkets,
     onThisDay,
     wordOfDay,
   ] = await Promise.all([
-    getLiveF1(),
+    getF1Schedule(),
     getF1Roster(),
     userSports.includes("f1")       ? getF1News(20)       : Promise.resolve([] as WireBrief[]),
     userSports.includes("football") ? getFootballNews(20) : Promise.resolve([] as WireBrief[]),
@@ -187,18 +189,36 @@ export default async function Home() {
     getWorldIndiaWire(16),
     getMarketsWire(14),
     getCreditCardWire(),
+    // The Reddit column waits on the connected-account lookup (started
+    // above) — both still run inside this block, overlapping the rest.
     redditEnabled
-      ? getRedditTrending(5, effectiveSubreddits)
+      ? redditConnectionPromise.then(async (conn) => {
+          const connectedSubs = conn?.subs ?? [];
+          const effectiveSubreddits =
+            userSubreddits.length > 0
+              ? [...new Set([...userSubreddits, ...connectedSubs])].slice(0, 8)
+              : connectedSubs.length > 0
+                ? connectedSubs.slice(0, 8)
+                : fallbackSubs;
+          const result = await getRedditTrending(5, effectiveSubreddits);
+          return { result, user: conn?.user ?? null, subs: effectiveSubreddits };
+        })
       : Promise.resolve({
-          topics: [],
-          status: "unconfigured" as const,
-          note: "Reddit fetching is disabled by REDDIT_ENABLED.",
-          fetchedAt: new Date().toISOString(),
+          result: {
+            topics: [],
+            status: "unconfigured" as const,
+            note: "Reddit fetching is disabled by REDDIT_ENABLED.",
+            fetchedAt: new Date().toISOString(),
+          },
+          user: null as string | null,
+          subs: userSubreddits.length > 0 ? userSubreddits.slice(0, 8) : fallbackSubs,
         }),
     getLiveMarkets(),
     getOnThisDay(),
     getWordOfDay(),
   ]);
+
+  const { result: redditResult, user: redditUser, subs: effectiveSubreddits } = redditBundle;
 
   // Preferences drive ranking everywhere below: matching stories float to
   // the top of their section pool and get tagged `personal` ("For you").
@@ -308,7 +328,23 @@ export default async function Home() {
     ...editionMeta(),
     // weather is intentionally absent here — EditionView fetches it live
     // on the client using the user's homeCity from personalization settings.
-    f1: liveF1 ?? null,
+    //
+    // F1 is intentionally schedule-only here: the fast calendar paints with
+    // the rest of the edition, while standings and results stream into the
+    // sidebar afterwards via /api/f1 (progressive loading — see F1Sidebar).
+    f1: f1Schedule
+      ? {
+          nextRace: f1Schedule.nextRace,
+          upcoming: f1Schedule.upcoming,
+          standings: [],
+          constructorStandings: [],
+          lastRace: null,
+          qualifyingGrid: [],
+          liveResults: [],
+          currentRace: null,
+          racePhase: "last-race",
+        }
+      : null,
     markets: {
       indices: liveMarkets?.indices ?? [],
       mood: liveMarkets?.mood ?? null,
@@ -333,7 +369,7 @@ export default async function Home() {
   return (
     <EditionView
       edition={edition}
-      f1Live={Boolean(liveF1)}
+      f1Live={Boolean(f1Schedule)}
       redditLive={redditResult.status === "live"}
       hateWatchStories={hateWatchStories}
       summaryArticles={summaryArticles}

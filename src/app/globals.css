@@ -179,6 +179,160 @@ html.theme-transition *::after {
   }
 }
 
+/* --- Pressroom overlay ("cooking today's edition") ------------------------
+   Covers the edition while the AI digest pass runs: type bars being set,
+   a rotating status line, a blinking wire ticker. Fades out on reveal. */
+.prep-overlay {
+  transition: opacity 0.5s ease;
+}
+
+.prep-overlay.prep-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@keyframes prep-bar {
+  0% {
+    transform: scaleX(0);
+    opacity: 0.25;
+  }
+  38% {
+    transform: scaleX(1);
+    opacity: 0.95;
+  }
+  72% {
+    transform: scaleX(1);
+    opacity: 0.95;
+  }
+  100% {
+    transform: scaleX(1);
+    opacity: 0.25;
+  }
+}
+
+.prep-bar {
+  transform-origin: left center;
+  animation: prep-bar 2.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.prep-bar:nth-child(2) {
+  animation-delay: 0.35s;
+}
+
+.prep-bar:nth-child(3) {
+  animation-delay: 0.7s;
+}
+
+@keyframes prep-blink {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.prep-dot {
+  animation: prep-blink 1.5s ease-in-out infinite;
+}
+
+.prep-dot:nth-child(2) {
+  animation-delay: 0.4s;
+}
+
+.prep-dot:nth-child(3) {
+  animation-delay: 0.8s;
+}
+
+@keyframes prep-line-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.prep-line-anim {
+  animation: prep-line-in 0.45s ease both;
+}
+
+/* The little printing press: a roller turning, a sheet emerging from it,
+   and headlines being set line by line — all on one shared 4.6s cycle so
+   the paper comes down before the type starts printing. */
+@keyframes prep-roller {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.prep-roller {
+  animation: prep-roller 8s linear infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes prep-sheet {
+  0% {
+    transform: translateY(-58px);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  82% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  94% {
+    transform: translateY(3px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(-58px);
+    opacity: 0;
+  }
+}
+
+.prep-sheet {
+  animation: prep-sheet 4.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes prep-print {
+  0%,
+  52% {
+    transform: scaleX(0);
+    opacity: 0.35;
+  }
+  66%,
+  100% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+.prep-print {
+  transform-origin: left center;
+  transform-box: fill-box;
+  animation: prep-print 4.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prep-bar,
+  .prep-dot,
+  .prep-line-anim,
+  .prep-roller,
+  .prep-sheet,
+  .prep-print {
+    animation: none;
+  }
+}
+
+
 /* Visible keyboard focus everywhere — the paper should be navigable, not
    just readable. */
 :focus-visible {

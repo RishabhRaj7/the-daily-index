@@ -65,7 +65,6 @@ export interface F1Race {
   round: number;
   name: string;
   country: string;
-  flag: string;
   circuit: string;
   date: string; // ISO date
   circuitImageUrl?: string;
@@ -93,7 +92,6 @@ export interface F1LastResult {
 
 export interface F1LastRace {
   name: string;
-  flag: string;
   circuit: string;
   date: string;
   results: F1LastResult[];

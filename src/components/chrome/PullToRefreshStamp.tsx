@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { clearSummaryCaches, requestForcedSummarize } from "@/lib/summary-cache";
-import { clearDigestCache } from "@/lib/digest-cache";
+import { clearDigestCache, markEditionRefresh } from "@/lib/digest-cache";
+import { clearWeatherCache } from "@/lib/live/weather";
+import { clearF1ClientCache } from "@/lib/f1-cache";
 
 // "Refresh edition" — purges the server-side caches via /api/refresh and then
 // does a full page reload, so every section (news, sports, markets, Reddit,
@@ -23,7 +25,13 @@ export default function PullToRefreshStamp() {
     setRefreshing(true);
     clearSummaryCaches();
     clearDigestCache();
+    clearWeatherCache();
+    clearF1ClientCache();
     requestForcedSummarize();
+    // Tell the next mount's prep overlay this is a deliberate re-print, so it
+    // covers the page with "Printing a fresh edition…" while the whole
+    // pipeline (RSS → collate → AI summary) runs from scratch.
+    markEditionRefresh();
     try {
       await Promise.race([
         fetch("/api/refresh", { method: "POST" }),

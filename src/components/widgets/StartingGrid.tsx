@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { F1GridResult, F1LiveResult, F1Race, F1LastRace } from "@/lib/types";
 import { CIRCUIT_FACTS } from "@/lib/config/circuit-facts";
-import LiveBadge from "./LiveBadge";
 
 function formatCountdown(ms: number) {
   if (ms <= 0) return "Lights out";
@@ -15,6 +14,39 @@ function formatCountdown(ms: number) {
   return `${days}d ${hours}h ${minutes}m ${seconds}s`;
 }
 
+// The per-second ticker lives in its own component so the countdown re-render
+// doesn't drag the whole sidebar (tables, images, standings) along with it.
+function Countdown({ target }: { target: string }) {
+  const [remaining, setRemaining] = useState<string | null>(null);
+  useEffect(() => {
+    const at = new Date(target).getTime();
+    const tick = () => setRemaining(formatCountdown(at - Date.now()));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [target]);
+  return (
+    <div className="font-mono text-2xl mt-2 tabular-nums" suppressHydrationWarning>
+      {remaining ?? "—"}
+    </div>
+  );
+}
+
+// Pulsing hairline rows, styled like the table they stand in for.
+function TimingRowsSkeleton({ rows = 5 }: { rows?: number }) {
+  return (
+    <div className="animate-pulse" aria-hidden="true">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex items-baseline justify-between border-t hairline first:border-t-0 py-1.5">
+          <span className="inline-block w-4 h-2.5 bg-card-bg rounded-sm" />
+          <span className="inline-block w-20 h-2.5 bg-card-bg rounded-sm" />
+          <span className="inline-block w-12 h-2.5 bg-card-bg rounded-sm" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function StartingGrid({
   nextRace,
   upcoming,
@@ -24,7 +56,11 @@ export default function StartingGrid({
   currentRace = null,
   racePhase = "last-race",
   accentColor,
-  live = false,
+  calendarStatus = "ready",
+  onRetryCalendar,
+  sessionStatus = "ready",
+  sessionStale = false,
+  onRetrySession,
 }: {
   nextRace: F1Race;
   upcoming: F1Race[];
@@ -34,35 +70,23 @@ export default function StartingGrid({
   currentRace?: F1Race | null;
   racePhase?: "last-race" | "qualifying" | "race";
   accentColor?: string;
-  live?: boolean;
+  /** Status of the calendar part feeding the fixture table at the bottom. */
+  calendarStatus?: "loading" | "ready" | "failed";
+  onRetryCalendar?: () => void;
+  /** Status of the slower "results" part feeding the timing table — the map
+   *  above renders immediately; this region fills in behind it and offers a
+   *  scoped retry when the timing screens genuinely fail. */
+  sessionStatus?: "loading" | "ready" | "failed";
+  /** True when rows are from an earlier pull and the last refresh failed. */
+  sessionStale?: boolean;
+  onRetrySession?: () => void;
 }) {
-  const [remaining, setRemaining] = useState<string | null>(null);
   const trackFact = useMemo(() => {
     const facts = CIRCUIT_FACTS[nextRace.circuit];
     return facts && facts.length > 0 ? facts[0] : null;
   }, [nextRace.circuit]);
   const [showAll, setShowAll] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const displayedRace = racePhase === "race" && currentRace ? currentRace : nextRace;
-
-  useEffect(() => {
-    const target = new Date(nextRace.date).getTime();
-    const tick = () => setRemaining(formatCountdown(target - Date.now()));
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [nextRace.date]);
-
-  const refreshLiveRace = async () => {
-    if (refreshing) return;
-    setRefreshing(true);
-    try {
-      await fetch("/api/refresh", { method: "POST" });
-      window.location.reload();
-    } finally {
-      setRefreshing(false);
-    }
-  };
 
   const resultRows = racePhase === "race"
     ? liveResults.length > 0 ? liveResults : qualifyingGrid
@@ -76,19 +100,17 @@ export default function StartingGrid({
       : `Starting grid — ${displayedRace.name}`
     : racePhase === "qualifying"
       ? `Race grid — ${nextRace.name}`
-      : `Last race — ${lastRace?.flag ?? ""} ${lastRace?.name ?? ""}`;
+      : `Last race — ${lastRace?.name ?? ""}`;
 
   return (
     <div
       className="paper-box pl-5"
     >
-      <div className="flex items-center justify-between mb-1">
-        <div className="font-label text-[10px] text-ink-soft">Starting Grid</div>
-        {live && <LiveBadge />}
+      <div className="font-label text-[10px] text-ink-soft mb-1">
+        Starting Grid
       </div>
-      <div className="flex items-baseline gap-2">
-        <span className="text-2xl">{displayedRace.flag}</span>
-        <span className="font-headline text-lg font-semibold">{displayedRace.name}</span>
+      <div className="font-headline text-lg font-semibold">
+        {displayedRace.name}
       </div>
       {racePhase !== "race" && nextRace.circuitImageUrl && (
         // eslint-disable-next-line @next/next/no-img-element
@@ -104,9 +126,7 @@ export default function StartingGrid({
       )}
       {racePhase !== "race" && (
         <>
-          <div className="font-mono text-2xl mt-2 tabular-nums" suppressHydrationWarning>
-            {remaining ?? "—"}
-          </div>
+          <Countdown target={nextRace.date} />
           <div className="font-label text-[10px] text-ink-soft mt-0.5">
             until lights out at {nextRace.circuit}
           </div>
@@ -121,73 +141,132 @@ export default function StartingGrid({
         </div>
       )}
 
-      {resultRows.length > 0 && (
+      {/* Results / grid table — the slower "session" part. The schedule above
+          prints immediately; this region streams in behind it. */}
+      {(resultRows.length > 0 || sessionStatus !== "ready") && (
         <div className="mt-3 pt-3 border-t hairline">
-          <div className="flex items-center justify-between gap-2 mb-1">
-            <div className="font-label text-[10px] text-ink-soft">{tableTitle}</div>
-            {racePhase === "race" && (
-              <button
-                type="button"
-                onClick={refreshLiveRace}
-                disabled={refreshing}
-                className="font-label text-[10px] text-masthead-red underline disabled:opacity-40"
-              >
-                {refreshing ? "Refreshing…" : "Refresh"}
-              </button>
-            )}
+          {/* No refresh button here by design: the single section-scoped
+              control lives in the sidebar's pit-wall header so the two can
+              never race each other. Genuine failures get a retry below. */}
+          <div className="font-label text-[10px] text-ink-soft mb-1">
+            {sessionStatus === "ready" ? tableTitle : "Timing screens"}
           </div>
-          <table className="w-full text-xs">
-            <tbody>
-              {visibleRows.map((r) => (
-                <tr key={`${r.position ?? "dnf"}-${r.code}`} className="border-t hairline first:border-t-0">
-                  <td className="py-1 font-mono w-5 text-ink-soft">{r.position ?? "—"}</td>
-                  <td className="py-1 font-semibold">{r.driver}</td>
-                  <td className="py-1 text-ink-soft truncate max-w-[80px]">{r.team}</td>
-                  <td className="py-1 text-right font-mono text-ink-soft">
-                    {"interval" in r ? r.interval : r.time}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {resultRows.length > 5 && (
-            <button
-              type="button"
-              onClick={() => setShowAll((value) => !value)}
-              className="font-label text-[10px] text-masthead-red underline mt-2"
-            >
-              {showAll ? "Show top 5" : `Show all ${resultRows.length} drivers`}
-            </button>
+
+          {sessionStatus === "loading" && resultRows.length === 0 && (
+            <>
+              <TimingRowsSkeleton />
+              <p className="text-[11px] text-ink-soft italic mt-2">
+                Waiting on the timing screens…
+              </p>
+            </>
+          )}
+
+          {sessionStatus === "failed" && resultRows.length === 0 && (
+            <p className="text-[11px] text-ink-soft italic mt-1">
+              The timing screens didn&rsquo;t answer.{" "}
+              {onRetrySession && (
+                <button
+                  type="button"
+                  onClick={onRetrySession}
+                  className="font-label text-[10px] text-masthead-red underline not-italic ml-1"
+                >
+                  Try again
+                </button>
+              )}
+            </p>
+          )}
+
+          {resultRows.length > 0 && (
+            <>
+              <table className="w-full text-xs">
+                <tbody>
+                  {visibleRows.map((r) => (
+                    <tr key={`${r.position ?? "dnf"}-${r.code}`} className="border-t hairline first:border-t-0">
+                      <td className="py-1 font-mono w-5 text-ink-soft">{r.position ?? "—"}</td>
+                      <td className="py-1 font-semibold">{r.driver}</td>
+                      <td className="py-1 text-ink-soft truncate max-w-[80px]">{r.team}</td>
+                      <td className="py-1 text-right font-mono text-ink-soft">
+                        {"interval" in r ? r.interval : r.time}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {resultRows.length > 5 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAll((value) => !value)}
+                  className="font-label text-[10px] text-masthead-red underline mt-2"
+                >
+                  {showAll ? "Show top 5" : `Show all ${resultRows.length} drivers`}
+                </button>
+              )}
+              {sessionStale && (
+                <p className="text-[10px] text-ink-soft italic mt-2">
+                  Showing the last timing we have.{" "}
+                  {onRetrySession && (
+                    <button
+                      type="button"
+                      onClick={onRetrySession}
+                      className="font-label text-[10px] text-masthead-red underline not-italic"
+                    >
+                      Try again
+                    </button>
+                  )}
+                </p>
+              )}
+            </>
           )}
         </div>
       )}
 
-      <table className="w-full mt-4 text-xs">
-        <thead>
-          <tr className="text-left text-ink-soft font-label text-[10px]">
-            <th className="font-normal pb-1">Round</th>
-            <th className="font-normal pb-1">Grand Prix</th>
-            <th className="font-normal pb-1 text-right">Date</th>
-          </tr>
-        </thead>
-        <tbody>
-          {upcoming.map((race) => (
-            <tr key={race.round} className="border-t hairline">
-              <td className="py-1.5 font-mono">{race.round}</td>
-              <td className="py-1.5">
-                <span className="mr-1">{race.flag}</span>
-                {race.name}
-              </td>
-              <td className="py-1.5 text-right font-mono">
-                {new Date(race.date).toLocaleDateString("en-GB", {
-                  day: "2-digit",
-                  month: "short",
-                })}
-              </td>
+      {/* Race calendar */}
+      {upcoming.length > 0 ? (
+        <table className="w-full mt-4 text-xs">
+          <thead>
+            <tr className="text-left text-ink-soft font-label text-[10px]">
+              <th className="font-normal pb-1">Round</th>
+              <th className="font-normal pb-1">Grand Prix</th>
+              <th className="font-normal pb-1 text-right">Date</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {upcoming.map((race) => (
+              <tr key={race.round} className="border-t hairline">
+                <td className="py-1.5 font-mono">{race.round}</td>
+                <td className="py-1.5">{race.name}</td>
+                <td className="py-1.5 text-right font-mono">
+                  {new Date(race.date).toLocaleDateString("en-GB", {
+                    day: "2-digit",
+                    month: "short",
+                  })}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : calendarStatus === "loading" ? (
+        <div className="mt-4">
+          <div className="font-label text-[10px] text-ink-soft mb-1">Race calendar</div>
+          <TimingRowsSkeleton rows={4} />
+        </div>
+      ) : calendarStatus === "failed" ? (
+        <div className="mt-4">
+          <div className="font-label text-[10px] text-ink-soft mb-1">Race calendar</div>
+          <p className="text-[11px] text-ink-soft italic">
+            The race calendar didn&rsquo;t answer.{" "}
+            {onRetryCalendar && (
+              <button
+                type="button"
+                onClick={onRetryCalendar}
+                className="font-label text-[10px] text-masthead-red underline not-italic ml-1"
+              >
+                Try again
+              </button>
+            )}
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }

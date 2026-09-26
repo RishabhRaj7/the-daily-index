@@ -10,15 +10,12 @@ import type {
   TennisRanking,
 } from "@/lib/types";
 import { SECTION_META } from "@/lib/sections";
-import { teamColor, teamAbbrev, isLightTeamColor } from "@/lib/personalization";
+import { teamAbbrev, isLightTeamColor } from "@/lib/personalization";
 import SectionHeader from "@/components/story/SectionHeader";
 import StoryArticle from "@/components/story/StoryArticle";
-import StartingGrid from "@/components/widgets/StartingGrid";
-import LiveBadge from "@/components/widgets/LiveBadge";
-import FavoriteDriverCard from "@/components/widgets/FavoriteDriverCard";
+import F1Sidebar from "@/components/widgets/F1Sidebar";
 import FootballSidebar from "@/components/widgets/FootballSidebar";
 import TennisSidebar from "@/components/widgets/TennisSidebar";
-import { useState } from "react";
 
 const SPORT_LABELS: Record<"f1" | "football" | "tennis", string> = {
   f1: "FORMULA 1",
@@ -57,7 +54,6 @@ export default function PaddockNotesSection({
   accentColor,
   favoriteF1Team = "",
   favoriteDriverIds = [],
-  live = false,
   footballStandings = [],
   footballLeague = "Premier League",
   favoriteFootballClub,
@@ -89,28 +85,7 @@ export default function PaddockNotesSection({
   favoriteTennisPlayer?: string;
   hateWatchStories?: Story[];
 }) {
-  const favoriteDrivers = favoriteDriverIds
-    .map((id) =>
-      standings.find(
-        (s) =>
-          s.driverId === id.toLowerCase() ||
-          s.code.toLowerCase() === id.toLowerCase() ||
-          s.name.toLowerCase().includes(id.toLowerCase()),
-      ),
-    )
-    .filter((s): s is F1Standing => s !== undefined);
-
   const multiSport = selectedSports.length > 1;
-  const [showAllDrivers, setShowAllDrivers] = useState(false);
-  const [showAllConstructors, setShowAllConstructors] = useState(false);
-  const visibleDrivers = showAllDrivers ? standings : standings.slice(0, 5);
-  const visibleConstructors = showAllConstructors
-    ? constructorStandings
-    : constructorStandings.slice(0, 5);
-
-  // Normalized team name used only for the "Following" badge above — the
-  // standings tables below are fully decoupled from the user's selection.
-  const normFavTeam = favoriteF1Team.replace(/\s*F1 Team$/i, "").trim();
 
   function storiesForSport(sport: "f1" | "football" | "tennis"): Story[] {
     if (sport === "f1") return f1Stories;
@@ -118,144 +93,26 @@ export default function PaddockNotesSection({
     return tennisStories;
   }
 
+  // The F1 sidebar is a self-updating client island: it seeds itself from
+  // whatever the server already printed, streams the remaining parts in via
+  // /api/f1, retries per block on failure and refreshes in place — see
+  // components/widgets/F1Sidebar.tsx.
   function f1Sidebar() {
     return (
-      <div className="space-y-4">
-        {/* Team badge card — only shown when a team is selected */}
-        {accentColor && favoriteF1Team && (
-          <div
-            className="rounded-sm p-4 flex items-center gap-3"
-            style={{ backgroundColor: accentColor + "18", borderLeft: `3px solid ${accentColor}` }}
-          >
-            <TeamBadge team={favoriteF1Team} color={accentColor} />
-            <div>
-              <div className="font-label text-[10px] text-ink-soft">Following</div>
-              <div
-                className="font-headline text-sm font-semibold leading-tight"
-                style={{ color: accentColor }}
-              >
-                {normFavTeam || favoriteF1Team}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {favoriteDrivers.map((driver) => (
-          <FavoriteDriverCard
-            key={driver.driverId}
-            standing={driver}
-            accentColor={teamColor(driver.team)}
-          />
-        ))}
-
-        {nextRace ? (
-          <StartingGrid
-            nextRace={nextRace}
-            upcoming={upcoming}
-            lastRace={lastRace}
-            qualifyingGrid={qualifyingGrid}
-            liveResults={liveResults}
-            currentRace={currentRace}
-            racePhase={racePhase}
-            accentColor={accentColor}
-            live={live}
-          />
-        ) : (
-          <div className="paper-box text-xs text-ink-soft italic">
-            Race schedule unavailable.
-          </div>
-        )}
-
-        {/* Drivers' Championship */}
-        <div className="paper-box">
-          <div className="flex items-center justify-between mb-2">
-            <div className="font-label text-[10px] text-ink-soft">
-              Drivers&rsquo; Championship
-            </div>
-            {live && <LiveBadge />}
-          </div>
-          {standings.length > 0 ? (
-            <table className="w-full text-xs">
-              <tbody>
-                {visibleDrivers.map((s) => {
-                  const driverTeamColor = teamColor(s.team);
-                  return (
-                    <tr key={s.position} className="border-t hairline first:border-t-0">
-                      <td className="py-1 font-mono w-6">{s.position}</td>
-                      <td className="py-1">
-                        {driverTeamColor && (
-                          <span
-                            className="inline-block w-[3px] h-3 rounded-full mr-1.5 align-middle"
-                            style={{ backgroundColor: driverTeamColor }}
-                          />
-                        )}
-                        {s.name}
-                      </td>
-                      <td className="py-1 text-ink-soft text-[10px]">{s.code}</td>
-                      <td className="py-1 text-right font-mono">{s.points}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          ) : (
-            <p className="text-xs text-ink-soft italic">Standings unavailable.</p>
-          )}
-          {standings.length > 5 && (
-            <button
-              type="button"
-              onClick={() => setShowAllDrivers((value) => !value)}
-              className="font-label text-[10px] text-masthead-red underline mt-2"
-            >
-              {showAllDrivers ? "Show top 5" : `Show all ${standings.length} drivers`}
-            </button>
-          )}
-        </div>
-
-        {/* Constructors' Championship */}
-        {constructorStandings.length > 0 && (
-          <div className="paper-box">
-            <div className="font-label text-[10px] text-ink-soft mb-2">
-              Constructors&rsquo; Championship
-            </div>
-            <table className="w-full text-xs">
-              <tbody>
-                {visibleConstructors.map((cs) => {
-                  const csNorm = cs.team.replace(/\s*F1 Team$/i, "").trim();
-                  const csColor = teamColor(cs.team);
-                  return (
-                    <tr
-                      key={cs.position}
-                      className="border-t hairline first:border-t-0"
-                    >
-                      <td className="py-1 font-mono w-6">{cs.position}</td>
-                      <td className="py-1">
-                        {csColor && (
-                          <span
-                            className="inline-block w-[3px] h-3 rounded-full mr-1.5 align-middle"
-                            style={{ backgroundColor: csColor }}
-                          />
-                        )}
-                        {csNorm}
-                      </td>
-                      <td className="py-1 text-right font-mono">{cs.points}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            {constructorStandings.length > 5 && (
-              <button
-                type="button"
-                onClick={() => setShowAllConstructors((value) => !value)}
-                className="font-label text-[10px] text-masthead-red underline mt-2"
-              >
-                {showAllConstructors ? "Show top 5" : `Show all ${constructorStandings.length} teams`}
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+      <F1Sidebar
+        nextRace={nextRace}
+        upcoming={upcoming}
+        standings={standings}
+        constructorStandings={constructorStandings}
+        lastRace={lastRace}
+        qualifyingGrid={qualifyingGrid}
+        liveResults={liveResults}
+        currentRace={currentRace}
+        racePhase={racePhase}
+        accentColor={accentColor}
+        favoriteF1Team={favoriteF1Team}
+        favoriteDriverIds={favoriteDriverIds}
+      />
     );
   }
 

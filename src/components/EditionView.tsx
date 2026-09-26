@@ -71,7 +71,12 @@ import type {
   NewsSlot,
 } from "@/lib/preferences/types";
 import { deriveBriefFromDigest, digestArticleToStory } from "@/lib/preferences/stories";
-import { readDigestCache, writeDigestCache } from "@/lib/digest-cache";
+import {
+  consumeEditionRefresh,
+  readDigestCache,
+  writeDigestCache,
+} from "@/lib/digest-cache";
+import EditionPrepOverlay from "@/components/chrome/EditionPrepOverlay";
 
 type WeatherState = "loading" | "ready" | "failed";
 const WEATHER_TIMEOUT_MS = 9000;
@@ -83,6 +88,9 @@ const WEATHER_TIMEOUT_MS = 9000;
 // failed    — the call errored; banner offers a retry
 export type SummaryState = "idle" | "loading" | "done" | "unchanged" | "failed";
 const SUMMARIZE_TIMEOUT_MS = 90_000;
+// Server-side the digest AI pass is capped at 120s; the client waits a
+// little past that before conceding so a hung socket can't pin the overlay.
+const DIGEST_TIMEOUT_MS = 150_000;
 const UNCHANGED_DISMISS_MS = 3500;
 
 const EMPTY_GRAPEVINE: GrapevineData = {
@@ -152,6 +160,40 @@ export default function EditionView({
   // True once the digest pipeline has engaged for this edition — the legacy
   // /api/summarize brief then stays out of the way of the digest-derived one.
   const digestEngagedRef = useRef(false);
+
+  // --- edition prep overlay ("cooking today's edition") -------------------
+  // boot     — first render (SSR included): the opaque overlay is already on
+  //            screen so raw RSS snippets never flash before the digest lands
+  // cooking  — /api/digest in flight for a cold edition (no cache for today)
+  // failed   — the digest call errored; the overlay offers retry / raw wires
+  // leaving  — digest applied, overlay fading out
+  // revealed — edition visible (either it always was, or prep finished)
+  //
+  // A warm visit (today's digest already cached for these preferences) skips
+  // cooking entirely: the cached edition applies silently at mount and the
+  // overlay never appears.
+  type PrepPhase = "boot" | "cooking" | "failed" | "leaving" | "revealed";
+  const [prep, setPrep] = useState<PrepPhase>(() => (isArchive ? "revealed" : "boot"));
+  const [prepReason, setPrepReason] = useState<"first-visit" | "refresh">("first-visit");
+  // Mirrors `prep` for callbacks that resolve long after render.
+  const prepActiveRef = useRef(!isArchive);
+  const prepLeaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    prepActiveRef.current = prep === "boot" || prep === "cooking" || prep === "failed";
+  }, [prep]);
+
+  const revealEdition = useCallback(() => {
+    setPrep("leaving");
+    if (prepLeaveTimerRef.current) clearTimeout(prepLeaveTimerRef.current);
+    prepLeaveTimerRef.current = setTimeout(() => setPrep("revealed"), 520);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (prepLeaveTimerRef.current) clearTimeout(prepLeaveTimerRef.current);
+    };
+  }, []);
 
   // Reader memory (local only)
   const [memory, setMemory] = useState<ReaderMemory | null>(null);
@@ -534,6 +576,9 @@ export default function EditionView({
       digestInFlightRef.current?.abort();
       const controller = new AbortController();
       digestInFlightRef.current = controller;
+      // The server caps the AI pass at 120s; the client gives up slightly
+      // later so a hung fetch can never pin the pressroom overlay forever.
+      const timer = setTimeout(() => controller.abort(), DIGEST_TIMEOUT_MS);
       setDigestState("loading");
 
       fetch("/api/digest", {
@@ -553,30 +598,75 @@ export default function EditionView({
           const total = Object.values(result.sections).reduce((n, a) => n + a.length, 0);
           if (total === 0) {
             // Nothing qualified anywhere — nothing to apply, nothing to show.
-            setDigestState("idle");
+            if (prepActiveRef.current) revealEdition();
+            else setDigestState("idle");
             return;
           }
           pendingDigestRef.current = { result, prefs };
           setBrief(deriveBriefFromDigest(result, prefs));
-          setDigestState("done");
+          if (prepActiveRef.current) {
+            // Cold visit: the pressroom overlay is holding the page, so the
+            // finished sections apply immediately — no "tap to update" tap —
+            // then the overlay lifts and the edition is revealed cooked.
+            applyDigest(result, prefs);
+            pendingDigestRef.current = null;
+            setDigestState("idle");
+            revealEdition();
+          } else {
+            setDigestState("done");
+          }
         })
         .catch((err) => {
           if (controller.signal.aborted && digestInFlightRef.current !== controller) return;
           console.warn("[digest] failed:", err);
           pendingDigestRef.current = null;
-          setDigestState("failed");
+          if (prepActiveRef.current) {
+            // The overlay swaps the animation for a retry instead of leaving
+            // the reader staring at raw wire text with a dead pill.
+            setPrep("failed");
+          } else {
+            setDigestState("failed");
+          }
         })
         .finally(() => {
+          clearTimeout(timer);
           if (digestInFlightRef.current === controller) digestInFlightRef.current = null;
         });
     },
-    [isArchive, edition.isoDate, applyDigest],
+    [isArchive, edition.isoDate, applyDigest, revealEdition],
   );
 
   const runDigestRef = useRef(runDigest);
   useEffect(() => {
     runDigestRef.current = runDigest;
   }, [runDigest]);
+
+  // Decide at mount whether this visit needs the pressroom overlay at all.
+  // Runs before paint effects matter: a warm cache, an archive view, or a
+  // not-yet-onboarded reader (the onboarding gate owns the screen then)
+  // skips straight to revealed; a cold visit starts cooking.
+  useEffect(() => {
+    if (isArchive) return;
+    // Read the one-shot refresh marker first so it can never linger into a
+    // later, unrelated visit.
+    const deliberateRefresh = consumeEditionRefresh();
+    if (!loadPersonalization().onboarded) {
+      setPrep("revealed");
+      return;
+    }
+    const cached = readDigestCache(
+      initialEdition.isoDate,
+      hashPreferences(loadDigestPreferences()),
+    );
+    if (cached) {
+      // runDigest's own mount effect applies the cached digest silently.
+      setPrep("revealed");
+      return;
+    }
+    if (deliberateRefresh) setPrepReason("refresh");
+    setPrep("cooking");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isArchive]);
 
   // Kick the digest off as soon as the edition mounts. A settings edit (from
   // the Settings page or elsewhere) fires the changed event and re-runs it.
@@ -625,6 +715,15 @@ export default function EditionView({
     if (digestState === "failed") runDigestRef.current(true);
     if (summaryState === "failed") handleRetrySummaries();
   }, [digestState, summaryState, handleRetrySummaries]);
+
+  // Pressroom overlay actions: retry re-runs the whole digest pipeline from
+  // scratch (RSS → collate → AI); skipping lifts the overlay and prints the
+  // raw wires knowingly, with the small banner still offering the AI pass.
+  const handlePrepRetry = useCallback(() => {
+    setPrep("cooking");
+    runDigestRef.current(true);
+  }, []);
+  const handlePrepSkip = useCallback(() => revealEdition(), [revealEdition]);
 
   // Merge digest + summarize states into the single banner the reader sees.
   const bannerState: SummaryState =
@@ -753,9 +852,23 @@ export default function EditionView({
     ? (Object.keys(sectionRenderers) as SectionKey[]).filter((key) => sectionHasContent[key])
     : personalization.sectionOrder.filter((key) => sectionHasContent[key]);
 
+  // While the pressroom overlay holds the page it also speaks for the digest
+  // pipeline (progress + retry), so the floating pill stays out of the way.
+  const prepBlocking = prep === "boot" || prep === "cooking" || prep === "failed";
+
   return (
     <main className="flex-1">
-      {bannerState !== "idle" && (
+      {prep !== "revealed" && (
+        <EditionPrepOverlay
+          failed={prep === "failed"}
+          reason={prepReason}
+          leaving={prep === "leaving"}
+          date={edition.date}
+          onRetry={handlePrepRetry}
+          onSkip={handlePrepSkip}
+        />
+      )}
+      {bannerState !== "idle" && !prepBlocking && (
         <SummaryBanner
           state={bannerState}
           onApply={handleApplyUpdates}
@@ -770,7 +883,7 @@ export default function EditionView({
           }
         />
       )}
-      {!isArchive && (
+      {!isArchive && !prepBlocking && (
         <EditionBriefPanel brief={brief} date={edition.date} isLoading={summaryState === "loading"} />
       )}
       <Masthead

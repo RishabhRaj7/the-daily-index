@@ -96,7 +96,67 @@ function formatClock(iso: string): string {
   });
 }
 
+// Short-lived client-side cache (sessionStorage). The weather used to be
+// fetched on every mount — three HTTP round trips (geocoding, forecast, air
+// quality) for data that moves on a 15-minute scale at fastest. Keyed by
+// city; "Refresh edition" clears it via clearWeatherCache().
+const WEATHER_CACHE_TTL_MS = 15 * 60 * 1000;
+const WEATHER_CACHE_PREFIX = "daily-index:weather:";
+
+function weatherStorage(): Storage | null {
+  try {
+    if (typeof window === "undefined") return null;
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+function readWeatherCache(key: string): WeatherNow | null {
+  const s = weatherStorage();
+  if (!s) return null;
+  try {
+    const raw = s.getItem(WEATHER_CACHE_PREFIX + key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { at?: number; weather?: WeatherNow };
+    if (typeof parsed.at !== "number" || !parsed.weather) return null;
+    if (Date.now() - parsed.at > WEATHER_CACHE_TTL_MS) return null;
+    return parsed.weather;
+  } catch {
+    return null;
+  }
+}
+
+function writeWeatherCache(key: string, weather: WeatherNow): void {
+  const s = weatherStorage();
+  if (!s) return;
+  try {
+    s.setItem(WEATHER_CACHE_PREFIX + key, JSON.stringify({ at: Date.now(), weather }));
+  } catch {
+    // Storage full / private mode — weather simply re-fetches next mount.
+  }
+}
+
+/** "Refresh edition" purge — next mount re-reads the sky from scratch. */
+export function clearWeatherCache(): void {
+  const s = weatherStorage();
+  if (!s) return;
+  try {
+    const drop: string[] = [];
+    for (let i = 0; i < s.length; i++) {
+      const k = s.key(i);
+      if (k && k.startsWith(WEATHER_CACHE_PREFIX)) drop.push(k);
+    }
+    drop.forEach((k) => s.removeItem(k));
+  } catch {
+    // ignore
+  }
+}
+
 export async function getLiveWeather(city: string): Promise<WeatherNow | null> {
+  const cacheKey = city.trim().toLowerCase();
+  const cached = readWeatherCache(cacheKey);
+  if (cached) return cached;
   try {
     const geoRes = await fetch(
       `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`,
@@ -124,7 +184,7 @@ export async function getLiveWeather(city: string): Promise<WeatherNow | null> {
     const mood = moodForCode(code);
     const usAqi = air?.current?.us_aqi ?? null;
 
-    return {
+    const weather: WeatherNow = {
       city: name,
       condition: mood.condition,
       weatherCode: code,
@@ -137,6 +197,8 @@ export async function getLiveWeather(city: string): Promise<WeatherNow | null> {
       aqi: usAqi ?? 0,
       aqiLabel: usAqi != null ? aqiLabel(usAqi) : "Unavailable",
     };
+    writeWeatherCache(cacheKey, weather);
+    return weather;
   } catch {
     return null;
   }

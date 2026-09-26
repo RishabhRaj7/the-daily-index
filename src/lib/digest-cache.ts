@@ -75,3 +75,37 @@ export function clearDigestCache(): void {
     // ignore
   }
 }
+
+// One-shot flag (sessionStorage) left behind by "Refresh edition" so the
+// prep overlay on the next mount can say *why* it is cooking again
+// ("Printing a fresh edition…") instead of the first-visit copy.
+const REFRESH_FLAG = "daily-index:edition-refresh";
+
+function sessionFlag(): Storage | null {
+  try {
+    if (typeof window === "undefined") return null;
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+export function markEditionRefresh(): void {
+  try {
+    sessionFlag()?.setItem(REFRESH_FLAG, String(Date.now()));
+  } catch {
+    // ignore
+  }
+}
+
+export function consumeEditionRefresh(): boolean {
+  try {
+    const s = sessionFlag();
+    if (!s) return false;
+    const v = s.getItem(REFRESH_FLAG);
+    if (v) s.removeItem(REFRESH_FLAG);
+    return Boolean(v);
+  } catch {
+    return false;
+  }
+}

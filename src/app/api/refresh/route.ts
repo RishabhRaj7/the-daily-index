@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { clearRedditCache } from "@/lib/live/reddit";
+import { clearF1Memo } from "@/lib/live/f1";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +10,9 @@ export const dynamic = "force-dynamic";
 //
 //   1. Next.js Data Cache for "/" (all `fetch(url, { next: { revalidate } })`
 //      calls in the RSS / markets / standings pipeline).
-//   2. The in-memory Reddit subreddit + OAuth-token cache.
+//   2. Next.js Data Cache entries made under /api/f1 (the sidebar's part
+//      fetches) plus the 10-minute process-level F1 memo.
+//   3. The in-memory Reddit subreddit + OAuth-token cache.
 //
 // The client then does a full `window.location.reload()`, which re-renders
 // the server components with cold caches and refetches client-side weather
@@ -21,8 +24,14 @@ export async function POST() {
     console.error("[refresh] reddit cache clear failed:", err);
   }
   try {
+    clearF1Memo();
+  } catch (err) {
+    console.error("[refresh] f1 memo clear failed:", err);
+  }
+  try {
     revalidatePath("/", "page");
     revalidatePath("/", "layout");
+    revalidatePath("/api/f1");
   } catch (err) {
     console.error("[refresh] revalidatePath failed:", err);
   }

@@ -63,11 +63,40 @@ function tagPool(briefs: WireBrief[], pool: string): Array<WireBrief & { pool: s
   return briefs.map((b) => ({ ...b, pool }));
 }
 
+// Bounded worker pool. The corpus is ~100 links; fetching every article page
+// at once (the old Promise.all) fired 100+ concurrent requests at ~40
+// publisher origins, each carrying an 8s timeout — a self-inflicted
+// thundering herd. Ten at a time is plenty: pages that answer do so fast,
+// and the stragglers were always going to burn their full timeout anyway.
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await fn(items[index]);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 /**
  * Collate every news wire the paper already fetches into one deduplicated
  * corpus. The fetchers themselves are the existing integrations, unchanged.
+ *
+ * `fullText` controls whether each linked article page is fetched for its
+ * complete text. The AI pass benefits from full articles; the deterministic
+ * heuristic fallback only condenses a few lines per story, so it works off
+ * the RSS excerpts and skips ~100 outbound page fetches entirely.
  */
-export async function collectCorpus(): Promise<CorpusArticle[]> {
+export async function collectCorpus(
+  { fullText = true }: { fullText?: boolean } = {},
+): Promise<CorpusArticle[]> {
   const [world, markets, f1, football, tennis, tech, cards] = await Promise.all([
     getWorldIndiaWire(24),
     getMarketsWire(20),
@@ -104,9 +133,9 @@ export async function collectCorpus(): Promise<CorpusArticle[]> {
   // use its complete extracted text when the page actually matches the RSS
   // headline; paywalls, blocked pages, and unrelated redirects fall back to
   // the RSS excerpt instead.
-  const fullTexts = await Promise.all(
-    deduped.map((b) => fetchArticleText(b.url)),
-  );
+  const fullTexts: (string | null)[] = fullText
+    ? await mapWithConcurrency(deduped, 10, (b) => fetchArticleText(b.url))
+    : deduped.map(() => null);
 
   return deduped.map((b, i) => {
     const fetched = fullTexts[i];
@@ -437,7 +466,9 @@ function heuristicAtAGlance(
 // ---- public entry point --------------------------------------------------------
 
 export async function generateDigest(prefs: DigestPreferences): Promise<DigestResult> {
-  const corpus = await collectCorpus();
+  // Full article text only pays off when the model will actually read it —
+  // the heuristic engine works off the RSS excerpts alone.
+  const corpus = await collectCorpus({ fullText: aiEnabled() });
   const generatedAt = new Date().toISOString();
 
   if (!aiEnabled() || corpus.length === 0) {
