@@ -68,7 +68,8 @@ import type {
   DigestSection,
   NewsSlot,
 } from "@/lib/preferences/types";
-import { deriveBriefFromDigest, digestArticleToStory } from "@/lib/preferences/stories";
+import { deriveBriefFromDigest } from "@/lib/preferences/stories";
+import { projectDigest, withProjection } from "@/lib/preferences/project";
 import {
   consumeEditionRefresh,
   readDigestCache,
@@ -100,7 +101,7 @@ export default function EditionView({
   isArchive = false,
   f1Live = false,
   hateWatchStories: initialHateWatchStories = [],
-  summaryArticles = [],
+  initialDigest = null,
   f1Stories: initialF1Stories = [],
   footballStories: initialFootballStories = [],
   tennisStories: initialTennisStories = [],
@@ -114,7 +115,9 @@ export default function EditionView({
   f1Live?: boolean;
   redditLive?: boolean;
   hateWatchStories?: Story[];
-  summaryArticles?: Array<{ id: string; url: string; snippet: string; title?: string }>;
+  /** Today's edition, when the server already had it — rendered into the
+   *  first HTML so the reader never sees raw wires or the overlay. */
+  initialDigest?: { result: DigestResult; prefs: DigestPreferences } | null;
   f1Stories?: Story[];
   footballStories?: Story[];
   tennisStories?: Story[];
@@ -123,24 +126,36 @@ export default function EditionView({
   redditUser?: string | null;
   feedSubreddits?: string[];
 }) {
-  const [edition, setEdition] = useState(initialEdition);
+  // Server-rendered edition, projected once for the initial state below.
+  const [seed] = useState(() =>
+    initialDigest ? projectDigest(initialDigest.result, initialDigest.prefs) : null,
+  );
+  const [edition, setEdition] = useState(() =>
+    seed ? { ...initialEdition, sections: withProjection(initialEdition.sections, seed) } : initialEdition,
+  );
   const [hateWatchStories, setHateWatchStories] = useState(initialHateWatchStories);
-  const [f1Stories, setF1Stories] = useState(initialF1Stories);
-  const [footballStories, setFootballStories] = useState(initialFootballStories);
-  const [tennisStories, setTennisStories] = useState(initialTennisStories);
+  const [f1Stories, setF1Stories] = useState(() => (seed?.paddock.f1.length ? seed.paddock.f1 : initialF1Stories));
+  const [footballStories, setFootballStories] = useState(() =>
+    seed?.paddock.football.length ? seed.paddock.football : initialFootballStories,
+  );
+  const [tennisStories, setTennisStories] = useState(() =>
+    seed?.paddock.tennis.length ? seed.paddock.tennis : initialTennisStories,
+  );
   const [summaryState, setSummaryState] = useState<SummaryState>("idle");
   const inFlightRef = useRef<AbortController | null>(null);
-  const [brief, setBrief] = useState<EditionBrief | null>(null);
+  const [brief, setBrief] = useState<EditionBrief | null>(() =>
+    initialDigest ? deriveBriefFromDigest(initialDigest.result, initialDigest.prefs) : null,
+  );
   const [personalization, setPersonalization] = useState<Personalization>(DEFAULT_PERSONALIZATION);
   const [liveWeather, setLiveWeather] = useState<WeatherNow | null>(null);
   const [weatherState, setWeatherState] = useState<WeatherState>("loading");
   const [grapevine, setGrapevine] = useState<GrapevineData>(initialEdition.grapevine ?? EMPTY_GRAPEVINE);
 
   // --- preference-driven digest state ---------------------------------------
-  const [appliedDigest, setAppliedDigest] = useState<DigestResult | null>(null);
+  const [appliedDigest, setAppliedDigest] = useState<DigestResult | null>(initialDigest?.result ?? null);
   const [standaloneDigest, setStandaloneDigest] = useState<
     Array<{ section: DigestSection; articles: DigestArticle[] }>
-  >([]);
+  >(() => seed?.standalone ?? []);
   const digestInFlightRef = useRef<AbortController | null>(null);
   // Set at mount when this visit follows "Refresh edition": the server must
   // rebuild rather than hand back the edition the reader already had.
@@ -161,10 +176,10 @@ export default function EditionView({
   // cooking entirely: the cached edition applies silently at mount and the
   // overlay never appears.
   type PrepPhase = "boot" | "cooking" | "failed" | "leaving" | "revealed";
-  const [prep, setPrep] = useState<PrepPhase>(() => (isArchive ? "revealed" : "boot"));
+  const [prep, setPrep] = useState<PrepPhase>(() => (isArchive || initialDigest ? "revealed" : "boot"));
   const [prepReason, setPrepReason] = useState<"first-visit" | "refresh">("first-visit");
   // Mirrors `prep` for callbacks that resolve long after render.
-  const prepActiveRef = useRef(!isArchive);
+  const prepActiveRef = useRef(!isArchive && !initialDigest);
   const prepLeaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -477,50 +492,9 @@ export default function EditionView({
   // section in one pass. When the result arrives it waits in pendingDigestRef
   // Digest results wait here until the reader taps "tap to update".
   const applyDigest = useCallback((result: DigestResult, prefs: DigestPreferences) => {
-    const slotStories: Partial<Record<NewsSlot, Story[]>> = {};
-    const paddock = { f1: [] as Story[], football: [] as Story[], tennis: [] as Story[] };
-    const standalone: Array<{ section: DigestSection; articles: DigestArticle[] }> = [];
-
-    for (const section of [...prefs.sections].sort((a, b) => a.order - b.order)) {
-      const articles = result.sections[section.id] ?? [];
-      if (articles.length === 0) continue;
-      if (!section.slot) {
-        standalone.push({ section, articles });
-        continue;
-      }
-      if (section.slot === "paddock-notes") {
-        articles.forEach((a, i) => {
-          const sport =
-            a.group === "football" || a.group === "tennis" ? a.group : "f1";
-          paddock[sport].push(digestArticleToStory(section, a, i));
-        });
-      } else if (section.slot === "sports") {
-        articles.forEach((a, i) => {
-          if (a.group === "football") paddock.football.push(digestArticleToStory(section, a, i));
-          if (a.group === "tennis") paddock.tennis.push(digestArticleToStory(section, a, i));
-        });
-      } else {
-        slotStories[section.slot] = [
-          ...(slotStories[section.slot] ?? []),
-          ...articles.map((a, i) => digestArticleToStory(section, a, i)),
-        ];
-      }
-    }
-
-    const paddockTotal = paddock.f1.length + paddock.football.length + paddock.tennis.length;
-    setEdition((prev) => ({
-      ...prev,
-      sections: {
-        ...prev.sections,
-        dateline: slotStories.dateline ?? prev.sections.dateline,
-        circuitBoard: slotStories["circuit-board"] ?? prev.sections.circuitBoard,
-        ledger: slotStories.ledger ?? prev.sections.ledger,
-        paddockNotes:
-          paddockTotal > 0
-            ? [...paddock.f1, ...paddock.football, ...paddock.tennis]
-            : prev.sections.paddockNotes,
-      },
-    }));
+    const projection = projectDigest(result, prefs);
+    const { paddock, standalone } = projection;
+    setEdition((prev) => ({ ...prev, sections: withProjection(prev.sections, projection) }));
     if (paddock.f1.length > 0) setF1Stories(paddock.f1);
     if (paddock.football.length > 0) setFootballStories(paddock.football);
     if (paddock.tennis.length > 0) setTennisStories(paddock.tennis);
@@ -622,6 +596,8 @@ export default function EditionView({
     // later, unrelated visit.
     const deliberateRefresh = consumeEditionRefresh();
     forceRebuildRef.current = deliberateRefresh;
+    // The server already printed today's edition into the page.
+    if (initialDigest && !deliberateRefresh) return;
     if (!loadPersonalization().onboarded) {
       setPrep("revealed");
       return;

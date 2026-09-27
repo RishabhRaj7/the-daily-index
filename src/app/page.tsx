@@ -20,6 +20,9 @@ import { parseInterestsCookie } from "@/lib/personalization";
 import { buildMatchers, matchBrief, rankBriefsByInterest } from "@/lib/interest-match";
 import { getRedditConnection, getUserSubreddits } from "@/lib/reddit-auth";
 import { editionDate, editionDateLabel } from "@/lib/edition-date";
+import { EDITION_COOKIE } from "@/lib/edition-client";
+import { readEdition, readStoredPrefs } from "@/lib/server/editions";
+import type { DigestPreferences, DigestResult } from "@/lib/preferences/types";
 
 // Vol 1, No. 1 = 28 Jan 2026.
 const ISSUE_BASE = new Date("2026-01-28");
@@ -67,8 +70,26 @@ function filterHateWatch(articles: WireBrief[], subject: string): WireBrief[] {
     .slice(0, 3);
 }
 
+async function loadInitialDigest(
+  hash: string | undefined,
+): Promise<{ result: DigestResult; prefs: DigestPreferences } | null> {
+  if (!hash || !/^[0-9a-f]{16}$/.test(hash)) return null;
+  try {
+    const [edition, prefs] = await Promise.all([readEdition(editionDate(), hash), readStoredPrefs(hash)]);
+    return edition && prefs ? { result: edition.digest, prefs } : null;
+  } catch {
+    // Store unreachable — the browser fetches the edition itself.
+    return null;
+  }
+}
+
 export default async function Home() {
   const cookieStore = await cookies();
+
+  // Today's edition for this reader, if the server already built it: the
+  // browser remembers its edition in a cookie, and the preferences that
+  // built it are stored with it. Started now, awaited after the feeds.
+  const initialDigestPromise = loadInitialDigest(cookieStore.get(EDITION_COOKIE)?.value);
   const redditEnabled = process.env.REDDIT_ENABLED === "true";
 
   // Subreddits preference
@@ -206,6 +227,7 @@ export default async function Home() {
   ]);
 
   const { result: redditResult, user: redditUser, subs: effectiveSubreddits } = redditBundle;
+  const initialDigest = await initialDigestPromise;
 
   // Preferences drive ranking everywhere below: matching stories float to
   // the top of their section pool and get tagged `personal` ("For you").
@@ -293,19 +315,6 @@ export default async function Home() {
   // Combined for edition.sections.paddockNotes (used by hero picker)
   const paddockStories = [...f1Stories, ...footballStories, ...tennisStories];
 
-  // Collect article data for client-side summarization (sent to /api/summarize).
-  const summaryArticles = [
-    ...datelineStories,
-    ...ledgerStories,
-    ...f1Stories,
-    ...footballStories,
-    ...tennisStories,
-    ...circuitStories,
-    ...hateWatchStories,
-  ]
-    .filter((s) => s.sourceUrl)
-    .map((s) => ({ id: s.id, url: s.sourceUrl!, snippet: s.body[0] ?? "", title: s.headline }));
-
   const edition: Edition = {
     ...editionMeta(),
     // weather is intentionally absent here — EditionView fetches it live
@@ -352,7 +361,7 @@ export default async function Home() {
       f1Live={Boolean(f1Schedule)}
       redditLive={redditResult.status === "live"}
       hateWatchStories={hateWatchStories}
-      summaryArticles={summaryArticles}
+      initialDigest={initialDigest}
       f1Stories={f1Stories}
       footballStories={footballStories}
       tennisStories={tennisStories}

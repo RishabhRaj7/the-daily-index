@@ -398,3 +398,14 @@ edition starts building before the reader is back on the paper.
 - There is no "tap to update": a finished edition replaces the page as soon
   as it arrives — under the pressroom overlay before it fades, or in place
   when a background rebuild lands.
+
+## Front page render (current)
+
+- If the reader's edition for today is already stored, `app/page.tsx` reads
+  it (edition cookie → `readEdition` + `readStoredPrefs`) and passes it to
+  `EditionView` as `initialDigest`; `lib/preferences/project.ts` maps it onto
+  the sections, so the first HTML is the finished paper — no overlay, no
+  swap. The browser still checks for a newer build in the background.
+- Word of the Day comes from Merriam-Webster's free feed (cached 6 h). It was
+  a Gemini call on every render — ~1.2 s of each page load.
+- Measured on a local production build: repeat loads ~0.05 s (was 1.2–1.3 s).
