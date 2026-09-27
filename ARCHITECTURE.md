@@ -409,3 +409,20 @@ edition starts building before the reader is back on the paper.
 - Word of the Day comes from Merriam-Webster's free feed (cached 6 h). It was
   a Gemini call on every render — ~1.2 s of each page load.
 - Measured on a local production build: repeat loads ~0.05 s (was 1.2–1.3 s).
+
+## F1 sidebar and markets (current)
+
+- The sidebar applies fresh cached parts instantly and loads the rest with
+  ONE streamed request, `GET /api/f1?parts=a,b,c` (NDJSON). The server starts
+  every part at once and writes results in the requested order, so the
+  sidebar still fills map → drivers → calendar → constructors → standings →
+  results. `?part=` remains for the per-block "Try again".
+- OpenF1 free tier: 3 req/s, 30 req/min. Every OpenF1 call waits for a slot
+  in both windows (`waitForOpenF1Slot` in `lib/live/f1.ts`) and retries once
+  on 429. A cold sidebar now makes 4 OpenF1 calls (was 7); warm, none.
+- Drivers' and constructors' tables come from Jolpica alone (points and wins
+  in one call each); Jolpica team names are mapped to OpenF1's.
+- "Last race" is the latest Race session that started ≥ 90 min ago — no
+  longer `session_key=latest`, which showed practice on race-weekend Fridays.
+- Market Pulse: one Yahoo `spark` request for all six indices (was six), and
+  a missing index no longer blanks the whole panel.

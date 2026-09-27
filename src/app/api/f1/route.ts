@@ -11,6 +11,13 @@ import {
 export const dynamic = "force-dynamic";
 
 // GET /api/f1?part=map|drivers|calendar|constructors|standings|results
+// GET /api/f1?parts=map,drivers,…   (streamed, newline-delimited JSON)
+//
+// The sidebar loads every part it is missing in ONE streamed request: the
+// server starts all of them at once — OpenF1 calls are paced inside
+// lib/live/f1.ts (3/s, 30/min), which only works when they share a process —
+// and writes each result as a line in the order asked for, so the reader
+// still sees the sidebar fill top-down. `?part=` stays for scoped retries.
 //
 // The F1 sidebar fetches its data progressively instead of blocking the whole
 // edition render on one long upstream chain. Each part resolves independently:
@@ -67,8 +74,41 @@ async function runPart<T>(
   }
 }
 
+function streamParts(names: PartName[]): Response {
+  // Start everything now; emit in request order as each one settles.
+  const pending = names.map((name) =>
+    runPart(PARTS[name].fn as () => Promise<unknown | null>, PARTS[name].empty),
+  );
+  const encoder = new TextEncoder();
+  const body = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      for (let i = 0; i < names.length; i++) {
+        const result = await pending[i];
+        controller.enqueue(encoder.encode(JSON.stringify({ part: names[i], result }) + "\n"));
+      }
+      controller.close();
+    },
+  });
+  return new Response(body, {
+    headers: { ...NO_STORE, "Content-Type": "application/x-ndjson; charset=utf-8" },
+  });
+}
+
 export async function GET(req: Request) {
-  const part = new URL(req.url).searchParams.get("part") ?? "";
+  const params = new URL(req.url).searchParams;
+  const many = params.get("parts");
+  if (many !== null) {
+    const names = [...new Set(many.split(",").map((p) => p.trim()))].filter(isPartName);
+    if (names.length === 0) {
+      return Response.json(
+        { error: "no known parts", parts: Object.keys(PARTS) },
+        { status: 400, headers: NO_STORE },
+      );
+    }
+    return streamParts(names);
+  }
+
+  const part = params.get("part") ?? "";
 
   if (!isPartName(part)) {
     return Response.json(
