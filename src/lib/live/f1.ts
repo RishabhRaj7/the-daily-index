@@ -233,7 +233,12 @@ async function openF1<T>(path: string, revalidate = 3600): Promise<T | null> {
   try {
     const response = await fetch(`${OPENF1_API}/${path}`, { next: { revalidate } });
     if (!response.ok) {
-      console.error(`openF1 failed: ${path} -> ${response.status} ${response.statusText}`);
+      // OpenF1 answers 404 when a query has no rows yet — e.g. the next
+      // race's starting_grid before qualifying. That is "no data", not a
+      // failure, so it stays out of the error log.
+      if (response.status !== 404) {
+        console.error(`openF1 failed: ${path} -> ${response.status} ${response.statusText}`);
+      }
       return null;
     }
     return await response.json() as T;
