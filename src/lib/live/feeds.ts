@@ -19,19 +19,24 @@ export interface FeedSource {
    * newest-first window, so feed position stands in for the date.
    */
   undated?: boolean;
+  /**
+   * Drop obvious party / electoral politics at fetch time (politics-filter.ts).
+   * Only the World feeds need it; everything subtler is the AI editor's call.
+   */
+  politicsFilter?: boolean;
 }
 
 // World & India. The default preferences group World by US / China / UK /
 // India / Japan, so the pool carries a strong source for each region.
 // Dropped: Indian Express India (200 undescribed items, mostly state politics).
 export const WORLD_FEEDS: FeedSource[] = [
-  { url: "https://feeds.bbci.co.uk/news/world/rss.xml" },
-  { url: "https://www.theguardian.com/world/rss" },          // long snippets
-  { url: "https://www.aljazeera.com/xml/rss/all.xml" },
-  { url: "https://www.scmp.com/rss/91/feed" },               // China
-  { url: "https://www.japantimes.co.jp/feed/" },             // Japan
-  { url: "https://www.thehindu.com/business/feeder/default.rss" },
-  { url: "https://www.thehindu.com/sci-tech/feeder/default.rss" },
+  { url: "https://feeds.bbci.co.uk/news/world/rss.xml", politicsFilter: true },
+  { url: "https://www.theguardian.com/world/rss", politicsFilter: true },  // long snippets
+  { url: "https://www.aljazeera.com/xml/rss/all.xml", politicsFilter: true },
+  { url: "https://www.scmp.com/rss/91/feed", politicsFilter: true },       // China
+  { url: "https://www.japantimes.co.jp/feed/", politicsFilter: true },     // Japan
+  { url: "https://www.thehindu.com/business/feeder/default.rss", politicsFilter: true },
+  { url: "https://www.thehindu.com/sci-tech/feeder/default.rss", politicsFilter: true },
 ];
 
 // Indian markets & economy.

@@ -93,7 +93,11 @@ ${UNTRUSTED_NOTE}
 
 <reader_preferences>
 Watch topics across the whole digest: ${list(g.watchTopics) ?? "(none)"}
-Never pick articles about: ${list(g.excludeKeywords) ?? "(none)"}
+Never pick articles about: ${list(g.excludeKeywords) ?? "(none)"}${
+    g.avoidPolitics
+      ? "\nSkip party politics: elections, campaigns, polls, party disputes, parliamentary manoeuvring and politicians' personal controversies. Keep geopolitics, conflict, diplomacy, and government policy or regulation with real economic, business, technology or sporting consequences — judge by what the story is about, not by who is named in it."
+      : ""
+  }
 </reader_preferences>
 
 <sections>

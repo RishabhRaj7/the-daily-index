@@ -115,6 +115,21 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
+// Live blogs ("Iran war live: …", /live/ URLs) are rolling pages, not
+// stories: their snippet is whatever the latest post was, and the model
+// picked them despite being told not to. Dropped before it sees them.
+const LIVE_TITLE = /(^|[\s–—-])live(:|\s+updates?\b|\s+blog\b|\s+[–—-]\s)|\bas it happened\b/i;
+
+function isLiveBlog(title: string, url: string): boolean {
+  if (LIVE_TITLE.test(title)) return true;
+  try {
+    // A "/live/" path segment (Guardian, BBC) — not any slug starting "live-".
+    return /\/live(\/|$)/.test(new URL(url).pathname);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Collate every news wire into one deduplicated corpus of RSS excerpts, then
  * drop what the reader's preferences rule out deterministically: articles
@@ -171,6 +186,7 @@ export async function collectCorpus(prefs: DigestPreferences): Promise<CorpusArt
     })
     .filter((a) => {
       if (a.ageHours !== null && a.ageHours > maxAge) return false;
+      if (isLiveBlog(a.title, a.url)) return false;
       const hay = `${a.title} ${a.text}`.toLowerCase();
       return !excluded.some((k) => hay.includes(k));
     })

@@ -426,3 +426,18 @@ edition starts building before the reader is back on the paper.
   longer `session_key=latest`, which showed practice on race-weekend Fridays.
 - Market Pulse: one Yahoo `spark` request for all six indices (was six), and
   a missing index no longer blanks the whole panel.
+
+## Politics and live blogs (current)
+
+- `politics-filter.ts` is a short list of unambiguous party / electoral
+  terms, checked against **World headlines only** (`politicsFilter` on the
+  World feeds). It used to check every feed's title + snippet against a
+  broad list including leaders' names, "president", "minister", "protest"
+  — dropping 65/297 World items (mostly geopolitics), Markets budget news,
+  EU tech regulation and FIA stories. Now: 9/297, headline-only.
+- `global.avoidPolitics` (Settings → News → "Skip party politics", on by
+  default) adds a judgement rule to the selection prompt: skip elections,
+  campaigns and party fights; keep geopolitics and consequential policy.
+- Live blogs (`… live:`, `live updates`, `as it happened`, a `/live/` URL
+  segment) are dropped in `collectCorpus` — the model picked them despite
+  the prompt saying not to.

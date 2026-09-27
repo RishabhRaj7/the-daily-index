@@ -73,6 +73,8 @@ export function normalizePreferences(raw: unknown): DigestPreferences {
     excludeKeywords: asStringArray(rawGlobal.excludeKeywords ?? d.global.excludeKeywords),
     maxAgeHours: asNumber(rawGlobal.maxAgeHours, d.global.maxAgeHours, 1, 24 * 14),
     summaryLengthWords: asNumber(rawGlobal.summaryLengthWords, d.global.summaryLengthWords, 10, 300),
+    avoidPolitics:
+      typeof rawGlobal.avoidPolitics === "boolean" ? rawGlobal.avoidPolitics : d.global.avoidPolitics,
   };
 
   const rawSections = Array.isArray(obj.sections) ? obj.sections : d.sections;
