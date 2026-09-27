@@ -177,6 +177,11 @@ function memoryStore(): Store {
   };
 }
 
+/** Where editions live, for /api/health — never includes credentials. */
+export function storeInfo(): { kind: "redis" | "memory"; namespace: string } {
+  return { kind: redisFromEnv() ? "redis" : "memory", namespace: NAMESPACE };
+}
+
 let cached: Store | null = null;
 
 export function getStore(): Store {
