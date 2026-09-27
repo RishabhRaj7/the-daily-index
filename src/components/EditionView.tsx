@@ -54,7 +54,6 @@ import CircuitBoardSection from "@/components/sections/CircuitBoardSection";
 import LedgerSection from "@/components/sections/LedgerSection";
 import MarketPulseSection from "@/components/sections/MarketPulseSection";
 import GrapevineSection from "@/components/sections/GrapevineSection";
-import SummaryBanner from "@/components/widgets/SummaryBanner";
 import EditionBriefPanel from "@/components/widgets/EditionBriefPanel";
 import DigestSectionView from "@/components/digest/DigestSectionView";
 import {
@@ -81,16 +80,13 @@ import { requestEdition, waitForEdition } from "@/lib/edition-client";
 type WeatherState = "loading" | "ready" | "failed";
 const WEATHER_TIMEOUT_MS = 9000;
 
-// idle      — nothing to show
-// loading   — /api/summarize in flight
-// done      — new summaries are waiting; the reader taps the banner to apply
-// unchanged — the model had nothing new to add (auto-dismisses)
-// failed    — the call errored; banner offers a retry
-export type SummaryState = "idle" | "loading" | "done" | "unchanged" | "failed";
+// New content — the edition, the hate-watch summaries, pick blurbs — is
+// applied the moment it arrives; there is no "tap to update" step. Only the
+// At a Glance panel shows a loading hint while /api/summarize runs.
+type SummaryState = "idle" | "loading";
 const SUMMARIZE_TIMEOUT_MS = 90_000;
 // Edition polling gives up after 180s; this backstop sits just past it.
 const DIGEST_TIMEOUT_MS = 200_000;
-const UNCHANGED_DISMISS_MS = 3500;
 
 const EMPTY_GRAPEVINE: GrapevineData = {
   picks: [],
@@ -133,10 +129,6 @@ export default function EditionView({
   const [footballStories, setFootballStories] = useState(initialFootballStories);
   const [tennisStories, setTennisStories] = useState(initialTennisStories);
   const [summaryState, setSummaryState] = useState<SummaryState>("idle");
-  // Freshly fetched summaries that the reader hasn't applied yet. Held in
-  // memory (not just sessionStorage) so "tap to update" always has something
-  // concrete to apply even if storage is full or disabled.
-  const pendingRef = useRef<Record<string, string>>({});
   const inFlightRef = useRef<AbortController | null>(null);
   const [brief, setBrief] = useState<EditionBrief | null>(null);
   const [personalization, setPersonalization] = useState<Personalization>(DEFAULT_PERSONALIZATION);
@@ -145,16 +137,10 @@ export default function EditionView({
   const [grapevine, setGrapevine] = useState<GrapevineData>(initialEdition.grapevine ?? EMPTY_GRAPEVINE);
 
   // --- preference-driven digest state ---------------------------------------
-  // idle    — nothing pending (digest either never ran on this mount or is applied)
-  // loading — /api/digest in flight
-  // done    — a fresh digest is waiting; the reader taps the banner to apply
-  // failed  — the digest call errored; banner offers a retry
-  const [digestState, setDigestState] = useState<"idle" | "loading" | "done" | "failed">("idle");
   const [appliedDigest, setAppliedDigest] = useState<DigestResult | null>(null);
   const [standaloneDigest, setStandaloneDigest] = useState<
     Array<{ section: DigestSection; articles: DigestArticle[] }>
   >([]);
-  const pendingDigestRef = useRef<{ result: DigestResult; prefs: DigestPreferences } | null>(null);
   const digestInFlightRef = useRef<AbortController | null>(null);
   // Set at mount when this visit follows "Refresh edition": the server must
   // rebuild rather than hand back the edition the reader already had.
@@ -294,18 +280,6 @@ export default function EditionView({
     }));
   }, []);
 
-  // "Tap to update" — swap the RSS snippets for the summaries we are holding.
-  // Reads from memory first; sessionStorage is only a fallback so a full
-  // storage (or Safari private mode) can never turn the tap into a no-op.
-  const handleApplySummaries = useCallback(() => {
-    let map = pendingRef.current;
-    if (Object.keys(map).length === 0) {
-      map = readSummaryRecord(edition.isoDate)?.byUrl ?? {};
-    }
-    if (Object.keys(map).length > 0) applyMap(map);
-    pendingRef.current = {};
-    setSummaryState("idle");
-  }, [applyMap, edition.isoDate]);
 
   // The preference-driven digest (via /api/digest) now selects and summarises
   // every news section in one pass, so the legacy /api/summarize article pass
@@ -475,21 +449,20 @@ export default function EditionView({
           if (pickBlurbs) applyPickBlurbs(pickBlurbs);
           if (apiNote) setEditorsNote({ text: apiNote, source: "ai" });
 
-          pendingRef.current = changed;
-          setSummaryState(Object.keys(changed).length > 0 ? "done" : "unchanged");
+          if (Object.keys(changed).length > 0) applyMap(changed);
+          setSummaryState("idle");
         })
         .catch((err) => {
           if (controller.signal.aborted && inFlightRef.current !== controller) return; // superseded
           console.warn("[summarize] failed:", err);
-          pendingRef.current = {};
-          setSummaryState("failed");
+          // Not worth interrupting the reader over: the RSS text stays.
+          setSummaryState("idle");
         })
         .finally(() => {
           clearTimeout(timer);
           if (inFlightRef.current === controller) inFlightRef.current = null;
         });
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [isArchive, memory, edition.isoDate, edition.date, hero?.headline, hateWatchInputs, grapevine.picks, applyMap, applyPickBlurbs],
   );
 
@@ -568,7 +541,6 @@ export default function EditionView({
         if (cached) {
           applyDigest(cached, prefs);
           setBrief(deriveBriefFromDigest(cached, prefs));
-          setDigestState("idle");
           return;
         }
       }
@@ -579,29 +551,20 @@ export default function EditionView({
       // Polling gives up on its own; this is the backstop so a hung request
       // can never pin the pressroom overlay forever.
       const timer = setTimeout(() => controller.abort(), DIGEST_TIMEOUT_MS);
-      setDigestState("loading");
 
-      // A finished digest either pours straight into the page (the overlay
-      // is holding it) or waits behind the "tap to update" banner.
+      // A finished digest replaces the page's content straight away. Under
+      // the pressroom overlay that happens before the overlay fades, so the
+      // reader never sees the raw wire text; later (a background rebuild
+      // landing) it simply swaps in.
       const deliver = (result: DigestResult) => {
         if (controller.signal.aborted) return;
         writeDigestCache(edition.isoDate, hash, result);
         const total = Object.values(result.sections).reduce((n, a) => n + a.length, 0);
-        if (total === 0) {
-          if (prepActiveRef.current) revealEdition();
-          else setDigestState("idle");
-          return;
-        }
-        pendingDigestRef.current = { result, prefs };
-        setBrief(deriveBriefFromDigest(result, prefs));
-        if (prepActiveRef.current) {
+        if (total > 0) {
           applyDigest(result, prefs);
-          pendingDigestRef.current = null;
-          setDigestState("idle");
-          revealEdition();
-        } else {
-          setDigestState("done");
+          setBrief(deriveBriefFromDigest(result, prefs));
         }
+        if (prepActiveRef.current) revealEdition();
       };
 
       (async () => {
@@ -613,10 +576,7 @@ export default function EditionView({
           // the overlay until the fresh build lands instead of reprinting
           // the one they already had.
           if (!(force && first.refreshing)) deliver(first.digest);
-          if (!first.refreshing) {
-            setDigestState((s) => (s === "loading" ? "idle" : s));
-            return;
-          }
+          if (!first.refreshing) return;
         }
 
         // Building (or refreshing in the background): poll the server.
@@ -630,21 +590,14 @@ export default function EditionView({
         }
         if (final.builtAt !== first.builtAt || first.state !== "ready" || force) {
           deliver(final.digest);
-        } else {
-          setDigestState("idle");
         }
       })()
         .catch((err) => {
           if (controller.signal.aborted && digestInFlightRef.current !== controller) return;
           console.warn("[edition] failed:", err);
-          pendingDigestRef.current = null;
-          if (prepActiveRef.current) {
-            // The overlay swaps the animation for a retry instead of leaving
-            // the reader staring at raw wire text with a dead pill.
-            setPrep("failed");
-          } else {
-            setDigestState("failed");
-          }
+          // The overlay swaps the animation for a retry. Once the page is
+          // showing, a failed background refresh just keeps what is there.
+          if (prepActiveRef.current) setPrep("failed");
         })
         .finally(() => {
           clearTimeout(timer);
@@ -701,7 +654,6 @@ export default function EditionView({
       digestInFlightRef.current?.abort();
       digestInFlightRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isArchive]);
 
 
@@ -719,51 +671,14 @@ export default function EditionView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isArchive, memory === null]);
 
-  const handleRetrySummaries = useCallback(() => runSummarizeRef.current(true), []);
-
-  // "Tap to update" applies the waiting digest AND any waiting summaries.
-  const handleApplyUpdates = useCallback(() => {
-    const pending = pendingDigestRef.current;
-    if (pending) {
-      applyDigest(pending.result, pending.prefs);
-      pendingDigestRef.current = null;
-      setDigestState("idle");
-    }
-    handleApplySummaries();
-  }, [applyDigest, handleApplySummaries]);
-
-  const handleRetryAll = useCallback(() => {
-    if (digestState === "failed") runDigestRef.current(true);
-    if (summaryState === "failed") handleRetrySummaries();
-  }, [digestState, summaryState, handleRetrySummaries]);
-
   // Pressroom overlay actions: retry re-runs the whole digest pipeline from
   // scratch (RSS → collate → AI); skipping lifts the overlay and prints the
-  // raw wires knowingly, with the small banner still offering the AI pass.
+  // raw wires knowingly.
   const handlePrepRetry = useCallback(() => {
     setPrep("cooking");
     runDigestRef.current(true);
   }, []);
   const handlePrepSkip = useCallback(() => revealEdition(), [revealEdition]);
-
-  // Merge digest + summarize states into the single banner the reader sees.
-  const bannerState: SummaryState =
-    digestState === "done" || summaryState === "done"
-      ? "done"
-      : digestState === "loading" || summaryState === "loading"
-        ? "loading"
-        : digestState === "failed" || summaryState === "failed"
-          ? "failed"
-          : summaryState === "unchanged"
-            ? "unchanged"
-            : "idle";
-
-  // "Nothing new" pill dismisses itself.
-  useEffect(() => {
-    if (summaryState !== "unchanged") return;
-    const t = setTimeout(() => setSummaryState("idle"), UNCHANGED_DISMISS_MS);
-    return () => clearTimeout(t);
-  }, [summaryState]);
 
   // --- assemble -----------------------------------------------------------
   const rank = useCallback(
@@ -881,21 +796,6 @@ export default function EditionView({
           date={edition.date}
           onRetry={handlePrepRetry}
           onSkip={handlePrepSkip}
-        />
-      )}
-      {bannerState !== "idle" && !prepBlocking && (
-        <SummaryBanner
-          state={bannerState}
-          onApply={handleApplyUpdates}
-          onRetry={handleRetryAll}
-          loadingLabel={
-            digestState === "loading" ? "Preparing your digest…" : "Summarising…"
-          }
-          applyLabel={
-            digestState === "done"
-              ? "Your digest is ready — tap to update"
-              : "Summaries ready — tap to update"
-          }
         />
       )}
       {!isArchive && !prepBlocking && (
