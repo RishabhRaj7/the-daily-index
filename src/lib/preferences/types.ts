@@ -32,14 +32,6 @@ export const NEWS_SLOTS: NewsSlot[] = [
   "ledger",
 ];
 
-export const SLOT_LABELS: Record<NewsSlot, string> = {
-  dateline: "Dateline — World & India",
-  sports: "Sports",
-  "paddock-notes": "Paddock Notes — Sports",
-  "circuit-board": "The Circuit Board — Tech",
-  ledger: "The Ledger — Finance & Markets",
-};
-
 /** Applies to every section, in addition to each section's own rules. */
 export interface DigestGlobal {
   /** Voice the summaries should read like, e.g. "no fluff". */

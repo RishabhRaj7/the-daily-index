@@ -1,230 +1,207 @@
 "use client";
 
-// The "Digest" tab of the settings page: a GUI over the same JSON that ships
-// in src/lib/preferences/default-preferences.json. Edits persist to this
-// device only (localStorage) and fire an event the front page listens for.
+// "Your news" — what the AI editor puts in the paper. A plain-language view
+// over the digest preferences JSON (lib/preferences/types.ts). Internals the
+// reader never needs to see — section ids, types, display slots, preferred
+// sources, age window — are kept as they are but not shown; the raw JSON is
+// still reachable under Advanced.
+//
+// Controlled: the settings page owns the draft and saves it with everything
+// else in one action.
 
-import { useEffect, useMemo, useState } from "react";
-import {
-  DEFAULT_DIGEST_PREFERENCES,
-  loadDigestPreferences,
-  resetDigestPreferences,
-  saveDigestPreferences,
-  slugifyId,
-} from "@/lib/preferences/storage";
-import {
-  NEWS_SLOTS,
-  SLOT_LABELS,
-  type DigestPreferences,
-  type DigestSection,
-} from "@/lib/preferences/types";
-import { requestEdition } from "@/lib/edition-client";
+import { useState } from "react";
+import { DEFAULT_DIGEST_PREFERENCES } from "@/lib/preferences/storage";
+import type { DigestPreferences, DigestSection } from "@/lib/preferences/types";
 
 const inputCls =
   "w-full border hairline bg-paper px-2.5 py-1.5 text-sm font-body focus:outline-none focus:border-masthead-red";
 const labelCls = "font-label text-[10px] text-ink-soft block mb-1";
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+const TONES = [
+  { label: "Straight news", value: DEFAULT_DIGEST_PREFERENCES.global.tone },
+  {
+    label: "Conversational",
+    value: "Plain and conversational, like a well-read friend explaining it — still strictly factual, no hype.",
+  },
+  {
+    label: "Analytical",
+    value: "Lead with the fact, then what it means and what to watch next — only from what the article says.",
+  },
+];
+
+const LENGTHS = [
+  { label: "Short", words: 35 },
+  { label: "Standard", words: 60 },
+  { label: "Detailed", words: 100 },
+];
+
+// ---- small controls -------------------------------------------------------------
+
+function TagInput({
+  values,
+  onChange,
+  placeholder,
+}: {
+  values: string[];
+  onChange: (next: string[]) => void;
+  placeholder: string;
+}) {
+  const [text, setText] = useState("");
+  const add = () => {
+    const parts = text.split(",").map((s) => s.trim()).filter(Boolean);
+    const next = [...values];
+    for (const p of parts) if (!next.some((v) => v.toLowerCase() === p.toLowerCase())) next.push(p);
+    onChange(next);
+    setText("");
+  };
   return (
-    <div>
-      <span className={labelCls}>{label}</span>
-      {children}
+    <div className="flex flex-wrap items-center gap-1.5 border hairline bg-paper px-2 py-1.5 focus-within:border-masthead-red">
+      {values.map((v) => (
+        <span key={v} className="inline-flex items-center gap-1 bg-card-bg border hairline px-2 py-0.5 text-xs">
+          {v}
+          <button
+            type="button"
+            aria-label={`Remove ${v}`}
+            onClick={() => onChange(values.filter((x) => x !== v))}
+            className="text-ink-soft hover:text-masthead-red"
+          >
+            ×
+          </button>
+        </span>
+      ))}
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === ",") {
+            e.preventDefault();
+            add();
+          } else if (e.key === "Backspace" && !text && values.length > 0) {
+            onChange(values.slice(0, -1));
+          }
+        }}
+        onBlur={() => text.trim() && add()}
+        placeholder={values.length === 0 ? placeholder : ""}
+        className="flex-1 min-w-[8rem] bg-transparent text-sm font-body focus:outline-none py-0.5"
+      />
     </div>
   );
 }
 
-function csv(value: string[] | undefined): string {
-  return (value ?? []).join(", ");
+function Stepper({
+  value,
+  onChange,
+  min = 1,
+  max = 10,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  min?: number;
+  max?: number;
+}) {
+  const btn = "w-7 h-7 border hairline font-mono text-sm disabled:opacity-30 hover:bg-card-bg";
+  return (
+    <div className="inline-flex items-center gap-2">
+      <button type="button" className={btn} disabled={value <= min} onClick={() => onChange(value - 1)} aria-label="Fewer">
+        −
+      </button>
+      <span className="font-mono text-sm tabular-nums w-5 text-center">{value}</span>
+      <button type="button" className={btn} disabled={value >= max} onClick={() => onChange(value + 1)} aria-label="More">
+        +
+      </button>
+    </div>
+  );
 }
 
-function parseCsv(value: string): string[] {
-  return value.split(",").map((s) => s.trim()).filter(Boolean);
+function Choice<T extends string | number>({
+  options,
+  value,
+  onChange,
+}: {
+  options: Array<{ label: string; value: T }>;
+  value: T | null;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {options.map((o) => (
+        <button
+          key={String(o.value)}
+          type="button"
+          onClick={() => onChange(o.value)}
+          aria-pressed={value === o.value}
+          className={`font-label text-[10px] px-3 py-1.5 border transition-colors ${
+            value === o.value ? "border-masthead-red bg-masthead-red text-paper" : "hairline hover:bg-card-bg"
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
 }
 
-function newId(existing: DigestSection[], base: string): string {
-  let id = slugifyId(base);
-  let n = 2;
-  while (existing.some((s) => s.id === id)) id = `${slugifyId(base)}-${n++}`;
-  return id;
-}
+// ---- editor ----------------------------------------------------------------------
 
 export default function DigestPreferencesEditor({
-  sportsWatchedEntities,
-  onClose,
-  onSavePaperDraft,
+  value,
+  onChange,
 }: {
-  sportsWatchedEntities: string[];
-  onClose: () => void;
-  onSavePaperDraft: () => void;
+  value: DigestPreferences;
+  onChange: (next: DigestPreferences) => void;
 }) {
-  const [draft, setDraft] = useState<DigestPreferences | null>(null);
-  const [baseline, setBaseline] = useState("");
-  const [saved, setSaved] = useState(false);
-  const [showJson, setShowJson] = useState(false);
-  const [jsonText, setJsonText] = useState("");
+  const [jsonText, setJsonText] = useState<string | null>(null);
   const [jsonError, setJsonError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const loaded = loadDigestPreferences();
-    // localStorage is the external source being hydrated into this client component.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setDraft(loaded);
-    setBaseline(JSON.stringify(loaded));
-  }, []);
-
-  // Keep the sports section's watched entities in step with the favourites
-  // chosen on the Paper tab.
-  const syncedDraft = useMemo(() => {
-    if (!draft) return null;
-    const managedSportsNames = new Set(sportsWatchedEntities);
-    return {
-      ...draft,
-      sections: draft.sections.map((section) => {
-        if (section.slot === "sports") {
-          return {
-            ...section,
-            watchEntities: [
-              ...(section.watchEntities ?? []).filter((entity) => !managedSportsNames.has(entity)),
-              ...sportsWatchedEntities,
-            ],
-          };
-        }
-        return section;
-      }),
-    };
-  }, [draft, sportsWatchedEntities]);
-
-  const dirty = useMemo(
-    () => {
-      return syncedDraft !== null && baseline !== "" && JSON.stringify(syncedDraft) !== baseline;
-    },
-    [syncedDraft, baseline],
-  );
-
-  if (!draft) {
-    return <p className="font-body text-sm text-ink-soft">Loading your digest preferences…</p>;
-  }
-
-  const update = (patch: Partial<DigestPreferences>) => {
-    setDraft((d) => (d ? { ...d, ...patch } : d));
-    setSaved(false);
-    setJsonError(null);
-  };
+  const g = value.global;
+  const sorted = [...value.sections].sort((a, b) => a.order - b.order);
+  const toneMatch = TONES.find((t) => t.value === g.tone)?.value ?? null;
+  const [customTone, setCustomTone] = useState(toneMatch === null);
 
   const updateGlobal = (patch: Partial<DigestPreferences["global"]>) =>
-    update({ global: { ...draft.global, ...patch } });
+    onChange({ ...value, global: { ...g, ...patch } });
 
   const updateSection = (id: string, patch: Partial<DigestSection>) =>
-    update({
-      sections: draft.sections.map((s) => (s.id === id ? ({ ...s, ...patch } as DigestSection) : s)),
+    onChange({
+      ...value,
+      sections: value.sections.map((s) => (s.id === id ? ({ ...s, ...patch } as DigestSection) : s)),
     });
-
-  const removeSection = (id: string) =>
-    update({ sections: draft.sections.filter((s) => s.id !== id) });
-
-  const sorted = [...(syncedDraft?.sections ?? [])].sort((a, b) => a.order - b.order);
 
   const move = (id: string, dir: -1 | 1) => {
-    const idx = sorted.findIndex((s) => s.id === id);
-    const swap = sorted[idx + dir];
-    const self = sorted[idx];
-    if (!swap || !self) return;
-    update({
-      sections: draft.sections.map((s) => {
-        if (s.id === self.id) return { ...s, order: swap.order };
-        if (s.id === swap.id) return { ...s, order: self.order };
-        return s;
-      }),
+    const i = sorted.findIndex((s) => s.id === id);
+    const self = sorted[i];
+    const other = sorted[i + dir];
+    if (!self || !other) return;
+    onChange({
+      ...value,
+      sections: value.sections.map((s) =>
+        s.id === self.id ? { ...s, order: other.order } : s.id === other.id ? { ...s, order: self.order } : s,
+      ),
     });
   };
 
-  const addSection = (type: DigestSection["type"]) => {
-    const maxOrder = Math.max(0, ...draft.sections.map((s) => s.order));
-    const id = newId(draft.sections, type === "grouped" ? "new-group" : type === "custom" ? "new-custom" : "new-topic");
-    const base = {
-      id,
-      label: type === "grouped" ? "New group" : type === "custom" ? "New custom section" : "New topic",
-      order: maxOrder + 10,
-      prompt: "",
-      watchEntities: [],
-      excludeKeywords: [],
-      preferredSources: [],
-    };
-    const section: DigestSection =
-      type === "grouped"
-        ? { ...base, type, groupBy: "country", groups: ["India", "United States"], articleCountPerGroup: 1 }
-        : type === "custom"
-          ? { ...base, type, instruction: "Pick the most surprising story in the corpus.", articleCount: 3 }
-          : { ...base, type, articleCount: 5 };
-    update({ sections: [...draft.sections, section] });
-  };
-
-  const changeType = (id: string, type: DigestSection["type"]) => {
-    const current = draft.sections.find((s) => s.id === id);
-    if (!current || current.type === type) return;
-    const base = {
-      id: current.id,
-      label: current.label,
-      order: current.order,
-      slot: current.slot,
-      preferredSources: current.preferredSources,
-      excludeKeywords: current.excludeKeywords,
-      watchEntities: current.watchEntities,
-      prompt: current.prompt,
-    };
-    let next: DigestSection;
-    if (type === "grouped") {
-      next = { ...base, type, groupBy: "country", groups: ["India", "United States"], articleCountPerGroup: 1 };
-    } else if (type === "custom") {
-      next = { ...base, type, instruction: "", articleCount: 3 };
-    } else {
-      next = { ...base, type, articleCount: 5 };
-    }
-    update({ sections: draft.sections.map((s) => (s.id === id ? next : s)) });
-  };
-
-  const handleSave = () => {
-    if (!syncedDraft) return;
-    const next = syncedDraft;
-    saveDigestPreferences(next);
-    // Start the server build now so it is already cooking while the reader
-    // walks back to the paper; the front page's own request joins it.
-    void requestEdition(loadDigestPreferences(), { keepalive: true }).catch(() => {});
-    // Sports favourites live in the shared Paper draft; persist it in the
-    // same action so the synced watch entities survive a reload.
-    onSavePaperDraft();
-    setDraft(next);
-    setBaseline(JSON.stringify(next));
-    setSaved(true);
-    setTimeout(() => { window.location.href = "/"; }, 600);
-  };
-
-  const handleReset = () => {
-    const defaults = resetDigestPreferences();
-    setDraft(defaults);
-    setBaseline(JSON.stringify(defaults));
-    setSaved(false);
-    setJsonError(null);
-  };
-
-  const openJson = () => {
-    setJsonText(JSON.stringify(syncedDraft, null, 2));
-    setJsonError(null);
-    setShowJson((v) => !v);
+  const addSection = () => {
+    let id = "my-section";
+    for (let n = 2; value.sections.some((s) => s.id === id); n++) id = `my-section-${n}`;
+    const order = Math.max(0, ...value.sections.map((s) => s.order)) + 10;
+    onChange({
+      ...value,
+      sections: [
+        ...value.sections,
+        { id, type: "custom", label: "New section", order, instruction: "", articleCount: 3, watchEntities: [] },
+      ],
+    });
   };
 
   const applyJson = () => {
     try {
-      const parsed = JSON.parse(jsonText) as DigestPreferences;
+      const parsed = JSON.parse(jsonText ?? "") as DigestPreferences;
       if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.sections)) {
         throw new Error('Expected an object with a "sections" array.');
       }
-      // Round-trip through the editor's own save() so normalisation and the
-      // change event behave exactly like a GUI edit.
-      const normalised = JSON.parse(JSON.stringify(parsed)) as DigestPreferences;
-      setDraft(normalised);
+      onChange(parsed);
+      setJsonText(null);
       setJsonError(null);
-      setSaved(false);
     } catch (err) {
       setJsonError(err instanceof Error ? err.message : "Invalid JSON.");
     }
@@ -232,226 +209,215 @@ export default function DigestPreferencesEditor({
 
   return (
     <div className="space-y-8">
-      <section className="border-t-2 border-ink pt-4">
-        <div className="font-label text-[10px] text-masthead-red mb-1">Global rules</div>
-        <p className="font-body text-sm text-ink-soft mb-4">
-          Applied to every section before its own rules. These live in the same JSON you can
-          hand-edit at <span className="font-mono text-xs">src/lib/preferences/default-preferences.json</span>.
-        </p>
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div className="sm:col-span-2">
-            <Field label="Tone for all summaries">
-              <input
-                className={inputCls}
-                value={draft.global.tone}
-                onChange={(e) => updateGlobal({ tone: e.target.value })}
-              />
-            </Field>
-          </div>
-          <div className="sm:col-span-2">
-            <Field label="Topics to watch (comma-separated, prioritised everywhere)">
-              <input
-                className={inputCls}
-                value={csv(draft.global.watchTopics)}
-                onChange={(e) => updateGlobal({ watchTopics: parseCsv(e.target.value) })}
-                placeholder="e.g. RBI, monsoon, ISRO"
-              />
-            </Field>
-          </div>
-          <Field label="Max article age (hours)">
-            <input
-              type="number"
-              min={1}
-              max={336}
-              className={inputCls}
-              value={draft.global.maxAgeHours}
-              onChange={(e) => updateGlobal({ maxAgeHours: Number(e.target.value) || 24 })}
+      {/* Across the whole paper */}
+      <section className="space-y-5">
+        <div>
+          <span className={labelCls}>Always prioritise</span>
+          <TagInput
+            values={g.watchTopics}
+            onChange={(watchTopics) => updateGlobal({ watchTopics })}
+            placeholder="People, teams, companies, topics — e.g. Verstappen, RBI, ISRO"
+          />
+        </div>
+        <div>
+          <span className={labelCls}>Never show me</span>
+          <TagInput
+            values={g.excludeKeywords}
+            onChange={(excludeKeywords) => updateGlobal({ excludeKeywords })}
+            placeholder="e.g. horoscope, celebrity gossip"
+          />
+        </div>
+        <div className="grid sm:grid-cols-2 gap-5">
+          <div>
+            <span className={labelCls}>Summary length</span>
+            <Choice
+              options={LENGTHS.map((l) => ({ label: l.label, value: l.words }))}
+              value={LENGTHS.find((l) => l.words === g.summaryLengthWords)?.words ?? null}
+              onChange={(summaryLengthWords) => updateGlobal({ summaryLengthWords })}
             />
-          </Field>
-          <Field label="Summary length (words, approx.)">
-            <input
-              type="number"
-              min={10}
-              max={300}
-              className={inputCls}
-              value={draft.global.summaryLengthWords}
-              onChange={(e) => updateGlobal({ summaryLengthWords: Number(e.target.value) || 60 })}
+          </div>
+          <div>
+            <span className={labelCls}>Voice</span>
+            <Choice
+              options={[...TONES.map((t) => ({ label: t.label, value: t.value })), { label: "Custom", value: "__custom__" }]}
+              value={customTone ? "__custom__" : toneMatch}
+              onChange={(v) => {
+                if (v === "__custom__") {
+                  setCustomTone(true);
+                } else {
+                  setCustomTone(false);
+                  updateGlobal({ tone: v });
+                }
+              }}
             />
-          </Field>
-          <div className="sm:col-span-2">
-            <Field label="Exclude keywords (comma-separated, never selected)">
-              <input
-                className={inputCls}
-                value={csv(draft.global.excludeKeywords)}
-                onChange={(e) => updateGlobal({ excludeKeywords: parseCsv(e.target.value) })}
-              />
-            </Field>
           </div>
         </div>
-      </section>
-
-      <section className="border-t-2 border-ink pt-4">
-        <div className="font-label text-[10px] text-masthead-red mb-1">Sections</div>
-        <p className="font-body text-sm text-ink-soft mb-4">
-          The AI fills each section from today&rsquo;s collated feed, in this order. Sections with a
-          display slot pour into the paper&rsquo;s existing pages; the rest print as their own sections.
-        </p>
-
-        <div className="space-y-5">
-          {sorted.map((section, idx) => (
-            <div key={section.id} className="border hairline bg-card-bg p-4 space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-mono text-[11px] text-ink-soft">
-                  #{idx + 1} · id: {section.id} · {section.type}
-                </span>
-                <div className="flex items-center gap-2">
-                  <button type="button" onClick={() => move(section.id, -1)} disabled={idx === 0}
-                    className="font-label text-[10px] underline disabled:opacity-30">↑ up</button>
-                  <button type="button" onClick={() => move(section.id, 1)} disabled={idx === sorted.length - 1}
-                    className="font-label text-[10px] underline disabled:opacity-30">↓ down</button>
-                  <button type="button" onClick={() => removeSection(section.id)}
-                    className="font-label text-[10px] text-masthead-red underline">remove</button>
-                </div>
-              </div>
-
-              <div className="grid sm:grid-cols-2 gap-3">
-                <Field label="Label">
-                  <input className={inputCls} value={section.label}
-                    onChange={(e) => updateSection(section.id, { label: e.target.value })} />
-                </Field>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Type">
-                    <select className={inputCls} value={section.type}
-                      onChange={(e) => changeType(section.id, e.target.value as DigestSection["type"])}>
-                      <option value="topic">topic</option>
-                      <option value="grouped">grouped</option>
-                      <option value="custom">custom</option>
-                    </select>
-                  </Field>
-                  <Field label="Display slot">
-                    <select className={inputCls} value={section.slot ?? ""}
-                      onChange={(e) => updateSection(section.id, { slot: (e.target.value || undefined) as DigestSection["slot"] })}>
-                      <option value="">own section</option>
-                      {NEWS_SLOTS.map((slot) => (
-                        <option key={slot} value={slot}>{SLOT_LABELS[slot]}</option>
-                      ))}
-                    </select>
-                  </Field>
-                </div>
-
-                {section.type === "topic" && (
-                  <Field label="Article count">
-                    <input type="number" min={1} max={15} className={inputCls} value={section.articleCount}
-                      onChange={(e) => updateSection(section.id, { articleCount: Number(e.target.value) || 5 })} />
-                  </Field>
-                )}
-                {section.type === "custom" && (
-                  <Field label="Article count">
-                    <input type="number" min={1} max={15} className={inputCls} value={section.articleCount}
-                      onChange={(e) => updateSection(section.id, { articleCount: Number(e.target.value) || 3 })} />
-                  </Field>
-                )}
-                {section.type === "custom" && (
-                  <div className="sm:col-span-2">
-                    <Field label="Instruction (the AI follows it literally)">
-                      <textarea className={`${inputCls} min-h-16`} value={section.instruction}
-                        onChange={(e) => updateSection(section.id, { instruction: e.target.value })} />
-                    </Field>
-                  </div>
-                )}
-                {section.type === "grouped" && (
-                  <>
-                    <Field label="Group by">
-                      <input className={inputCls} value={section.groupBy}
-                        onChange={(e) => updateSection(section.id, { groupBy: e.target.value })} />
-                    </Field>
-                    <Field label="Articles per group">
-                      <input type="number" min={1} max={10} className={inputCls} value={section.articleCountPerGroup}
-                        onChange={(e) => updateSection(section.id, { articleCountPerGroup: Number(e.target.value) || 1 })} />
-                    </Field>
-                    <div className="sm:col-span-2">
-                      <Field label="Groups (comma-separated)">
-                        <input className={inputCls} value={csv(section.groups)}
-                          onChange={(e) => updateSection(section.id, { groups: parseCsv(e.target.value) })} />
-                      </Field>
-                    </div>
-                  </>
-                )}
-
-                <div className="sm:col-span-2">
-                  <Field label="Watch entities (comma-separated — prioritise articles mentioning these)">
-                    <input className={inputCls} value={csv(section.watchEntities)}
-                      onChange={(e) => updateSection(section.id, { watchEntities: parseCsv(e.target.value) })} />
-                  </Field>
-                </div>
-                <div className="sm:col-span-2">
-                  <Field label="Extra prompt (selection + summarisation guidance for this section)">
-                    <textarea className={`${inputCls} min-h-16`} value={section.prompt ?? ""}
-                      onChange={(e) => updateSection(section.id, { prompt: e.target.value })} />
-                  </Field>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex flex-wrap gap-2 mt-4">
-          <button type="button" onClick={() => addSection("topic")}
-            className="font-label text-[10px] px-3 py-1.5 border hairline hover:bg-card-bg">+ topic section</button>
-          <button type="button" onClick={() => addSection("grouped")}
-            className="font-label text-[10px] px-3 py-1.5 border hairline hover:bg-card-bg">+ grouped section</button>
-          <button type="button" onClick={() => addSection("custom")}
-            className="font-label text-[10px] px-3 py-1.5 border hairline hover:bg-card-bg">+ custom section</button>
-        </div>
-      </section>
-
-      <section className="border-t-2 border-ink pt-4">
-        <div className="flex items-center justify-between gap-2 mb-3">
-          <div className="font-label text-[10px] text-masthead-red">Raw JSON</div>
-          <button type="button" onClick={openJson} className="font-label text-[10px] underline">
-            {showJson ? "hide" : "edit as JSON"}
-          </button>
-        </div>
-        {showJson && (
-          <div className="space-y-2">
-            <textarea
-              className={`${inputCls} font-mono text-xs min-h-72`}
-              value={jsonText}
-              onChange={(e) => { setJsonText(e.target.value); setJsonError(null); }}
-              spellCheck={false}
-            />
-            {jsonError && (
-              <p className="font-mono text-xs text-masthead-red">✗ {jsonError}</p>
-            )}
-            <div className="flex gap-3">
-              <button type="button" onClick={applyJson}
-                className="font-label text-[10px] px-3 py-1.5 bg-ink text-paper">Apply JSON to editor</button>
-            </div>
-          </div>
+        {customTone && (
+          <input
+            className={inputCls}
+            value={g.tone}
+            onChange={(e) => updateGlobal({ tone: e.target.value })}
+            placeholder="Describe how summaries should read"
+          />
         )}
       </section>
 
-      <div className="fixed bottom-0 inset-x-0 z-40 border-t hairline bg-paper/95 backdrop-blur">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-          <button type="button" onClick={onClose} className="text-sm underline text-ink-soft">
-            ← {dirty ? "Discard changes" : "Back to the paper"}
-          </button>
-          <span className="font-mono text-[11px] text-ink-soft hidden sm:block">
-            {saved ? "Saved — reprinting…" : dirty ? "Unsaved digest changes" : "Everything saved"}
-          </span>
-          <button type="button" onClick={handleReset} className="text-sm underline text-ink-soft hidden sm:block">
-            Reset
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!dirty || saved}
-            className="font-label text-xs px-5 py-2.5 bg-masthead-red text-paper rounded-sm disabled:opacity-40 transition-opacity"
-          >
-            {saved ? "Saved ✓" : "Save & reprint →"}
-          </button>
+      {/* Sections */}
+      <section>
+        <p className="font-body text-sm text-ink-soft mb-4">
+          Each section is filled by the AI editor from today&rsquo;s feeds, in this order.
+        </p>
+        <div className="space-y-4">
+          {sorted.map((section, idx) => (
+            <div key={section.id} className="border hairline p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <input
+                  aria-label="Section name"
+                  className="flex-1 min-w-0 bg-transparent font-headline text-lg font-semibold focus:outline-none border-b border-transparent focus:border-masthead-red"
+                  value={section.label}
+                  onChange={(e) => updateSection(section.id, { label: e.target.value })}
+                />
+                <div className="flex items-center gap-3 font-label text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => move(section.id, -1)}
+                    disabled={idx === 0}
+                    className="underline disabled:opacity-30"
+                    aria-label="Move up"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => move(section.id, 1)}
+                    disabled={idx === sorted.length - 1}
+                    className="underline disabled:opacity-30"
+                    aria-label="Move down"
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onChange({ ...value, sections: value.sections.filter((s) => s.id !== section.id) })
+                    }
+                    disabled={value.sections.length === 1}
+                    className="text-masthead-red underline disabled:opacity-30"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+
+              {section.type === "custom" && (
+                <div>
+                  <span className={labelCls}>What belongs here?</span>
+                  <textarea
+                    className={`${inputCls} min-h-14`}
+                    value={section.instruction}
+                    onChange={(e) => updateSection(section.id, { instruction: e.target.value })}
+                    placeholder="e.g. The most surprising science story of the day"
+                  />
+                </div>
+              )}
+
+              {section.type === "grouped" ? (
+                <div className="grid sm:grid-cols-[auto_1fr] gap-4 items-start">
+                  <div>
+                    <span className={labelCls}>Stories per {section.groupBy}</span>
+                    <Stepper
+                      value={section.articleCountPerGroup}
+                      max={5}
+                      onChange={(n) => updateSection(section.id, { articleCountPerGroup: n })}
+                    />
+                  </div>
+                  <div>
+                    <span className={labelCls}>{section.groupBy === "country" ? "Countries" : "Groups"}</span>
+                    <TagInput
+                      values={section.groups}
+                      onChange={(groups) => groups.length > 0 && updateSection(section.id, { groups })}
+                      placeholder="Add one"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <span className={labelCls}>Stories</span>
+                  <Stepper
+                    value={section.articleCount}
+                    onChange={(n) => updateSection(section.id, { articleCount: n })}
+                  />
+                </div>
+              )}
+
+              <div>
+                <span className={labelCls}>Always prioritise here</span>
+                <TagInput
+                  values={section.watchEntities ?? []}
+                  onChange={(watchEntities) => updateSection(section.id, { watchEntities })}
+                  placeholder="e.g. a driver, a stock, a company"
+                />
+              </div>
+              {section.type !== "custom" && (
+                <div>
+                  <span className={labelCls}>Note to the editor</span>
+                  <textarea
+                    rows={2}
+                    className={`${inputCls} resize-y`}
+                    value={section.prompt ?? ""}
+                    onChange={(e) => updateSection(section.id, { prompt: e.target.value })}
+                    placeholder="e.g. Prefer race results over transfer rumours"
+                  />
+                </div>
+              )}
+            </div>
+          ))}
         </div>
-      </div>
+        <button
+          type="button"
+          onClick={addSection}
+          className="mt-4 font-label text-[10px] px-3 py-2 border hairline hover:bg-card-bg"
+        >
+          + Add a section
+        </button>
+      </section>
+
+      <details className="border-t hairline pt-3">
+        <summary className="font-label text-[10px] text-ink-soft cursor-pointer">Advanced — edit as JSON</summary>
+        <div className="space-y-2 mt-3">
+          <textarea
+            className={`${inputCls} font-mono text-xs min-h-72`}
+            value={jsonText ?? JSON.stringify(value, null, 2)}
+            onChange={(e) => {
+              setJsonText(e.target.value);
+              setJsonError(null);
+            }}
+            spellCheck={false}
+          />
+          {jsonError && <p className="font-mono text-xs text-masthead-red">✗ {jsonError}</p>}
+          <div className="flex gap-4 items-center">
+            <button
+              type="button"
+              onClick={applyJson}
+              disabled={jsonText === null}
+              className="font-label text-[10px] px-3 py-1.5 bg-ink text-paper disabled:opacity-40"
+            >
+              Apply JSON
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onChange(structuredClone(DEFAULT_DIGEST_PREFERENCES));
+                setJsonText(null);
+                setCustomTone(false);
+              }}
+              className="font-label text-[10px] underline text-ink-soft"
+            >
+              Reset news preferences to defaults
+            </button>
+          </div>
+        </div>
+      </details>
     </div>
   );
 }

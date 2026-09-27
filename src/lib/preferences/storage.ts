@@ -46,7 +46,7 @@ const asSlot = (v: unknown): NewsSlot | undefined =>
     ? (v as NewsSlot)
     : undefined;
 
-export function slugifyId(label: string, fallback = "section"): string {
+function slugifyId(label: string, fallback = "section"): string {
   const slug = label
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
@@ -186,25 +186,6 @@ export function saveDigestPreferences(prefs: DigestPreferences): void {
   const normalized = normalizePreferences(prefs);
   window.localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(normalized));
   window.dispatchEvent(new CustomEvent(PREFERENCES_CHANGED_EVENT));
-}
-
-/** Drop the local copy — the next load falls back to the shipped JSON. */
-export function resetDigestPreferences(): DigestPreferences {
-  if (storageAvailable()) {
-    window.localStorage.removeItem(PREFERENCES_STORAGE_KEY);
-    window.dispatchEvent(new CustomEvent(PREFERENCES_CHANGED_EVENT));
-  }
-  return structuredClone(DEFAULT_DIGEST_PREFERENCES);
-}
-
-/** True when the reader is running the shipped defaults untouched. */
-export function hasStoredPreferences(): boolean {
-  if (!storageAvailable()) return false;
-  try {
-    return window.localStorage.getItem(PREFERENCES_STORAGE_KEY) !== null;
-  } catch {
-    return false;
-  }
 }
 
 /** Short stable hash of the preferences — used to key the digest cache so a

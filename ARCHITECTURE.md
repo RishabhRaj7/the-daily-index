@@ -373,3 +373,15 @@ The digest is no longer generated per browser visit. The server builds one
 - **Store** (`lib/server/store.ts`): Upstash Redis when `KV_REST_API_*` or
   `UPSTASH_REDIS_REST_*` is set; otherwise process memory. On Vercel without
   Redis, builds run inline and the response carries the edition directly.
+
+## Settings (current)
+
+One page, one Save. "Your news" (`DigestPreferencesEditor`, controlled) shows
+the digest preferences in plain terms — always prioritise / never show me
+tags, summary length and voice presets, and one card per section (name,
+story count or countries, watched entities, note to the editor). Section
+ids, types, display slots, preferred sources and the age window are kept but
+not shown; the raw JSON sits under "Advanced". "+ Add a section" creates a
+free-text (custom) section. "Your paper" is the unchanged
+`PersonalizationForm`. Save writes both, then POSTs `/api/edition` so the
+new edition starts building before the reader is back on the paper.
