@@ -42,16 +42,23 @@ function redisFromEnv(): Redis | null {
   return new Redis({ url, token });
 }
 
+// One free Upstash database serves every environment, so each environment
+// writes under its own prefix: preview testing never lands in the live
+// archive, and production never reads a preview's editions. Vercel sets
+// VERCEL_ENV to "production" | "preview" | "development".
+const NAMESPACE = process.env.STORE_NAMESPACE ?? process.env.VERCEL_ENV ?? "development";
+
 function redisStore(redis: Redis): Store {
+  const k = (key: string) => `${NAMESPACE}:${key}`;
   return {
     persistent: true,
     async get<T>(key: string) {
-      return (await redis.get<T>(key)) ?? null;
+      return (await redis.get<T>(k(key))) ?? null;
     },
     async getMany<T>(keys: string[]) {
       const out = new Map<string, T>();
       if (keys.length === 0) return out;
-      const values = await redis.mget<(T | null)[]>(...keys);
+      const values = await redis.mget<(T | null)[]>(...keys.map(k));
       keys.forEach((k, i) => {
         if (values[i] !== null && values[i] !== undefined) out.set(k, values[i] as T);
       });
@@ -60,32 +67,32 @@ function redisStore(redis: Redis): Store {
     async setMany(entries, ttlSeconds) {
       if (entries.size === 0) return;
       const pipe = redis.pipeline();
-      for (const [k, v] of entries) pipe.set(k, v, { ex: ttlSeconds });
+      for (const [key, v] of entries) pipe.set(k(key), v, { ex: ttlSeconds });
       await pipe.exec();
     },
     async set(key, value, opts) {
-      if (opts?.ttlSeconds) await redis.set(key, value, { ex: opts.ttlSeconds });
-      else await redis.set(key, value);
+      if (opts?.ttlSeconds) await redis.set(k(key), value, { ex: opts.ttlSeconds });
+      else await redis.set(k(key), value);
     },
     async setIfAbsent(key, value, ttlSeconds) {
-      return (await redis.set(key, value, { nx: true, ex: ttlSeconds })) === "OK";
+      return (await redis.set(k(key), value, { nx: true, ex: ttlSeconds })) === "OK";
     },
     async del(key) {
-      await redis.del(key);
+      await redis.del(k(key));
     },
     async incr(key, ttlSeconds) {
-      const n = await redis.incr(key);
-      if (n === 1) await redis.expire(key, ttlSeconds);
+      const n = await redis.incr(k(key));
+      if (n === 1) await redis.expire(k(key), ttlSeconds);
       return n;
     },
     async zadd(key, score, member) {
-      await redis.zadd(key, { score, member });
+      await redis.zadd(k(key), { score, member });
     },
     async zrevrange(key, limit) {
-      return redis.zrange<string[]>(key, 0, limit - 1, { rev: true });
+      return redis.zrange<string[]>(k(key), 0, limit - 1, { rev: true });
     },
     async zrevrangeFrom(key, min, limit) {
-      return redis.zrange<string[]>(key, "+inf", min, {
+      return redis.zrange<string[]>(k(key), "+inf", min, {
         byScore: true,
         rev: true,
         offset: 0,

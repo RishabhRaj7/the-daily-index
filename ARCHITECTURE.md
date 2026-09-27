@@ -373,6 +373,9 @@ The digest is no longer generated per browser visit. The server builds one
 - **Store** (`lib/server/store.ts`): Upstash Redis when `KV_REST_API_*` or
   `UPSTASH_REDIS_REST_*` is set; otherwise process memory. On Vercel without
   Redis, builds run inline and the response carries the edition directly.
+  Every Redis key is prefixed with `VERCEL_ENV` (`production:`, `preview:`,
+  `development:`; override with `STORE_NAMESPACE`), so one free database
+  can serve all environments without preview data reaching the live archive.
 
 ## Settings (current)
 
