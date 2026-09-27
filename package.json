@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@upstash/redis": "^1.39.0",
     "dotenv": "17.3.1",
     "drizzle-orm": "0.45.2",
     "html-to-image": "^1.11.13",

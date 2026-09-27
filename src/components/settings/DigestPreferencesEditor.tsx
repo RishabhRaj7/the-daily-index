@@ -18,6 +18,7 @@ import {
   type DigestPreferences,
   type DigestSection,
 } from "@/lib/preferences/types";
+import { requestEdition } from "@/lib/edition-client";
 
 const inputCls =
   "w-full border hairline bg-paper px-2.5 py-1.5 text-sm font-body focus:outline-none focus:border-masthead-red";
@@ -186,6 +187,9 @@ export default function DigestPreferencesEditor({
     if (!syncedDraft) return;
     const next = syncedDraft;
     saveDigestPreferences(next);
+    // Start the server build now so it is already cooking while the reader
+    // walks back to the paper; the front page's own request joins it.
+    void requestEdition(loadDigestPreferences(), { keepalive: true }).catch(() => {});
     // Sports favourites live in the shared Paper draft; persist it in the
     // same action so the synced watch entities survive a reload.
     onSavePaperDraft();

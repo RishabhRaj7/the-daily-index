@@ -76,6 +76,7 @@ import {
   writeDigestCache,
 } from "@/lib/digest-cache";
 import EditionPrepOverlay from "@/components/chrome/EditionPrepOverlay";
+import { requestEdition, waitForEdition } from "@/lib/edition-client";
 
 type WeatherState = "loading" | "ready" | "failed";
 const WEATHER_TIMEOUT_MS = 9000;
@@ -87,9 +88,8 @@ const WEATHER_TIMEOUT_MS = 9000;
 // failed    — the call errored; banner offers a retry
 export type SummaryState = "idle" | "loading" | "done" | "unchanged" | "failed";
 const SUMMARIZE_TIMEOUT_MS = 90_000;
-// Server-side the digest AI pass is capped at 120s; the client waits a
-// little past that before conceding so a hung socket can't pin the overlay.
-const DIGEST_TIMEOUT_MS = 150_000;
+// Edition polling gives up after 180s; this backstop sits just past it.
+const DIGEST_TIMEOUT_MS = 200_000;
 const UNCHANGED_DISMISS_MS = 3500;
 
 const EMPTY_GRAPEVINE: GrapevineData = {
@@ -156,6 +156,9 @@ export default function EditionView({
   >([]);
   const pendingDigestRef = useRef<{ result: DigestResult; prefs: DigestPreferences } | null>(null);
   const digestInFlightRef = useRef<AbortController | null>(null);
+  // Set at mount when this visit follows "Refresh edition": the server must
+  // rebuild rather than hand back the edition the reader already had.
+  const forceRebuildRef = useRef(false);
   // True once the digest pipeline has engaged for this edition — the legacy
   // /api/summarize brief then stays out of the way of the digest-derived one.
   const digestEngagedRef = useRef(false);
@@ -573,49 +576,67 @@ export default function EditionView({
       digestInFlightRef.current?.abort();
       const controller = new AbortController();
       digestInFlightRef.current = controller;
-      // The server caps the AI pass at 120s; the client gives up slightly
-      // later so a hung fetch can never pin the pressroom overlay forever.
+      // Polling gives up on its own; this is the backstop so a hung request
+      // can never pin the pressroom overlay forever.
       const timer = setTimeout(() => controller.abort(), DIGEST_TIMEOUT_MS);
       setDigestState("loading");
 
-      fetch("/api/digest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        cache: "no-store",
-        signal: controller.signal,
-        body: JSON.stringify({ preferences: prefs }),
-      })
-        .then(async (r) => {
-          if (!r.ok) throw new Error(`digest ${r.status}`);
-          return (await r.json()) as DigestResult;
-        })
-        .then((result) => {
-          if (controller.signal.aborted) return;
-          writeDigestCache(edition.isoDate, hash, result);
-          const total = Object.values(result.sections).reduce((n, a) => n + a.length, 0);
-          if (total === 0) {
-            // Nothing qualified anywhere — nothing to apply, nothing to show.
-            if (prepActiveRef.current) revealEdition();
-            else setDigestState("idle");
+      // A finished digest either pours straight into the page (the overlay
+      // is holding it) or waits behind the "tap to update" banner.
+      const deliver = (result: DigestResult) => {
+        if (controller.signal.aborted) return;
+        writeDigestCache(edition.isoDate, hash, result);
+        const total = Object.values(result.sections).reduce((n, a) => n + a.length, 0);
+        if (total === 0) {
+          if (prepActiveRef.current) revealEdition();
+          else setDigestState("idle");
+          return;
+        }
+        pendingDigestRef.current = { result, prefs };
+        setBrief(deriveBriefFromDigest(result, prefs));
+        if (prepActiveRef.current) {
+          applyDigest(result, prefs);
+          pendingDigestRef.current = null;
+          setDigestState("idle");
+          revealEdition();
+        } else {
+          setDigestState("done");
+        }
+      };
+
+      (async () => {
+        const first = await requestEdition(prefs, { force, signal: controller.signal });
+        if (first.state === "failed") throw new Error(first.error ?? "edition failed");
+
+        if (first.state === "ready" && first.digest) {
+          // After "Refresh edition" the reader asked for a new paper — hold
+          // the overlay until the fresh build lands instead of reprinting
+          // the one they already had.
+          if (!(force && first.refreshing)) deliver(first.digest);
+          if (!first.refreshing) {
+            setDigestState((s) => (s === "loading" ? "idle" : s));
             return;
           }
-          pendingDigestRef.current = { result, prefs };
-          setBrief(deriveBriefFromDigest(result, prefs));
-          if (prepActiveRef.current) {
-            // Cold visit: the pressroom overlay is holding the page, so the
-            // finished sections apply immediately — no "tap to update" tap —
-            // then the overlay lifts and the edition is revealed cooked.
-            applyDigest(result, prefs);
-            pendingDigestRef.current = null;
-            setDigestState("idle");
-            revealEdition();
-          } else {
-            setDigestState("done");
-          }
-        })
+        }
+
+        // Building (or refreshing in the background): poll the server.
+        const final = await waitForEdition(first.hash!, first.date!, {
+          signal: controller.signal,
+          waitForFresh: first.state === "ready",
+          after: first.builtAt,
+        });
+        if (final.state !== "ready" || !final.digest) {
+          throw new Error(final.error ?? "edition failed");
+        }
+        if (final.builtAt !== first.builtAt || first.state !== "ready" || force) {
+          deliver(final.digest);
+        } else {
+          setDigestState("idle");
+        }
+      })()
         .catch((err) => {
           if (controller.signal.aborted && digestInFlightRef.current !== controller) return;
-          console.warn("[digest] failed:", err);
+          console.warn("[edition] failed:", err);
           pendingDigestRef.current = null;
           if (prepActiveRef.current) {
             // The overlay swaps the animation for a retry instead of leaving
@@ -647,6 +668,7 @@ export default function EditionView({
     // Read the one-shot refresh marker first so it can never linger into a
     // later, unrelated visit.
     const deliberateRefresh = consumeEditionRefresh();
+    forceRebuildRef.current = deliberateRefresh;
     if (!loadPersonalization().onboarded) {
       setPrep("revealed");
       return;
@@ -665,12 +687,14 @@ export default function EditionView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isArchive]);
 
-  // Kick the digest off as soon as the edition mounts. A settings edit (from
-  // the Settings page or elsewhere) fires the changed event and re-runs it.
+  // Kick the digest off as soon as the edition mounts — forcing a server
+  // rebuild only after "Refresh edition". A settings edit fires the changed
+  // event; new preferences are a different edition, so no force is needed.
   useEffect(() => {
     if (isArchive) return;
-    runDigestRef.current(false);
-    const onPrefsChanged = () => runDigestRef.current(true);
+    runDigestRef.current(forceRebuildRef.current);
+    forceRebuildRef.current = false;
+    const onPrefsChanged = () => runDigestRef.current(false);
     window.addEventListener(PREFERENCES_CHANGED_EVENT, onPrefsChanged);
     return () => {
       window.removeEventListener(PREFERENCES_CHANGED_EVENT, onPrefsChanged);

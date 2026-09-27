@@ -336,3 +336,40 @@ mount (EditionView)
 - `/api/summarize` still runs, but only for hate-watch stories, Editor's Picks
   blurbs, and the Editor's Desk note. The "at a glance" brief is derived from
   the digest itself (no extra model call).
+
+---
+
+## Server-built editions (current)
+
+The digest is no longer generated per browser visit. The server builds one
+**edition per set of preferences per day** and stores it.
+
+- **Identity is the preferences, not the person.** Preferences stay in the
+  reader's localStorage. `POST /api/edition { preferences }` normalises and
+  hashes them (sha256, 16 hex chars); the hash keys the edition. Identical
+  preferences share one edition; changing any preference points the reader
+  at a different one. The hash is mirrored to the `daily-index:edition`
+  cookie for server-rendered pages (the archive).
+- **States:** ready (with digest) | building | failed | missing. The client
+  (`lib/edition-client.ts`) POSTs, then polls `GET /api/edition?hash&date`
+  every 4 s while building. The pressroom overlay and "tap to update" banner
+  are driven exactly as before.
+- **Background builds:** `lib/server/editions.ts` takes a lock
+  (`lock:{date}:{hash}`, 180 s), records `status`, and builds in `after()`.
+  A second request for the same edition joins the running build.
+- **Stale-while-revalidate:** a ready edition older than
+  `EDITION_STALE_HOURS` (6) is served at once while a rebuild runs; a
+  heuristic edition built while AI was configured is retried after 30 min.
+- **Refresh edition** sets a one-shot flag; the next mount POSTs
+  `force: true` and holds the overlay until the fresh build lands.
+- **Settings save** POSTs the new preferences immediately (`keepalive`) so
+  the build is already running when the reader returns to the paper.
+- **Limits:** visitor-triggered builds are capped per day globally
+  (`EDITION_BUILDS_PER_DAY`, 60) and per IP (`EDITION_BUILDS_PER_IP`, 8).
+- **Cron** (`vercel.json`, 00:00 UTC = 05:30 IST): `/api/cron/daily` builds
+  the default edition inline and fans out `/api/cron/build` (202 + `after()`)
+  for editions read in the last 3 days (max 10). Both need `CRON_SECRET`.
+- **Dates** follow `NEXT_PUBLIC_EDITION_TIME_ZONE` (Asia/Kolkata), not UTC.
+- **Store** (`lib/server/store.ts`): Upstash Redis when `KV_REST_API_*` or
+  `UPSTASH_REDIS_REST_*` is set; otherwise process memory. On Vercel without
+  Redis, builds run inline and the response carries the edition directly.

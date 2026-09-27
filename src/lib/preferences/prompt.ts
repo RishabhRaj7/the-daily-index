@@ -131,7 +131,7 @@ export interface WritingItem {
 }
 
 /** Full text sent to the writing pass is capped per article. */
-export const WRITING_TEXT_CHARS = 4000;
+export const WRITING_TEXT_CHARS = 3000;
 
 // Phrases that make a paragraph read like a template. Also stripped
 // post-hoc by humanise() in lib/live/summarize.ts.

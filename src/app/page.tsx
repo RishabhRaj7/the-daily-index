@@ -19,21 +19,18 @@ import { buildEditorsPicks } from "@/lib/live/editors-picks";
 import { parseInterestsCookie } from "@/lib/personalization";
 import { buildMatchers, matchBrief, rankBriefsByInterest } from "@/lib/interest-match";
 import { getRedditConnection, getUserSubreddits } from "@/lib/reddit-auth";
+import { editionDate, editionDateLabel } from "@/lib/edition-date";
 
 // Vol 1, No. 1 = 28 Jan 2026.
 const ISSUE_BASE = new Date("2026-01-28");
 
+// Dates follow the edition's time zone (IST by default), not the server's
+// UTC clock, so the masthead and the server-built edition agree on "today".
 function editionMeta() {
-  const now = new Date();
-  const date = now.toLocaleDateString("en-GB", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-  const isoDate = now.toISOString().slice(0, 10);
-  const issue = Math.floor((now.getTime() - ISSUE_BASE.getTime()) / 86_400_000) + 1;
-  const volume = now.getFullYear() - 2025;
+  const isoDate = editionDate();
+  const date = editionDateLabel();
+  const issue = Math.floor((Date.parse(isoDate) - ISSUE_BASE.getTime()) / 86_400_000) + 1;
+  const volume = Number(isoDate.slice(0, 4)) - 2025;
   return { date, isoDate, volume, issue };
 }
 
