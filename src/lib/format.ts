@@ -6,7 +6,7 @@ export function totalReadTime(edition: Edition): number {
 }
 
 export function allStories(edition: Edition): Story[] {
-  return Object.values(edition.sections).flat();
+  return Object.values(edition.sections).flatMap((stories) => stories ?? []);
 }
 
 // A promoted-wire story with a one-sentence RSS teaser shouldn't get the

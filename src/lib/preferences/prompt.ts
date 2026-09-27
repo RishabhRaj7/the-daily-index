@@ -39,7 +39,11 @@ const UNTRUSTED_NOTE =
 
 function describeSection(section: DigestSection, isSports: boolean): string {
   const lines: string[] = [];
-  if (section.type === "grouped") {
+  if (section.type === "grouped" && isCitySection(section)) {
+    lines.push(
+      `- id "${section.id}" — "${section.label}" (grouped by ${section.groupBy}): ${sectionTarget(section)} stories in all, up to ${section.articleCountPerGroup + 1} per ${section.groupBy}. ${section.groupBy[0].toUpperCase()}${section.groupBy.slice(1)}s: ${section.groups.join(", ")}. Articles whose pool is a ${section.groupBy}'s name come from its local desk. Local news that changes daily life there comes first: civic decisions, transport, water, power, roads, weather alerts, schools, hospitals, jobs and local business, and serious crime. A story about the surrounding state counts for its ${section.groupBy} when there is little closer to home. Never add other ${section.groupBy}s and never file a story under a ${section.groupBy} it isn't about — return fewer instead.`,
+    );
+  } else if (section.type === "grouped") {
     lines.push(
       `- id "${section.id}" — "${section.label}" (grouped by ${section.groupBy}): ${sectionTarget(section)} stories in all, up to ${section.articleCountPerGroup + 1} per group. Groups: ${section.groups.join(", ")}. When a listed group has no real news today, give its place to the most important story about another ${section.groupBy} and set "group" to that ${section.groupBy}'s name.`,
     );
@@ -71,10 +75,17 @@ function describeSection(section: DigestSection, isSports: boolean): string {
  * the section should still print its full count.
  */
 export function sectionTarget(section: DigestSection): number {
+  // Cities never borrow other places, so they ask for exactly their share.
+  if (section.type === "grouped" && isCitySection(section)) return section.groups.length * section.articleCountPerGroup + 1;
   if (section.type === "grouped") {
     return Math.max(5, section.groups.length * section.articleCountPerGroup) + 1;
   }
   return section.articleCount + 1;
+}
+
+/** A grouped section of cities (the "Two Cities" desk): only its own places. */
+export function isCitySection(section: DigestSection): boolean {
+  return section.type === "grouped" && /^(city|cities|town|place)$/i.test(section.groupBy.trim());
 }
 
 export function isSportsSection(section: DigestSection): boolean {
@@ -126,7 +137,7 @@ How to judge an article, in this order:
 Section rules:
 - An article may appear in at most one section; place it where this reader would look for it.
 - Order each section by importance to this reader: priority 1 is the lead.
-- Grouped sections: every pick sets "group" to exactly one group — the place or entity the story is mainly about, not where the outlet is based. Never force a weak fit into a listed group; fill the section's total from other places instead, choosing what an Indian reader following world affairs would most want to know.
+- Grouped sections: every pick sets "group" to exactly one group — the place or entity the story is mainly about, not where the outlet is based. Never force a weak fit into a listed group; fill the section's total from other places instead, choosing what an Indian reader following world affairs would most want to know. City sections are the exception: they only ever carry their own cities.
 - Fill every section to its number of stories whenever there are articles that honestly fit — a smaller but real story beats an empty slot. Return fewer only when the articles run out, and never pick something that breaks the rules above.
 
 ${

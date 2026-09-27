@@ -1,5 +1,6 @@
 import type { Edition, WeatherNow } from "@/lib/types";
 import WeatherIcon from "@/components/widgets/WeatherIcon";
+import { cityMinutes, isNight, skyClock } from "@/lib/sky";
 
 // The signal row under the masthead: one card per desk — markets, the next
 // Grand Prix, the sky, the word of the day — each in its section's colour
@@ -102,16 +103,21 @@ export default function SignalRow({ edition, weather }: { edition: Edition; weat
     );
   }
   if (w) {
+    // Weather only exists after the client fetch, so reading the clock here
+    // cannot disagree with the server render.
+    const night = isNight(w, skyClock(w, cityMinutes(w.utcOffsetSeconds)));
+    const condition = night && w.night ? w.night.condition : w.condition;
     cards.push(
       <Card key="wx" i={cards.length} href="#sky-report" hue="var(--hue-sky)" label={w.city}>
         <span className="flex items-center gap-2">
           <span className="font-display font-bold text-[1.7rem] leading-none">{w.tempC}°</span>
           <span style={{ color: "var(--hue-sky)" }}>
-            <WeatherIcon code={w.weatherCode} size={22} />
+            <WeatherIcon code={w.weatherCode} size={22} night={night} />
           </span>
         </span>
         <span className="font-sans text-[12px] text-ink-soft truncate">
-          {w.condition} · AQI {w.aqi}
+          {condition}
+          {typeof w.tempMax === "number" && typeof w.tempMin === "number" ? ` · ${w.tempMax}°/${w.tempMin}°` : ""} · AQI {w.aqi}
         </span>
       </Card>,
     );

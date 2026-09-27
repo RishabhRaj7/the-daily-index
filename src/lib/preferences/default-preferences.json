@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "global": {
     "tone": "No-fluff newspaper briefs: fact first, concrete detail, no hype, no filler.",
     "watchTopics": [],
@@ -48,7 +48,7 @@
       "id": "world",
       "type": "grouped",
       "label": "World",
-      "order": 4,
+      "order": 2,
       "slot": "dateline",
       "groupBy": "country",
       "groups": [
@@ -75,6 +75,26 @@
       "excludeKeywords": [],
       "watchEntities": [],
       "prompt": "Prefer product launches, AI research and big platform moves over listicles and deals."
+    },
+    {
+      "id": "cities",
+      "type": "grouped",
+      "label": "Two Cities",
+      "order": 4,
+      "slot": "two-cities",
+      "groupBy": "city",
+      "groups": [
+        "Bengaluru",
+        "Ranchi"
+      ],
+      "articleCountPerGroup": 3,
+      "preferredSources": [
+        "thehindu.com",
+        "timesofindia.indiatimes.com"
+      ],
+      "excludeKeywords": [],
+      "watchEntities": [],
+      "prompt": "What changes daily life in the city: civic decisions, metro and roads, water and power, rain alerts, schools, hospitals, jobs and local business. Serious crime only. Skip viral social-media anecdotes and party politics."
     }
   ]
 }

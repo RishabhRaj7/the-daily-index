@@ -524,3 +524,25 @@ numbered rails); colour from The Verge (near-black, mint signal, ultraviolet).
 - **Live markets**: `/api/markets` (60s Yahoo cache) polled every minute by `useLiveMarkets` while the tab is visible; tiles, mood and the signal card update in place.
 - **Archive** is a calendar (`CalendarMonth` in `app/archive/page.tsx`) with a back link and a floating "Today’s paper" button.
 - **Sports settings**: one card per sport, driver dropdowns, datalist suggestions, one Rival field.
+
+### Round 5
+
+- **Two Cities** (`two-cities` section, slot `two-cities`, `components/sections/TwoCitiesSection.tsx`): a `grouped` digest section with `groupBy: "city"` (default Bengaluru + Ranchi, 3 each). Each city is its own corpus pool named after it (`lib/live/cities.ts`, `CITY_FEEDS` in `feeds.ts`); unknown cities fall back to a Google News search feed. City sections never borrow other places (`isCitySection` in `prompt.ts`); a story from the city's own desk or naming its state counts for it (`mentionsGroup`). Saved preferences get the section once through the v1 → v2 migration in `storage.ts`, so removing it sticks. It prints only when the digest filled it.
+- **Google News feeds** (`googleNews: true`): the outlet comes from `<source url>`, the " - Publisher" suffix is cut from the title, the link-list description is dropped.
+- **Sky Report night mode**: `lib/sky.ts` works out day/night from the city's clock (`utc_offset_seconds` from Open-Meteo), and `useSkyClock` (`lib/use-sky-clock.ts`) re-renders every minute. After sunset the arc runs sunset → sunrise with the moon in tonight's phase, stars, a moonlight hue (`--hue-night`), night-time copy (`WeatherNow.night`) and moon icons. It also shows today's low/high, feels-like and humidity. The weather cache key is `v2`.
+- **Feed audit (Sept 27 2026)**: dropped ESPN football/tennis (empty) and FIA (timeouts); added The Hindu national (World/India), BusinessLine markets, Tennis Majors and Guardian technology.
+
+## Data flow at a glance (current)
+
+| Data | Fetched where | When | Stored |
+|---|---|---|---|
+| Digest (all news sections, At a Glance, Schadenfreude) | server, `generateDigest` via `/api/edition` or the cron | first visit of the day per preferences hash; cron 05:30 IST; rebuild after 6 h or on Refresh | Redis `edition:{date}:{hash}` (default edition kept for the archive, others 60 days); summaries `w:*` 3 days |
+| Raw RSS for the first HTML (World, Markets, Tech, sports) | server, `app/page.tsx` | every page render; `fetch` revalidates every 30 min | Next.js data cache |
+| F1 schedule | server, `app/page.tsx` | page render | Next.js data cache |
+| F1 standings / results | browser → `/api/f1` | after the page loads | Next.js data cache |
+| Market indices | server on render, then browser → `/api/markets` | render, then every 60 s while the tab is visible | 60 s route cache |
+| Weather + AQI | browser → Open-Meteo directly | on load, at most every 15 min | sessionStorage `daily-index:weather:v2:*` |
+| Editor’s Desk note, pick blurbs | browser → `/api/summarize` | once per browser session per day | sessionStorage, keyed by date |
+| Reddit (Grapevine) | server | page render | Next.js data cache |
+| Reader's preferences | browser | settings save | localStorage (`daily-index:digest-preferences`, `daily-index:personalization`); a copy in Redis `prefs:{hash}` for the cron |
+| Digest copy for instant reloads | browser | after each edition arrives | localStorage, keyed by date + hash |

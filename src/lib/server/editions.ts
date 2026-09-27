@@ -84,7 +84,7 @@ export interface EditionRecord {
  * carries a spare story for the front-page lead). An edition from older
  * code is served as it is but rebuilt in the background, like a stale one.
  */
-const BUILD_VERSION = 2;
+const BUILD_VERSION = 3;
 
 export type EditionState =
   | { state: "ready"; date: string; hash: string; edition: EditionRecord; refreshing: boolean; note?: string }

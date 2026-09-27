@@ -10,6 +10,15 @@ export const SECTION_META: Record<SectionKey, SectionMeta> = {
     short: "World",
     hue: "var(--hue-world)",
   },
+  "two-cities": {
+    key: "two-cities",
+    label: "Two Cities — Your Cities",
+    kicker: "Your cities",
+    slug: "two-cities",
+    name: "Two Cities",
+    short: "Cities",
+    hue: "var(--hue-cities)",
+  },
   "paddock-notes": {
     key: "paddock-notes",
     label: "Paddock Notes — Formula 1",
@@ -75,10 +84,12 @@ export const SECTION_META: Record<SectionKey, SectionMeta> = {
   },
 };
 
-// The day in the order you'd read it: the world, then your sport, then
-// money (stories, then the numbers), then tech, the sky, and the extras.
+// The day in the order you'd read it: the world, then home, then your
+// sport, then money (stories, then the numbers), then tech, the sky, and
+// the extras.
 export const SECTION_ORDER: SectionKey[] = [
   "dateline",
+  "two-cities",
   "paddock-notes",
   "sports",
   "ledger",

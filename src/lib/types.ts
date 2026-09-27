@@ -1,5 +1,6 @@
 export type SectionKey =
   | "dateline"
+  | "two-cities"
   | "paddock-notes"
   | "sports"
   | "sky-report"
@@ -299,6 +300,18 @@ export interface WeatherNow {
   uvIndex: number;
   aqi: number;
   aqiLabel: string;
+  /** Today's range and how the air feels. */
+  tempMin?: number;
+  tempMax?: number;
+  feelsLikeC?: number;
+  humidity?: number;
+  /** Open-Meteo's own day/night flag at fetch time; the page re-derives it
+   *  from the clock (lib/sky.ts) so it flips at sunset without a refetch. */
+  isDay?: boolean;
+  /** The city's offset from UTC, so the sun is placed on its clock. */
+  utcOffsetSeconds?: number;
+  /** The same reading, written for after dark. */
+  night?: { condition: string; narrative: string; quip: string };
 }
 
 export interface Edition {
@@ -308,6 +321,8 @@ export interface Edition {
   issue: number;
   sections: {
     dateline: Story[];
+    /** The reader's cities; filled only by the digest. */
+    twoCities?: Story[];
     paddockNotes: Story[];
     skyReport: Story[];
     circuitBoard: Story[];

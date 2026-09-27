@@ -1,46 +1,72 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useId } from "react";
+import { moonPhase, type SkyClock } from "@/lib/sky";
 
-// Where the sun is between today's sunrise and sunset, drawn as an arc.
-// The travelled part of the arc draws in and the sun rolls up to its place
-// when the module scrolls in. After dark the sun sits below the horizon.
+// Where the sun — or after sunset, the moon — is in the sky, drawn as an arc.
+// By day the arc runs sunrise → sunset; by night it runs sunset → sunrise,
+// with stars and the moon in tonight's phase. The travelled part draws in
+// and the body rolls up to its place when the module scrolls in.
 
-function parseClock(label: string): number | null {
-  const m = label.trim().match(/^(\d{1,2}):(\d{2})\s*([AP]M)?$/i);
-  if (!m) return null;
-  let h = Number(m[1]) % 12;
-  if (!m[3]) h = Number(m[1]);
-  else if (m[3].toUpperCase() === "PM") h += 12;
-  return h * 60 + Number(m[2]);
+// Fixed star field (x, y, r) above the horizon line.
+const STARS: Array<[number, number, number]> = [
+  [18, 22, 0.9], [34, 48, 0.6], [52, 14, 0.7], [66, 38, 0.5], [84, 8, 0.8], [96, 52, 0.5],
+  [118, 12, 0.6], [132, 40, 0.9], [146, 20, 0.5], [162, 50, 0.7], [176, 16, 0.6], [190, 36, 0.8],
+  [44, 76, 0.5], [158, 78, 0.5], [110, 70, 0.4], [74, 64, 0.4],
+];
+
+function hm(minutes: number): string {
+  const m = Math.round(minutes);
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
 }
 
-// Minutes since midnight, refreshed each minute; null on the server.
-function subscribe(cb: () => void) {
-  const id = window.setInterval(cb, 60_000);
-  return () => window.clearInterval(id);
-}
-const nowMinutes = () => {
-  const d = new Date();
-  return d.getHours() * 60 + d.getMinutes();
-};
-
-export default function SunArc({ sunrise, sunset }: { sunrise: string; sunset: string }) {
-  const now = useSyncExternalStore(subscribe, nowMinutes, () => null);
-  const rise = parseClock(sunrise);
-  const set = parseClock(sunset);
-  if (rise === null || set === null || set <= rise) return null;
-
-  const f = now === null ? 0.5 : (now - rise) / (set - rise);
-  const up = f >= 0 && f <= 1;
-  const clamped = Math.min(1, Math.max(0, f));
-  // 0 = sunrise (pointing left), 180 = sunset (pointing right).
-  const angle = -90 + clamped * 180;
-  const daylight = set - rise;
+export default function SunArc({
+  sunrise,
+  sunset,
+  clock,
+}: {
+  sunrise: string;
+  sunset: string;
+  /** Null while server rendering: the sun waits at noon. */
+  clock: SkyClock | null;
+}) {
+  const maskId = useId();
+  const night = clock ? !clock.isDay : false;
+  const progress = clock ? clock.progress : 0.5;
+  // 0 = the left horizon, 180 = the right one.
+  const angle = -90 + progress * 180;
+  const moon = moonPhase();
+  // The shadow disc slides across the lit one: centred at new moon, gone at full.
+  const waxing = moon.phase < 0.5;
+  const shadowDx = (waxing ? -1 : 1) * 16.8 * moon.illumination;
 
   return (
     <div>
-      <svg viewBox="0 0 200 110" className="w-full overflow-visible" role="img" aria-label={`Sunrise ${sunrise}, sunset ${sunset}`}>
+      <svg
+        viewBox="0 0 200 110"
+        className="w-full overflow-visible"
+        role="img"
+        aria-label={
+          night
+            ? `Night: sunset ${sunset}, sunrise ${sunrise}, ${moon.name}`
+            : `Sunrise ${sunrise}, sunset ${sunset}`
+        }
+      >
+        {night && (
+          <g className="stars" aria-hidden>
+            {STARS.map(([x, y, r], i) => (
+              <circle
+                key={i}
+                cx={x}
+                cy={y}
+                r={r}
+                fill="var(--ink)"
+                className="star"
+                style={{ animationDelay: `${(i * 0.37) % 3}s` }}
+              />
+            ))}
+          </g>
+        )}
         <line x1="4" y1="100" x2="196" y2="100" stroke="var(--rule)" strokeWidth="1" />
         <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="var(--rule)" strokeWidth="1.5" strokeDasharray="2 4" />
         <path
@@ -51,19 +77,46 @@ export default function SunArc({ sunrise, sunset }: { sunrise: string; sunset: s
           strokeLinecap="round"
           pathLength={1}
           className="stroke-draw"
-          style={{ ["--len" as string]: 1, strokeDasharray: `${clamped} 2` }}
+          style={{ ["--len" as string]: 1, strokeDasharray: `${progress} 2` }}
         />
         <g className="sun-orbit" style={{ ["--sun" as string]: `${angle}deg` }}>
-          <circle cx="100" cy="20" r="14" fill="var(--section-hue, var(--accent))" opacity="0.18" />
-          <circle cx="100" cy="20" r="7" fill={up ? "var(--section-hue, var(--accent))" : "var(--ink-faint)"} />
+          {night ? (
+            <>
+              <defs>
+                <mask id={maskId}>
+                  <circle cx="100" cy="20" r="8" fill="white" />
+                  <circle cx={100 + shadowDx} cy="20" r="8.4" fill="black" />
+                </mask>
+              </defs>
+              <circle cx="100" cy="20" r="15" fill="var(--section-hue, var(--accent))" opacity="0.14" />
+              {/* The dark side, faintly, then the lit part on top. */}
+              <circle cx="100" cy="20" r="8" fill="var(--ink-faint)" opacity="0.35" />
+              <circle cx="100" cy="20" r="8" fill="var(--section-hue, var(--accent))" mask={`url(#${maskId})`} />
+            </>
+          ) : (
+            <>
+              <circle cx="100" cy="20" r="14" fill="var(--section-hue, var(--accent))" opacity="0.18" />
+              <circle cx="100" cy="20" r="7" fill="var(--section-hue, var(--accent))" />
+            </>
+          )}
         </g>
       </svg>
-      <div className="flex justify-between font-mono text-[11px] text-ink-soft -mt-1">
-        <span>↑ {sunrise}</span>
-        <span className="text-ink-faint">
-          {Math.floor(daylight / 60)}h {daylight % 60}m of light
-        </span>
-        <span>{sunset} ↓</span>
+      <div className="flex justify-between gap-2 font-mono text-[11px] text-ink-soft -mt-1">
+        {night ? (
+          <>
+            <span>↓ {sunset}</span>
+            <span className="text-ink-faint text-center">
+              {clock ? `${hm(clock.span * (1 - clock.progress))} to sunrise · ` : ""}{moon.name}
+            </span>
+            <span>{sunrise} ↑</span>
+          </>
+        ) : (
+          <>
+            <span>↑ {sunrise}</span>
+            <span className="text-ink-faint">{clock ? `${hm(clock.span * (1 - clock.progress))} to sunset` : ""}</span>
+            <span>{sunset} ↓</span>
+          </>
+        )}
       </div>
     </div>
   );

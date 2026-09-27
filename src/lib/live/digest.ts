@@ -24,8 +24,9 @@ import { getF1News } from "./f1-news";
 import { getFootballNews } from "./football-news";
 import { getTennisNews } from "./tennis-news";
 import { getTechNews } from "./tech-news";
+import { cityAliases, getCityWire } from "./cities";
 import { fetchArticleText, fetchedTextMatches, humanise, looksOnTopic } from "./summarize";
-import { buildSelectionPrompt, buildWritingPrompt, isSportsSection, WRITING_TEXT_CHARS, type WritingItem, sectionTarget } from "@/lib/preferences/prompt";
+import { buildSelectionPrompt, buildWritingPrompt, isCitySection, isSportsSection, WRITING_TEXT_CHARS, type WritingItem, sectionTarget } from "@/lib/preferences/prompt";
 import type {
   AtAGlanceItem,
   CorpusArticle,
@@ -99,13 +100,18 @@ function isLiveBlog(title: string, url: string): boolean {
  * `i` always equals the article's position in the returned array.
  */
 export async function collectCorpus(prefs: DigestPreferences): Promise<CorpusArticle[]> {
-  const [world, markets, f1, football, tennis, tech] = await Promise.all([
+  // Every city a city section follows gets a pool of its own, named after it.
+  const cities = [
+    ...new Set(prefs.sections.flatMap((s) => (s.type === "grouped" && isCitySection(s) ? s.groups.map((g) => g.trim()) : []))),
+  ].filter(Boolean);
+  const [world, markets, f1, football, tennis, tech, ...cityWires] = await Promise.all([
     getWorldIndiaWire(24),
     getMarketsWire(28),
     getF1News(20),
     getFootballNews(20),
     getTennisNews(20),
     getTechNews(20),
+    ...cities.map((city) => getCityWire(city, 16)),
   ]);
 
   const pooled = [
@@ -115,6 +121,7 @@ export async function collectCorpus(prefs: DigestPreferences): Promise<CorpusArt
     ...tagPool(football, "Football"),
     ...tagPool(tennis, "Tennis"),
     ...tagPool(tech, "Tech"),
+    ...cityWires.flatMap((wire, n) => tagPool(wire, cities[n])),
   ];
 
   // URL-level dedupe first (the same link can appear in two wires), then the
@@ -201,6 +208,11 @@ function mentionsGroup(article: CorpusArticle, group: string): boolean {
   const hay = `${article.title} ${article.text}`.toLowerCase();
   const key = group.toLowerCase();
   if (GROUP_SOURCES[key]?.some((d) => article.source.endsWith(d))) return true;
+  // A city's own local desk (TOI Ranchi's "Kidnapped boy rescued") is about
+  // that city even when the headline doesn't say so.
+  if (article.pool.toLowerCase() === key) return true;
+  const places = cityAliases(group);
+  if (places.length > 0) return [key, ...places].some((t) => hasTerm(hay, t));
   // Groups without an alias list (companies, people…) also match on their
   // last word ("Elon Musk" → "musk"); known countries use their curated
   // aliases instead, since "states" or "kingdom" alone would match anything.
@@ -230,6 +242,8 @@ function toDigestArticle(
       // name of another place the story is actually about.
       group = section.groups.find((x) => x.toLowerCase() === g.toLowerCase()) ?? g;
       if (!mentionsGroup(article, group)) group = undefined;
+      // City sections only carry their own cities.
+      if (group && isCitySection(section) && !section.groups.includes(group)) group = undefined;
     } else if (isSportsSection(section)) {
       const sport = g.toLowerCase();
       if (sport === "f1" || sport === "football" || sport === "tennis") group = sport;
@@ -587,8 +601,9 @@ async function aiDigest(
     for (const a of backfillFor(section, corpus, usedUrls, prefs, (target - list.length) * 4)) {
       if (list.length >= target) break;
       // A grouped section files the story under the place it names.
-      const group =
-        section.type === "grouped"
+      const group = section.type === "grouped" && isCitySection(section)
+        ? section.groups.find((g) => g.toLowerCase() === a.pool.toLowerCase())
+        : section.type === "grouped"
           ? (countryIn(a) ?? (list.length === target - 1 ? "World" : undefined))
           : isSportsSection(section)
             ? a.pool.toLowerCase()
@@ -597,7 +612,8 @@ async function aiDigest(
         if (!group) continue;
         // Spread the extra places around rather than piling onto one country.
         const already = list.filter((x) => x.group?.toLowerCase() === group.toLowerCase()).length;
-        if (already >= section.articleCountPerGroup) continue;
+        // A city may carry the section's spare story too.
+        if (already >= section.articleCountPerGroup + (isCitySection(section) ? 1 : 0)) continue;
       }
       usedUrls.add(a.url);
       list.push({
@@ -745,7 +761,9 @@ function backfillFor(
   if (wanted <= 0) return [];
   // Sports sections only top up an F1 desk from the F1 wire; mixed sports
   // desks are left to the editor.
-  const pools = isSportsSection(section)
+  const pools = section.type === "grouped" && isCitySection(section)
+    ? section.groups
+    : isSportsSection(section)
     ? /f1|formula/i.test(`${section.id} ${section.label}`)
       ? ["F1"]
       : []
@@ -864,9 +882,7 @@ function heuristicDigest(
         for (const a of ranked) {
           if (count >= section.articleCountPerGroup) break;
           if (used.has(a.url)) continue;
-          const hay = `${a.title} ${a.text}`.toLowerCase();
-          const shortName = group.split(/\s+/).pop()?.toLowerCase() ?? "";
-          if (hay.includes(group.toLowerCase()) || (shortName.length > 2 && hay.includes(shortName))) {
+          if (mentionsGroup(a, group)) {
             push(a, count + 1, group);
             count++;
           }

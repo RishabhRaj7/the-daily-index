@@ -48,6 +48,22 @@ function upgradeMarketsSection(sections: DigestSection[]): void {
   if (current && i >= 0) sections[i] = { ...sections[i], label: current.label, prompt: current.prompt };
 }
 
+// v1 → v2: Two Cities arrived after readers had saved preferences. Each
+// saved copy gets the default city section once; removing it afterwards
+// (a v2 save) sticks.
+function upgradeV1ToV2(raw: Record<string, unknown>): Record<string, unknown> {
+  const sections = Array.isArray(raw.sections) ? [...raw.sections] : [];
+  const cities = DEFAULT_DIGEST_PREFERENCES.sections.find((s) => s.slot === "two-cities");
+  const has = sections.some((s) => (s as { slot?: unknown })?.slot === "two-cities");
+  if (cities && !has) {
+    const ids = new Set(sections.map((s) => (s as { id?: unknown })?.id));
+    let id = cities.id;
+    while (ids.has(id)) id = `${id}-2`;
+    sections.push({ ...structuredClone(cities), id });
+  }
+  return { ...raw, sections, version: 2 };
+}
+
 // The length presets grew (35/60/100 → 50/90/140). Saved preferences that
 // picked an old preset move to its new size, so the setting stays selected.
 const LEGACY_LENGTHS: Record<number, number> = { 35: 50, 60: 90, 100: 140 };
@@ -173,7 +189,8 @@ export function migratePreferences(raw: unknown): DigestPreferences {
   switch (version) {
     case PREFERENCES_VERSION:
       return normalizePreferences(raw);
-    // case 0: return migratePreferences(upgradeV0ToV1(raw));
+    case 1:
+      return migratePreferences(upgradeV1ToV2(raw as Record<string, unknown>));
     default:
       // Unknown future/unknown version: normalise defensively rather than
       // breaking silently — unknown fields are dropped, valid ones kept.

@@ -38,6 +38,10 @@ export function loadPersonalization(): Personalization {
     const paddockIndex = savedOrder.indexOf("paddock-notes");
     const insertAt = paddockIndex >= 0 ? paddockIndex + 1 : savedOrder.length;
     savedOrder.splice(insertAt, 0, "sports");
+    // Two Cities arrived later: it goes straight after the world news.
+    if (!savedOrder.includes("two-cities")) {
+      savedOrder.splice(savedOrder.indexOf("dateline") + 1, 0, "two-cities");
+    }
     merged.sectionOrder = [
       ...savedOrder,
       ...SECTION_ORDER.filter((key) => !savedOrder.includes(key)),

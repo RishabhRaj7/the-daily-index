@@ -7,6 +7,7 @@ import type { AtAGlanceItem, DigestArticle, DigestSection, NewsSlot } from "./ty
 
 const SLOT_TO_KEY: Record<NewsSlot, SectionKey> = {
   dateline: "dateline",
+  "two-cities": "two-cities",
   sports: "paddock-notes",
   "paddock-notes": "paddock-notes",
   "circuit-board": "circuit-board",

@@ -165,11 +165,21 @@ export async function fetchRssFeed(
 
     return entries
       .map((item): WireBrief | null => {
-        const title = extractTag(item, "title");
+        let title = extractTag(item, "title");
         const link = atom ? extractAtomLink(item) : extractTag(item, "link");
-        const description = atom
+        let description = atom
           ? (extractTag(item, "summary") ?? extractTag(item, "content") ?? "")
           : (extractTag(item, "description") ?? "");
+        // Google News: the outlet is in <source url="…">Name</source>, the
+        // title repeats it after " - ", and the description is a link list.
+        let outlet: string | null = null;
+        if (feed.googleNews) {
+          const source = item.match(/<source[^>]*\burl="([^"]+)"[^>]*>([\s\S]*?)<\/source>/i);
+          outlet = source ? domainFrom(decodeEntities(source[1])) : null;
+          const name = source ? decodeEntities(stripCdata(source[2])) : null;
+          if (title && name && title.endsWith(` - ${name}`)) title = title.slice(0, -(name.length + 3)).trim();
+          description = "";
+        }
         const dateRaw = atom
           ? (extractTag(item, "published") ?? extractTag(item, "updated"))
           : (extractTag(item, "pubDate") ?? extractTag(item, "dc:date"));
@@ -189,7 +199,7 @@ export async function fetchRssFeed(
           id: link,
           title,
           url: link,
-          domain: domainFrom(link),
+          domain: outlet ?? domainFrom(link),
           image: extractImage(item),
           summary: description ? summarize(description) : undefined,
           // Empty for undated items: downstream prints "recently" and the

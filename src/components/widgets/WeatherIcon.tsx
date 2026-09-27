@@ -88,15 +88,38 @@ function Snow({ size = 40 }: { size?: number }) {
   );
 }
 
+function Moon({ size = 40 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M36 30A14 14 0 0118 12a14 14 0 1018 18z" />
+      <path d="M36 8v4M34 10h4M41 18v2M40 19h2" />
+    </svg>
+  );
+}
+
+function MoonCloud({ size = 40 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {/* crescent top-left */}
+      <path d="M25 20A9 9 0 0113 8a9 9 0 1012 12z" />
+      {/* cloud below-right */}
+      <path d="M36 40H20a7 7 0 01-.8-14 9 9 0 0117.6 3.5A5.5 5.5 0 0136 40z" />
+    </svg>
+  );
+}
+
 export default function WeatherIcon({
   code,
   size = 40,
+  night = false,
 }: {
   code: number;
   size?: number;
+  /** After sunset: the moon stands in for the sun. */
+  night?: boolean;
 }) {
-  if (code === 0) return <Sun size={size} />;
-  if (code <= 3) return <SunCloud size={size} />;
+  if (code === 0) return night ? <Moon size={size} /> : <Sun size={size} />;
+  if (code <= 3) return night ? <MoonCloud size={size} /> : <SunCloud size={size} />;
   if (code === 45 || code === 48) return <Fog size={size} />;
   if (code >= 51 && code <= 67) return <Rain size={size} />;
   if (code >= 71 && code <= 77) return <Snow size={size} />;

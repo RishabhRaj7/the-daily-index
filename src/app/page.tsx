@@ -292,6 +292,7 @@ export default async function Home() {
     wordOfDay,
     sections: {
       dateline: datelineStories,
+      twoCities: [],
       paddockNotes: paddockStories,
       skyReport: [],
       circuitBoard: circuitStories,

@@ -1,8 +1,12 @@
+"use client";
+
 import SettingsLink from "@/components/chrome/SettingsLink";
 import type { WeatherNow } from "@/lib/types";
 import SectionHeader from "@/components/story/SectionHeader";
 import SunArc from "@/components/widgets/SunArc";
 import WeatherIcon from "@/components/widgets/WeatherIcon";
+import { isNight, moonPhase } from "@/lib/sky";
+import { useSkyClock } from "@/lib/use-sky-clock";
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
@@ -31,6 +35,46 @@ function Meter({ label, value, max, note }: { label: string; value: number; max:
       </div>
     </div>
   );
+}
+
+/** Today's low → high, with a marker where the temperature sits now. */
+function TempRange({ min, max, now }: { min: number; max: number; now: number }) {
+  const span = Math.max(1, max - min);
+  const at = Math.min(1, Math.max(0, (now - min) / span));
+  return (
+    <div className="flex items-center gap-3 font-mono text-[12px] tabular-nums">
+      <span className="text-ink-soft">
+        <span className="font-label text-[9px] mr-1">Low</span>
+        {min}°
+      </span>
+      <span className="relative flex-1 h-1.5 rounded-full bg-card-bg min-w-[80px]">
+        <span
+          className="absolute inset-y-0 left-0 right-0 rounded-full opacity-40"
+          style={{ background: "linear-gradient(90deg, var(--hue-tech), var(--section-hue, var(--accent)))" }}
+        />
+        <span
+          className="absolute top-1/2 w-3 h-3 rounded-full border-2"
+          style={{
+            left: `calc(${at * 100}% - 6px)`,
+            transform: "translateY(-50%)",
+            background: "var(--paper)",
+            borderColor: "var(--section-hue, var(--accent))",
+          }}
+          aria-label={`Now ${now}°`}
+        />
+      </span>
+      <span className="text-ink-soft">
+        {max}°<span className="font-label text-[9px] ml-1">High</span>
+      </span>
+    </div>
+  );
+}
+
+function humidityLabel(h: number): string {
+  if (h < 30) return "dry";
+  if (h < 60) return "comfortable";
+  if (h < 80) return "humid";
+  return "muggy";
 }
 
 function uvLabel(uv: number): string {
@@ -92,34 +136,67 @@ export default function SkyReportSection({
     );
   }
 
+  return <SkyReading weather={weather} live={live} />;
+}
+
+function SkyReading({ weather, live }: { weather: WeatherNow; live: boolean }) {
+  const clock = useSkyClock(weather);
+  const night = isNight(weather, clock);
+  const words = night && weather.night ? weather.night : weather;
+  const moon = moonPhase();
+  const hasRange = typeof weather.tempMin === "number" && typeof weather.tempMax === "number";
+
   return (
-    <section id="sky-report">
+    <section
+      id="sky-report"
+      data-sky={night ? "night" : "day"}
+      // After dark the section trades the sun's orange for moonlight.
+      style={night ? { ["--section-hue" as string]: "var(--hue-night)" } : undefined}
+    >
       <SectionHeader
         sectionKey="sky-report"
-        folio={live ? <><span className="live-dot text-up" /> live</> : undefined}
+        folio={live ? <><span className="live-dot text-up" /> {night ? "tonight" : "live"}</> : undefined}
       />
 
       <div className="grid md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-10 items-start">
         <div data-reveal>
-          <div className="font-label text-[11px] text-ink-soft">{weather.city}</div>
+          <div className="font-label text-[11px] text-ink-soft">
+            {weather.city} · {night ? "Tonight" : "Today"}
+          </div>
           <div className="flex items-start gap-4 mt-2">
             <span className="font-display font-extrabold text-[clamp(6rem,17vw,11rem)] leading-[0.78] tracking-tight">
               {weather.tempC}°
             </span>
             <span className="float mt-2" style={{ color: "var(--section-hue, var(--accent))" }}>
-              <WeatherIcon code={weather.weatherCode} size={72} />
+              <WeatherIcon code={weather.weatherCode} size={72} night={night} />
             </span>
           </div>
-          <h3 className="font-headline text-2xl md:text-3xl leading-tight mt-5">{weather.condition}</h3>
-          <p className="font-headline italic text-ink-soft mt-1">{weather.quip}</p>
-          <p className="font-body text-[16px] leading-relaxed mt-4 max-w-[52ch]">{weather.narrative}</p>
+          <div className="flex flex-wrap gap-x-5 gap-y-1 mt-4 font-mono text-[12px] text-ink-soft tabular-nums">
+            {typeof weather.feelsLikeC === "number" && <span>Feels like {weather.feelsLikeC}°</span>}
+            {typeof weather.humidity === "number" && <span>Humidity {weather.humidity}%</span>}
+          </div>
+          {hasRange && (
+            <div className="mt-3 max-w-[26rem]">
+              <TempRange min={weather.tempMin!} max={weather.tempMax!} now={weather.tempC} />
+            </div>
+          )}
+          <h3 className="font-headline text-2xl md:text-3xl leading-tight mt-6">{words.condition}</h3>
+          <p className="font-headline italic text-ink-soft mt-1">{words.quip}</p>
+          <p className="font-body text-[16px] leading-relaxed mt-4 max-w-[52ch]">{words.narrative}</p>
         </div>
 
         <div className="module space-y-6" data-reveal>
-          <SunArc sunrise={weather.sunrise} sunset={weather.sunset} />
-          <div className="grid grid-cols-2 gap-6 pt-5 border-t hairline">
-            <Meter label="UV index" value={weather.uvIndex} max={11} note={uvLabel(weather.uvIndex)} />
-            <Meter label="Air quality" value={weather.aqi} max={300} note={weather.aqiLabel} />
+          <SunArc sunrise={weather.sunrise} sunset={weather.sunset} clock={clock} />
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 pt-5 border-t hairline">
+            {typeof weather.humidity === "number" && (
+              <Meter label="Humidity" value={weather.humidity} max={100} note={humidityLabel(weather.humidity)} />
+            )}
+            {night ? (
+              <Meter label="Moonlight" value={Math.round(moon.illumination * 100)} max={100} note="% lit" />
+            ) : (
+              <Meter label="UV index" value={weather.uvIndex} max={11} note={uvLabel(weather.uvIndex)} />
+            )}
+            <Meter label="AQI" value={weather.aqi} max={300} note={weather.aqiLabel} />
           </div>
         </div>
       </div>

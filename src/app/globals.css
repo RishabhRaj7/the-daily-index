@@ -36,6 +36,8 @@
   --hue-markets: #00a870;
   --hue-grapevine: #d100a8;
   --hue-digest: #5200ff;
+  --hue-cities: #0891b2;
+  --hue-night: #5b6cff;
 
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -76,6 +78,8 @@ html[data-edition="evening"] {
   --hue-markets: #3cffd0;
   --hue-grapevine: #ff4fd8;
   --hue-digest: #8c5cff;
+  --hue-cities: #3cd3f5;
+  --hue-night: #b8c4ff;
 }
 
 @theme inline {
@@ -532,9 +536,17 @@ html.js .is-in .sun-orbit { transform: rotate(var(--sun, 0deg)); }
   50% { transform: translateY(-8px) rotate(4deg); }
 }
 .float { animation: float 6s ease-in-out infinite; }
+
+/* Night sky: stars fade in, then twinkle out of step. */
+@keyframes twinkle {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 0.9; }
+}
+.star { opacity: 0.5; animation: twinkle 3s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
   html.js .sun-orbit { transform: rotate(var(--sun, 0deg)); transition: none; }
   .float { animation: none; }
+  .star { animation: none; }
 }
 
 @keyframes tick-in {

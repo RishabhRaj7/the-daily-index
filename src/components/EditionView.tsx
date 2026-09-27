@@ -45,6 +45,7 @@ import Masthead from "@/components/masthead/Masthead";
 import HeroStory from "@/components/story/HeroStory";
 import EditorsDesk from "@/components/widgets/EditorsDesk";
 import DatelineSection from "@/components/sections/DatelineSection";
+import TwoCitiesSection from "@/components/sections/TwoCitiesSection";
 import PaddockNotesSection from "@/components/sections/PaddockNotesSection";
 import SportsSection from "@/components/sections/SportsSection";
 import SkyReportSection from "@/components/sections/SkyReportSection";
@@ -298,6 +299,7 @@ export default function EditionView({
       ...prev,
       sections: {
         dateline: enrich(prev.sections.dateline),
+        twoCities: enrich(prev.sections.twoCities ?? []),
         paddockNotes: enrich(prev.sections.paddockNotes),
         skyReport: prev.sections.skyReport,
         circuitBoard: enrich(prev.sections.circuitBoard),
@@ -699,6 +701,8 @@ export default function EditionView({
 
   const sectionHasContent: Record<SectionKey, boolean> = {
     dateline: true,
+    // Filled only by the digest: hidden until the editor has files for it.
+    "two-cities": (edition.sections.twoCities ?? []).length > 0,
     // A sport's pages print only for sports the reader follows.
     "paddock-notes": personalization.sports.includes("f1"),
     sports:
@@ -715,6 +719,7 @@ export default function EditionView({
     dateline: () => (
       <DatelineSection stories={without(edition.sections.dateline)} />
     ),
+    "two-cities": () => <TwoCitiesSection stories={without(edition.sections.twoCities ?? [])} />,
     "paddock-notes": () => (
       <PaddockNotesSection
         selectedSports={paddockSports}
@@ -802,6 +807,7 @@ export default function EditionView({
   const note = (stories: Story[]) =>
     stories.forEach((st) => st.sourceUrl && anchorByUrl.set(st.sourceUrl, `story-${st.id}`));
   note(edition.sections.dateline);
+  note(edition.sections.twoCities ?? []);
   note(f1Stories);
   note(footballStories);
   note(tennisStories);
@@ -818,6 +824,7 @@ export default function EditionView({
     bullets: order.flatMap((key) => {
       const lists: Partial<Record<SectionKey, Story[]>> = {
         dateline: edition.sections.dateline,
+        "two-cities": edition.sections.twoCities ?? [],
         "paddock-notes": f1Stories,
         "circuit-board": edition.sections.circuitBoard,
         ledger: edition.sections.ledger,
