@@ -6,6 +6,7 @@ import { F1_TEAM_COLORS } from "@/lib/personalization";
 import { SECTION_META, SECTION_ORDER } from "@/lib/sections";
 
 type Sport = "f1" | "football" | "tennis";
+export type FormPart = "basics" | "sports" | "grapevine" | "order";
 
 const SPORT_LABELS: Record<Sport, string> = {
   f1: "Formula 1",
@@ -45,7 +46,7 @@ function Chapter({
   effect,
   children,
 }: {
-  numeral: string;
+  numeral?: string;
   title: string;
   effect: string;
   children: React.ReactNode;
@@ -53,7 +54,7 @@ function Chapter({
   return (
     <section className="border-t-2 border-ink pt-4 mt-8 first:mt-0 first:border-t-0 first:pt-0">
       <div className="flex items-baseline gap-3 mb-1">
-        <span className="font-headline text-xl text-masthead-red leading-none">{numeral}</span>
+        {numeral && <span className="font-headline text-xl text-masthead-red leading-none">{numeral}</span>}
         <h2 className="font-label text-sm">{title}</h2>
       </div>
       <p className="text-[13px] text-ink-soft italic mb-4">{effect}</p>
@@ -259,6 +260,7 @@ export default function PersonalizationForm({
   onChange,
   f1Roster,
   redditPanel,
+  parts,
 }: {
   value: Personalization;
   onChange: (next: Personalization) => void;
@@ -266,7 +268,12 @@ export default function PersonalizationForm({
   /** Rendered inside the Grapevine chapter (Settings passes the Reddit
    *  connect panel; onboarding shows a pointer to Settings instead). */
   redditPanel?: React.ReactNode;
+  /** Render only these chapters (Settings splits them across tabs); all
+   *  chapters, numbered, when omitted (onboarding). */
+  parts?: FormPart[];
 }) {
+  const show = (part: FormPart) => !parts || parts.includes(part);
+  const num = (n: string) => (parts ? undefined : n);
   const toggleSport = (sport: Sport) => {
     const next = value.sports.includes(sport)
       ? value.sports.filter((s) => s !== sport)
@@ -295,8 +302,9 @@ export default function PersonalizationForm({
   return (
     <div>
       {/* I. The Basics */}
+      {show("basics") && (
       <Chapter
-        numeral="I."
+        numeral={num("I.")}
         title="The Basics"
         effect="Your city sets the weather page and boosts local stories."
       >
@@ -311,10 +319,12 @@ export default function PersonalizationForm({
           />
         </label>
       </Chapter>
+      )}
 
       {/* II. Sports Desk */}
+      {show("sports") && (
       <Chapter
-        numeral="II."
+        numeral={num("II.")}
         title="Sports Desk"
         effect="Which sports get a section, whose stories lead it — and whose bad days you enjoy reading about."
       >
@@ -488,10 +498,12 @@ export default function PersonalizationForm({
           </div>
         )}
       </Chapter>
+      )}
 
       {/* III. The Grapevine */}
+      {show("grapevine") && (
       <Chapter
-        numeral="III."
+        numeral={num("III.")}
         title="The Grapevine"
         effect="Who fills the Reddit column: your actual subscriptions, a hand-picked list — or both."
       >
@@ -536,10 +548,12 @@ export default function PersonalizationForm({
           </Hint>
         </div>
       </Chapter>
+      )}
 
       {/* IV. Page order */}
+      {show("order") && (
       <Chapter
-        numeral="V."
+        numeral={num("IV.")}
         title="Page order"
         effect="What prints, and in what order — top of the list prints first."
       >
@@ -596,6 +610,7 @@ export default function PersonalizationForm({
           })}
         </ol>
       </Chapter>
+      )}
     </div>
   );
 }

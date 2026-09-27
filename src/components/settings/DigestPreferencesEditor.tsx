@@ -143,13 +143,28 @@ function Choice<T extends string | number>({
 
 // ---- editor ----------------------------------------------------------------------
 
+// One line per collapsed section card: "5 stories · 2 priorities".
+function sectionSummary(section: DigestSection): string {
+  const count =
+    section.type === "grouped"
+      ? `${section.articleCountPerGroup} per ${section.groupBy} · ${section.groups.length} ${section.groupBy === "country" ? "countries" : "groups"}`
+      : `${section.articleCount} ${section.articleCount === 1 ? "story" : "stories"}`;
+  const watch = section.watchEntities?.length ?? 0;
+  const note = section.type === "custom" ? (section.instruction ? " · custom brief" : "") : section.prompt ? " · note" : "";
+  return `${count}${watch ? ` · ${watch} ${watch === 1 ? "priority" : "priorities"}` : ""}${note}`;
+}
+
 export default function DigestPreferencesEditor({
   value,
   onChange,
+  view = "all",
 }: {
   value: DigestPreferences;
   onChange: (next: DigestPreferences) => void;
+  /** Settings shows the global rules and the section list on separate tabs. */
+  view?: "all" | "general" | "sections";
 }) {
+  const [openId, setOpenId] = useState<string | null>(null);
   const [jsonText, setJsonText] = useState<string | null>(null);
   const [jsonError, setJsonError] = useState<string | null>(null);
 
@@ -191,6 +206,7 @@ export default function DigestPreferencesEditor({
         { id, type: "custom", label: "New section", order, instruction: "", articleCount: 3, watchEntities: [] },
       ],
     });
+    setOpenId(id);
   };
 
   const applyJson = () => {
@@ -210,6 +226,7 @@ export default function DigestPreferencesEditor({
   return (
     <div className="space-y-8">
       {/* Across the whole paper */}
+      {view !== "sections" && (
       <section className="space-y-5">
         <div>
           <span className={labelCls}>Always prioritise</span>
@@ -261,23 +278,45 @@ export default function DigestPreferencesEditor({
           />
         )}
       </section>
+      )}
 
       {/* Sections */}
+      {view !== "general" && (
       <section>
-        <p className="font-body text-sm text-ink-soft mb-4">
-          Each section is filled by the AI editor from today&rsquo;s feeds, in this order.
-        </p>
         <div className="space-y-4">
           {sorted.map((section, idx) => (
-            <div key={section.id} className="border hairline p-4 space-y-3">
-              <div className="flex items-center gap-3">
-                <input
-                  aria-label="Section name"
-                  className="flex-1 min-w-0 bg-transparent font-headline text-lg font-semibold focus:outline-none border-b border-transparent focus:border-masthead-red"
-                  value={section.label}
-                  onChange={(e) => updateSection(section.id, { label: e.target.value })}
-                />
+            <div key={section.id} className="border hairline">
+              <div className="flex items-center gap-3 px-4 py-3">
+                {openId === section.id ? (
+                  <input
+                    aria-label="Section name"
+                    className="flex-1 min-w-0 bg-transparent font-headline text-lg font-semibold focus:outline-none border-b border-transparent focus:border-masthead-red"
+                    value={section.label}
+                    onChange={(e) => updateSection(section.id, { label: e.target.value })}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setOpenId(section.id)}
+                    className="flex-1 min-w-0 text-left"
+                  >
+                    <span className="block font-headline text-lg font-semibold leading-tight truncate">
+                      {section.label}
+                    </span>
+                    <span className="block font-mono text-[10px] text-ink-soft mt-0.5">
+                      {sectionSummary(section)}
+                    </span>
+                  </button>
+                )}
                 <div className="flex items-center gap-3 font-label text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => setOpenId(openId === section.id ? null : section.id)}
+                    className="underline"
+                    aria-expanded={openId === section.id}
+                  >
+                    {openId === section.id ? "Done" : "Edit"}
+                  </button>
                   <button
                     type="button"
                     onClick={() => move(section.id, -1)}
@@ -309,6 +348,8 @@ export default function DigestPreferencesEditor({
                 </div>
               </div>
 
+              {openId === section.id && (
+              <div className="px-4 pb-4 space-y-3">
               {section.type === "custom" && (
                 <div>
                   <span className={labelCls}>What belongs here?</span>
@@ -370,6 +411,8 @@ export default function DigestPreferencesEditor({
                   />
                 </div>
               )}
+              </div>
+              )}
             </div>
           ))}
         </div>
@@ -381,7 +424,9 @@ export default function DigestPreferencesEditor({
           + Add a section
         </button>
       </section>
+      )}
 
+      {view !== "general" && (
       <details className="border-t hairline pt-3">
         <summary className="font-label text-[10px] text-ink-soft cursor-pointer">Advanced — edit as JSON</summary>
         <div className="space-y-2 mt-3">
@@ -418,6 +463,7 @@ export default function DigestPreferencesEditor({
           </div>
         </div>
       </details>
+      )}
     </div>
   );
 }

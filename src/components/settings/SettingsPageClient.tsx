@@ -42,15 +42,14 @@ function withSportsFavourites(prefs: DigestPreferences, paper: Personalization):
   };
 }
 
-function PartHeading({ kicker, title, blurb }: { kicker: string; title: string; blurb: string }) {
-  return (
-    <div className="border-t-2 border-ink pt-4 mb-6">
-      <div className="font-label text-[10px] text-masthead-red mb-1">{kicker}</div>
-      <h2 className="font-headline text-2xl font-semibold">{title}</h2>
-      <p className="font-body text-sm text-ink-soft mt-1">{blurb}</p>
-    </div>
-  );
-}
+// Four short tabs instead of one long scroll; one Save covers all of them.
+const TABS = [
+  { key: "news", label: "News", blurb: "What the AI editor prioritises everywhere, and how it writes." },
+  { key: "sections", label: "Sections", blurb: "What each section of the paper is filled with. Tap one to edit it." },
+  { key: "sports", label: "Sports", blurb: "Which sports get a page, whose stories lead it, and your rivals." },
+  { key: "page", label: "Page & Reddit", blurb: "Your city, the order pages print in, and the Reddit column." },
+] as const;
+type TabKey = (typeof TABS)[number]["key"];
 
 export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEntry[] }) {
   const router = useRouter();
@@ -60,6 +59,7 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
   const [saved, setSaved] = useState(false);
   const [memoryCount, setMemoryCount] = useState<number>(0);
   const [forgot, setForgot] = useState(false);
+  const [tab, setTab] = useState<TabKey>("news");
 
   useEffect(() => {
     const paper = loadPersonalization();
@@ -70,7 +70,16 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
     setNews(prefs);
     setBaseline({ paper: JSON.stringify(paper), news: JSON.stringify(prefs) });
     setMemoryCount(loadMemory().visits.length);
+    // Deep links like /settings#sections open that tab.
+    const fromHash = window.location.hash.slice(1);
+    if (TABS.some((t) => t.key === fromHash)) setTab(fromHash as TabKey);
   }, []);
+
+  const selectTab = (key: TabKey) => {
+    setTab(key);
+    window.history.replaceState(null, "", `#${key}`);
+  };
+  const active = TABS.find((t) => t.key === tab) ?? TABS[0];
 
   const paperDirty = useMemo(
     () => baseline.paper !== "" && JSON.stringify(draft) !== baseline.paper,
@@ -124,34 +133,53 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
     <main className="flex-1 max-w-2xl mx-auto px-4 py-10 pb-28 w-full">
       <div className="font-label text-xs text-masthead-red mb-1">Settings</div>
       <h1 className="font-headline text-4xl font-semibold mb-1">Make it yours</h1>
-      <p className="font-headline italic text-ink-soft mb-10 text-lg">
-        What the editor looks for, and how the paper is laid out. Saved on this device.
-      </p>
+      <p className="font-headline italic text-ink-soft mb-6 text-lg">Saved on this device.</p>
 
-      <PartHeading
-        kicker="Part one"
-        title="Your news"
-        blurb="What the AI editor picks for each section, and how it writes it up."
-      />
-      {news ? (
-        <DigestPreferencesEditor
-          value={news}
-          onChange={(next) => {
-            setNews(next);
-            setSaved(false);
-          }}
-        />
-      ) : (
-        <p className="font-body text-sm text-ink-soft">Loading…</p>
+      <div
+        role="tablist"
+        aria-label="Settings"
+        className="sticky top-0 z-30 bg-paper/95 backdrop-blur flex gap-1 border-b hairline mb-6 overflow-x-auto overflow-y-hidden"
+        style={{ top: "env(safe-area-inset-top, 0px)" }}
+      >
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.key}
+            onClick={() => selectTab(t.key)}
+            className={`font-label text-xs px-4 py-2.5 -mb-px border-b-2 whitespace-nowrap transition-colors ${
+              tab === t.key
+                ? "border-masthead-red text-masthead-red"
+                : "border-transparent text-ink-soft hover:text-ink"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {/* The paper chapters carry their own one-line explanation. */}
+      {(tab === "news" || tab === "sections") && (
+        <p className="font-body text-sm text-ink-soft mb-6">{active.blurb}</p>
       )}
 
-      <div className="mt-14">
-        <PartHeading
-          kicker="Part two"
-          title="Your paper"
-          blurb="Your city, your sports, the Reddit column, and the order the pages print in."
-        />
+      {(tab === "news" || tab === "sections") &&
+        (news ? (
+          <DigestPreferencesEditor
+            view={tab === "news" ? "general" : "sections"}
+            value={news}
+            onChange={(next) => {
+              setNews(next);
+              setSaved(false);
+            }}
+          />
+        ) : (
+          <p className="font-body text-sm text-ink-soft">Loading…</p>
+        ))}
+
+      {(tab === "sports" || tab === "page") && (
         <PersonalizationForm
+          parts={tab === "sports" ? ["sports"] : ["basics", "order", "grapevine"]}
           value={draft}
           onChange={(next) => {
             setDraft(next);
@@ -160,8 +188,9 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
           f1Roster={f1Roster}
           redditPanel={<RedditConnect onImport={handleImportSubs} />}
         />
-      </div>
+      )}
 
+      {tab === "page" && (
       <section className="mt-10 border-t-2 border-ink pt-4">
         <div className="font-label text-[10px] text-masthead-red mb-1">What the paper remembers</div>
         <p className="font-body text-sm text-ink-soft leading-relaxed">
@@ -192,6 +221,7 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
           )}
         </div>
       </section>
+      )}
 
       <div className="fixed bottom-0 inset-x-0 z-40 border-t hairline bg-paper/95 backdrop-blur">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between gap-3">

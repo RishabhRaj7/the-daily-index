@@ -376,12 +376,22 @@ The digest is no longer generated per browser visit. The server builds one
 
 ## Settings (current)
 
-One page, one Save. "Your news" (`DigestPreferencesEditor`, controlled) shows
-the digest preferences in plain terms — always prioritise / never show me
-tags, summary length and voice presets, and one card per section (name,
-story count or countries, watched entities, note to the editor). Section
-ids, types, display slots, preferred sources and the age window are kept but
-not shown; the raw JSON sits under "Advanced". "+ Add a section" creates a
-free-text (custom) section. "Your paper" is the unchanged
-`PersonalizationForm`. Save writes both, then POSTs `/api/edition` so the
-new edition starts building before the reader is back on the paper.
+Four short tabs with one Save bar: **News** (always prioritise / never show
+me tags, summary length and voice presets), **Sections** (one collapsed card
+per section — name + a one-line summary; "Edit" expands it: story count or
+countries, watched entities, note to the editor; "+ Add a section" makes a
+free-text section; raw JSON under "Advanced"), **Sports** and
+**Page & Reddit** (the `PersonalizationForm` chapters, via its `parts` prop —
+onboarding still renders all chapters). `/settings#sections` deep-links a tab.
+Save writes both preference stores and POSTs `/api/edition` so the new
+edition starts building before the reader is back on the paper.
+
+## Stable summaries and live updates
+
+- Every written summary / gist is cached server-side for 3 days, keyed by
+  article URL + summary length + voice + section guidance. A rebuild
+  (Refresh edition, cron, stale rebuild) only writes articles that are new,
+  and only fetches their pages. Selection runs at temperature 0.
+- There is no "tap to update": a finished edition replaces the page as soon
+  as it arrives — under the pressroom overlay before it fades, or in place
+  when a background rebuild lands.
