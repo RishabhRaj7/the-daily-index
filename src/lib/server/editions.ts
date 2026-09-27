@@ -51,6 +51,8 @@ const key = {
   lock: (date: string, hash: string) => `lock:${date}:${hash}`,
   prefs: (hash: string) => `prefs:${hash}`,
   snapshot: (date: string) => `snapshot:${date}`,
+  /** Which hash was "the default edition" on a date — defaults change. */
+  defaultOn: (date: string) => `archive:default:${date}`,
   active: "editions:active",
   archive: "archive:dates",
   globalLimit: (date: string) => `limit:${date}`,
@@ -158,6 +160,9 @@ export async function buildEdition(
       hash === DEFAULT_HASH ? undefined : { ttlSeconds: CUSTOM_EDITION_TTL },
     );
     await store.zadd(key.archive, Date.parse(`${date}T00:00:00Z`) / 1000, date);
+    // Editing the shipped defaults changes DEFAULT_HASH; remember which hash
+    // was the default that day so the archive can still open it later.
+    if (hash === DEFAULT_HASH) await store.set(key.defaultOn(date), hash);
     await store.del(key.status(date, hash));
     return record;
   } catch (err) {
@@ -331,8 +336,9 @@ export async function archivedEdition(
     const own = await readEdition(date, readerHash);
     if (own) return { edition: own, isReaders: true };
   }
-  const fallback = await readEdition(date, DEFAULT_HASH);
-  return fallback ? { edition: fallback, isReaders: readerHash === DEFAULT_HASH } : null;
+  const defaultHash = (await getStore().get<string>(key.defaultOn(date))) ?? DEFAULT_HASH;
+  const fallback = await readEdition(date, defaultHash);
+  return fallback ? { edition: fallback, isReaders: readerHash === defaultHash } : null;
 }
 
 /** Whether editions (and so the archive) survive between requests. */
