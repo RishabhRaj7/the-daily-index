@@ -33,7 +33,7 @@ export default function Masthead({
             </Link>
           ) : (
             <Link href="/archive" className="underline">
-              The Morgue
+              Archive
             </Link>
           )}
           <SettingsLink className="underline">Settings</SettingsLink>

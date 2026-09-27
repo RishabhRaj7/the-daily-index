@@ -5,6 +5,7 @@ import { DEFAULT_DIGEST_PREFERENCES, normalizePreferences } from "@/lib/preferen
 import type { DigestPreferences, DigestResult } from "@/lib/preferences/types";
 import { editionDate } from "@/lib/edition-date";
 import { getStore } from "./store";
+import { captureSnapshot, type EditionSnapshot } from "./snapshot";
 
 // Server-built editions.
 //
@@ -37,17 +38,29 @@ const key = {
   status: (date: string, hash: string) => `status:${date}:${hash}`,
   lock: (date: string, hash: string) => `lock:${date}:${hash}`,
   prefs: (hash: string) => `prefs:${hash}`,
+  snapshot: (date: string) => `snapshot:${date}`,
   active: "editions:active",
   archive: "archive:dates",
   globalLimit: (date: string) => `limit:${date}`,
   ipLimit: (date: string, ip: string) => `limit:${date}:${ip}`,
 };
 
+/** Section names/order as they were when the edition was built, so an
+ *  archived edition still reads correctly after preferences change. */
+export interface EditionLayoutEntry {
+  id: string;
+  label: string;
+  order: number;
+  type: DigestPreferences["sections"][number]["type"];
+}
+
 export interface EditionRecord {
   date: string;
   hash: string;
   builtAt: string;
   digest: DigestResult;
+  /** Absent on editions stored before the archive existed. */
+  layout?: EditionLayoutEntry[];
 }
 
 export type EditionState =
@@ -117,8 +130,16 @@ export async function buildEdition(
 ): Promise<EditionRecord | null> {
   const store = getStore();
   try {
-    const digest = await generateDigest(prefs);
-    const record: EditionRecord = { date, hash, builtAt: new Date().toISOString(), digest };
+    const [digest] = await Promise.all([generateDigest(prefs), ensureSnapshot(date)]);
+    const record: EditionRecord = {
+      date,
+      hash,
+      builtAt: new Date().toISOString(),
+      digest,
+      layout: [...prefs.sections]
+        .sort((a, b) => a.order - b.order)
+        .map((sec) => ({ id: sec.id, label: sec.label, order: sec.order, type: sec.type })),
+    };
     await store.set(
       key.edition(date, hash),
       record,
@@ -262,4 +283,44 @@ export async function readStoredPrefs(hash: string): Promise<DigestPreferences |
 /** Dates that have at least one stored edition, newest first. */
 export async function archiveDates(limit = 400): Promise<string[]> {
   return getStore().zrevrange(key.archive, limit);
+}
+
+/**
+ * First build of the day captures the day's numbers; later builds reuse
+ * them. A failed capture never blocks the edition itself.
+ */
+async function ensureSnapshot(date: string): Promise<void> {
+  const store = getStore();
+  try {
+    if (await store.get(key.snapshot(date))) return;
+    await store.set(key.snapshot(date), await captureSnapshot());
+  } catch (err) {
+    console.error(`[editions] snapshot ${date} failed:`, err);
+  }
+}
+
+export async function readSnapshot(date: string): Promise<EditionSnapshot | null> {
+  return getStore().get<EditionSnapshot>(key.snapshot(date));
+}
+
+/**
+ * The archived edition a reader sees for a date: their own (by the
+ * preferences hash in their cookie) when one was built that day, else the
+ * default edition, which the cron builds every morning and never expires.
+ */
+export async function archivedEdition(
+  date: string,
+  readerHash: string | null,
+): Promise<{ edition: EditionRecord; isReaders: boolean } | null> {
+  if (readerHash && /^[0-9a-f]{16}$/.test(readerHash)) {
+    const own = await readEdition(date, readerHash);
+    if (own) return { edition: own, isReaders: true };
+  }
+  const fallback = await readEdition(date, DEFAULT_HASH);
+  return fallback ? { edition: fallback, isReaders: readerHash === DEFAULT_HASH } : null;
+}
+
+/** Whether editions (and so the archive) survive between requests. */
+export function archiveAvailable(): boolean {
+  return getStore().persistent;
 }
