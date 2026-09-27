@@ -138,7 +138,7 @@ function PartFailure({ note, onRetry }: { note: string; onRetry: () => void }) {
       <button
         type="button"
         onClick={onRetry}
-        className="font-label text-[10px] text-masthead-red underline not-italic ml-1"
+        className="font-label text-[10px] text-accent underline not-italic ml-1"
       >
         Try again
       </button>
@@ -154,7 +154,7 @@ function StaleNote({ onRetry }: { onRetry: () => void }) {
       <button
         type="button"
         onClick={onRetry}
-        className="font-label text-[10px] text-masthead-red underline not-italic"
+        className="font-label text-[10px] text-accent underline not-italic"
       >
         Try again
       </button>
@@ -184,6 +184,45 @@ function SpinGlyph() {
         d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
       />
     </svg>
+  );
+}
+
+// A championship table as bars: each row's bar is its points against the
+// leader's, in the team's colour, growing in from zero when it scrolls in.
+function StandingsBars({
+  rows,
+  leader,
+}: {
+  rows: Array<{ key: string; position: number; name: string; sub?: string; color?: string; points: number }>;
+  leader: number;
+}) {
+  return (
+    <ol className="space-y-2.5">
+      {rows.map((r, i) => {
+        const pct = leader > 0 ? Math.max(0.02, r.points / leader) : 0;
+        return (
+          <li key={r.key} className="grid grid-cols-[1.4rem_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 text-[13px]">
+            <span className="font-mono text-[11px] text-ink-soft">{r.position}</span>
+            <span className="truncate font-sans font-medium">
+              {r.name}
+              {r.sub && <span className="font-mono text-[10px] text-ink-faint ml-1.5">{r.sub}</span>}
+            </span>
+            <span className="font-mono text-[12px] text-right">{r.points}</span>
+            <span />
+            <span className="col-span-2 h-1 rounded-full bg-card-bg overflow-hidden">
+              <span
+                className="block h-full rounded-full bar-grow"
+                style={{
+                  width: `${pct * 100}%`,
+                  background: r.color || "var(--section-hue, var(--accent))",
+                  ["--bar-i" as string]: i,
+                }}
+              />
+            </span>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -442,8 +481,8 @@ export default function F1Sidebar({
       {/* Pit wall header — the single section-scoped refresh control. It
           re-reads local data first and only fetches what's missing or stale,
           so it can never blank a table that is already on screen. */}
-      <div className="flex items-baseline justify-between gap-2 -mb-1">
-        <span className="font-label text-[10px] text-ink-soft">Pit wall</span>
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-display font-extrabold text-[1.6rem] leading-none">Pit wall</span>
         <span className="flex items-center gap-2">
           {checkedAt && !refreshing && (
             <span className="font-mono text-[10px] text-ink-soft">
@@ -457,7 +496,7 @@ export default function F1Sidebar({
             type="button"
             onClick={() => void runSequence()}
             disabled={refreshing}
-            className="font-label text-[10px] text-masthead-red underline disabled:no-underline disabled:opacity-70 inline-flex items-center gap-1"
+            className="chip h-7 px-3 text-[11px]"
             title="Re-read the F1 section from local data, fetching only what is missing or stale"
           >
             {refreshing ? (
@@ -465,7 +504,7 @@ export default function F1Sidebar({
                 <SpinGlyph /> Refreshing…
               </>
             ) : (
-              "↻ Refresh F1"
+              "↻ Refresh"
             )}
           </button>
         </span>
@@ -474,7 +513,7 @@ export default function F1Sidebar({
       {/* Team badge card — pure personalization, no data dependency. */}
       {accentColor && favoriteF1Team && (
         <div
-          className="rounded-sm p-4 flex items-center gap-3"
+          className="rounded-[14px] p-4 flex items-center gap-3"
           style={{ backgroundColor: accentColor + "18", borderLeft: `3px solid ${accentColor}` }}
         >
           <TeamBadge team={favoriteF1Team} color={accentColor} />
@@ -518,7 +557,7 @@ export default function F1Sidebar({
           onRetrySession={() => retry("results")}
         />
       ) : (
-        <div className="paper-box pl-5">
+        <div className="module">
           <div className="font-label text-[10px] text-ink-soft mb-1">Starting Grid</div>
           {map.status === "loading" ? (
             <>
@@ -536,8 +575,8 @@ export default function F1Sidebar({
 
       {/* Constructors' Championship — before the drivers' table, matching the
           order the section fills in. */}
-      <div className="paper-box">
-        <div className="font-label text-[10px] text-ink-soft mb-2">
+      <div className="module" data-reveal>
+        <div className="font-label text-[10px] text-ink-soft mb-3">
           Constructors&rsquo; Championship
         </div>
 
@@ -552,34 +591,21 @@ export default function F1Sidebar({
 
         {constructorRows.length > 0 && (
           <>
-            <table className="w-full text-xs">
-              <tbody>
-                {visibleConstructors.map((cs) => {
-                  const csNorm = cs.team.replace(/\s*F1 Team$/i, "").trim();
-                  const csColor = teamColor(cs.team);
-                  return (
-                    <tr key={cs.position} className="border-t hairline first:border-t-0">
-                      <td className="py-1 font-mono w-6">{cs.position}</td>
-                      <td className="py-1">
-                        {csColor && (
-                          <span
-                            className="inline-block w-[3px] h-3 rounded-full mr-1.5 align-middle"
-                            style={{ backgroundColor: csColor }}
-                          />
-                        )}
-                        {csNorm}
-                      </td>
-                      <td className="py-1 text-right font-mono">{cs.points}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <StandingsBars
+              rows={visibleConstructors.map((cs) => ({
+                key: `c-${cs.position}`,
+                position: cs.position,
+                name: cs.team.replace(/\s*F1 Team$/i, "").trim(),
+                color: teamColor(cs.team),
+                points: cs.points,
+              }))}
+              leader={constructorRows[0]?.points ?? 0}
+            />
             {constructorRows.length > 5 && (
               <button
                 type="button"
                 onClick={() => setShowAllConstructors((value) => !value)}
-                className="font-label text-[10px] text-masthead-red underline mt-2"
+                className="font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-3"
               >
                 {showAllConstructors
                   ? "Show top 5"
@@ -592,8 +618,8 @@ export default function F1Sidebar({
       </div>
 
       {/* Drivers' Championship */}
-      <div className="paper-box">
-        <div className="font-label text-[10px] text-ink-soft mb-2">
+      <div className="module" data-reveal>
+        <div className="font-label text-[10px] text-ink-soft mb-3">
           Drivers&rsquo; Championship
         </div>
 
@@ -615,34 +641,22 @@ export default function F1Sidebar({
 
         {driverRows.length > 0 && (
           <>
-            <table className="w-full text-xs">
-              <tbody>
-                {visibleDrivers.map((s) => {
-                  const driverTeamColor = teamColor(s.team);
-                  return (
-                    <tr key={s.position} className="border-t hairline first:border-t-0">
-                      <td className="py-1 font-mono w-6">{s.position}</td>
-                      <td className="py-1">
-                        {driverTeamColor && (
-                          <span
-                            className="inline-block w-[3px] h-3 rounded-full mr-1.5 align-middle"
-                            style={{ backgroundColor: driverTeamColor }}
-                          />
-                        )}
-                        {s.name}
-                      </td>
-                      <td className="py-1 text-ink-soft text-[10px]">{s.code}</td>
-                      <td className="py-1 text-right font-mono">{s.points}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <StandingsBars
+              rows={visibleDrivers.map((d) => ({
+                key: `d-${d.position}`,
+                position: d.position,
+                name: d.name,
+                sub: d.code,
+                color: teamColor(d.team),
+                points: d.points,
+              }))}
+              leader={driverRows[0]?.points ?? 0}
+            />
             {driverRows.length > 5 && (
               <button
                 type="button"
                 onClick={() => setShowAllDrivers((value) => !value)}
-                className="font-label text-[10px] text-masthead-red underline mt-2"
+                className="font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-3"
               >
                 {showAllDrivers ? "Show top 5" : `Show all ${driverRows.length} drivers`}
               </button>

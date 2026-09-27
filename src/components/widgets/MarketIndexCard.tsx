@@ -1,36 +1,54 @@
 import type { MarketIndex } from "@/lib/types";
 import SparklineChart from "./SparklineChart";
 
-function Pct({ value }: { value: number | null }) {
-  if (value == null) return <span className="font-mono text-xs text-ink-soft tabular-nums">—</span>;
-  const positive = value >= 0;
+function Pct({ label, value }: { label: string; value: number | null }) {
   return (
-    <span className={`font-mono text-xs tabular-nums ${positive ? "text-up" : "text-down"}`}>
-      {positive ? "+" : "−"}
-      {Math.abs(value).toFixed(2)}%
-    </span>
+    <div className="flex flex-col">
+      <span className="font-label text-[8px] text-ink-faint">{label}</span>
+      {value == null ? (
+        <span className="font-mono text-xs text-ink-soft">—</span>
+      ) : (
+        <span className={`font-mono text-xs tabular-nums ${value >= 0 ? "text-up" : "text-down"}`}>
+          {value >= 0 ? "+" : "−"}
+          {Math.abs(value).toFixed(2)}%
+        </span>
+      )}
+    </div>
   );
 }
 
-// One row of the markets table — set like a financial page, not a widget.
-export default function MarketIndexCard({ index }: { index: MarketIndex }) {
+// One index as a tile: the level large, today's move as a pill, the month
+// as a line that draws itself in.
+export default function MarketIndexCard({ index, i = 0 }: { index: MarketIndex; i?: number }) {
   const positive = index.changePct >= 0;
   return (
-    <li className="py-3 grid grid-cols-[1fr_auto] sm:grid-cols-[minmax(0,1.4fr)_auto_repeat(3,4.2rem)_5rem] items-center gap-x-3 gap-y-1">
-      <div className="min-w-0">
-        <div className="font-label text-[9px] text-ink-soft">{index.market}</div>
-        <div className="font-headline text-base font-semibold leading-tight truncate">{index.name}</div>
+    <li
+      className="module group flex flex-col gap-3 transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-[color:var(--section-hue)]"
+      data-reveal
+      style={{ ["--reveal-i" as string]: i }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-label text-[9px] text-ink-soft">{index.market}</div>
+          <div className="font-sans font-semibold text-[15px] leading-tight truncate">{index.name}</div>
+        </div>
+        <span
+          className={`shrink-0 rounded-full px-2 py-0.5 font-mono text-[11px] font-semibold ${
+            positive ? "bg-up text-paper" : "bg-down text-paper"
+          }`}
+        >
+          {positive ? "▲" : "▼"} {Math.abs(index.changePct).toFixed(2)}%
+        </span>
       </div>
-      <div className="font-mono text-lg tabular-nums text-right">
+      <div className="font-display font-bold text-[2.5rem] leading-[0.85] tracking-tight">
         {index.level.toLocaleString("en-US", { maximumFractionDigits: 1 })}
       </div>
-      <div className="text-right"><span className="font-label text-[8px] text-ink-soft sm:hidden mr-1">1D</span><Pct value={index.changePct} /></div>
-      <div className="text-right"><span className="font-label text-[8px] text-ink-soft sm:hidden mr-1">7D</span><Pct value={index.change7d} /></div>
-      <div className="text-right"><span className="font-label text-[8px] text-ink-soft sm:hidden mr-1">1M</span><Pct value={index.change1m} /></div>
-      <div className="hidden sm:flex justify-end">
-        <SparklineChart values={index.sparkline} positive={positive} />
+      <SparklineChart values={index.sparkline} positive={positive} className="w-full h-12" />
+      <div className="flex gap-5">
+        <Pct label="7D" value={index.change7d} />
+        <Pct label="1M" value={index.change1m} />
       </div>
-      <p className="col-span-full font-body text-xs text-ink-soft leading-relaxed">{index.narrative}</p>
+      {index.narrative && <p className="font-body text-xs text-ink-soft leading-relaxed line-clamp-3">{index.narrative}</p>}
     </li>
   );
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import TopBar from "@/components/chrome/TopBar";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { archiveDates, archivedEdition, readSnapshot } from "@/lib/server/editions";
@@ -49,42 +50,46 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
   });
 
   return (
-    <main className="flex-1 max-w-5xl mx-auto px-4 py-10 w-full">
-      <nav className="flex items-center justify-between gap-4 font-label text-[11px] mb-6">
-        <Link href="/archive" className="text-masthead-red underline">
+    <>
+    <TopBar sections={[]} isArchive alwaysShowLogo />
+    <main className="flex-1 max-w-[1240px] mx-auto px-4 sm:px-6 pt-10 pb-20 w-full">
+      <nav className="flex items-center justify-between gap-4 font-sans text-[13px] font-semibold mb-8">
+        <Link href="/archive" className="chip">
           ← The Archive
         </Link>
         <span className="flex gap-4">
           {older && (
-            <Link href={`/archive/${older}`} className="underline">
+            <Link href={`/archive/${older}`} className="chip">
               ‹ {fmt(older, { day: "numeric", month: "short" })}
             </Link>
           )}
           {newer && (
-            <Link href={`/archive/${newer}`} className="underline">
+            <Link href={`/archive/${newer}`} className="chip">
               {fmt(newer, { day: "numeric", month: "short" })} ›
             </Link>
           )}
         </span>
       </nav>
 
-      <header className="border-b-2 border-ink pb-4 mb-8">
-        <div className="font-label text-xs text-masthead-red mb-1">From the archive</div>
-        <h1 className="font-headline text-4xl md:text-5xl font-semibold">
-          {fmt(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+      <header className="pb-6 mb-12 border-b hairline" data-reveal="fade">
+        <div className="font-label text-[11px] text-accent mb-3">From the archive</div>
+        <h1 className="font-display font-extrabold text-[clamp(3rem,10vw,7rem)] leading-[0.84]">
+          {fmt(date, { weekday: "long" })}
+          <br />
+          <span className="text-ink-soft">{fmt(date, { day: "numeric", month: "long", year: "numeric" })}</span>
         </h1>
-        <p className="font-mono text-[11px] text-ink-soft mt-2">
+        <p className="font-mono text-[11px] text-ink-soft mt-5">
           {isReaders ? "Your edition" : "The standard edition — none was printed for your preferences that day"}
           {" · "}printed {printedAt} · {digest.corpusSize} articles considered
           {digest.engine === "heuristic" ? " · assembled without the AI editor" : ""}
         </p>
       </header>
 
-      <div className="grid md:grid-cols-[minmax(0,1fr)_260px] gap-10">
-        <div className="space-y-10 min-w-0">
+      <div className="grid md:grid-cols-[minmax(0,1fr)_300px] gap-12">
+        <div className="space-y-16 min-w-0">
           {digest.atAGlance && digest.atAGlance.length > 0 && (
             <section>
-              <h2 className="font-label text-sm mb-3">At a glance</h2>
+              <h2 className="font-display font-extrabold text-[2.4rem] leading-none mb-4">At a glance</h2>
               <ol className="divide-y hairline border-y hairline">
                 {digest.atAGlance.map((g, i) => (
                   <li key={g.url} className="py-2 grid grid-cols-[1.5rem_1fr] gap-2">
@@ -93,9 +98,9 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
                       href={g.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="font-headline text-base leading-snug hover:underline"
+                      className="group font-headline text-[1.05rem] leading-snug"
                     >
-                      {g.summary}
+                      <span className="headline-link">{g.summary}</span>
                       <span className="font-mono text-[10px] text-ink-soft ml-2">{g.pool}</span>
                     </a>
                   </li>
@@ -109,18 +114,18 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
             if (articles.length === 0) return null;
             return (
               <section key={section.id}>
-                <div className="h-[3px] bg-ink mb-2" />
-                <h2 className="font-label text-sm mb-4">{section.label}</h2>
-                <div className="space-y-5">
+                <h2 className="font-display font-extrabold text-[clamp(2.4rem,6vw,3.6rem)] leading-[0.85]">{section.label}</h2>
+                <div className="h-[3px] bg-accent mt-3 mb-6" />
+                <div className="space-y-7">
                   {articles.map((a) => (
                     <article key={a.url}>
                       <a
                         href={a.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="font-headline text-xl font-semibold leading-snug hover:underline"
+                        className="group font-headline text-[1.4rem] leading-snug"
                       >
-                        {a.title}
+                        <span className="headline-link">{a.title}</span>
                       </a>
                       <p className="font-mono text-[10px] text-ink-soft mt-1">
                         {a.source}
@@ -137,10 +142,10 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
         </div>
 
         {snapshot && (
-          <aside className="space-y-8 md:border-l hairline md:pl-6">
+          <aside className="space-y-5 h-fit md:sticky md:top-24">
             {snapshot.markets.length > 0 && (
-              <div>
-                <h2 className="font-label text-[11px] mb-2">Markets that day</h2>
+              <div className="module">
+                <h2 className="font-label text-[10px] text-ink-soft mb-3">Markets that day</h2>
                 <table className="w-full font-mono text-xs">
                   <tbody className="divide-y hairline">
                     {snapshot.markets.map((m) => (
@@ -163,8 +168,8 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
             )}
 
             {snapshot.f1.lastRace && snapshot.f1.lastRace.podium.length > 0 && (
-              <div>
-                <h2 className="font-label text-[11px] mb-1">Latest race</h2>
+              <div className="module">
+                <h2 className="font-label text-[10px] text-ink-soft mb-2">Latest race</h2>
                 <p className="font-headline text-sm mb-2">{snapshot.f1.lastRace.name}</p>
                 <ol className="font-mono text-xs space-y-0.5">
                   {snapshot.f1.lastRace.podium.map((p) => (
@@ -177,8 +182,8 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
             )}
 
             {snapshot.f1.standings.length > 0 && (
-              <div>
-                <h2 className="font-label text-[11px] mb-2">Drivers&rsquo; championship</h2>
+              <div className="module">
+                <h2 className="font-label text-[10px] text-ink-soft mb-3">Drivers&rsquo; championship</h2>
                 <table className="w-full font-mono text-xs">
                   <tbody className="divide-y hairline">
                     {snapshot.f1.standings.map((s) => (
@@ -194,8 +199,8 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
             )}
 
             {snapshot.f1.nextRace && (
-              <div>
-                <h2 className="font-label text-[11px] mb-1">Next up</h2>
+              <div className="module">
+                <h2 className="font-label text-[10px] text-ink-soft mb-2">Next up</h2>
                 <p className="font-headline text-sm">{snapshot.f1.nextRace.name}</p>
                 <p className="font-mono text-[10px] text-ink-soft">
                   {new Date(snapshot.f1.nextRace.date).toLocaleDateString("en-GB", {
@@ -210,5 +215,6 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
         )}
       </div>
     </main>
+    </>
   );
 }

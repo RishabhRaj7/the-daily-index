@@ -27,7 +27,7 @@ export default function ReadingProgressBar() {
       aria-hidden="true"
     >
       <div
-        className="h-full bg-masthead-red transition-[width] duration-100 ease-out"
+        className="h-full bg-accent transition-[width] duration-100 ease-out"
         style={{ width: `${progress}%` }}
       />
     </div>

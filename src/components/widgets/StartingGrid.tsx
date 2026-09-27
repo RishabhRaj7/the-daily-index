@@ -17,17 +17,39 @@ function formatCountdown(ms: number) {
 // The per-second ticker lives in its own component so the countdown re-render
 // doesn't drag the whole sidebar (tables, images, standings) along with it.
 function Countdown({ target }: { target: string }) {
-  const [remaining, setRemaining] = useState<string | null>(null);
+  const [ms, setMs] = useState<number | null>(null);
   useEffect(() => {
     const at = new Date(target).getTime();
-    const tick = () => setRemaining(formatCountdown(at - Date.now()));
+    const tick = () => setMs(Math.max(0, at - Date.now()));
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [target]);
+  const parts =
+    ms === null
+      ? null
+      : [
+          { label: "days", value: Math.floor(ms / 86_400_000) },
+          { label: "hrs", value: Math.floor(ms / 3_600_000) % 24 },
+          { label: "min", value: Math.floor(ms / 60_000) % 60 },
+          { label: "sec", value: Math.floor(ms / 1000) % 60 },
+        ];
   return (
-    <div className="font-mono text-2xl mt-2 tabular-nums" suppressHydrationWarning>
-      {remaining ?? "—"}
+    <div className="grid grid-cols-4 gap-1.5 mt-3" aria-label={ms === null ? undefined : formatCountdown(ms)}>
+      {(parts ?? [{ label: "days" }, { label: "hrs" }, { label: "min" }, { label: "sec" }]).map((p) => (
+        <div key={p.label} className="rounded-lg bg-card-bg border hairline px-2 pt-2 pb-1.5 text-center overflow-hidden">
+          <div className="font-display font-extrabold text-[2rem] leading-none tabular-nums h-8 overflow-hidden">
+            {"value" in p ? (
+              <span key={p.value} className="block animate-[tick-in_0.45s_var(--ease-out)]">
+                {String(p.value).padStart(2, "0")}
+              </span>
+            ) : (
+              "—"
+            )}
+          </div>
+          <div className="font-label text-[8px] text-ink-soft mt-1">{p.label}</div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -103,13 +125,11 @@ export default function StartingGrid({
       : `Last race — ${lastRace?.name ?? ""}`;
 
   return (
-    <div
-      className="paper-box pl-5"
-    >
+    <div className="module" data-reveal>
       <div className="font-label text-[10px] text-ink-soft mb-1">
-        Starting Grid
+        {racePhase === "race" ? "Live now" : "Next up"} · Round {displayedRace.round}
       </div>
-      <div className="font-headline text-lg font-semibold">
+      <div className="font-headline text-xl leading-tight">
         {displayedRace.name}
       </div>
       {racePhase !== "race" && nextRace.circuitImageUrl && (
@@ -117,7 +137,7 @@ export default function StartingGrid({
         <img
           src={nextRace.circuitImageUrl}
           alt={`${nextRace.circuit} track layout`}
-          className="w-full max-h-32 object-contain my-2 bg-paper rounded-sm"
+          className="w-full max-h-36 object-contain my-3 invert-evening"
           loading="lazy"
           onError={(e) => {
             e.currentTarget.style.display = "none";
@@ -127,7 +147,7 @@ export default function StartingGrid({
       {racePhase !== "race" && (
         <>
           <Countdown target={nextRace.date} />
-          <div className="font-label text-[10px] text-ink-soft mt-0.5">
+          <div className="font-mono text-[10px] text-ink-soft mt-2">
             until lights out at {nextRace.circuit}
           </div>
         </>
@@ -168,7 +188,7 @@ export default function StartingGrid({
                 <button
                   type="button"
                   onClick={onRetrySession}
-                  className="font-label text-[10px] text-masthead-red underline not-italic ml-1"
+                  className="font-label text-[10px] text-accent underline not-italic ml-1"
                 >
                   Try again
                 </button>
@@ -183,7 +203,7 @@ export default function StartingGrid({
                   {visibleRows.map((r) => (
                     <tr key={`${r.position ?? "dnf"}-${r.code}`} className="border-t hairline first:border-t-0">
                       <td className="py-1 font-mono w-5 text-ink-soft">{r.position ?? "—"}</td>
-                      <td className="py-1 font-semibold">{r.driver}</td>
+                      <td className="py-1.5 font-semibold font-sans">{r.driver}</td>
                       <td className="py-1 text-ink-soft truncate max-w-[80px]">{r.team}</td>
                       <td className="py-1 text-right font-mono text-ink-soft">
                         {"interval" in r ? r.interval : r.time}
@@ -196,7 +216,7 @@ export default function StartingGrid({
                 <button
                   type="button"
                   onClick={() => setShowAll((value) => !value)}
-                  className="font-label text-[10px] text-masthead-red underline mt-2"
+                  className="font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-3"
                 >
                   {showAll ? "Show top 5" : `Show all ${resultRows.length} drivers`}
                 </button>
@@ -208,7 +228,7 @@ export default function StartingGrid({
                     <button
                       type="button"
                       onClick={onRetrySession}
-                      className="font-label text-[10px] text-masthead-red underline not-italic"
+                      className="font-label text-[10px] text-accent underline not-italic"
                     >
                       Try again
                     </button>
@@ -259,7 +279,7 @@ export default function StartingGrid({
               <button
                 type="button"
                 onClick={onRetryCalendar}
-                className="font-label text-[10px] text-masthead-red underline not-italic ml-1"
+                className="font-label text-[10px] text-accent underline not-italic ml-1"
               >
                 Try again
               </button>

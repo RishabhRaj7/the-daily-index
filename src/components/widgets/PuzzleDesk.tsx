@@ -422,7 +422,7 @@ function WordleGame({
     hintIndex !== null ? (
       <>
         The desk whispers: the {ORDINALS[hintIndex]} letter is{" "}
-        <span className="not-italic font-semibold text-masthead-red">{answer[hintIndex]}</span>.
+        <span className="not-italic font-semibold text-accent">{answer[hintIndex]}</span>.
       </>
     ) : null;
 
@@ -523,7 +523,7 @@ function WordleGame({
             type="button"
             onClick={useHint}
             disabled={hintIndex !== null}
-            className="text-masthead-red underline underline-offset-2 disabled:opacity-40 disabled:no-underline"
+            className="text-accent underline underline-offset-2 disabled:opacity-40 disabled:no-underline"
           >
             {hintIndex !== null ? "Hint used" : "Hint: reveal one letter"}
           </button>
@@ -662,7 +662,7 @@ function HeadlineScramble({
         )}
         {state === "revealed" && (
           <>
-            <span className="text-masthead-red not-italic font-semibold">{item.answer}.</span>{" "}
+            <span className="text-accent not-italic font-semibold">{item.answer}.</span>{" "}
             {item.headline ? <>From: &ldquo;{item.headline}&rdquo;</> : <>A word from the pressroom.</>}
           </>
         )}
@@ -689,7 +689,7 @@ function HeadlineScramble({
           autoComplete="off"
           spellCheck={false}
           aria-label="Your answer"
-          className="flex-1 min-w-0 bg-transparent border hairline px-2 py-1.5 font-mono text-sm uppercase tracking-wider placeholder:normal-case placeholder:tracking-normal placeholder:text-ink-soft/70 focus:outline-none focus:border-masthead-red disabled:opacity-60"
+          className="flex-1 min-w-0 bg-transparent border hairline px-2 py-1.5 font-mono text-sm uppercase tracking-wider placeholder:normal-case placeholder:tracking-normal placeholder:text-ink-soft/70 focus:outline-none focus:border-accent disabled:opacity-60"
         />
         <button
           type="submit"
@@ -705,7 +705,7 @@ function HeadlineScramble({
             type="button"
             onClick={() => setHint(true)}
             disabled={hint}
-            className="text-masthead-red underline underline-offset-2 disabled:opacity-40 disabled:no-underline"
+            className="text-accent underline underline-offset-2 disabled:opacity-40 disabled:no-underline"
           >
             Hint
           </button>
@@ -825,7 +825,7 @@ function NoughtsAndCrosses({ saved, onSaved }: { saved: Saved; onSaved: (next: S
         <button
           type="button"
           onClick={() => reset(Math.random() < 0.5)}
-          className="font-label text-[10px] text-masthead-red underline underline-offset-2"
+          className="font-label text-[10px] text-accent underline underline-offset-2"
         >
           New game
         </button>
@@ -848,7 +848,7 @@ function NoughtsAndCrosses({ saved, onSaved }: { saved: Saved; onSaved: (next: S
                 onClick={() => play(i)}
                 disabled={Boolean(cell) || over || turn !== "you"}
                 className={`h-11 border hairline font-headline text-2xl font-semibold leading-none transition-colors ${
-                  inLine ? "bg-card-bg text-masthead-red" : cell === "O" ? "text-ink-soft" : "text-ink"
+                  inLine ? "bg-card-bg text-accent" : cell === "O" ? "text-ink-soft" : "text-ink"
                 } ${!cell && !over && turn === "you" ? "hover:bg-card-bg cursor-pointer" : ""}`}
               >
                 {cell ?? ""}
@@ -866,7 +866,7 @@ function NoughtsAndCrosses({ saved, onSaved }: { saved: Saved; onSaved: (next: S
           </p>
           {over && (
             <div className="mt-2 flex gap-3 font-label text-[10px]">
-              <button type="button" onClick={() => reset(false)} className="text-masthead-red underline underline-offset-2">
+              <button type="button" onClick={() => reset(false)} className="text-accent underline underline-offset-2">
                 You start
               </button>
               <button type="button" onClick={() => reset(true)} className="text-ink-soft underline underline-offset-2">
@@ -931,7 +931,7 @@ export default function PuzzleDesk({
             onClick={() => setTab(t.key)}
             className={`font-label text-[10px] pb-1.5 -mb-px border-b-2 transition-colors ${
               tab === t.key
-                ? "border-masthead-red text-ink"
+                ? "border-accent text-ink"
                 : "border-transparent text-ink-soft hover:text-ink"
             }`}
           >

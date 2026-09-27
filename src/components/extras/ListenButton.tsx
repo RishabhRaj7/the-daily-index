@@ -53,12 +53,23 @@ export default function ListenButton({ edition }: { edition: Edition }) {
   };
 
   return (
-    <button
-      onClick={toggle}
-      className="font-label text-xs px-3 py-1.5 border hairline rounded-sm hover:bg-card-bg transition-colors flex items-center gap-2"
-    >
-      <span aria-hidden="true">{speaking ? "◼" : "▶"}</span>
-      {speaking ? "Stop reading" : "Listen to today's edition"}
+    <button onClick={toggle} className="chip" aria-pressed={speaking}>
+      {speaking ? (
+        <span className="flex items-end gap-[2px] h-3" aria-hidden="true">
+          {[0, 1, 2, 3].map((i) => (
+            <span
+              key={i}
+              className="w-[2px] bg-current rounded-full animate-[eq_0.9s_ease-in-out_infinite]"
+              style={{ animationDelay: `${i * 0.15}s`, height: "100%" }}
+            />
+          ))}
+        </span>
+      ) : (
+        <svg viewBox="0 0 12 12" className="w-3 h-3" fill="currentColor" aria-hidden="true">
+          <path d="M3 1.8v8.4c0 .4.4.6.7.4l6.6-4.2c.3-.2.3-.6 0-.8L3.7 1.4c-.3-.2-.7 0-.7.4Z" />
+        </svg>
+      )}
+      {speaking ? "Stop" : "Listen"}
     </button>
   );
 }

@@ -20,6 +20,8 @@ export default function ClipShareButton({
       const dataUrl = await toPng(node, {
         backgroundColor: getComputedStyle(document.body).backgroundColor,
         pixelRatio: 2,
+        // The tools themselves shouldn't be in the picture.
+        filter: (el) => !(el instanceof HTMLElement && el.dataset.clipIgnore === "true"),
       });
       const link = document.createElement("a");
       link.download = `${filename}.png`;
@@ -36,10 +38,15 @@ export default function ClipShareButton({
     <button
       onClick={handleClip}
       disabled={busy}
-      className="font-label text-[10px] px-2 py-1 border hairline rounded-sm hover:bg-card-bg transition-colors disabled:opacity-50 shrink-0 whitespace-nowrap"
-      title="Save this story as a shareable image"
+      data-clip-ignore="true"
+      className={`icon-btn shrink-0 ${busy ? "animate-pulse" : "reveal-on-hover"}`}
+      title="Save this story as an image"
+      aria-label="Save this story as an image"
     >
-      {busy ? "Clipping…" : "Clip & Share"}
+      <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M8 10V2.5M5 5.2 8 2.3l3 2.9" />
+        <path d="M3 8.5v4.2c0 .5.4.8.8.8h8.4c.5 0 .8-.3.8-.8V8.5" />
+      </svg>
     </button>
   );
 }

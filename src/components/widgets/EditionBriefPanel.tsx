@@ -26,14 +26,14 @@ export default function EditionBriefPanel({
       {/* Panel — appears above the trigger button */}
       {open && (
         <div
-          className="fixed bottom-[3.75rem] left-4 z-40 w-[300px] bg-paper border hairline rounded-sm shadow-2xl flex flex-col"
+          className="fixed bottom-[4.25rem] left-4 z-40 w-[320px] max-w-[calc(100vw-2rem)] bg-surface border hairline rounded-2xl shadow-[0_24px_60px_-20px_rgba(0,0,0,0.45)] flex flex-col origin-bottom-left animate-[pop-in_0.35s_var(--ease-out)]"
           style={{ maxHeight: "70vh" }}
         >
           {/* Header */}
           <div className="flex items-start justify-between px-4 py-3 border-b hairline shrink-0">
             <div>
-              <div className="font-label text-[10px] text-masthead-red leading-tight">
-                At a Glance
+              <div className="font-display font-extrabold text-[1.6rem] leading-none">
+                At a glance
               </div>
               <div className="text-[10px] text-ink-soft mt-0.5 font-mono">{date}</div>
             </div>
@@ -62,7 +62,7 @@ export default function EditionBriefPanel({
               <ul className="space-y-3">
                 {brief.bullets.map((b) => (
                   <li key={b.section} className="flex gap-2.5">
-                    <span className="text-masthead-red font-mono text-[13px] shrink-0 mt-px leading-tight">
+                    <span className="text-accent font-mono text-[13px] shrink-0 mt-px leading-tight">
                       {SECTION_ICONS[b.section] ?? "·"}
                     </span>
                     <div className="min-w-0">
@@ -82,7 +82,7 @@ export default function EditionBriefPanel({
       {/* Trigger button */}
       <button
         onClick={() => setOpen((o) => !o)}
-        className="fixed bottom-5 left-4 z-40 bg-ink text-paper px-4 py-2.5 rounded-full font-label text-[11px] shadow-lg flex items-center gap-2 hover:opacity-90 active:scale-95 transition-transform cursor-pointer"
+        className="fixed bottom-5 left-4 z-40 chip chip-signal h-10 px-4 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.5)]"
       >
         <span className={isLoading && !brief ? "animate-pulse" : ""}>✦</span>
         <span>{open ? "Close" : "At a Glance"}</span>

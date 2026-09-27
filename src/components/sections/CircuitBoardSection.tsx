@@ -10,9 +10,9 @@ export default function CircuitBoardSection({
   return (
     <section id="circuit-board">
       <SectionHeader sectionKey="circuit-board" />
-      <div className="divide-y hairline">
-        {stories.map((s) => (
-          <StoryArticle key={s.id} story={s} />
+      <div className={`story-grid ${stories.length > 2 ? "is-paired" : ""}`}>
+        {stories.map((s, i) => (
+          <StoryArticle key={s.id} story={s} lead={i === 0 && stories.length > 2} />
         ))}
       </div>
     </section>

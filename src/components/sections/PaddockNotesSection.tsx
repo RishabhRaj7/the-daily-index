@@ -163,10 +163,10 @@ export default function PaddockNotesSection({
                   style={{ backgroundColor: accentColor }}
                 />
               )}
-              <div className="grid md:grid-cols-[1fr_280px] gap-6">
+              <div className="grid lg:grid-cols-[minmax(0,1fr)_340px] gap-10">
                 <div>
                   {stories.length > 0 && (
-                    <div className="divide-y hairline">
+                    <div className="story-grid">
                       {stories.map((s) => (
                         <StoryArticle key={s.id} story={s} />
                       ))}
@@ -178,7 +178,7 @@ export default function PaddockNotesSection({
                       <div className="font-label text-[10px] tracking-widest text-ink-soft uppercase mb-3">
                         Schadenfreude
                       </div>
-                      <div className="divide-y hairline">
+                      <div className="story-grid">
                         {hateWatchStories.map((s) => (
                           <StoryArticle key={s.id} story={s} />
                         ))}
@@ -223,10 +223,10 @@ export default function PaddockNotesSection({
                   )}
                 </div>
 
-                <div className="grid md:grid-cols-[1fr_280px] gap-6">
+                <div className="grid lg:grid-cols-[minmax(0,1fr)_340px] gap-10">
                   <div>
                     {stories.length > 0 && (
-                      <div className="divide-y hairline">
+                      <div className="story-grid">
                         {stories.map((s) => (
                           <StoryArticle key={s.id} story={s} />
                         ))}
@@ -244,7 +244,7 @@ export default function PaddockNotesSection({
               <div className="font-label text-[10px] tracking-widest text-ink-soft uppercase mb-3">
                 Schadenfreude
               </div>
-              <div className="divide-y hairline">
+              <div className="story-grid">
                 {hateWatchStories.map((s) => (
                   <StoryArticle key={s.id} story={s} />
                 ))}

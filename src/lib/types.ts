@@ -13,6 +13,12 @@ export interface SectionMeta {
   label: string;
   kicker: string;
   slug: string;
+  /** The section's own name, set large in its header ("Paddock Notes"). */
+  name: string;
+  /** One word for the navigation bar ("F1"). */
+  short: string;
+  /** CSS colour the section wears: its header, rules and hover lines. */
+  hue: string;
 }
 
 export interface StatItem {

@@ -10,9 +10,9 @@ export default function LedgerSection({
   return (
     <section id="ledger">
       <SectionHeader sectionKey="ledger" />
-      <div className="divide-y hairline">
-        {stories.map((s) => (
-          <StoryArticle key={s.id} story={s} />
+      <div className={`story-grid ${stories.length > 2 ? "is-paired" : ""}`}>
+        {stories.map((s, i) => (
+          <StoryArticle key={s.id} story={s} lead={i === 0 && stories.length > 2} />
         ))}
       </div>
     </section>

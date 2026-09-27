@@ -14,7 +14,7 @@ import { DEFAULT_DIGEST_PREFERENCES } from "@/lib/preferences/storage";
 import type { DigestPreferences, DigestSection } from "@/lib/preferences/types";
 
 const inputCls =
-  "w-full border hairline bg-paper px-2.5 py-1.5 text-sm font-body focus:outline-none focus:border-masthead-red";
+  "w-full border hairline bg-surface rounded-lg px-3 py-2 text-sm font-body transition-colors focus:outline-none focus:border-accent";
 const labelCls = "font-label text-[10px] text-ink-soft block mb-1";
 
 const TONES = [
@@ -55,15 +55,15 @@ function TagInput({
     setText("");
   };
   return (
-    <div className="flex flex-wrap items-center gap-1.5 border hairline bg-paper px-2 py-1.5 focus-within:border-masthead-red">
+    <div className="flex flex-wrap items-center gap-1.5 border hairline bg-surface rounded-xl px-2.5 py-2 focus-within:border-accent transition-colors">
       {values.map((v) => (
-        <span key={v} className="inline-flex items-center gap-1 bg-card-bg border hairline px-2 py-0.5 text-xs">
+        <span key={v} className="inline-flex items-center gap-1 bg-card-bg border hairline rounded-full px-2.5 py-0.5 text-xs font-sans">
           {v}
           <button
             type="button"
             aria-label={`Remove ${v}`}
             onClick={() => onChange(values.filter((x) => x !== v))}
-            className="text-ink-soft hover:text-masthead-red"
+            className="text-ink-soft hover:text-accent"
           >
             ×
           </button>
@@ -130,8 +130,8 @@ function Choice<T extends string | number>({
           type="button"
           onClick={() => onChange(o.value)}
           aria-pressed={value === o.value}
-          className={`font-label text-[10px] px-3 py-1.5 border transition-colors ${
-            value === o.value ? "border-masthead-red bg-masthead-red text-paper" : "hairline hover:bg-card-bg"
+          className={`font-label text-[10px] px-3.5 py-1.5 border rounded-full transition-colors ${
+            value === o.value ? "border-accent bg-accent text-accent-ink" : "hairline hover:bg-card-bg"
           }`}
         >
           {o.label}
@@ -274,7 +274,7 @@ export default function DigestPreferencesEditor({
             type="checkbox"
             checked={g.avoidPolitics}
             onChange={(e) => updateGlobal({ avoidPolitics: e.target.checked })}
-            className="accent-[#a6291d] w-4 h-4 mt-0.5 shrink-0"
+            className="accent-[var(--accent)] w-4 h-4 mt-0.5 shrink-0"
           />
           <span>
             <span className="font-label text-[10px] block">Skip party politics</span>
@@ -305,7 +305,7 @@ export default function DigestPreferencesEditor({
                 {openId === section.id ? (
                   <input
                     aria-label="Section name"
-                    className="flex-1 min-w-0 bg-transparent font-headline text-lg font-semibold focus:outline-none border-b border-transparent focus:border-masthead-red"
+                    className="flex-1 min-w-0 bg-transparent font-headline text-lg font-semibold focus:outline-none border-b border-transparent focus:border-accent"
                     value={section.label}
                     onChange={(e) => updateSection(section.id, { label: e.target.value })}
                   />
@@ -356,7 +356,7 @@ export default function DigestPreferencesEditor({
                       onChange({ ...value, sections: value.sections.filter((s) => s.id !== section.id) })
                     }
                     disabled={value.sections.length === 1}
-                    className="text-masthead-red underline disabled:opacity-30"
+                    className="text-accent underline disabled:opacity-30"
                   >
                     Remove
                   </button>
@@ -454,7 +454,7 @@ export default function DigestPreferencesEditor({
             }}
             spellCheck={false}
           />
-          {jsonError && <p className="font-mono text-xs text-masthead-red">✗ {jsonError}</p>}
+          {jsonError && <p className="font-mono text-xs text-accent">✗ {jsonError}</p>}
           <div className="flex gap-4 items-center">
             <button
               type="button"

@@ -36,8 +36,8 @@ export default function SportsSection({
               <div className="font-label text-[11px] text-ink-soft border-b hairline pb-1 mb-1">
                 {group.label}
               </div>
-              <div className="grid md:grid-cols-[1fr_280px] gap-6">
-                <div className="divide-y hairline">
+              <div className="grid lg:grid-cols-[minmax(0,1fr)_340px] gap-10">
+                <div className="story-grid">
                   {group.stories.map((story) => (
                     <StoryArticle key={story.id} story={story} />
                   ))}

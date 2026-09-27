@@ -65,10 +65,28 @@ const ICONS: Partial<Record<SectionKey, React.ReactNode>> = {
   ),
 };
 
-// Every section opens the same way: a heavy ink rule, then a header line
-// with the section glyph, the name, a hairline, and an optional folio
-// (section number / count) on the right. Identical on every section so the
-// eye learns exactly where one ends and the next begins.
+/** Splits "The Circuit Board" into words that rise one after another. */
+export function RisingWords({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(" ").map((word, i, all) => (
+        <span key={`${word}-${i}`} className="mask-rise" style={{ ["--rise-i" as string]: i }}>
+          <span>
+            {word}
+            {i < all.length - 1 ? " " : ""}
+          </span>
+        </span>
+      ))}
+    </>
+  );
+}
+
+// Every section opens the same way: a mono index line (number from a CSS
+// counter, the section's glyph and its kicker), the section's own name set
+// huge in the display face and rising out of a mask as it scrolls in, and a
+// rule in the section's colour that draws itself across. The colour comes
+// from --section-hue, set on the section wrapper, so the rest of the section
+// (hover lines, links) wears it too.
 export default function SectionHeader({
   label,
   sectionKey,
@@ -77,28 +95,37 @@ export default function SectionHeader({
 }: {
   label?: string;
   sectionKey?: SectionKey;
-  /** Right-aligned small print, e.g. "§ 3 · 5 stories". */
-  folio?: string;
-  /** One italic line beneath the name — the section's kicker/description. */
+  /** Right-aligned small print, e.g. "live tape". */
+  folio?: React.ReactNode;
+  /** The kicker line above the name. */
   sub?: string;
 }) {
-  const resolvedLabel = label ?? (sectionKey ? SECTION_META[sectionKey].label : "");
-  const resolvedSub = sub;
+  const meta = sectionKey ? SECTION_META[sectionKey] : null;
+  const name = meta?.name ?? label?.split(" — ")[0] ?? "";
+  const kicker = sub ?? meta?.kicker ?? label?.split(" — ")[1];
   const icon = sectionKey ? ICONS[sectionKey] : null;
 
   return (
-    <header className="section-head">
-      <div className="flex items-center gap-2.5">
-        {icon && <div className="text-masthead-red shrink-0 flex items-center">{icon}</div>}
-        <h2 className="font-label text-[13px] sm:text-sm shrink-0 leading-none">{resolvedLabel}</h2>
-        <div className="h-px flex-1 bg-rule" />
+    <header className="section-head" data-reveal="fade">
+      <div className="flex items-center gap-2.5 font-mono text-[11px] text-ink-soft mb-3">
+        <span className="section-number text-ink" aria-hidden="true" />
+        <span className="h-px w-6 bg-rule" aria-hidden="true" />
+        {icon && (
+          <span className="shrink-0 flex items-center" style={{ color: "var(--section-hue, var(--accent))" }}>
+            {icon}
+          </span>
+        )}
+        {kicker && kicker !== name && <span className="uppercase tracking-wider truncate">{kicker}</span>}
         {folio && (
-          <span className="font-mono text-[10px] text-ink-soft shrink-0 leading-none">{folio}</span>
+          <span className="ml-auto shrink-0 inline-flex items-center gap-1.5 uppercase tracking-wider">
+            {folio}
+          </span>
         )}
       </div>
-      {resolvedSub && resolvedSub !== resolvedLabel && (
-        <p className="font-headline italic text-[13px] text-ink-soft mt-1.5 leading-snug">{resolvedSub}</p>
-      )}
+      <h2 className="font-display font-extrabold text-[clamp(2.9rem,10vw,7.25rem)] leading-[0.84] -ml-[0.04em]">
+        <RisingWords text={name} />
+      </h2>
+      <div className="mt-5 h-[3px] rule-draw" style={{ background: "var(--section-hue, var(--accent))" }} />
     </header>
   );
 }

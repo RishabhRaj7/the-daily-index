@@ -74,6 +74,9 @@ import {
   writeDigestCache,
 } from "@/lib/digest-cache";
 import EditionPrepOverlay from "@/components/chrome/EditionPrepOverlay";
+import TopBar, { type NavSection } from "@/components/chrome/TopBar";
+import AlsoToday, { type AlsoItem } from "@/components/story/AlsoToday";
+import { SECTION_META } from "@/lib/sections";
 import { requestEdition, waitForEdition } from "@/lib/edition-client";
 
 type WeatherState = "loading" | "ready" | "failed";
@@ -86,6 +89,17 @@ type SummaryState = "idle" | "loading";
 const SUMMARIZE_TIMEOUT_MS = 90_000;
 // Edition polling gives up after 180s; this backstop sits just past it.
 const DIGEST_TIMEOUT_MS = 200_000;
+
+/** A colour for a reader-made section, from what it seems to be about. */
+function digestHue(label: string): string {
+  const l = label.toLowerCase();
+  if (/f1|formula|motor/.test(l)) return "var(--hue-f1)";
+  if (/tech|\bai\b|science|gadget/.test(l)) return "var(--hue-tech)";
+  if (/market|money|finance|business|econom/.test(l)) return "var(--hue-money)";
+  if (/sport|football|tennis|cricket/.test(l)) return "var(--hue-sport)";
+  if (/world|news|india|politic/.test(l)) return "var(--hue-world)";
+  return "var(--hue-digest)";
+}
 
 const EMPTY_GRAPEVINE: GrapevineData = {
   picks: [],
@@ -189,7 +203,7 @@ export default function EditionView({
   const revealEdition = useCallback(() => {
     setPrep("leaving");
     if (prepLeaveTimerRef.current) clearTimeout(prepLeaveTimerRef.current);
-    prepLeaveTimerRef.current = setTimeout(() => setPrep("revealed"), 520);
+    prepLeaveTimerRef.current = setTimeout(() => setPrep("revealed"), 950);
   }, []);
 
   useEffect(() => {
@@ -746,6 +760,33 @@ export default function EditionView({
   const order = isArchive
     ? (Object.keys(sectionRenderers) as SectionKey[]).filter((key) => sectionHasContent[key])
     : personalization.sectionOrder.filter((key) => sectionHasContent[key]);
+  const visibleStandalone = isArchive ? [] : standaloneDigest;
+
+  // One entry per printed section for the sticky bar.
+  const navSections: NavSection[] = [
+    ...order.map((key) => ({ id: SECTION_META[key].slug, label: SECTION_META[key].short, hue: SECTION_META[key].hue })),
+    ...visibleStandalone.map(({ section }) => ({
+      id: `digest-${section.id}`,
+      label: section.label,
+      hue: digestHue(section.label),
+    })),
+  ];
+
+  // Left rail: the top story of each other desk, in the reader's order.
+  const storiesFor: Partial<Record<SectionKey, Story[]>> = {
+    dateline: edition.sections.dateline,
+    "paddock-notes": f1Stories,
+    sports: [...footballStories, ...tennisStories],
+    "circuit-board": edition.sections.circuitBoard,
+    ledger: edition.sections.ledger,
+    "market-pulse": edition.sections.marketPulse,
+  };
+  const alsoItems: AlsoItem[] = [];
+  for (const key of order) {
+    const top = (storiesFor[key] ?? []).find((s) => s.id !== hero?.id);
+    if (top) alsoItems.push({ story: top, kicker: SECTION_META[key].short, hue: SECTION_META[key].hue });
+    if (alsoItems.length === 4) break;
+  }
 
   // While the pressroom overlay holds the page it also speaks for the digest
   // pipeline (progress + retry), so the floating pill stays out of the way.
@@ -766,71 +807,73 @@ export default function EditionView({
       {!isArchive && !prepBlocking && (
         <EditionBriefPanel brief={brief} date={edition.date} isLoading={summaryState === "loading"} />
       )}
+      <TopBar sections={navSections} isArchive={isArchive} />
       <Masthead
         edition={edition}
         isArchive={isArchive}
         weather={weather ?? undefined}
         weatherLive={liveWeather !== null}
       />
-      <div className="max-w-5xl mx-auto px-4">
-        {/* Front page: the lead story runs two-thirds wide; the Editor's Desk
-            sits in the right-hand column like a standing front-page box. */}
+      <div className="max-w-[1240px] mx-auto px-4 sm:px-6">
+        {/* Front page, three columns with hairline rules between them:
+            the other desks' top stories | the lead | the Editor's Desk. */}
         {hero && (
-          <div
-            className={
-              !isArchive && profile && editorsNote
-                ? "grid md:grid-cols-[minmax(0,1fr)_280px] gap-x-8 gap-y-8 pt-8 pb-10"
-                : "pt-8 pb-10"
-            }
-          >
-            <HeroStory story={hero} />
-            {!isArchive && profile && editorsNote && (
-              <EditorsDesk
-                note={editorsNote.text}
-                noteSource={editorsNote.source}
-                profile={profile}
-                onThisDay={personalOtd}
-                isSunday={isSunday}
-              />
-            )}
+          <div className="grid gap-y-10 pt-10 md:pt-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,2.35fr)_minmax(0,1fr)]">
+            <div className="order-3 lg:order-1 lg:col-rule-r lg:pr-8 lg:border-r hairline">
+              <AlsoToday items={alsoItems} />
+            </div>
+            <div className="order-1 lg:order-2 lg:px-9">
+              <HeroStory story={hero} />
+            </div>
+            <div className="order-2 lg:order-3 lg:pl-8 lg:border-l hairline">
+              {!isArchive && profile && editorsNote && (
+                <EditorsDesk
+                  note={editorsNote.text}
+                  noteSource={editorsNote.source}
+                  profile={profile}
+                  onThisDay={personalOtd}
+                  isSunday={isSunday}
+                />
+              )}
+            </div>
           </div>
         )}
-        <div>
-          {(() => {
-            const visibleStandalone = isArchive ? [] : standaloneDigest;
-            const totalSections = order.length + visibleStandalone.length;
-            return (
-              <>
-                {order.map((key, i) => (
-                  <div key={key} className="paper-section">
-                    <span className="section-folio" aria-hidden="true">
-                      § {i + 1} / {totalSections}
-                    </span>
-                    {sectionRenderers[key]()}
-                  </div>
-                ))}
-                {/* Preference sections with no existing paper slot of their
-                    own — appended after the standing sections. */}
-                {visibleStandalone.map(({ section, articles }, i) => (
-                  <div key={`digest-${section.id}`} className="paper-section">
-                    <span className="section-folio" aria-hidden="true">
-                      § {order.length + i + 1} / {totalSections}
-                    </span>
-                    <DigestSectionView section={section} articles={articles} />
-                  </div>
-                ))}
-              </>
-            );
-          })()}
+        <div className="edition-body">
+          {order.map((key) => (
+            <div key={key} className="paper-section" style={{ ["--section-hue" as string]: SECTION_META[key].hue }}>
+              {sectionRenderers[key]()}
+            </div>
+          ))}
+          {/* Preference sections with no existing paper slot of their
+              own — appended after the standing sections. */}
+          {visibleStandalone.map(({ section, articles }) => (
+            <div
+              key={`digest-${section.id}`}
+              className="paper-section"
+              style={{ ["--section-hue" as string]: digestHue(section.label) }}
+            >
+              <DigestSectionView section={section} articles={articles} />
+            </div>
+          ))}
         </div>
       </div>
-      <footer className="max-w-5xl mx-auto px-4 py-8 border-t hairline mt-6 flex flex-wrap justify-between gap-2 text-xs text-ink-soft font-label">
-        <span>
-          The Daily Index — Vol. {edition.volume}, No. {edition.issue} — a personal digest, not a real newspaper.
-        </span>
-        <span className="font-mono normal-case tracking-normal">
-          Everything this paper remembers about you stays on this device.
-        </span>
+      <footer className="mt-24 border-t hairline">
+        <div className="max-w-[1240px] mx-auto px-4 sm:px-6 py-10 grid gap-8 md:grid-cols-[1fr_auto] items-end">
+          <div>
+            <p className="font-display font-extrabold text-[clamp(3rem,12vw,9rem)] leading-[0.8] text-transparent [-webkit-text-stroke:1px_var(--ink-faint)] select-none" aria-hidden="true">
+              The Daily Index
+            </p>
+            <p className="font-mono text-[11px] text-ink-soft mt-5">
+              VOL. {edition.volume} · NO. {edition.issue} — A PERSONAL DIGEST, NOT A REAL NEWSPAPER.
+            </p>
+          </div>
+          <div className="flex flex-col items-start md:items-end gap-3 text-[13px]">
+            <a href="#masthead" className="chip">Back to the top ↑</a>
+            <span className="font-mono text-[11px] text-ink-soft max-w-[32ch] md:text-right">
+              Everything this paper remembers about you stays on this device.
+            </span>
+          </div>
+        </div>
       </footer>
     </main>
   );

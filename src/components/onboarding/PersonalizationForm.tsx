@@ -54,7 +54,7 @@ function Chapter({
   return (
     <section className="border-t-2 border-ink pt-4 mt-8 first:mt-0 first:border-t-0 first:pt-0">
       <div className="flex items-baseline gap-3 mb-1">
-        {numeral && <span className="font-headline text-xl text-masthead-red leading-none">{numeral}</span>}
+        {numeral && <span className="font-headline text-xl text-accent leading-none">{numeral}</span>}
         <h2 className="font-label text-sm">{title}</h2>
       </div>
       <p className="text-[13px] text-ink-soft italic mb-4">{effect}</p>
@@ -74,7 +74,7 @@ function Hint({ children }: { children: React.ReactNode }) {
 }
 
 const inputCls =
-  "w-full border hairline rounded-sm px-2.5 py-2 bg-transparent text-sm outline-none focus:border-masthead-red/60 transition-colors";
+  "w-full border hairline rounded-lg px-2.5 py-2 bg-transparent text-sm outline-none focus:border-accent/60 transition-colors";
 
 function Chip({
   active,
@@ -92,9 +92,9 @@ function Chip({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`text-xs px-2.5 py-1.5 border hairline rounded-sm transition-colors ${
+      className={`text-xs px-2.5 py-1.5 border hairline rounded-full transition-colors ${
         active
-          ? "bg-masthead-red text-paper border-masthead-red"
+          ? "bg-accent text-accent-ink border-accent"
           : "hover:bg-card-bg disabled:opacity-30 disabled:cursor-not-allowed"
       }`}
     >
@@ -156,11 +156,11 @@ function TagInput({
 
   return (
     <div>
-      <div className="min-h-[42px] border hairline rounded-sm px-2 py-1.5 flex flex-wrap gap-1.5 items-center bg-transparent focus-within:border-masthead-red/60 transition-colors">
+      <div className="min-h-[42px] border hairline rounded-lg px-2 py-1.5 flex flex-wrap gap-1.5 items-center bg-transparent focus-within:border-accent/60 transition-colors">
         {value.map((tag) => (
           <span
             key={tag}
-            className="flex items-center gap-1 text-xs bg-card-bg border hairline rounded-sm px-1.5 py-0.5"
+            className="flex items-center gap-1 text-xs bg-card-bg border hairline rounded-full px-1.5 py-0.5"
           >
             {prefix}
             {tag}
@@ -193,7 +193,7 @@ function TagInput({
       </div>
       <span className="block text-[11px] text-ink-soft mt-1.5">
         {rejected && invalidHint ? (
-          <span className="text-masthead-red">{invalidHint}</span>
+          <span className="text-accent">{invalidHint}</span>
         ) : value.length === 0 ? (
           "None yet."
         ) : (
@@ -233,9 +233,9 @@ function SuggestionInput({
             key={s}
             type="button"
             onClick={() => onChange(value === s ? "" : s)}
-            className={`text-xs px-2 py-1 border hairline rounded-sm transition-colors ${
+            className={`text-xs px-2 py-1 border hairline rounded-full transition-colors ${
               value === s
-                ? "bg-masthead-red text-paper border-masthead-red"
+                ? "bg-accent text-accent-ink border-accent"
                 : "hover:bg-card-bg"
             }`}
           >
@@ -346,7 +346,7 @@ export default function PersonalizationForm({
           )}
           {value.sports.length === 0 && (
             <Hint>
-              <span className="text-masthead-red">
+              <span className="text-accent">
                 No sports selected — the sports section won&rsquo;t print.
               </span>
             </Hint>
@@ -354,8 +354,8 @@ export default function PersonalizationForm({
         </div>
 
         {value.sports.includes("f1") && (
-          <div className="pl-3 border-l-2 border-masthead-red/30 space-y-4">
-            <div className="font-label text-[10px] text-masthead-red">Formula 1</div>
+          <div className="pl-3 border-l-2 border-accent/30 space-y-4">
+            <div className="font-label text-[10px] text-accent">Formula 1</div>
             <label className="block">
               <FieldLabel>Your team</FieldLabel>
               <select
@@ -431,8 +431,8 @@ export default function PersonalizationForm({
         )}
 
         {value.sports.includes("football") && (
-          <div className="pl-3 border-l-2 border-masthead-red/30 space-y-4">
-            <div className="font-label text-[10px] text-masthead-red">Football</div>
+          <div className="pl-3 border-l-2 border-accent/30 space-y-4">
+            <div className="font-label text-[10px] text-accent">Football</div>
             <SuggestionInput
               label="Your player"
               value={value.favoriteFootballPlayer}
@@ -473,8 +473,8 @@ export default function PersonalizationForm({
         )}
 
         {value.sports.includes("tennis") && (
-          <div className="pl-3 border-l-2 border-masthead-red/30 space-y-4">
-            <div className="font-label text-[10px] text-masthead-red">Tennis</div>
+          <div className="pl-3 border-l-2 border-accent/30 space-y-4">
+            <div className="font-label text-[10px] text-accent">Tennis</div>
             <SuggestionInput
               label="Your player"
               value={value.favoriteTennisPlayer}
@@ -535,7 +535,7 @@ export default function PersonalizationForm({
                   value.subreddits.length < MAX_SUBS &&
                   onChange({ ...value, subreddits: [...value.subreddits, s] })
                 }
-                className="text-[11px] px-2 py-0.5 border hairline rounded-sm text-ink-soft hover:bg-card-bg transition-colors"
+                className="text-[11px] px-2 py-0.5 border hairline rounded-full text-ink-soft hover:bg-card-bg transition-colors"
               >
                 + r/{s}
               </button>
@@ -580,7 +580,7 @@ export default function PersonalizationForm({
                       aria-label={`Move ${SECTION_META[key].kicker} up`}
                       disabled={idx === 0}
                       onClick={() => moveSection(key, -1)}
-                      className="font-mono text-xs px-1.5 py-0.5 border hairline rounded-sm disabled:opacity-30 hover:bg-card-bg"
+                      className="font-mono text-xs px-1.5 py-0.5 border hairline rounded-full disabled:opacity-30 hover:bg-card-bg"
                     >
                       ↑
                     </button>
@@ -589,7 +589,7 @@ export default function PersonalizationForm({
                       aria-label={`Move ${SECTION_META[key].kicker} down`}
                       disabled={idx === value.sectionOrder.length - 1}
                       onClick={() => moveSection(key, 1)}
-                      className="font-mono text-xs px-1.5 py-0.5 border hairline rounded-sm disabled:opacity-30 hover:bg-card-bg"
+                      className="font-mono text-xs px-1.5 py-0.5 border hairline rounded-full disabled:opacity-30 hover:bg-card-bg"
                     >
                       ↓
                     </button>
@@ -599,8 +599,8 @@ export default function PersonalizationForm({
                   type="button"
                   onClick={() => toggleSection(key)}
                   aria-pressed={active}
-                  className={`font-label text-[10px] px-2.5 py-1 border hairline rounded-sm transition-colors ${
-                    active ? "bg-masthead-red text-paper border-masthead-red" : "hover:bg-card-bg"
+                  className={`font-label text-[10px] px-2.5 py-1 border hairline rounded-full transition-colors ${
+                    active ? "bg-accent text-accent-ink border-accent" : "hover:bg-card-bg"
                   }`}
                 >
                   {active ? "Shown" : "Hidden"}

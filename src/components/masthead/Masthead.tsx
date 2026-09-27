@@ -1,11 +1,18 @@
-import Link from "next/link";
 import type { Edition, WeatherNow } from "@/lib/types";
-import { formatIssue, totalReadTime } from "@/lib/format";
-import EditionToggle from "./EditionToggle";
-import WeatherCornerBox from "./WeatherCornerBox";
+import { totalReadTime } from "@/lib/format";
 import ListenButton from "@/components/extras/ListenButton";
 import PullToRefreshStamp from "@/components/chrome/PullToRefreshStamp";
-import SettingsLink from "@/components/chrome/SettingsLink";
+import WeatherIcon from "@/components/widgets/WeatherIcon";
+import ParticleWordmark from "./ParticleWordmark";
+import Ticker from "./Ticker";
+
+function shortDate(iso: string): string {
+  const d = new Date(`${iso}T12:00:00`);
+  return d
+    .toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })
+    .replace(",", "")
+    .toUpperCase();
+}
 
 export default function Masthead({
   edition,
@@ -18,49 +25,58 @@ export default function Masthead({
   weather?: WeatherNow;
   weatherLive?: boolean;
 }) {
+  const w = weather ?? edition.weather;
+  const shapes = [
+    ["THE DAILY INDEX"],
+    [shortDate(edition.isoDate)],
+    [`NO. ${edition.issue}`],
+    ...(w ? [[`${w.tempC}° ${w.city.toUpperCase()}`]] : []),
+  ];
+
   return (
-    <header className="border-b-4 border-double border-ink">
-      <div className="max-w-5xl mx-auto px-4 pt-3 pb-1 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 font-label text-[11px] sm:text-xs text-ink-soft">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-          <span>{edition.date}</span>
-          <span className="font-mono">{formatIssue(edition.volume, edition.issue)}</span>
+    <header id="masthead">
+      <div className="max-w-[1240px] mx-auto px-4 sm:px-6">
+        <div className="flex items-center justify-between gap-4 pt-5 pb-2 font-mono text-[11px] text-ink-soft">
+          <span>
+            VOL. {edition.volume} · NO. {edition.issue}
+          </span>
+          <span className="hidden sm:inline text-ink">{edition.date}</span>
+          <span>{totalReadTime(edition)} MIN READ</span>
         </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-          <span className="font-mono">{totalReadTime(edition)} min read</span>
-          {isArchive ? (
-            <Link href="/" className="underline">
-              Today&rsquo;s edition
-            </Link>
-          ) : (
-            <Link href="/archive" className="underline">
-              Archive
-            </Link>
-          )}
-          <SettingsLink className="underline">Settings</SettingsLink>
-        </div>
-      </div>
+        <span className="block sm:hidden text-center font-mono text-[11px] text-ink pb-1">{edition.date}</span>
 
-      <div className="max-w-5xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-start justify-between gap-4 sm:gap-6">
-        <div className="flex-1 min-w-0">
-          <h1 className="font-headline text-4xl sm:text-5xl md:text-6xl font-semibold tracking-tight">
-            The Daily Index
-          </h1>
-          <p className="text-ink-soft italic mt-1 text-sm md:text-base">
-            An index of everything that matters today.
+        <h1 className="m-0">
+          <ParticleWordmark
+            shapes={shapes}
+            label="The Daily Index"
+            className="h-[150px] sm:h-[clamp(96px,15.5vw,210px)] -mx-1"
+          />
+        </h1>
+
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 py-4 border-t hairline mt-3">
+          <p className="font-headline italic text-[15px] sm:text-base text-ink-soft">
+            An index of everything that matters today<span className="text-accent">.</span>
+            <span className="hidden md:inline font-mono not-italic text-[10px] text-ink-faint ml-3 align-middle">
+              TOUCH THE TYPE ↑
+            </span>
           </p>
+          <div className="flex items-center gap-2">
+            {w && (
+              <a href="#sky-report" className="chip" title={`${w.condition} in ${w.city}`}>
+                <span className="text-accent -my-1">
+                  <WeatherIcon code={w.weatherCode} size={18} />
+                </span>
+                <span className="font-mono">{w.tempC}°</span>
+                <span className="hidden sm:inline font-normal text-ink-soft">{w.city}</span>
+                {weatherLive && <span className="live-dot text-up" aria-label="live" />}
+              </a>
+            )}
+            {!isArchive && <ListenButton edition={edition} />}
+            {!isArchive && <PullToRefreshStamp />}
+          </div>
         </div>
-        {(weather ?? edition.weather) && (
-          <WeatherCornerBox weather={(weather ?? edition.weather)!} live={weatherLive} />
-        )}
       </div>
-
-      <div className="max-w-5xl mx-auto px-4 pb-3 flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <EditionToggle />
-          <ListenButton edition={edition} />
-        </div>
-        <PullToRefreshStamp />
-      </div>
+      <Ticker edition={edition} weather={w} />
     </header>
   );
 }

@@ -453,3 +453,46 @@ edition starts building before the reader is back on the paper.
   `batchSummarize` (hate-watch), pick blurbs and the Editor's Desk note.
 - `/api/summarize` no longer writes an "at a glance" brief — the page always
   used the one derived from the edition, so it was a wasted call per visit.
+
+## Redesign: "signal" (supersedes the older Design system notes above)
+
+Layout takes its cue from Tablet Magazine (hairline column rules, a centred lead,
+numbered rails); colour from The Verge (near-black, mint signal, ultraviolet).
+
+- **Tokens** (`app/globals.css`): `--paper --surface --ink --ink-soft --ink-faint
+  --rule --accent --signal --hot --up --down`, redefined under
+  `html[data-edition="evening"]`. Morning is off-white with ultraviolet
+  accents; evening is near-black with mint. Each section has a hue
+  (`--hue-world`, `--hue-f1`, …, listed in `SECTION_META[key].hue`); the
+  section wrapper sets `--section-hue` and its header rule, links, hover
+  underlines and bars use it.
+- **Fonts** via `next/font` in `app/layout.tsx`: Newsreader (headlines + text),
+  Schibsted Grotesk (labels/UI, `font-label`, `font-sans`), Big Shoulders
+  (`font-display`: section names, numbers, wordmark), IBM Plex Mono (data).
+  A `beforeInteractive` script sets `data-edition` before paint, so there is
+  no theme flash.
+- **Particles** (`lib/particles.ts`): `ParticleField` rasterises text off-screen,
+  samples it into points with homes, springs them home, scatters them around
+  the pointer and lights moving points in the accent. Used by the masthead
+  (`ParticleWordmark` — click cycles wordmark → date → issue → temperature)
+  and the edition-prep overlay (a swarm that condenses into the name as the
+  overlay lifts). Stops when off screen or the tab is hidden; reduced-motion
+  gets one static frame.
+- **Cover art** (`story/CoverArt.tsx`): a halftone field seeded by the headline,
+  in the section hue, drifting at ~30fps with a pointer ripple. Stands in for
+  photos the feeds don't have, and says so on the plate.
+- **Motion** (`chrome/MotionRuntime.tsx` + CSS): anything with `data-reveal`
+  gets `.is-in` when it scrolls into view (IntersectionObserver, plus a
+  MutationObserver for content that streams in). CSS hooks: `.mask-rise`
+  (section names), `.rule-draw`, `.bar-grow` (standings, meters),
+  `.stroke-draw` (sparklines, sun arc), `.gauge-needle`, `.sun-orbit`.
+  All of it is off under `prefers-reduced-motion`, and nothing is hidden
+  without JavaScript (the `js` class gates it).
+- **Chrome**: `chrome/TopBar.tsx` (sticky; wordmark appears once the masthead
+  scrolls away; section links with a scroll-spy underline in the section's
+  hue; two rows on phones), `masthead/Ticker.tsx` (mint marquee of indices,
+  next GP, weather, word of the day). Section numbers come from a CSS
+  counter on `.edition-body`.
+- **Front page**: three columns — `story/AlsoToday.tsx` (top story of each
+  other desk) | `HeroStory` | `EditorsDesk`. Sections use `.story-grid`
+  (`is-paired`: the first story leads full width, the rest pair up).

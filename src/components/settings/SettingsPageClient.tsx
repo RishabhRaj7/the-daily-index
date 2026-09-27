@@ -15,6 +15,8 @@ import PersonalizationForm from "@/components/onboarding/PersonalizationForm";
 import DigestPreferencesEditor from "@/components/settings/DigestPreferencesEditor";
 import RedditConnect from "@/components/settings/RedditConnect";
 import Link from "next/link";
+import TopBar from "@/components/chrome/TopBar";
+import { RisingWords } from "@/components/story/SectionHeader";
 import { clearMemory, loadMemory } from "@/lib/reader-memory";
 import { SETTINGS_RETURN_KEY } from "@/components/chrome/SettingsLink";
 
@@ -130,16 +132,21 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
   };
 
   return (
-    <main className="flex-1 max-w-2xl mx-auto px-4 py-10 pb-28 w-full">
-      <div className="font-label text-xs text-masthead-red mb-1">Settings</div>
-      <h1 className="font-headline text-4xl font-semibold mb-1">Make it yours</h1>
-      <p className="font-headline italic text-ink-soft mb-6 text-lg">Saved on this device.</p>
+    <>
+    <TopBar sections={[]} alwaysShowLogo />
+    <main className="flex-1 max-w-2xl mx-auto px-4 pt-12 pb-32 w-full">
+      <div className="font-label text-[11px] text-accent mb-3">Settings</div>
+      <h1 className="font-display font-extrabold text-[clamp(3.2rem,11vw,6rem)] leading-[0.84]">
+        <span data-reveal="fade" className="block">
+          <RisingWords text="Make it yours" />
+        </span>
+      </h1>
+      <p className="font-headline italic text-ink-soft mt-4 mb-8 text-lg">Saved on this device. Nothing leaves it until you save.</p>
 
       <div
         role="tablist"
         aria-label="Settings"
-        className="sticky top-0 z-30 bg-paper/95 backdrop-blur flex gap-1 border-b hairline mb-6 overflow-x-auto overflow-y-hidden"
-        style={{ top: "env(safe-area-inset-top, 0px)" }}
+        className="sticky top-[5.6rem] md:top-[4.1rem] z-30 glass rounded-full border hairline p-1 flex gap-1 mb-8 overflow-x-auto overflow-y-hidden [scrollbar-width:none]"
       >
         {TABS.map((t) => (
           <button
@@ -148,10 +155,8 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
             role="tab"
             aria-selected={tab === t.key}
             onClick={() => selectTab(t.key)}
-            className={`font-label text-xs px-4 py-2.5 -mb-px border-b-2 whitespace-nowrap transition-colors ${
-              tab === t.key
-                ? "border-masthead-red text-masthead-red"
-                : "border-transparent text-ink-soft hover:text-ink"
+            className={`flex-1 font-sans font-semibold text-[13px] px-4 py-2 rounded-full whitespace-nowrap transition-colors duration-300 ${
+              tab === t.key ? "bg-ink text-paper" : "text-ink-soft hover:text-ink"
             }`}
           >
             {t.label}
@@ -191,13 +196,13 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
       )}
 
       {tab === "page" && (
-      <section className="mt-10 border-t-2 border-ink pt-4">
-        <div className="font-label text-[10px] text-masthead-red mb-1">What the paper remembers</div>
+      <section className="mt-10 module">
+        <div className="font-label text-[10px] text-accent mb-1">What the paper remembers</div>
         <p className="font-body text-sm text-ink-soft leading-relaxed">
           Your reading streak, which editions you opened, and which stories you unfolded are kept in
           this browser only — never uploaded. They power the Editor&rsquo;s Desk note, the gentle
           story re-ranking, and{" "}
-          <Link href="/archive" className="text-masthead-red underline underline-offset-2">
+          <Link href="/archive" className="text-accent underline underline-offset-2">
             the Archive
           </Link>
           .
@@ -214,7 +219,7 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
                 setForgot(true);
                 setMemoryCount(0);
               }}
-              className="font-label text-[10px] text-masthead-red underline"
+              className="font-label text-[10px] text-accent underline"
             >
               Forget me
             </button>
@@ -223,9 +228,9 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
       </section>
       )}
 
-      <div className="fixed bottom-0 inset-x-0 z-40 border-t hairline bg-paper/95 backdrop-blur">
+      <div className="fixed bottom-0 inset-x-0 z-40 border-t hairline glass">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-          <button type="button" onClick={handleClose} className="text-sm underline text-ink-soft">
+          <button type="button" onClick={handleClose} className="chip">
             ← {dirty ? "Discard changes" : "Back to the paper"}
           </button>
           <span className="font-mono text-[11px] text-ink-soft hidden sm:block">
@@ -234,12 +239,13 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
           <button
             onClick={handleSave}
             disabled={!dirty || saved}
-            className="font-label text-xs px-5 py-2.5 bg-masthead-red text-paper rounded-sm disabled:opacity-40 transition-opacity"
+            className="chip chip-signal h-10 px-5 disabled:opacity-40"
           >
             {saved ? "Saved ✓" : "Save & reprint →"}
           </button>
         </div>
       </div>
     </main>
+    </>
   );
 }

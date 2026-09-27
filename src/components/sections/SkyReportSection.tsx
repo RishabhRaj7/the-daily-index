@@ -1,7 +1,7 @@
 import SettingsLink from "@/components/chrome/SettingsLink";
 import type { WeatherNow } from "@/lib/types";
 import SectionHeader from "@/components/story/SectionHeader";
-import LiveBadge from "@/components/widgets/LiveBadge";
+import SunArc from "@/components/widgets/SunArc";
 import WeatherIcon from "@/components/widgets/WeatherIcon";
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -11,6 +11,34 @@ function Row({ label, value }: { label: string; value: string }) {
       <span className="font-mono text-sm tabular-nums">{value}</span>
     </div>
   );
+}
+
+/** A labelled 0..max meter that fills in on reveal. */
+function Meter({ label, value, max, note }: { label: string; value: number; max: number; note: string }) {
+  const pct = Math.max(0.04, Math.min(1, value / max));
+  return (
+    <div>
+      <div className="flex items-baseline justify-between">
+        <span className="font-label text-[9px] text-ink-soft">{label}</span>
+        <span className="font-mono text-[11px] text-ink-soft">{note}</span>
+      </div>
+      <div className="font-display font-bold text-[2rem] leading-none mt-1">{value}</div>
+      <div className="h-1.5 rounded-full bg-card-bg mt-2 overflow-hidden">
+        <div
+          className="h-full rounded-full bar-grow"
+          style={{ width: `${pct * 100}%`, background: "var(--section-hue, var(--accent))" }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function uvLabel(uv: number): string {
+  if (uv < 3) return "low";
+  if (uv < 6) return "moderate";
+  if (uv < 8) return "high";
+  if (uv < 11) return "very high";
+  return "extreme";
 }
 
 export default function SkyReportSection({
@@ -45,7 +73,7 @@ export default function SkyReportSection({
             </div>
           </div>
         ) : (
-          <div className="border-l-2 border-masthead-red pl-4 py-1">
+          <div className="border-l-2 border-accent pl-4 py-1">
             <p className="font-headline text-xl font-semibold leading-tight">
               The observatory didn&rsquo;t answer.
             </p>
@@ -53,7 +81,7 @@ export default function SkyReportSection({
               We couldn&rsquo;t fetch conditions for{" "}
               <span className="font-mono">{city || "your home city"}</span> this time. If the city name
               looks off, fix it in{" "}
-              <SettingsLink className="text-masthead-red underline underline-offset-2">
+              <SettingsLink className="text-accent underline underline-offset-2">
                 Settings
               </SettingsLink>
               ; otherwise the next refresh should sort it out. Look out of a window in the meantime.
@@ -66,35 +94,33 @@ export default function SkyReportSection({
 
   return (
     <section id="sky-report">
-      <SectionHeader sectionKey="sky-report" />
+      <SectionHeader
+        sectionKey="sky-report"
+        folio={live ? <><span className="live-dot text-up" /> live</> : undefined}
+      />
 
-      <div className="grid md:grid-cols-[1fr_220px] gap-6">
-        <div>
-          <div className="font-label text-[10px] text-ink-soft mb-2">{weather.city}</div>
-          <div className="flex items-center gap-4 mb-3">
-            <div className="text-ink shrink-0">
-              <WeatherIcon code={weather.weatherCode} size={48} />
-            </div>
-            <div>
-              <h3 className="font-headline text-2xl md:text-3xl font-semibold leading-tight">
-                <span className="font-mono font-medium tabular-nums">{weather.tempC}°C</span> —{" "}
-                {weather.condition}
-              </h3>
-              <p className="font-headline italic text-sm text-ink-soft mt-0.5">{weather.quip}</p>
-            </div>
+      <div className="grid md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-10 items-start">
+        <div data-reveal>
+          <div className="font-label text-[11px] text-ink-soft">{weather.city}</div>
+          <div className="flex items-start gap-4 mt-2">
+            <span className="font-display font-extrabold text-[clamp(6rem,17vw,11rem)] leading-[0.78] tracking-tight">
+              {weather.tempC}°
+            </span>
+            <span className="float mt-2" style={{ color: "var(--section-hue, var(--accent))" }}>
+              <WeatherIcon code={weather.weatherCode} size={72} />
+            </span>
           </div>
-          <p className="font-body text-[15px] md:text-base leading-relaxed">{weather.narrative}</p>
+          <h3 className="font-headline text-2xl md:text-3xl leading-tight mt-5">{weather.condition}</h3>
+          <p className="font-headline italic text-ink-soft mt-1">{weather.quip}</p>
+          <p className="font-body text-[16px] leading-relaxed mt-4 max-w-[52ch]">{weather.narrative}</p>
         </div>
 
-        <div className="border-t-2 border-ink pt-2 h-fit">
-          <div className="flex items-center justify-between pb-1">
-            <span className="font-label text-[10px] text-ink-soft">Almanac</span>
-            {live && <LiveBadge />}
+        <div className="module space-y-6" data-reveal>
+          <SunArc sunrise={weather.sunrise} sunset={weather.sunset} />
+          <div className="grid grid-cols-2 gap-6 pt-5 border-t hairline">
+            <Meter label="UV index" value={weather.uvIndex} max={11} note={uvLabel(weather.uvIndex)} />
+            <Meter label="Air quality" value={weather.aqi} max={300} note={weather.aqiLabel} />
           </div>
-          <Row label="Sunrise" value={weather.sunrise} />
-          <Row label="Sunset" value={weather.sunset} />
-          <Row label="UV index" value={String(weather.uvIndex)} />
-          <Row label="Air quality" value={`${weather.aqi} · ${weather.aqiLabel}`} />
         </div>
       </div>
     </section>

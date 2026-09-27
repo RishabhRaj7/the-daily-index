@@ -40,6 +40,9 @@ function animateSwitch() {
 export function EditionProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<EditionMode>("morning");
   const [isManual, setIsManual] = useState(false);
+  // The boot script in layout.tsx already set the right theme before paint;
+  // don't overwrite it with the "morning" placeholder on the first effect.
+  const [synced, setSynced] = useState(false);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY);
@@ -48,14 +51,15 @@ export function EditionProvider({ children }: { children: ReactNode }) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setModeState(stored);
       setIsManual(true);
-      return;
+    } else {
+      setModeState(autoModeForHour(new Date().getHours()));
     }
-    setModeState(autoModeForHour(new Date().getHours()));
+    setSynced(true);
   }, []);
 
   useEffect(() => {
-    document.documentElement.setAttribute("data-edition", mode);
-  }, [mode]);
+    if (synced) document.documentElement.setAttribute("data-edition", mode);
+  }, [mode, synced]);
 
   // Stable callbacks, so the memoised context value only changes with state.
   const setMode = useCallback((next: EditionMode) => {

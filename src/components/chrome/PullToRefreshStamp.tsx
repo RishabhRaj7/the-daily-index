@@ -51,35 +51,23 @@ export default function PullToRefreshStamp() {
     <button
       onClick={handleRefresh}
       disabled={refreshing}
-      className="font-label text-xs px-3 py-1.5 border hairline rounded-sm hover:bg-card-bg transition-colors flex items-center gap-2 disabled:opacity-60"
+      className="chip group"
+      title="Clear every cache and print a fresh edition"
     >
-      {refreshing ? (
-        <>
-          <svg
-            className="animate-spin w-3 h-3 shrink-0"
-            viewBox="0 0 24 24"
-            fill="none"
-            aria-hidden="true"
-          >
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            />
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-            />
-          </svg>
-          Printing a fresh edition…
-        </>
-      ) : (
-        "Refresh edition"
-      )}
+      <svg
+        viewBox="0 0 16 16"
+        className={`w-3.5 h-3.5 transition-transform duration-500 group-hover:rotate-180 ${refreshing ? "animate-spin" : ""}`}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" />
+        <path d="M13.8 2.2v2.9h-2.9" />
+      </svg>
+      {refreshing ? "Printing…" : "Refresh"}
     </button>
   );
 }

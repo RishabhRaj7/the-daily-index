@@ -123,7 +123,7 @@ export default function RedditConnect({
             type="button"
             onClick={handleImport}
             disabled={busy !== null}
-            className="font-label text-[10px] text-masthead-red underline underline-offset-2 disabled:opacity-50"
+            className="font-label text-[10px] text-accent underline underline-offset-2 disabled:opacity-50"
           >
             {busy === "import" ? "Importing…" : "Import my subscriptions ↓"}
           </button>
@@ -140,7 +140,7 @@ export default function RedditConnect({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <a
             href="/api/reddit/connect"
-            className="font-label text-[11px] px-3 py-1.5 border hairline rounded-sm hover:bg-card-bg transition-colors"
+            className="font-label text-[11px] px-3 py-1.5 border hairline rounded-full hover:bg-card-bg transition-colors"
           >
             Connect your Reddit account →
           </a>

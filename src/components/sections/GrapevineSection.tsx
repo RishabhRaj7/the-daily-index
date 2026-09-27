@@ -16,9 +16,9 @@ import PuzzleDesk from "@/components/widgets/PuzzleDesk";
 
 function ColumnHead({ title, sub, right }: { title: string; sub: string; right?: React.ReactNode }) {
   return (
-    <div className="border-b hairline pb-2 mb-3">
+    <div className="pb-3 mb-4 border-b hairline">
       <div className="flex items-baseline justify-between gap-3">
-        <h3 className="font-label text-[11px] text-ink">{title}</h3>
+        <h3 className="font-display font-extrabold text-[1.9rem] leading-none">{title}</h3>
         {right}
       </div>
       <p className="font-body italic text-xs text-ink-soft mt-0.5">{sub}</p>
@@ -28,25 +28,27 @@ function ColumnHead({ title, sub, right }: { title: string; sub: string; right?:
 
 function PickItem({ pick, index }: { pick: EditorsPick; index: number }) {
   return (
-    <li className="py-3 first:pt-0 last:pb-0 grid grid-cols-[1.6rem_1fr] gap-x-2">
-      <span className="font-headline text-2xl leading-none text-masthead-red tabular-nums pt-0.5">
-        {index + 1}
+    <li className="group py-4 first:pt-0 last:pb-0 grid grid-cols-[2.4rem_1fr] gap-x-3" data-reveal style={{ ["--reveal-i" as string]: index }}>
+      <span
+        className="font-display font-extrabold text-[2.4rem] leading-[0.8] tabular-nums text-ink-faint transition-colors duration-300 group-hover:text-[color:var(--section-hue)]"
+      >
+        {String(index + 1).padStart(2, "0")}
       </span>
       <div className="min-w-0">
         <a
           href={pick.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="font-headline text-[15px] sm:text-base font-semibold leading-snug hover:underline decoration-masthead-red underline-offset-2"
+          className="font-headline text-[1.15rem] leading-snug"
         >
-          {pick.title}
+          <span className="headline-link">{pick.title}</span>
         </a>
         <p className="font-body text-[13px] leading-relaxed text-ink-soft mt-1">
           {pick.blurb ?? pick.why}
         </p>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
           {pick.personal && (
-            <span className="font-label text-[9px] text-masthead-red">
+            <span className="font-label text-[9px] text-accent">
               For you{pick.matchedInterest ? ` · ${pick.matchedInterest}` : ""}
             </span>
           )}
@@ -67,9 +69,9 @@ function RedditItem({ topic }: { topic: TrendingTopic }) {
         href={topic.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="font-headline text-[15px] sm:text-base font-semibold leading-snug hover:underline decoration-masthead-red underline-offset-2"
+        className="group font-headline text-[1.1rem] leading-snug"
       >
-        {topic.label}
+        <span className="headline-link">{topic.label}</span>
       </a>
       {topic.summary && (
         <p className="font-body text-[13px] leading-relaxed text-ink-soft mt-1">{topic.summary}</p>
@@ -82,7 +84,7 @@ function RedditItem({ topic }: { topic: TrendingTopic }) {
 function RedditStatusLine({ status, note }: { status: GrapevineData["redditStatus"]; note: string | null }) {
   if (status === "live" && !note) return null;
   const tone =
-    status === "live" || status === "public" ? "text-ink-soft" : "text-masthead-red";
+    status === "live" || status === "public" ? "text-ink-soft" : "text-accent";
   return (
     <p className={`font-body italic text-xs leading-relaxed mt-3 pt-2 border-t hairline ${tone}`}>
       {status === "public" && !note
@@ -125,13 +127,13 @@ export default function GrapevineSection({
 
   return (
     <section id="grapevine">
-      <SectionHeader
-        sectionKey="grapevine"
-        sub="What a well-read friend would forward you this morning — every item links to a real story from today's wire."
-      />
+      <SectionHeader sectionKey="grapevine" />
+      <p className="font-headline italic text-lg text-ink-soft -mt-2 mb-10 max-w-[60ch]">
+        What a well-read friend would forward you this morning. Every item links to a real story from today&rsquo;s wire.
+      </p>
 
-      <div className="grid md:grid-cols-2 md:divide-x hairline gap-y-8">
-        <div className="md:pr-6">
+      <div className="grid md:grid-cols-2 gap-y-12">
+        <div className="md:pr-10 md:border-r hairline">
           <ColumnHead
             title="You Should See This"
             sub="Editor's picks from today's wire, weighted toward what you follow"
@@ -149,7 +151,7 @@ export default function GrapevineSection({
           )}
         </div>
 
-        <div className="md:pl-6">
+        <div className="md:pl-10">
           {puzzleMode ? (
             <>
               <ColumnHead

@@ -2,16 +2,13 @@ import type { StatItem } from "@/lib/types";
 
 export default function StatCallout({ stats }: { stats: StatItem[] }) {
   return (
-    <aside className="paper-box paper-box-tight w-full sm:float-right sm:ml-4 sm:mb-2 sm:w-40 sm:shrink-0 mb-3">
-      <div className="font-label text-[10px] text-ink-soft mb-2">By the numbers</div>
-      <dl className="flex flex-wrap gap-x-6 gap-y-2 sm:block sm:space-y-2">
-        {stats.map((s) => (
-          <div key={s.label}>
-            <dt className="text-[11px] text-ink-soft leading-tight">{s.label}</dt>
-            <dd className="font-mono text-base leading-tight">{s.value}</dd>
-          </div>
-        ))}
-      </dl>
-    </aside>
+    <dl className="flex flex-wrap gap-x-8 gap-y-3 border-l-2 pl-4 py-1" style={{ borderColor: "var(--section-hue, var(--accent))" }}>
+      {stats.map((s) => (
+        <div key={s.label}>
+          <dt className="font-label text-[9px] text-ink-soft">{s.label}</dt>
+          <dd className="font-display font-bold text-[1.9rem] leading-none mt-1">{s.value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }

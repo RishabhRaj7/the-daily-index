@@ -4,78 +4,111 @@ import { Fragment } from "react";
 import type { Story } from "@/lib/types";
 import { SECTION_META } from "@/lib/sections";
 import StatCallout from "./StatCallout";
+import CoverArt from "./CoverArt";
 import ClipShareButton from "@/components/extras/ClipShareButton";
 import { recordEngagement } from "@/lib/reader-memory";
 
-// The lead story. Spacing follows one scale — 0.75rem between kicker,
-// headline, deck and byline; 1.25rem before the body — so it reads as one
-// composed block rather than a stack of loosely related parts.
+// The lead story, set like a magazine cover story: a generated halftone
+// plate, then a centred kicker, a big headline and the deck, and the body
+// in two columns underneath.
 export default function HeroStory({ story }: { story: Story }) {
   const domId = `story-${story.id}`;
   const [firstParagraph, ...rest] = story.body;
   const quoteAfterIndex = rest.length > 1 ? 1 : rest.length > 0 ? 0 : -1;
-  const sectionName = SECTION_META[story.section]?.kicker ?? "";
+  const meta = SECTION_META[story.section];
+  const hue = meta?.hue ?? "var(--accent)";
 
   return (
-    <article id={domId} className="min-w-0">
-      {/* Kicker row */}
-      <div className="flex items-center justify-between gap-4 mb-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <span className="h-[3px] w-10 bg-masthead-red shrink-0" />
-          <span className="font-label text-[10px] text-masthead-red truncate">
-            Today&rsquo;s Lead
-            {sectionName ? ` · ${sectionName}` : ""}
-            {story.personal ? ` · For you: ${story.personal}` : ""}
-          </span>
+    <article id={domId} className="min-w-0" style={{ ["--section-hue" as string]: hue }}>
+      <div className="relative overflow-hidden rounded-[6px] bg-card-bg" data-reveal="fade">
+        <CoverArt seed={story.headline} hue={hue} className="aspect-[16/9] md:aspect-[2/1]" />
+        <div className="absolute left-3 bottom-3 flex items-center gap-2 font-mono text-[10px] text-ink-soft glass rounded-full px-2.5 py-1">
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: hue }} />
+          FIG. 1 · PATTERN GENERATED FROM THE HEADLINE
         </div>
-        <ClipShareButton targetId={domId} filename={story.id} />
+        <div className="absolute right-2 top-2 glass rounded-full">
+          <ClipShareButton targetId={domId} filename={story.id} />
+        </div>
       </div>
 
-      <h2 className="font-headline text-[2.1rem] sm:text-5xl md:text-[3.25rem] font-bold leading-[1.04] text-balance mb-3">
-        {story.headline}
-      </h2>
+      <div className="text-center max-w-[46rem] mx-auto pt-7" data-reveal>
+        <div className="font-label text-[11px] flex items-center justify-center gap-2 mb-4">
+          <span style={{ color: hue }}>Today&rsquo;s lead</span>
+          {meta && (
+            <>
+              <span className="text-ink-faint">/</span>
+              <span className="text-ink-soft">{meta.kicker}</span>
+            </>
+          )}
+          {story.personal && (
+            <span className="rounded-full px-2 py-0.5 bg-signal text-signal-ink text-[10px]">For you · {story.personal}</span>
+          )}
+        </div>
 
-      {story.deck && (
-        <p className="font-headline text-lg md:text-xl italic font-light text-ink-soft leading-snug mb-3 max-w-[60ch]">
-          {story.deck}
-        </p>
-      )}
+        <h2 className="font-headline font-normal text-[2.3rem] sm:text-[3.1rem] md:text-[3.7rem] leading-[1.02] tracking-[-0.022em] text-balance">
+          {story.sourceUrl ? (
+            <a
+              href={story.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => recordEngagement(story)}
+              className="headline-link"
+            >
+              {story.headline}
+            </a>
+          ) : (
+            story.headline
+          )}
+        </h2>
 
-      <div className="font-label text-[10px] text-ink-soft flex flex-wrap items-center gap-x-3 gap-y-1 pb-3 mb-5 border-b hairline">
-        {story.sourceName && <span className="text-ink">{story.sourceName}</span>}
-        {story.dateline && story.dateline !== story.sourceName && <span>{story.dateline}</span>}
-        <span className="font-mono normal-case tracking-normal">{story.readTimeMin} min read</span>
-        <span className="font-mono normal-case tracking-normal">Updated {story.lastUpdated}</span>
-      </div>
-
-      {story.stats && story.stats.length > 0 && <StatCallout stats={story.stats} />}
-
-      <div className="text-[15px] md:text-[16px] leading-[1.65] space-y-3 max-w-[64ch]">
-        <p className="drop-cap">{firstParagraph}</p>
-        {quoteAfterIndex === -1 && story.pullQuote && (
-          <blockquote className="pull-quote my-5 text-xl">{story.pullQuote}</blockquote>
+        {story.deck && (
+          <p className="font-headline italic text-lg md:text-xl text-ink-soft leading-snug mt-4 text-balance">
+            {story.deck}
+          </p>
         )}
-        {rest.map((paragraph, i) => (
-          <Fragment key={`${story.id}-frag-${i}`}>
-            <p>{paragraph}</p>
-            {i === quoteAfterIndex && story.pullQuote && (
-              <blockquote className="pull-quote my-5 text-xl">{story.pullQuote}</blockquote>
-            )}
-          </Fragment>
-        ))}
+
+        <div className="font-mono text-[11px] text-ink-soft flex flex-wrap items-center justify-center gap-x-3 gap-y-1 mt-5">
+          {story.sourceName && <span className="text-ink font-medium uppercase">{story.sourceName}</span>}
+          {story.dateline && story.dateline !== story.sourceName && <span>{story.dateline}</span>}
+          <span>{story.readTimeMin} MIN</span>
+          <span>UPDATED {story.lastUpdated.toUpperCase()}</span>
+        </div>
       </div>
 
-      {story.sourceUrl && (
-        <a
-          href={story.sourceUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={() => recordEngagement(story)}
-          className="font-label text-[11px] text-masthead-red hover:underline mt-5 inline-block"
-        >
-          Read full story at {story.sourceName} ↗
-        </a>
-      )}
+      <div className="mt-8 pt-7 border-t hairline" data-reveal>
+        {story.stats && story.stats.length > 0 && (
+          <div className="mb-6">
+            <StatCallout stats={story.stats} />
+          </div>
+        )}
+        <div className="text-[16px] md:text-[17px] leading-[1.65] md:columns-2 md:gap-10 space-y-3 text-ink/90">
+          <p className="drop-cap">{firstParagraph}</p>
+          {quoteAfterIndex === -1 && story.pullQuote && (
+            <blockquote className="pull-quote my-5 text-xl">{story.pullQuote}</blockquote>
+          )}
+          {rest.map((paragraph, i) => (
+            <Fragment key={`${story.id}-frag-${i}`}>
+              <p>{paragraph}</p>
+              {i === quoteAfterIndex && story.pullQuote && (
+                <blockquote className="pull-quote my-5 text-xl">{story.pullQuote}</blockquote>
+              )}
+            </Fragment>
+          ))}
+        </div>
+
+        {story.sourceUrl && (
+          <a
+            href={story.sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => recordEngagement(story)}
+            className="chip mt-6"
+          >
+            Read the full story at {story.sourceName}
+            <span aria-hidden="true">↗</span>
+          </a>
+        )}
+      </div>
     </article>
   );
 }

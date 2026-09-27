@@ -40,8 +40,8 @@ export default function OnboardingGate({
 
   return (
     <div className="fixed inset-0 z-[60] bg-ink/40 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-paper text-ink border hairline rounded-sm max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
-        <div className="font-label text-xs text-masthead-red mb-1">
+      <div className="bg-paper text-ink border hairline rounded-2xl max-w-lg w-full p-7 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.5)] max-h-[90vh] overflow-y-auto">
+        <div className="font-label text-xs text-accent mb-1">
           Before your first edition
         </div>
         <h2 className="font-headline text-2xl font-semibold mb-4">
@@ -63,7 +63,7 @@ export default function OnboardingGate({
           </button>
           <button
             onClick={() => finish(false)}
-            className="font-label text-xs px-4 py-2 bg-masthead-red text-paper rounded-sm"
+            className="font-label text-xs px-4 py-2 bg-accent text-accent-ink rounded-full"
           >
             Start reading
           </button>

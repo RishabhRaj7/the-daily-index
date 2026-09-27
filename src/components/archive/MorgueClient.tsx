@@ -68,7 +68,7 @@ export default function MorgueClient() {
           The Morgue fills up as you read. Every edition you open is filed here, along with what led
           the front page and the stories you unfolded — kept on this device only.
         </p>
-        <Link href="/" className="font-label text-[11px] text-masthead-red underline mt-4 inline-block">
+        <Link href="/" className="font-label text-[11px] text-accent underline mt-4 inline-block">
           Open today&rsquo;s edition →
         </Link>
       </div>
@@ -94,7 +94,7 @@ export default function MorgueClient() {
 
       {/* Weekly recap */}
       <section id="week">
-        <div className="h-[3px] bg-masthead-red mb-2" />
+        <div className="h-[3px] bg-accent mb-2" />
         <div className="flex items-center gap-2 mb-4">
           <h2 className="font-label text-sm">The Week in Your Index</h2>
           <div className="h-px flex-1 bg-rule" />
@@ -162,14 +162,14 @@ export default function MorgueClient() {
 
       {/* Back issues */}
       <section>
-        <div className="h-[3px] bg-masthead-red mb-2" />
+        <div className="h-[3px] bg-accent mb-2" />
         <div className="flex items-center gap-2 mb-4">
           <h2 className="font-label text-sm">Back Issues</h2>
           <div className="h-px flex-1 bg-rule" />
         </div>
         {issuesByMonth.map(([month, issues]) => (
           <div key={month} className="mb-6">
-            <h3 className="font-label text-[10px] text-masthead-red mb-2">{month}</h3>
+            <h3 className="font-label text-[10px] text-accent mb-2">{month}</h3>
             <ul className="divide-y hairline">
               {issues.map((i) => (
                 <li key={i.isoDate} className="py-2 grid grid-cols-[4.5rem_1fr] gap-3 items-baseline">
@@ -200,7 +200,7 @@ export default function MorgueClient() {
                 clearMemory();
                 setConfirming(false);
               }}
-              className="font-label text-[10px] text-masthead-red underline"
+              className="font-label text-[10px] text-accent underline"
             >
               Yes, forget me
             </button>

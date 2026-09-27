@@ -30,7 +30,7 @@ export default function TennisSidebar({
               return (
                 <tr
                   key={row.rank}
-                  className={`border-t hairline first:border-t-0${isHighlighted ? " text-masthead-red font-semibold" : ""}`}
+                  className={`border-t hairline first:border-t-0${isHighlighted ? " text-accent font-semibold" : ""}`}
                 >
                   <td className="py-1 font-mono">{row.rank}</td>
                   <td className="py-1">{row.name}</td>

@@ -15,12 +15,12 @@ export default function DatelineSection({
   return (
     <section id="dateline">
       <SectionHeader sectionKey="dateline" />
-      <div className="divide-y hairline">
-        {stories.map((s) => (
-          <StoryArticle key={s.id} story={s} />
+      <div className={`story-grid ${stories.length > 2 ? "is-paired" : ""}`}>
+        {stories.map((s, i) => (
+          <StoryArticle key={s.id} story={s} lead={i === 0 && stories.length > 2} />
         ))}
       </div>
-      <div className="grid sm:grid-cols-2 gap-x-8 gap-y-4 mt-8">
+      <div className="grid md:grid-cols-2 gap-x-12 gap-y-10 mt-12 pt-10 border-t hairline">
         <OnThisDayBox entries={onThisDay} />
         <WordOfDayBox word={wordOfDay} />
       </div>
