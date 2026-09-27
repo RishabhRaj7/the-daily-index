@@ -39,7 +39,7 @@ function ShareCard({ story, cardRef }: { story: Story; cardRef: React.RefObject<
       <h2 className="font-headline text-[42px] leading-[1.04] tracking-[-0.02em] mt-3">{story.headline}</h2>
       {summary && <p className="font-body text-[17px] leading-[1.55] text-ink/85 mt-6 line-clamp-[9]">{summary}</p>}
       {story.why && (
-        <div className="mt-5 pl-4 border-l-2" style={{ borderColor: hue }}>
+        <div className="why-line mt-5 pl-4 border-l-2" style={{ borderColor: hue }}>
           <div className="font-label text-[9px] text-ink-soft">Why it matters</div>
           <p className="font-headline italic text-[16px] leading-snug mt-1">{story.why}</p>
         </div>

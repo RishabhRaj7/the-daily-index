@@ -5,16 +5,19 @@
 
 import type { DigestArticle, DigestSection } from "@/lib/preferences/types";
 import { digestArticleToStory } from "@/lib/preferences/stories";
+import { sectionTarget } from "@/lib/preferences/prompt";
 import SectionHeader from "@/components/story/SectionHeader";
 import StoryArticle from "@/components/story/StoryArticle";
 
 export default function DigestSectionView({
   section,
-  articles,
+  articles: picked,
 }: {
   section: DigestSection;
   articles: DigestArticle[];
 }) {
+  // The spare picked for the front page's lead isn't printed here.
+  const articles = picked.slice(0, sectionTarget(section) - 1);
   const sub =
     section.type === "custom" ? section.instruction : undefined;
 

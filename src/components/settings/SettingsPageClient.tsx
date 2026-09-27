@@ -182,6 +182,26 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
           <p className="font-body text-sm text-ink-soft">Loading…</p>
         ))}
 
+      {tab === "news" && (
+        <label className="mt-8 module flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={draft.showWhy}
+            onChange={(e) => {
+              setDraft({ ...draft, showWhy: e.target.checked });
+              setSaved(false);
+            }}
+            className="accent-[var(--accent)] w-4 h-4 mt-0.5 shrink-0"
+          />
+          <span>
+            <span className="font-label text-[10px] block">Show &ldquo;Why it matters&rdquo;</span>
+            <span className="font-body text-sm text-ink-soft">
+              A one-line note under each summary on what the story means for you. Off keeps the page shorter.
+            </span>
+          </span>
+        </label>
+      )}
+
       {(tab === "sports" || tab === "page") && (
         <PersonalizationForm
           parts={tab === "sports" ? ["sports"] : ["basics", "order", "grapevine"]}

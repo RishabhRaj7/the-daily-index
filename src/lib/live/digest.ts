@@ -25,13 +25,7 @@ import { getFootballNews } from "./football-news";
 import { getTennisNews } from "./tennis-news";
 import { getTechNews } from "./tech-news";
 import { fetchArticleText, fetchedTextMatches, humanise, looksOnTopic } from "./summarize";
-import {
-  buildSelectionPrompt,
-  buildWritingPrompt,
-  isSportsSection,
-  WRITING_TEXT_CHARS,
-  type WritingItem,
-} from "@/lib/preferences/prompt";
+import { buildSelectionPrompt, buildWritingPrompt, isSportsSection, WRITING_TEXT_CHARS, type WritingItem, sectionTarget } from "@/lib/preferences/prompt";
 import type {
   AtAGlanceItem,
   CorpusArticle,
@@ -264,11 +258,6 @@ function toDigestArticle(
   };
 }
 
-/** How many stories a grouped section prints in all. */
-function groupedTotal(section: Extract<DigestSection, { type: "grouped" }>): number {
-  return Math.max(5, section.groups.length * section.articleCountPerGroup);
-}
-
 /** Cap + dedupe the model's selections per the section's own rules. */
 function rehydrateSection(
   section: DigestSection,
@@ -290,11 +279,11 @@ function rehydrateSection(
       if (!article.group) return; // grouped selections must name a real group
       const key = article.group.toLowerCase();
       const count = perGroup.get(key) ?? 0;
-      if (count >= section.articleCountPerGroup) return;
+      if (count >= section.articleCountPerGroup + 1) return;
       // Backfilled places share the section's total, never exceed it.
-      if (out.length >= groupedTotal(section)) return;
+      if (out.length >= sectionTarget(section)) return;
       perGroup.set(key, count + 1);
-    } else if (out.length >= section.articleCount) {
+    } else if (out.length >= sectionTarget(section)) {
       return;
     }
 
@@ -531,6 +520,37 @@ async function aiDigest(
     );
     sections[section.id].forEach((a) => sectionByUrl.set(a.url, section));
   }
+  // The model sometimes stops short. Top up plain topic sections from
+  // their own wires so a section never prints thin when real stories exist.
+  for (const section of prefs.sections) {
+    if (section.type === "custom") continue;
+    const list = sections[section.id];
+    const target = sectionTarget(section);
+    // Ask for extra candidates: a grouped section skips any it can't file.
+    for (const a of backfillFor(section, corpus, usedUrls, prefs, (target - list.length) * 4)) {
+      if (list.length >= target) break;
+      // A grouped section files the story under the place it names.
+      const group =
+        section.type === "grouped" ? countryIn(a) : isSportsSection(section) ? a.pool.toLowerCase() : undefined;
+      if (section.type === "grouped") {
+        if (!group) continue;
+        // Spread the extra places around rather than piling onto one country.
+        const already = list.filter((x) => x.group?.toLowerCase() === group.toLowerCase()).length;
+        if (already >= section.articleCountPerGroup) continue;
+      }
+      usedUrls.add(a.url);
+      list.push({
+        title: a.title,
+        summary: "",
+        source: a.source,
+        url: a.url,
+        publishedAt: a.postedAgo,
+        priority: list.length + 1,
+        ...(group ? { group } : {}),
+      });
+      sectionByUrl.set(a.url, section);
+    }
+  }
   const atAGlance = rehydrateAtAGlance(selection.atAGlance, corpus);
 
   // Everything that needs writing, once each: section articles need a
@@ -622,6 +642,54 @@ async function aiDigest(
   }
 
   return { sections, atAGlance };
+}
+
+// Places a World story can be filed under when it's added without the
+// editor. Checked against the headline, first match wins.
+const COUNTRIES = [
+  "United States", "China", "India", "United Kingdom", "Japan", "Russia", "Ukraine", "Israel", "Iran",
+  "Pakistan", "Bangladesh", "Sri Lanka", "Nepal", "Afghanistan", "Saudi Arabia", "Qatar", "Turkey",
+  "Syria", "Iraq", "Lebanon", "Egypt", "South Africa", "Nigeria", "Kenya", "Ethiopia", "Congo",
+  "France", "Germany", "Italy", "Spain", "Poland", "Netherlands", "Ireland", "Iceland", "Greece",
+  "Canada", "Mexico", "Brazil", "Argentina", "Chile", "Venezuela", "Australia", "New Zealand",
+  "Indonesia", "Malaysia", "Singapore", "Thailand", "Vietnam", "Philippines", "South Korea",
+  "North Korea", "Taiwan", "Myanmar",
+];
+
+function countryIn(article: CorpusArticle): string | undefined {
+  const hay = article.title.toLowerCase();
+  return COUNTRIES.find((c) => {
+    const aliases = GROUP_ALIASES[c.toLowerCase()] ?? [];
+    return [c.toLowerCase(), ...aliases].some((t) => hasTerm(hay, t));
+  });
+}
+
+// Headlines that are formats, not news — never used to top up a section.
+const NOT_NEWS = /\b(quiz|live|as it happened|how to watch|where to watch|best .* (deals?|to buy)|deals?|odds|predictions?|betting|gallery|in pictures|podcast|newsletter)\b/i;
+
+/** Fresh, unused articles from the section's own wires, best first. */
+function backfillFor(
+  section: DigestSection,
+  corpus: CorpusArticle[],
+  used: Set<string>,
+  prefs: DigestPreferences,
+  wanted: number,
+): CorpusArticle[] {
+  if (wanted <= 0) return [];
+  // Sports sections only top up an F1 desk from the F1 wire; mixed sports
+  // desks are left to the editor.
+  const pools = isSportsSection(section)
+    ? /f1|formula/i.test(`${section.id} ${section.label}`)
+      ? ["F1"]
+      : []
+    : (POOL_HINTS[section.id.toLowerCase()]?.slice(0, 1) ?? []);
+  if (pools.length === 0) return [];
+  const exclude = [...prefs.global.excludeKeywords, ...(section.excludeKeywords ?? [])].map((k) => k.toLowerCase());
+  return corpus
+    .filter((a) => pools.includes(a.pool) && !used.has(a.url) && !NOT_NEWS.test(a.title))
+    .filter((a) => !exclude.some((k) => `${a.title} ${a.text}`.toLowerCase().includes(k)))
+    .sort((x, y) => (x.ageHours ?? 99) - (y.ageHours ?? 99))
+    .slice(0, wanted);
 }
 
 // ---- heuristic fallback (no AI configured) -----------------------------------

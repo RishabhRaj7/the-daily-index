@@ -543,7 +543,10 @@ html[data-edition="evening"] .invert-evening { filter: invert(1) hue-rotate(180d
   to { opacity: 1; transform: none; }
 }
 
-/* "Why it matters": the one line after a summary. */
+/* "Why it matters": the one line after a summary. Hidden unless the
+   reader turned it on in Settings (EditionView sets data-why on <html>). */
+.why-line { display: none; }
+html[data-why="on"] .why-line { display: block; }
 .why-line {
   border-left: 2px solid var(--section-hue, var(--accent));
   padding-left: 0.85rem;

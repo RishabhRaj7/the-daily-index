@@ -249,6 +249,10 @@ export default function EditionView({
     [memory],
   );
 
+  useEffect(() => {
+    document.documentElement.dataset.why = personalization.showWhy ? "on" : "off";
+  }, [personalization.showWhy]);
+
   // --- weather: always resolves to ready or failed, never spins forever ----
   useEffect(() => {
     if (isArchive) return;
@@ -659,7 +663,13 @@ export default function EditionView({
     <T extends Story>(stories: T[]) => (memory ? rankForReader(stories, memory) : stories),
     [memory],
   );
-  const without = (stories: Story[]) => rank(stories.filter((s) => s.id !== hero?.id));
+  // A section that lent the front page its lead prints its spare story in
+  // its place; the others keep the spare back, so every section shows the
+  // reader's full count.
+  const without = (stories: Story[]) => {
+    const rest = stories.filter((s) => s.id !== hero?.id);
+    return rank(rest.length < stories.length ? rest : rest.filter((s) => !s.reserve));
+  };
 
   const accentColor = personalization.favoriteF1Team
     ? F1_TEAM_COLORS[personalization.favoriteF1Team]
@@ -832,6 +842,11 @@ export default function EditionView({
                 loading={summaryState === "loading"}
                 anchorFor={(url) => anchorByUrl.get(url) ?? null}
               />
+              {edition.onThisDay.length > 0 && (
+                <div className="mt-10">
+                  <OnThisDayBox entries={edition.onThisDay.slice(0, 3)} />
+                </div>
+              )}
             </div>
             <div className="order-2 lg:px-9">
               <HeroStory story={hero} />
@@ -846,7 +861,6 @@ export default function EditionView({
                 />
               )}
               {edition.wordOfDay?.word && <WordOfDayBox word={edition.wordOfDay} />}
-              {edition.onThisDay.length > 0 && <OnThisDayBox entries={edition.onThisDay.slice(0, 3)} />}
             </div>
           </div>
         )}

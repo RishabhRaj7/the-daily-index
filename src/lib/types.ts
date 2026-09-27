@@ -49,6 +49,9 @@ export interface Story {
   why?: string;
   /** Small label above the headline, e.g. the country in World. */
   kicker?: string;
+  /** Picked as a spare: printed only when the front page borrowed one of
+   *  this section's stories as its lead. */
+  reserve?: boolean;
 }
 
 export interface MarketIndex {
@@ -350,6 +353,8 @@ export interface Personalization {
   topics: string[];
   subreddits: string[];            // up to 5; empty = use globally trending Reddit posts
   sectionOrder: SectionKey[];
+  /** Print the "Why it matters" line under summaries. Off by default. */
+  showWhy: boolean;
 }
 
 export interface F1RosterEntry {

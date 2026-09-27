@@ -41,14 +41,14 @@ function describeSection(section: DigestSection, isSports: boolean): string {
   const lines: string[] = [];
   if (section.type === "grouped") {
     lines.push(
-      `- id "${section.id}" — "${section.label}" (grouped by ${section.groupBy}): ${Math.max(5, section.groups.length * section.articleCountPerGroup)} stories in all, up to ${section.articleCountPerGroup} per group. Groups: ${section.groups.join(", ")}. When a listed group has no real news today, give its place to the most important story about another ${section.groupBy} and set "group" to that ${section.groupBy}'s name.`,
+      `- id "${section.id}" — "${section.label}" (grouped by ${section.groupBy}): ${sectionTarget(section)} stories in all, up to ${section.articleCountPerGroup + 1} per group. Groups: ${section.groups.join(", ")}. When a listed group has no real news today, give its place to the most important story about another ${section.groupBy} and set "group" to that ${section.groupBy}'s name.`,
     );
   } else if (section.type === "custom") {
     lines.push(
-      `- id "${section.id}" — "${section.label}" (custom): up to ${section.articleCount}. Instruction, follow it literally: ${section.instruction}`,
+      `- id "${section.id}" — "${section.label}" (custom): ${sectionTarget(section)} stories. Instruction, follow it literally: ${section.instruction}`,
     );
   } else {
-    lines.push(`- id "${section.id}" — "${section.label}": up to ${section.articleCount}.`);
+    lines.push(`- id "${section.id}" — "${section.label}": ${sectionTarget(section)} stories.`);
   }
   if (isSports) {
     lines.push(
@@ -63,6 +63,18 @@ function describeSection(section: DigestSection, isSports: boolean): string {
   if (exclude) lines.push(`  Never pick articles about: ${exclude}`);
   if (section.prompt?.trim()) lines.push(`  Reader's note: ${section.prompt.trim()}`);
   return lines.join("\n");
+}
+
+/**
+ * How many stories the editor picks for a section: the reader's count plus
+ * one in reserve, because the front page borrows one story as its lead and
+ * the section should still print its full count.
+ */
+export function sectionTarget(section: DigestSection): number {
+  if (section.type === "grouped") {
+    return Math.max(5, section.groups.length * section.articleCountPerGroup) + 1;
+  }
+  return section.articleCount + 1;
 }
 
 export function isSportsSection(section: DigestSection): boolean {
@@ -115,7 +127,7 @@ Section rules:
 - An article may appear in at most one section; place it where this reader would look for it.
 - Order each section by importance to this reader: priority 1 is the lead.
 - Grouped sections: every pick sets "group" to exactly one group — the place or entity the story is mainly about, not where the outlet is based. Never force a weak fit into a listed group; fill the section's total from other places instead, choosing what an Indian reader following world affairs would most want to know.
-- Return fewer than asked, or none, when fewer articles truly fit. Never pad.
+- Fill every section to its number of stories whenever there are articles that honestly fit — a smaller but real story beats an empty slot. Return fewer only when the articles run out, and never pick something that breaks the rules above.
 
 At a glance: separately choose up to 6 articles this reader must not miss today, most important first. They may also appear in a section. No two may cover the same event. Spread them across the reader's interests unless one story genuinely dominates the day.
 

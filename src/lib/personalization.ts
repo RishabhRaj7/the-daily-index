@@ -19,6 +19,7 @@ export const DEFAULT_PERSONALIZATION: Personalization = {
   topics: [],
   subreddits: [],
   sectionOrder: SECTION_ORDER,
+  showWhy: false,
 };
 
 export function loadPersonalization(): Personalization {

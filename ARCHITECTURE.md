@@ -508,3 +508,9 @@ numbered rails); colour from The Verge (near-black, mint signal, ultraviolet).
 - **Section headers** are just the name and one rule. Default section order: World, F1, Sports, Money, Markets, Tech, Weather, Grapevine (readers still on the old default are moved over).
 - **Onboarding** (`onboarding/OnboardingGate.tsx`): full-screen welcome with a particle greeting, then three steps (city, sports, order).
 - **Archive**: "Back issues" — the latest edition as a front page, then one row per day (lead, story count, desks, Nifty close). The Morgue (reading stats) was removed.
+
+### Round 3
+
+- Sections are picked with one spare (`sectionTarget` in `prompt.ts`); stories past the count carry `Story.reserve` and are printed only by the section that lent the front page its lead. Thin sections are topped up from their own wire (`backfillFor` in `digest.ts`; World files extras under the country in the headline via `countryIn`).
+- "Why it matters" display is `Personalization.showWhy` (default off), applied as `html[data-why]` so CSS hides `.why-line`.
+- A section lead (`StoryArticle lead`) sits beside a `CoverArt` plate.

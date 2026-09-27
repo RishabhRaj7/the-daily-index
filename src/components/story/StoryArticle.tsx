@@ -3,6 +3,8 @@
 import { Fragment, useState } from "react";
 import type { Story } from "@/lib/types";
 import StatCallout from "./StatCallout";
+import CoverArt from "./CoverArt";
+import { SECTION_META } from "@/lib/sections";
 import ShareButton from "@/components/extras/ShareButton";
 import { recordEngagement } from "@/lib/reader-memory";
 
@@ -21,7 +23,16 @@ export default function StoryArticle({
   const source = story.sourceName ?? story.dateline;
 
   return (
-    <article id={domId} data-reveal className="group/story">
+    <article
+      id={domId}
+      data-reveal
+      className={
+        lead
+          ? "group/story grid md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] gap-x-10 gap-y-6 items-center"
+          : "group/story"
+      }
+    >
+      <div className="min-w-0">
       <div className="flex items-center justify-between gap-3 mb-2.5">
         <div className="flex items-center gap-2 min-w-0 font-sans text-[12px]">
           {story.personal && (
@@ -72,7 +83,7 @@ export default function StoryArticle({
 
       <div
         className={`mt-3 leading-[1.62] space-y-3 text-ink/90 ${
-          lead ? "text-[16px] md:text-[17px] max-w-[68ch]" : "text-[15px]"
+          lead ? "text-[16px] md:text-[17px]" : "text-[15px]"
         }`}
       >
         <p className={lead ? "drop-cap" : undefined}>{firstParagraph}</p>
@@ -132,6 +143,17 @@ export default function StoryArticle({
             </a>
           )}
           <ShareButton story={story} />
+        </div>
+      )}
+      </div>
+      {/* A section's lead gets its own generated plate beside it. */}
+      {lead && (
+        <div className="relative overflow-hidden rounded-[6px] bg-card-bg order-first md:order-none" data-clip-ignore="true">
+          <CoverArt
+            seed={story.headline}
+            hue={SECTION_META[story.section]?.hue ?? "var(--accent)"}
+            className="aspect-[16/9] md:aspect-[4/3]"
+          />
         </div>
       )}
     </article>
