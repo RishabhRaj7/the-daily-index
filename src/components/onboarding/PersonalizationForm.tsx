@@ -311,11 +311,13 @@ export default function PersonalizationForm({
   };
 
   const toggleSection = (key: (typeof SECTION_ORDER)[number]) => {
+    // Hiding keeps the section's place in the order, so showing it again
+    // puts it back where it was.
     onChange({
       ...value,
-      sectionOrder: value.sectionOrder.includes(key)
-        ? value.sectionOrder.filter((s) => s !== key)
-        : [...value.sectionOrder, key],
+      hiddenSections: value.hiddenSections.includes(key)
+        ? value.hiddenSections.filter((s) => s !== key)
+        : [...value.hiddenSections, key],
     });
   };
 
@@ -548,15 +550,15 @@ export default function PersonalizationForm({
         effect="What prints, and in what order — top of the list prints first."
       >
         <ol className="divide-y hairline border-y hairline">
-          {[...value.sectionOrder, ...SECTION_ORDER.filter((key) => !value.sectionOrder.includes(key))].map((key) => {
-            const active = value.sectionOrder.includes(key);
-            const idx = value.sectionOrder.indexOf(key);
+          {value.sectionOrder.map((key, idx) => {
+            const active = !value.hiddenSections.includes(key);
+            const position = value.sectionOrder.slice(0, idx + 1).filter((k) => !value.hiddenSections.includes(k)).length;
             return (
               <li key={key} className="flex items-center gap-3 py-2">
                 <span
                   className={`font-mono text-xs w-5 tabular-nums ${active ? "" : "text-ink-soft/50"}`}
                 >
-                  {active ? `${idx + 1}.` : "–"}
+                  {active ? `${position}.` : "–"}
                 </span>
                 <span
                   className={`font-headline text-[15px] flex-1 ${active ? "font-semibold" : "text-ink-soft italic"}`}

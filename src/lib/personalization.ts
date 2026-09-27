@@ -19,6 +19,7 @@ export const DEFAULT_PERSONALIZATION: Personalization = {
   topics: [],
   subreddits: [],
   sectionOrder: SECTION_ORDER,
+  hiddenSections: [],
   showWhy: false,
 };
 
@@ -43,6 +44,9 @@ export function loadPersonalization(): Personalization {
     ];
     // Never reordered by hand → follow the current default.
     if (merged.sectionOrder.join() === PREVIOUS_DEFAULT_ORDER.join()) merged.sectionOrder = SECTION_ORDER;
+    merged.hiddenSections = (Array.isArray(merged.hiddenSections) ? merged.hiddenSections : []).filter((key) =>
+      SECTION_ORDER.includes(key),
+    );
     return merged;
   } catch {
     return DEFAULT_PERSONALIZATION;

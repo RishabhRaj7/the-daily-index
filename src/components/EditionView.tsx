@@ -699,8 +699,11 @@ export default function EditionView({
 
   const sectionHasContent: Record<SectionKey, boolean> = {
     dateline: true,
-    "paddock-notes": true,
-    sports: footballStories.length > 0 || tennisStories.length > 0,
+    // A sport's pages print only for sports the reader follows.
+    "paddock-notes": personalization.sports.includes("f1"),
+    sports:
+      (personalization.sports.includes("football") && footballStories.length > 0) ||
+      (personalization.sports.includes("tennis") && tennisStories.length > 0),
     "sky-report": true,
     "market-pulse": true,
     "circuit-board": edition.sections.circuitBoard.length > 0,
@@ -741,8 +744,8 @@ export default function EditionView({
     ),
     sports: () => (
       <SportsSection
-        footballStories={without(footballStories)}
-        tennisStories={without(tennisStories)}
+        footballStories={personalization.sports.includes("football") ? without(footballStories) : []}
+        tennisStories={personalization.sports.includes("tennis") ? without(tennisStories) : []}
         footballLeagues={footballData?.leagues ?? []}
         favoriteFootballClub={personalization.favoriteFootballClub}
         tennisRankings={tennisData?.rankings ?? []}
@@ -779,7 +782,9 @@ export default function EditionView({
 
   const order = isArchive
     ? (Object.keys(sectionRenderers) as SectionKey[]).filter((key) => sectionHasContent[key])
-    : personalization.sectionOrder.filter((key) => sectionHasContent[key]);
+    : personalization.sectionOrder.filter(
+        (key) => !personalization.hiddenSections.includes(key) && sectionHasContent[key],
+      );
   const visibleStandalone = isArchive ? [] : standaloneDigest;
 
   // One entry per printed section for the sticky bar.

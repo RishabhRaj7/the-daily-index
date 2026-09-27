@@ -352,7 +352,10 @@ export interface Personalization {
   hateWatchTennis: string;            // rival player
   topics: string[];
   subreddits: string[];            // up to 5; empty = use globally trending Reddit posts
+  /** Every section, in print order (hidden ones keep their place). */
   sectionOrder: SectionKey[];
+  /** Sections the reader switched off in Page order. */
+  hiddenSections: SectionKey[];
   /** Print the "Why it matters" line under summaries. Off by default. */
   showWhy: boolean;
 }
