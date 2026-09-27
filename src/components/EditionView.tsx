@@ -52,7 +52,6 @@ import CircuitBoardSection from "@/components/sections/CircuitBoardSection";
 import LedgerSection from "@/components/sections/LedgerSection";
 import MarketPulseSection from "@/components/sections/MarketPulseSection";
 import GrapevineSection from "@/components/sections/GrapevineSection";
-import EditionBriefPanel from "@/components/widgets/EditionBriefPanel";
 import DigestSectionView from "@/components/digest/DigestSectionView";
 import {
   hashPreferences,
@@ -75,7 +74,9 @@ import {
 } from "@/lib/digest-cache";
 import EditionPrepOverlay from "@/components/chrome/EditionPrepOverlay";
 import TopBar, { type NavSection } from "@/components/chrome/TopBar";
-import AlsoToday, { type AlsoItem } from "@/components/story/AlsoToday";
+import Briefing from "@/components/story/Briefing";
+import { OnThisDayBox, WordOfDayBox } from "@/components/widgets/FillerBox";
+import { digestArticleToStory } from "@/lib/preferences/stories";
 import { SECTION_META } from "@/lib/sections";
 import { requestEdition, waitForEdition } from "@/lib/edition-client";
 
@@ -670,7 +671,6 @@ export default function EditionView({
       : "loading";
   const liveWeather = weatherResult?.city === personalization.homeCity ? weatherResult.data : null;
   const weather = liveWeather ?? edition.weather ?? null;
-  const isSunday = new Date().getDay() === 0;
 
   const paddockSports: Array<"f1"> = ["f1"];
 
@@ -687,11 +687,7 @@ export default function EditionView({
 
   const sectionRenderers: Record<SectionKey, () => React.ReactNode> = {
     dateline: () => (
-      <DatelineSection
-        stories={without(edition.sections.dateline)}
-        onThisDay={edition.onThisDay}
-        wordOfDay={edition.wordOfDay}
-      />
+      <DatelineSection stories={without(edition.sections.dateline)} />
     ),
     "paddock-notes": () => (
       <PaddockNotesSection
@@ -772,21 +768,35 @@ export default function EditionView({
     })),
   ];
 
-  // Left rail: the top story of each other desk, in the reader's order.
-  const storiesFor: Partial<Record<SectionKey, Story[]>> = {
-    dateline: edition.sections.dateline,
-    "paddock-notes": f1Stories,
-    sports: [...footballStories, ...tennisStories],
-    "circuit-board": edition.sections.circuitBoard,
-    ledger: edition.sections.ledger,
-    "market-pulse": edition.sections.marketPulse,
+  // Where each story runs on this page, so the briefing can link down to it.
+  const anchorByUrl = new Map<string, string>();
+  const note = (stories: Story[]) =>
+    stories.forEach((st) => st.sourceUrl && anchorByUrl.set(st.sourceUrl, `story-${st.id}`));
+  note(edition.sections.dateline);
+  note(f1Stories);
+  note(footballStories);
+  note(tennisStories);
+  note(edition.sections.circuitBoard);
+  note(edition.sections.ledger);
+  note(edition.sections.marketPulse);
+  if (hero) note([hero]);
+  visibleStandalone.forEach(({ section, articles }) =>
+    articles.forEach((a, i) => anchorByUrl.set(a.url, `story-${digestArticleToStory(section, a, i).id}`)),
+  );
+
+  // Before the AI briefing exists, the top story of each desk stands in.
+  const fallbackBrief: EditionBrief = {
+    bullets: order.flatMap((key) => {
+      const lists: Partial<Record<SectionKey, Story[]>> = {
+        dateline: edition.sections.dateline,
+        "paddock-notes": f1Stories,
+        "circuit-board": edition.sections.circuitBoard,
+        ledger: edition.sections.ledger,
+      };
+      const top = (lists[key] ?? []).find((st) => st.id !== hero?.id);
+      return top ? [{ section: SECTION_META[key].short, text: top.headline, url: top.sourceUrl }] : [];
+    }),
   };
-  const alsoItems: AlsoItem[] = [];
-  for (const key of order) {
-    const top = (storiesFor[key] ?? []).find((s) => s.id !== hero?.id);
-    if (top) alsoItems.push({ story: top, kicker: SECTION_META[key].short, hue: SECTION_META[key].hue });
-    if (alsoItems.length === 4) break;
-  }
 
   // While the pressroom overlay holds the page it also speaks for the digest
   // pipeline (progress + retry), so the floating pill stays out of the way.
@@ -804,37 +814,39 @@ export default function EditionView({
           onSkip={handlePrepSkip}
         />
       )}
-      {!isArchive && !prepBlocking && (
-        <EditionBriefPanel brief={brief} date={edition.date} isLoading={summaryState === "loading"} />
-      )}
       <TopBar sections={navSections} isArchive={isArchive} />
       <Masthead
         edition={edition}
         isArchive={isArchive}
         weather={weather ?? undefined}
-        weatherLive={liveWeather !== null}
       />
       <div className="max-w-[1240px] mx-auto px-4 sm:px-6">
         {/* Front page, three columns with hairline rules between them:
-            the other desks' top stories | the lead | the Editor's Desk. */}
+            the briefing | the lead | the Editor's Desk and the day's extras.
+            On a phone the briefing comes first: the whole day in a minute. */}
         {hero && (
-          <div className="grid gap-y-10 pt-10 md:pt-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,2.35fr)_minmax(0,1fr)]">
-            <div className="order-3 lg:order-1 lg:col-rule-r lg:pr-8 lg:border-r hairline">
-              <AlsoToday items={alsoItems} />
+          <div className="grid gap-y-12 pt-10 md:pt-14 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,2.3fr)_minmax(0,1.05fr)]">
+            <div className="order-1 lg:pr-8 lg:border-r hairline">
+              <Briefing
+                brief={brief ?? (prepBlocking ? null : fallbackBrief)}
+                loading={summaryState === "loading"}
+                anchorFor={(url) => anchorByUrl.get(url) ?? null}
+              />
             </div>
-            <div className="order-1 lg:order-2 lg:px-9">
+            <div className="order-2 lg:px-9">
               <HeroStory story={hero} />
             </div>
-            <div className="order-2 lg:order-3 lg:pl-8 lg:border-l hairline">
+            <div className="order-3 lg:pl-8 lg:border-l hairline space-y-10">
               {!isArchive && profile && editorsNote && (
                 <EditorsDesk
                   note={editorsNote.text}
                   noteSource={editorsNote.source}
                   profile={profile}
                   onThisDay={personalOtd}
-                  isSunday={isSunday}
                 />
               )}
+              {edition.wordOfDay?.word && <WordOfDayBox word={edition.wordOfDay} />}
+              {edition.onThisDay.length > 0 && <OnThisDayBox entries={edition.onThisDay.slice(0, 3)} />}
             </div>
           </div>
         )}

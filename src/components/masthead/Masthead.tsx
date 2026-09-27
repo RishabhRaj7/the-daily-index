@@ -2,9 +2,8 @@ import type { Edition, WeatherNow } from "@/lib/types";
 import { totalReadTime } from "@/lib/format";
 import ListenButton from "@/components/extras/ListenButton";
 import PullToRefreshStamp from "@/components/chrome/PullToRefreshStamp";
-import WeatherIcon from "@/components/widgets/WeatherIcon";
 import ParticleWordmark from "./ParticleWordmark";
-import Ticker from "./Ticker";
+import SignalRow from "./SignalRow";
 
 function shortDate(iso: string): string {
   const d = new Date(`${iso}T12:00:00`);
@@ -18,12 +17,10 @@ export default function Masthead({
   edition,
   isArchive = false,
   weather,
-  weatherLive = false,
 }: {
   edition: Edition;
   isArchive?: boolean;
   weather?: WeatherNow;
-  weatherLive?: boolean;
 }) {
   const w = weather ?? edition.weather;
   const shapes = [
@@ -60,23 +57,15 @@ export default function Masthead({
               TOUCH THE TYPE ↑
             </span>
           </p>
-          <div className="flex items-center gap-2">
-            {w && (
-              <a href="#sky-report" className="chip" title={`${w.condition} in ${w.city}`}>
-                <span className="text-accent -my-1">
-                  <WeatherIcon code={w.weatherCode} size={18} />
-                </span>
-                <span className="font-mono">{w.tempC}°</span>
-                <span className="hidden sm:inline font-normal text-ink-soft">{w.city}</span>
-                {weatherLive && <span className="live-dot text-up" aria-label="live" />}
-              </a>
-            )}
-            {!isArchive && <ListenButton edition={edition} />}
-            {!isArchive && <PullToRefreshStamp />}
-          </div>
+          {!isArchive && (
+            <div className="flex items-center gap-2">
+              <ListenButton edition={edition} />
+              <PullToRefreshStamp />
+            </div>
+          )}
         </div>
       </div>
-      <Ticker edition={edition} weather={w} />
+      <SignalRow edition={edition} weather={w} />
     </header>
   );
 }

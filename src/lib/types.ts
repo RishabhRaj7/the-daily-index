@@ -45,6 +45,10 @@ export interface Story {
   tags?: string[];
   sourceUrl?: string;
   sourceName?: string;
+  /** One line on what the story means for the reader (digest stories). */
+  why?: string;
+  /** Small label above the headline, e.g. the country in World. */
+  kicker?: string;
 }
 
 export interface MarketIndex {
@@ -220,7 +224,8 @@ export interface ReaderProfile {
 }
 
 export interface EditionBrief {
-  bullets: Array<{ section: string; text: string }>;
+  /** `url` links the bullet to its story; `headline` is the original title. */
+  bullets: Array<{ section: string; text: string; url?: string; headline?: string }>;
 }
 
 export interface FootballStanding {

@@ -23,7 +23,7 @@ export default function MarketIndexCard({ index, i = 0 }: { index: MarketIndex; 
   const positive = index.changePct >= 0;
   return (
     <li
-      className="module group flex flex-col gap-3 transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-[color:var(--section-hue)]"
+      className="module group h-full flex flex-col gap-3 transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-[color:var(--section-hue)]"
       data-reveal
       style={{ ["--reveal-i" as string]: i }}
     >

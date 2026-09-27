@@ -1,5 +1,5 @@
 import type { Personalization, ReaderInterests } from "./types";
-import { SECTION_ORDER } from "./sections";
+import { PREVIOUS_DEFAULT_ORDER, SECTION_ORDER } from "./sections";
 
 const STORAGE_KEY = "daily-index:personalization";
 
@@ -40,6 +40,8 @@ export function loadPersonalization(): Personalization {
       ...savedOrder,
       ...SECTION_ORDER.filter((key) => !savedOrder.includes(key)),
     ];
+    // Never reordered by hand → follow the current default.
+    if (merged.sectionOrder.join() === PREVIOUS_DEFAULT_ORDER.join()) merged.sectionOrder = SECTION_ORDER;
     return merged;
   } catch {
     return DEFAULT_PERSONALIZATION;

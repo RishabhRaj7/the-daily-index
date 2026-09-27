@@ -41,7 +41,7 @@ function describeSection(section: DigestSection, isSports: boolean): string {
   const lines: string[] = [];
   if (section.type === "grouped") {
     lines.push(
-      `- id "${section.id}" — "${section.label}" (grouped by ${section.groupBy}): up to ${section.articleCountPerGroup} per group. Groups: ${section.groups.join(", ")}.`,
+      `- id "${section.id}" — "${section.label}" (grouped by ${section.groupBy}): ${Math.max(5, section.groups.length * section.articleCountPerGroup)} stories in all, up to ${section.articleCountPerGroup} per group. Groups: ${section.groups.join(", ")}. When a listed group has no real news today, give its place to the most important story about another ${section.groupBy} and set "group" to that ${section.groupBy}'s name.`,
     );
   } else if (section.type === "custom") {
     lines.push(
@@ -114,7 +114,7 @@ How to judge an article, in this order:
 Section rules:
 - An article may appear in at most one section; place it where this reader would look for it.
 - Order each section by importance to this reader: priority 1 is the lead.
-- Grouped sections: every pick sets "group" to exactly one listed group — the place or entity the story is mainly about, not where the outlet is based. Leave a group empty rather than force a weak fit into it.
+- Grouped sections: every pick sets "group" to exactly one group — the place or entity the story is mainly about, not where the outlet is based. Never force a weak fit into a listed group; fill the section's total from other places instead, choosing what an Indian reader following world affairs would most want to know.
 - Return fewer than asked, or none, when fewer articles truly fit. Never pad.
 
 At a glance: separately choose up to 6 articles this reader must not miss today, most important first. They may also appear in a section. No two may cover the same event. Spread them across the reader's interests unless one story genuinely dominates the day.
@@ -135,7 +135,7 @@ export interface WritingItem {
 }
 
 /** Full text sent to the writing pass is capped per article. */
-export const WRITING_TEXT_CHARS = 3000;
+export const WRITING_TEXT_CHARS = 4000;
 
 // Phrases that make a paragraph read like a template. Also stripped
 // post-hoc by humanise() in lib/live/summarize.ts.
@@ -161,6 +161,12 @@ const BANNED_PHRASES = [
   "testament",
 ];
 
+function sentenceRange(words: number): string {
+  if (words <= 60) return "two or three";
+  if (words <= 100) return "three to five";
+  return "four to seven";
+}
+
 export function buildWritingPrompt(prefs: DigestPreferences, items: WritingItem[]): string {
   const g = prefs.global;
 
@@ -184,7 +190,7 @@ ${articles}
 ${UNTRUSTED_NOTE}
 
 Summaries — write one for every article whose "needs" includes summary:
-- About ${g.summaryLengthWords} words in two to four sentences. Shorter is right when the text is thin; never pad.
+- About ${g.summaryLengthWords} words in ${sentenceRange(g.summaryLengthWords)} sentences. Shorter is right when the text is thin; never pad.
 - Open with the news itself: who did what, with the concrete detail that makes it real — names, numbers, places, dates. Don't restate the headline; the reader has just read it.
 - Then add the one piece of context that matters most — what led here, what's at stake, or what happens next — but only if the text says it.
 - Keep figures exactly as written, with their currency and unit: "$5.7 billion", "Rs 15.99 lakh crore", "₹500", "€2m" — never a bare "5.7 billion".
@@ -193,8 +199,13 @@ Summaries — write one for every article whose "needs" includes summary:
 - Sound like a person: plain, specific verbs, varied sentence length; contractions are fine. Don't open every item the same way or close every item with why it matters.
 - Never use these words or phrases: ${BANNED_PHRASES.map((p) => `"${p}"`).join(", ")}. No markdown, bullet points, hashtags, emoji or first person.
 
+Why it matters — with every summary, also write "why":
+- One sentence, at most 22 words, on what this changes for this reader: money, plans, a team or topic they follow, what to watch next. The reader lives in India.
+- Concrete and specific to the story; never generic ("this could have wide implications"). Don't repeat the summary.
+- Leave "why" empty when there's no honest answer. An empty line beats a vague one.
+
 Gists — write one for every article whose "needs" includes gist:
 - At most 12 words: a headline-style line that stands on its own, fact first, in the tone above. Don't copy the original headline.
 
-Return JSON: "items", one entry per article above, with "i" and whichever of "summary" and "gist" it needs.`;
+Return JSON: "items", one entry per article above, with "i" and whichever of "summary" (plus "why") and "gist" it needs.`;
 }

@@ -75,7 +75,22 @@ export const SECTION_META: Record<SectionKey, SectionMeta> = {
   },
 };
 
+// The day in the order you'd read it: the world, then your sport, then
+// money (stories, then the numbers), then tech, the sky, and the extras.
 export const SECTION_ORDER: SectionKey[] = [
+  "dateline",
+  "paddock-notes",
+  "sports",
+  "ledger",
+  "market-pulse",
+  "circuit-board",
+  "sky-report",
+  "grapevine",
+];
+
+/** The default order before the redesign; readers who never changed it get
+ *  the new one. */
+export const PREVIOUS_DEFAULT_ORDER: SectionKey[] = [
   "dateline",
   "paddock-notes",
   "sports",

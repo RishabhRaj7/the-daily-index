@@ -36,6 +36,11 @@ const asNumber = (v: unknown, fallback: number, min: number, max: number): numbe
   return Math.min(max, Math.max(min, Math.round(n)));
 };
 
+// The length presets grew (35/60/100 → 50/90/140). Saved preferences that
+// picked an old preset move to its new size, so the setting stays selected.
+const LEGACY_LENGTHS: Record<number, number> = { 35: 50, 60: 90, 100: 140 };
+const upgradeLength = (words: number): number => LEGACY_LENGTHS[words] ?? words;
+
 const asStringArray = (v: unknown): string[] =>
   Array.isArray(v)
     ? v.filter((x): x is string => typeof x === "string").map((s) => s.trim()).filter(Boolean)
@@ -72,7 +77,9 @@ export function normalizePreferences(raw: unknown): DigestPreferences {
     ),
     excludeKeywords: asStringArray(rawGlobal.excludeKeywords ?? d.global.excludeKeywords),
     maxAgeHours: asNumber(rawGlobal.maxAgeHours, d.global.maxAgeHours, 1, 24 * 14),
-    summaryLengthWords: asNumber(rawGlobal.summaryLengthWords, d.global.summaryLengthWords, 10, 300),
+    summaryLengthWords: upgradeLength(
+      asNumber(rawGlobal.summaryLengthWords, d.global.summaryLengthWords, 10, 300),
+    ),
     avoidPolitics:
       typeof rawGlobal.avoidPolitics === "boolean" ? rawGlobal.avoidPolitics : d.global.avoidPolitics,
   };

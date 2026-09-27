@@ -2,7 +2,7 @@ import type { WireBrief } from "@/lib/types";
 import type { FeedSource } from "./feeds";
 import { isPolitical } from "./politics-filter";
 
-function decodeEntities(input: string): string {
+export function decodeEntities(input: string): string {
   return input
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")

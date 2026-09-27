@@ -11,8 +11,8 @@ export function OnThisDayBox({ entries }: { entries: OnThisDayEntry[] }) {
               className="absolute -left-[5px] top-1.5 w-[9px] h-[9px] rounded-full border-2 bg-paper"
               style={{ borderColor: "var(--section-hue, var(--accent))" }}
             />
-            <span className="font-display font-bold text-[1.6rem] leading-none">{e.year}</span>
-            <p className="text-[14px] leading-snug text-ink-soft mt-1">{e.text}</p>
+            <span className="font-display font-bold text-[1.5rem] leading-none">{e.year}</span>
+            <p className="text-[14px] leading-snug text-ink-soft mt-1 line-clamp-3">{e.text}</p>
           </li>
         ))}
       </ol>
@@ -22,9 +22,9 @@ export function OnThisDayBox({ entries }: { entries: OnThisDayEntry[] }) {
 
 export function WordOfDayBox({ word }: { word: WordOfDay }) {
   return (
-    <div className="module relative overflow-hidden" data-reveal>
+    <div id="word-of-the-day" className="module relative overflow-hidden scroll-mt-24" data-reveal style={{ ["--section-hue" as string]: "var(--hue-world)" }}>
       <div className="font-label text-[10px] text-ink-soft mb-3">Word of the day</div>
-      <div className="font-headline italic text-[clamp(2.4rem,5vw,3.4rem)] leading-[0.95] tracking-tight">
+      <div className="font-headline italic text-[2.6rem] leading-[0.95] tracking-tight break-words">
         {word.word}
       </div>
       <div className="flex items-baseline gap-3 mt-2 font-mono text-[12px] text-ink-soft">

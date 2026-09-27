@@ -152,17 +152,8 @@ export default function PaddockNotesSection({
           const sport = selectedSports[0] ?? "f1";
           const stories = storiesForSport(sport);
 
-          // F1: show a team-color accent bar below the section header
-          const f1Accent = sport === "f1" && accentColor && favoriteF1Team;
-
           return (
             <>
-              {f1Accent && (
-                <div
-                  className="h-[2px] w-full mb-5 rounded-full"
-                  style={{ backgroundColor: accentColor }}
-                />
-              )}
               <div className="grid lg:grid-cols-[minmax(0,1fr)_340px] gap-10">
                 <div>
                   {stories.length > 0 && (

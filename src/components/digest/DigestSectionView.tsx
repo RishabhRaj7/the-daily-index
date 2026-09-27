@@ -16,11 +16,7 @@ export default function DigestSectionView({
   articles: DigestArticle[];
 }) {
   const sub =
-    section.type === "grouped"
-      ? `${section.groupBy}: ${section.groups.join(" · ")}`
-      : section.type === "custom"
-        ? section.instruction
-        : undefined;
+    section.type === "custom" ? section.instruction : undefined;
 
   if (section.type === "grouped") {
     const byGroup = new Map<string, DigestArticle[]>();
@@ -34,7 +30,8 @@ export default function DigestSectionView({
 
     return (
       <section id={`digest-${section.id}`}>
-        <SectionHeader label={section.label} sub={sub} />
+        <SectionHeader label={section.label} />
+        {sub && <p className="font-headline italic text-ink-soft -mt-4 mb-8">{sub}</p>}
         {orderedGroups.map((group) => (
           <div key={group}>
             <div className="flex items-center gap-3 mt-10 mb-4 first:mt-0" data-reveal>
@@ -55,7 +52,8 @@ export default function DigestSectionView({
 
   return (
     <section id={`digest-${section.id}`}>
-      <SectionHeader label={section.label} sub={sub} />
+      <SectionHeader label={section.label} />
+      {sub && <p className="font-headline italic text-ink-soft -mt-4 mb-8">{sub}</p>}
       <div className={`story-grid ${articles.length > 2 ? "is-paired" : ""}`}>
         {articles.map((a, i) => (
           <StoryArticle key={a.url} story={digestArticleToStory(section, a, i)} lead={i === 0 && articles.length > 2} />

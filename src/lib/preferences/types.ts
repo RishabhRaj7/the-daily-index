@@ -138,6 +138,9 @@ export interface DigestArticle {
   priority: number;
   /** Set when the article earned its place via a watched entity. */
   matchedEntity?: string;
+  /** One line on what the story means for this reader; absent when there is
+   *  no honest answer. */
+  why?: string;
 }
 
 /**

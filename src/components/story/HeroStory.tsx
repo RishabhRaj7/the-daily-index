@@ -5,7 +5,7 @@ import type { Story } from "@/lib/types";
 import { SECTION_META } from "@/lib/sections";
 import StatCallout from "./StatCallout";
 import CoverArt from "./CoverArt";
-import ClipShareButton from "@/components/extras/ClipShareButton";
+import ShareButton from "@/components/extras/ShareButton";
 import { recordEngagement } from "@/lib/reader-memory";
 
 // The lead story, set like a magazine cover story: a generated halftone
@@ -25,9 +25,6 @@ export default function HeroStory({ story }: { story: Story }) {
         <div className="absolute left-3 bottom-3 flex items-center gap-2 font-mono text-[10px] text-ink-soft glass rounded-full px-2.5 py-1">
           <span className="w-1.5 h-1.5 rounded-full" style={{ background: hue }} />
           FIG. 1 · PATTERN GENERATED FROM THE HEADLINE
-        </div>
-        <div className="absolute right-2 top-2 glass rounded-full">
-          <ClipShareButton targetId={domId} filename={story.id} />
         </div>
       </div>
 
@@ -83,6 +80,12 @@ export default function HeroStory({ story }: { story: Story }) {
         )}
         <div className="text-[16px] md:text-[17px] leading-[1.65] md:columns-2 md:gap-10 space-y-3 text-ink/90">
           <p className="drop-cap">{firstParagraph}</p>
+          {story.why && (
+            <p className="why-line font-headline italic text-[17px] leading-snug text-ink break-inside-avoid-column">
+              <span className="font-label not-italic text-[9px] text-ink-soft block mb-0.5">Why it matters</span>
+              {story.why}
+            </p>
+          )}
           {quoteAfterIndex === -1 && story.pullQuote && (
             <blockquote className="pull-quote my-5 text-xl">{story.pullQuote}</blockquote>
           )}
@@ -96,18 +99,21 @@ export default function HeroStory({ story }: { story: Story }) {
           ))}
         </div>
 
-        {story.sourceUrl && (
-          <a
-            href={story.sourceUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => recordEngagement(story)}
-            className="chip mt-6"
-          >
-            Read the full story at {story.sourceName}
-            <span aria-hidden="true">↗</span>
-          </a>
-        )}
+        <div className="flex flex-wrap items-center gap-3 mt-6">
+          {story.sourceUrl && (
+            <a
+              href={story.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => recordEngagement(story)}
+              className="chip"
+            >
+              Read the full story at {story.sourceName}
+              <span aria-hidden="true">↗</span>
+            </a>
+          )}
+          <ShareButton story={story} className="chip" />
+        </div>
       </div>
     </article>
   );

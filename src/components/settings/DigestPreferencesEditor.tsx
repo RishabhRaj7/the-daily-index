@@ -30,9 +30,9 @@ const TONES = [
 ];
 
 const LENGTHS = [
-  { label: "Short", words: 35 },
-  { label: "Standard", words: 60 },
-  { label: "Detailed", words: 100 },
+  { label: "Short", words: 50 },
+  { label: "Standard", words: 90 },
+  { label: "Detailed", words: 140 },
 ];
 
 // ---- small controls -------------------------------------------------------------

@@ -3,7 +3,7 @@
 import { Fragment, useState } from "react";
 import type { Story } from "@/lib/types";
 import StatCallout from "./StatCallout";
-import ClipShareButton from "@/components/extras/ClipShareButton";
+import ShareButton from "@/components/extras/ShareButton";
 import { recordEngagement } from "@/lib/reader-memory";
 
 export default function StoryArticle({
@@ -22,11 +22,16 @@ export default function StoryArticle({
 
   return (
     <article id={domId} data-reveal className="group/story">
-      <div className="flex items-center justify-between gap-3 mb-2.5 min-h-8">
+      <div className="flex items-center justify-between gap-3 mb-2.5">
         <div className="flex items-center gap-2 min-w-0 font-sans text-[12px]">
           {story.personal && (
             <span className="shrink-0 rounded-full px-2 py-0.5 bg-signal text-signal-ink font-semibold text-[10px] uppercase tracking-wider">
               For you · {story.personal}
+            </span>
+          )}
+          {story.kicker && (
+            <span className="font-label text-[10px] shrink-0" style={{ color: "var(--section-hue, var(--accent))" }}>
+              {story.kicker}
             </span>
           )}
           {source && <span className="font-semibold text-ink truncate">{source}</span>}
@@ -35,7 +40,6 @@ export default function StoryArticle({
             {story.readTimeMin > 1 ? ` · ${story.readTimeMin} min` : ""}
           </span>
         </div>
-        <ClipShareButton targetId={domId} filename={story.id} />
       </div>
 
       <h3
@@ -68,10 +72,16 @@ export default function StoryArticle({
 
       <div
         className={`mt-3 leading-[1.62] space-y-3 text-ink/90 ${
-          lead ? "text-[16px] md:text-[17px] md:columns-2 md:gap-10" : "text-[15px]"
+          lead ? "text-[16px] md:text-[17px] max-w-[68ch]" : "text-[15px]"
         }`}
       >
         <p className={lead ? "drop-cap" : undefined}>{firstParagraph}</p>
+        {story.why && (
+          <p className="why-line font-headline italic text-[15px] leading-snug text-ink break-inside-avoid-column">
+            <span className="font-label not-italic text-[9px] text-ink-soft block mb-0.5">Why it matters</span>
+            {story.why}
+          </p>
+        )}
         {expanded &&
           rest.map((paragraph, i) => (
             <Fragment key={`${story.id}-frag-${i}`}>
@@ -84,7 +94,7 @@ export default function StoryArticle({
       </div>
 
       {(canCollapse || story.sourceUrl) && (
-        <div className="flex items-center gap-5 mt-3 font-sans text-[12px] font-semibold" data-clip-ignore="true">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4 font-sans text-[12px] font-semibold" data-clip-ignore="true">
           {canCollapse && (
             <button
               onClick={() =>
@@ -121,6 +131,7 @@ export default function StoryArticle({
               </span>
             </a>
           )}
+          <ShareButton story={story} />
         </div>
       )}
     </article>

@@ -496,3 +496,15 @@ numbered rails); colour from The Verge (near-black, mint signal, ultraviolet).
 - **Front page**: three columns — `story/AlsoToday.tsx` (top story of each
   other desk) | `HeroStory` | `EditorsDesk`. Sections use `.story-grid`
   (`is-paired`: the first story leads full width, the rest pair up).
+
+### Redesign, round 2
+
+- **Front page**: `story/Briefing.tsx` (the AI "at a glance" picks as numbered one-liners that link down to the story, or out to the source) | lead | `EditorsDesk` + Word of the Day + On This Day. The floating At a Glance pill and "Also in this edition" are gone.
+- **Signal row** (`masthead/SignalRow.tsx`): static cards for markets, the next GP, weather and the word of the day, each in its section hue and linking to its section. Replaces the scrolling ticker.
+- **Share** (`extras/ShareButton.tsx`): opens a sheet with a 1080px card rendered from the story (html-to-image), then native share (files), copy image, download, WhatsApp / X / LinkedIn / Telegram links and copy link. Sits beside "Read at".
+- **Why it matters**: the writing pass returns an optional `why` per summary (`DigestArticle.why` → `Story.why`), cached under `why:` next to the summary (summary keys carry a `v2` marker).
+- **Lengths**: presets are 50 / 90 / 140 words (default 140); saved 35 / 60 / 100 are upgraded in `storage.ts`. Full text sent to the writer is 4,000 characters.
+- **Grouped sections** print `max(5, groups × perGroup)` stories: when a listed country has nothing, the model backfills with another country and names it; the country shows as the story kicker.
+- **Section headers** are just the name and one rule. Default section order: World, F1, Sports, Money, Markets, Tech, Weather, Grapevine (readers still on the old default are moved over).
+- **Onboarding** (`onboarding/OnboardingGate.tsx`): full-screen welcome with a particle greeting, then three steps (city, sports, order).
+- **Archive**: "Back issues" — the latest edition as a front page, then one row per day (lead, story count, desks, Nifty close). The Morgue (reading stats) was removed.

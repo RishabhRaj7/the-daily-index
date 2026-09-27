@@ -1,6 +1,11 @@
 import { aiEnabled, generateJson } from "@/lib/server/gemini";
+import { decodeEntities } from "./rss";
 
 function extractText(html: string): string {
+  return decodeEntities(stripTags(html));
+}
+
+function stripTags(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, "")
     .replace(/<style[\s\S]*?<\/style>/gi, "")

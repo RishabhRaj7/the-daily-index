@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import type { IssueRecord, ReaderProfile } from "@/lib/types";
 import { SECTION_META } from "@/lib/sections";
 
@@ -43,34 +42,26 @@ export default function EditorsDesk({
   noteSource,
   profile,
   onThisDay,
-  isSunday,
 }: {
   note: string;
   noteSource: "ai" | "desk";
   profile: ReaderProfile;
   onThisDay: Array<{ label: string; issue: IssueRecord }>;
-  isSunday: boolean;
 }) {
   const fav = profile.favouriteSection ? SECTION_META[profile.favouriteSection].kicker : null;
 
   return (
     <aside aria-label="From the Editor's Desk" className="min-w-0" data-reveal>
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <h2 className="font-label text-[10px] text-accent leading-none">From the Editor&rsquo;s Desk</h2>
-        <span className="font-mono text-[9px] text-ink-faint leading-none shrink-0 uppercase">
-          {noteSource === "ai" ? "written this morning" : "standing type"}
-        </span>
-      </div>
-      <p className="font-headline italic text-[19px] leading-[1.42] text-ink">{note}</p>
-      {isSunday && profile.totalIssues >= 3 && (
-        <p className="font-body text-[13px] text-ink-soft mt-3 leading-snug">
-          It&rsquo;s Sunday —{" "}
-          <Link href="/archive#week" className="text-accent underline underline-offset-2">
-            your week in review
-          </Link>{" "}
-          is ready in the archive.
+      <div className="mb-4">
+        <h2 className="font-display font-extrabold text-[2.2rem] leading-[0.82] whitespace-nowrap">The desk</h2>
+        <p className="font-mono text-[10px] text-ink-soft mt-2 uppercase">
+          {noteSource === "ai" ? "A note from the editor, written this morning" : "A note from the editor"}
         </p>
-      )}
+      </div>
+      <p className="font-headline italic text-[1.3rem] leading-[1.38] text-ink border-t hairline pt-4">
+        <span className="text-accent not-italic font-display font-extrabold text-[2.4rem] leading-[0] align-[-0.35em] mr-1">&ldquo;</span>
+        {note}
+      </p>
 
       <dl className="mt-5 grid grid-cols-3 lg:grid-cols-2 gap-x-4">
         <Stat

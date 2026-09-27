@@ -232,8 +232,10 @@ function toDigestArticle(
   if (typeof entry.group === "string" && entry.group.trim()) {
     const g = entry.group.trim();
     if (section.type === "grouped") {
-      group = section.groups.find((x) => x.toLowerCase() === g.toLowerCase());
-      if (group && !mentionsGroup(article, group)) group = undefined;
+      // A listed group, or — when the model backfills an empty group — the
+      // name of another place the story is actually about.
+      group = section.groups.find((x) => x.toLowerCase() === g.toLowerCase()) ?? g;
+      if (!mentionsGroup(article, group)) group = undefined;
     } else if (isSportsSection(section)) {
       const sport = g.toLowerCase();
       if (sport === "f1" || sport === "football" || sport === "tennis") group = sport;
@@ -262,6 +264,11 @@ function toDigestArticle(
   };
 }
 
+/** How many stories a grouped section prints in all. */
+function groupedTotal(section: Extract<DigestSection, { type: "grouped" }>): number {
+  return Math.max(5, section.groups.length * section.articleCountPerGroup);
+}
+
 /** Cap + dedupe the model's selections per the section's own rules. */
 function rehydrateSection(
   section: DigestSection,
@@ -284,6 +291,8 @@ function rehydrateSection(
       const key = article.group.toLowerCase();
       const count = perGroup.get(key) ?? 0;
       if (count >= section.articleCountPerGroup) return;
+      // Backfilled places share the section's total, never exceed it.
+      if (out.length >= groupedTotal(section)) return;
       perGroup.set(key, count + 1);
     } else if (out.length >= section.articleCount) {
       return;
@@ -368,6 +377,7 @@ const WRITING_SCHEMA: Schema = {
         properties: {
           i: { type: Type.INTEGER },
           summary: { type: Type.STRING, nullable: true },
+          why: { type: Type.STRING, nullable: true },
           gist: { type: Type.STRING, nullable: true },
         },
         required: ["i"],
@@ -421,7 +431,7 @@ async function fullTextFor(articles: CorpusArticle[]): Promise<Map<number, strin
 async function runWriting(
   prefs: DigestPreferences,
   items: WritingItem[],
-): Promise<Map<number, { summary?: string; gist?: string }>> {
+): Promise<Map<number, Written>> {
   const text = await generateJson(buildWritingPrompt(prefs, items), {
     schema: WRITING_SCHEMA,
     temperature: 0.3,
@@ -429,21 +439,24 @@ async function runWriting(
     label: "writing",
   });
   const parsed = JSON.parse(text) as {
-    items?: Array<{ i?: unknown; summary?: unknown; gist?: unknown }>;
+    items?: Array<{ i?: unknown; summary?: unknown; why?: unknown; gist?: unknown }>;
   };
   const byIndex = new Map(items.map((it) => [it.article.i, it]));
-  const out = new Map<number, { summary?: string; gist?: string }>();
+  const out = new Map<number, Written>();
 
   for (const entry of parsed?.items ?? []) {
     const item = byIndex.get(toIndex(entry?.i));
     if (!item) continue;
-    const written: { summary?: string; gist?: string } = {};
+    const written: Written = {};
     if (item.needsSummary && typeof entry.summary === "string") {
       const summary = humanise(entry.summary);
       // Reject thin or drifted paragraphs — the fallback below is better
       // than a summary of the wrong story under this headline.
       if (summary.length >= 40 && looksOnTopic(item.article.title, summary)) {
         written.summary = summary;
+        // "Why it matters" only rides along with a summary we kept.
+        const why = typeof entry.why === "string" ? humanise(entry.why) : "";
+        if (why.length >= 12 && why.length <= 220) written.why = why;
       }
     }
     if (item.needsGist && typeof entry.gist === "string") {
@@ -461,6 +474,12 @@ async function runWriting(
  * that are new — an unchanged story keeps the exact summary the reader saw.
  * Supplied by the caller (lib/server/editions.ts); absent means no reuse.
  */
+interface Written {
+  summary?: string;
+  why?: string;
+  gist?: string;
+}
+
 export interface WritingCache {
   getMany(keys: string[]): Promise<Map<string, string>>;
   setMany(entries: Map<string, string>): Promise<void>;
@@ -473,10 +492,16 @@ function summaryKey(prefs: DigestPreferences, article: CorpusArticle, section?: 
   return (
     "sum:" +
     createHash("sha256")
-      .update([article.url, prefs.global.summaryLengthWords, prefs.global.tone, guidance].join("|"))
+      // "v2": summaries written together with the "why it matters" line.
+      .update(["v2", article.url, prefs.global.summaryLengthWords, prefs.global.tone, guidance].join("|"))
       .digest("hex")
       .slice(0, 24)
   );
+}
+
+/** The "why it matters" line is written with its summary and keyed with it. */
+function whyKey(prefs: DigestPreferences, article: CorpusArticle, section?: DigestSection): string {
+  return "why:" + summaryKey(prefs, article, section).slice(4);
 }
 
 function gistKey(prefs: DigestPreferences, article: CorpusArticle): string {
@@ -519,23 +544,25 @@ async function aiDigest(
   // Reuse anything already written for these exact articles and settings.
   const keysFor = (article: CorpusArticle) => ({
     summary: summaryKey(prefs, article, sectionByUrl.get(article.url)),
+    why: whyKey(prefs, article, sectionByUrl.get(article.url)),
     gist: gistKey(prefs, article),
   });
   const wanted = shortlist.flatMap((a) => {
     const k = keysFor(a);
     return [
-      ...(sectionByUrl.has(a.url) ? [k.summary] : []),
+      ...(sectionByUrl.has(a.url) ? [k.summary, k.why] : []),
       ...(glanceUrls.has(a.url) ? [k.gist] : []),
     ];
   });
   const cached = cache ? await cache.getMany(wanted).catch(() => new Map<string, string>()) : new Map<string, string>();
 
-  const written = new Map<number, { summary?: string; gist?: string }>();
+  const written = new Map<number, Written>();
   for (const a of shortlist) {
     const k = keysFor(a);
     const summary = cached.get(k.summary);
+    const why = cached.get(k.why);
     const gist = cached.get(k.gist);
-    if (summary || gist) written.set(a.i, { summary, gist });
+    if (summary || gist) written.set(a.i, { summary, why, gist });
   }
 
   // Only what is still missing goes to the model — and only those pages
@@ -563,6 +590,7 @@ async function aiDigest(
         const merged = { ...written.get(i), ...out };
         written.set(i, merged);
         if (out.summary) toStore.set(keysFor(article).summary, out.summary);
+        if (out.why) toStore.set(keysFor(article).why, out.why);
         if (out.gist) toStore.set(keysFor(article).gist, out.gist);
       }
       if (cache && toStore.size > 0) await cache.setMany(toStore).catch(() => {});
@@ -583,6 +611,8 @@ async function aiDigest(
       a.summary =
         written.get(idx)?.summary ??
         heuristicSummary({ ...corpus[idx], text: item?.text ?? corpus[idx].text }, words);
+      const why = written.get(idx)?.why;
+      if (why) a.why = why;
     }
   }
   for (const g of atAGlance) {

@@ -44,21 +44,28 @@ function Chapter({
   numeral,
   title,
   effect,
+  bare = false,
   children,
 }: {
   numeral?: string;
   title: string;
   effect: string;
+  /** Hide the heading when the page around it already names the step. */
+  bare?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <section className="border-t-2 border-ink pt-4 mt-8 first:mt-0 first:border-t-0 first:pt-0">
-      <div className="flex items-baseline gap-3 mb-1">
-        {numeral && <span className="font-headline text-xl text-accent leading-none">{numeral}</span>}
-        <h2 className="font-label text-sm">{title}</h2>
-      </div>
-      <p className="text-[13px] text-ink-soft italic mb-4">{effect}</p>
-      <div className="space-y-4">{children}</div>
+    <section className="border-t hairline pt-6 mt-10 first:mt-0 first:border-t-0 first:pt-0">
+      {!bare && (
+        <>
+          <div className="flex items-baseline gap-3 mb-1">
+            {numeral && <span className="font-mono text-[11px] text-accent">{numeral}</span>}
+            <h2 className="font-display font-extrabold text-[1.9rem] leading-none">{title}</h2>
+          </div>
+          <p className="font-headline italic text-[15px] text-ink-soft mb-5">{effect}</p>
+        </>
+      )}
+      <div className="space-y-5">{children}</div>
     </section>
   );
 }
@@ -261,6 +268,7 @@ export default function PersonalizationForm({
   f1Roster,
   redditPanel,
   parts,
+  bare = false,
 }: {
   value: Personalization;
   onChange: (next: Personalization) => void;
@@ -271,6 +279,8 @@ export default function PersonalizationForm({
   /** Render only these chapters (Settings splits them across tabs); all
    *  chapters, numbered, when omitted (onboarding). */
   parts?: FormPart[];
+  /** Chapters without their own headings (the onboarding steps name them). */
+  bare?: boolean;
 }) {
   const show = (part: FormPart) => !parts || parts.includes(part);
   const num = (n: string) => (parts ? undefined : n);
@@ -304,6 +314,7 @@ export default function PersonalizationForm({
       {/* I. The Basics */}
       {show("basics") && (
       <Chapter
+        bare={bare}
         numeral={num("I.")}
         title="The Basics"
         effect="Your city sets the weather page and boosts local stories."
@@ -324,6 +335,7 @@ export default function PersonalizationForm({
       {/* II. Sports Desk */}
       {show("sports") && (
       <Chapter
+        bare={bare}
         numeral={num("II.")}
         title="Sports Desk"
         effect="Which sports get a section, whose stories lead it — and whose bad days you enjoy reading about."
@@ -503,6 +515,7 @@ export default function PersonalizationForm({
       {/* III. The Grapevine */}
       {show("grapevine") && (
       <Chapter
+        bare={bare}
         numeral={num("III.")}
         title="The Grapevine"
         effect="Who fills the Reddit column: your actual subscriptions, a hand-picked list — or both."
@@ -553,6 +566,7 @@ export default function PersonalizationForm({
       {/* IV. Page order */}
       {show("order") && (
       <Chapter
+        bare={bare}
         numeral={num("IV.")}
         title="Page order"
         effect="What prints, and in what order — top of the list prints first."

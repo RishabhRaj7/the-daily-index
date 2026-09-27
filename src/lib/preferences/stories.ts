@@ -22,13 +22,12 @@ export function digestArticleToStory(
     id: `digest-${section.id}-${index}`,
     section: section.slot ? SLOT_TO_KEY[section.slot] : "dateline",
     headline: article.title,
-    // Grouped sections print their bucket as the italic deck line. F1 and
-    // World & India already have section context, so they do not need a tag
-    // per story.
-    deck:
-      article.group && article.group !== "f1" && section.slot !== "dateline"
-        ? article.group
-        : "",
+    deck: "",
+    // A grouped section's bucket (a country, a company…) is printed as the
+    // story's kicker. Sports buckets are layout-only.
+    ...(article.group && !["f1", "football", "tennis"].includes(article.group)
+      ? { kicker: article.group }
+      : {}),
     dateline: article.source,
     readTimeMin: 1,
     lastUpdated: article.publishedAt || "recently",
@@ -37,6 +36,7 @@ export function digestArticleToStory(
     personal: article.matchedEntity,
     sourceUrl: article.url,
     sourceName: article.source,
+    ...(article.why ? { why: article.why } : {}),
   };
 }
 
@@ -44,9 +44,9 @@ export function digestArticleToStory(
 const POOL_TO_BRIEF_LABEL: Record<string, string> = {
   World: "World",
   Markets: "Markets",
-  F1: "Sports",
-  Football: "Sports",
-  Tennis: "Sports",
+  F1: "F1",
+  Football: "Football",
+  Tennis: "Tennis",
   Tech: "Tech",
 };
 
@@ -57,26 +57,26 @@ const POOL_TO_BRIEF_LABEL: Record<string, string> = {
 export function deriveBriefFromDigest(
   result: { sections: Record<string, DigestArticle[]>; atAGlance?: AtAGlanceItem[] },
   prefs: { sections: DigestSection[] },
-): { bullets: Array<{ section: string; text: string }> } {
+): { bullets: Array<{ section: string; text: string; url?: string; headline?: string }> } {
   if (result.atAGlance && result.atAGlance.length > 0) {
     return {
       bullets: result.atAGlance.slice(0, 6).map((item) => {
         let text = (item.summary || item.title).replace(/\s+/g, " ").trim();
         //const words = text.split(" ");
         //if (words.length > 20) text = words.slice(0, 20).join(" ") + "…";
-        return { section: POOL_TO_BRIEF_LABEL[item.pool] ?? item.pool, text };
+        return { section: POOL_TO_BRIEF_LABEL[item.pool] ?? item.pool, text, url: item.url, headline: item.title };
       }),
     };
   }
 
-  const bullets: Array<{ section: string; text: string }> = [];
+  const bullets: Array<{ section: string; text: string; url?: string; headline?: string }> = [];
   for (const section of [...prefs.sections].sort((a, b) => a.order - b.order)) {
     const top = (result.sections[section.id] ?? [])[0];
     if (!top) continue;
     let text = top.summary.replace(/\s+/g, " ").trim();
     const words = text.split(" ");
     if (words.length > 20) text = words.slice(0, 20).join(" ") + "…";
-    bullets.push({ section: section.label, text });
+    bullets.push({ section: section.label, text, url: top.url, headline: top.title });
   }
   return { bullets };
 }
