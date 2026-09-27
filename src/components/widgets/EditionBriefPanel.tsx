@@ -8,7 +8,6 @@ const SECTION_ICONS: Record<string, string> = {
   Markets: "↗",
   Sports:  "◎",
   Tech:    "◈",
-  Cards:   "▣",
 };
 
 export default function EditionBriefPanel({

@@ -9,8 +9,8 @@
 export interface FeedSource {
   url: string;
   /**
-   * Drop items older than this. Defaults to MAX_AGE_HOURS (30h) — slow,
-   * high-signal sources (card blogs) get a wider window so they still count.
+   * Drop items older than this. Defaults to MAX_AGE_HOURS (30h); a slow,
+   * high-signal source can be given a wider window.
    */
   maxAgeHours?: number;
   /**
@@ -19,15 +19,7 @@ export interface FeedSource {
    * newest-first window, so feed position stands in for the date.
    */
   undated?: boolean;
-  /**
-   * Only keep credit-card items. Set on general personal-finance feeds;
-   * dedicated card blogs don't need it.
-   */
-  cardsOnly?: boolean;
 }
-
-/** Card blogs post every few days, not hourly — a 30h window finds nothing. */
-export const CARD_BLOG_MAX_AGE_HOURS = 24 * 7;
 
 // World & India. The default preferences group World by US / China / UK /
 // India / Japan, so the pool carries a strong source for each region.
@@ -90,14 +82,4 @@ export const TECH_FEEDS: FeedSource[] = [
   { url: "https://feeds.arstechnica.com/arstechnica/index" },
   { url: "https://www.wired.com/feed/rss" },
   { url: "https://www.engadget.com/rss.xml" },
-];
-
-// Indian credit cards. There is still no dedicated card-news wire, so two
-// focused card blogs lead and two personal-finance feeds are keyword-filtered.
-// Dropped: TechnoFino (no posts since 2025).
-export const CARD_FEEDS: FeedSource[] = [
-  { url: "https://cardinsider.com/feed/", maxAgeHours: CARD_BLOG_MAX_AGE_HOURS },
-  { url: "https://www.cardexpert.in/feed/", maxAgeHours: CARD_BLOG_MAX_AGE_HOURS },
-  { url: "https://www.livemint.com/rss/money", cardsOnly: true },
-  { url: "https://economictimes.indiatimes.com/wealth/rssfeeds/837555174.cms", cardsOnly: true },
 ];

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { CreditCard, F1RosterEntry, Personalization } from "@/lib/types";
+import type { F1RosterEntry, Personalization } from "@/lib/types";
 import {
   DEFAULT_PERSONALIZATION,
   loadPersonalization,
@@ -18,10 +18,8 @@ import { SETTINGS_RETURN_KEY } from "@/components/chrome/SettingsLink";
 const MAX_SUBS = 8;
 
 export default function SettingsPageClient({
-  creditCards,
   f1Roster,
 }: {
-  creditCards: CreditCard[];
   f1Roster: F1RosterEntry[];
 }) {
   const router = useRouter();
@@ -123,8 +121,6 @@ export default function SettingsPageClient({
 
       {tab === "digest" && (
         <DigestPreferencesEditor
-          creditCards={creditCards}
-          cardsFollowing={draft.cardsFollowing}
           sportsWatchedEntities={[
             draft.favoriteFootballPlayer,
             draft.favoriteFootballClub,
@@ -148,7 +144,6 @@ export default function SettingsPageClient({
           setDraft(next);
           setSaved(false);
         }}
-        creditCards={creditCards}
         f1Roster={f1Roster}
         redditPanel={<RedditConnect onImport={handleImportSubs} />}
       />

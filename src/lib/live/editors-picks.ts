@@ -11,7 +11,7 @@ import type { EditorsPick, ReaderInterests, WireBrief } from "@/lib/types";
 // ---------------------------------------------------------------------------
 
 export interface PickPool {
-  label: string;      // "World", "Markets", "F1", "Football", "Tennis", "Tech", "Cards"
+  label: string;      // "World", "Markets", "F1", "Football", "Tennis", "Tech"
   briefs: WireBrief[];
 }
 
@@ -79,7 +79,6 @@ function buildInterestTerms(interests: ReaderInterests, sports: string[]): Inter
   push(interests.footballPlayer, 6);
   push(interests.nationalTeam, 4, true, SPORT_POOLS);
   push(interests.tennisPlayer, 6);
-  interests.cards.forEach((c) => push(c, 6));
   push(interests.city, 4);
   if (sports.includes("f1")) push("Formula 1", 1, false, SPORT_POOLS);
   if (sports.includes("tennis")) push("Grand Slam", 1, false, SPORT_POOLS);
@@ -123,7 +122,6 @@ const POOL_WHY: Record<string, string[]> = {
   World: ["Buried on the world wire, but worth two minutes.", "Not front-page news. Should be."],
   Markets: ["A markets story with an actual plot.", "Numbers, but the interesting kind."],
   Tech: ["The tech story your group chat will find tomorrow.", "Filed under: didn't see that coming."],
-  Cards: ["Small print that affects your wallet.", "Fine print, decoded."],
   F1: ["Paddock gossip with a source attached.", "Straight from the pit wall."],
   Football: ["From the touchline, not the transfer rumour mill.", "A football story with a twist."],
   Tennis: ["A baseline story, in both senses.", "From the courts."],

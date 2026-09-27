@@ -11,7 +11,6 @@ const SLOT_TO_KEY: Record<NewsSlot, SectionKey> = {
   "paddock-notes": "paddock-notes",
   "circuit-board": "circuit-board",
   ledger: "ledger",
-  "plastic-points": "plastic-points",
 };
 
 export function digestArticleToStory(
@@ -49,7 +48,6 @@ const POOL_TO_BRIEF_LABEL: Record<string, string> = {
   Football: "Sports",
   Tennis: "Sports",
   Tech: "Tech",
-  Cards: "Cards",
 };
 
 /** One "at a glance" bullet per digest section, derived deterministically

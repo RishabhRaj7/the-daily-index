@@ -5,7 +5,6 @@ export type SectionKey =
   | "sky-report"
   | "circuit-board"
   | "ledger"
-  | "plastic-points"
   | "market-pulse"
   | "grapevine";
 
@@ -121,17 +120,6 @@ export interface F1ConstructorStanding {
   //wins: number;
 }
 
-export interface CreditCard {
-  id: string;
-  name: string;
-  issuer: string;
-  network: string;
-  annualFee: string;
-  rewardRate: string;
-  milestoneBenefit: string;
-  loungeAccess: string;
-}
-
 export interface TrendingTopic {
   id: string;
   label: string;
@@ -151,7 +139,7 @@ export interface EditorsPick {
   title: string;
   url: string;
   domain: string;
-  pool: string;          // which feed it came from, e.g. "World", "F1", "Cards"
+  pool: string;          // which feed it came from, e.g. "World", "F1", "Tech"
   why: string;           // deterministic reason (used until the LLM blurb arrives)
   blurb?: string;        // optional LLM-written one-liner grounded in the title/snippet
   snippet: string;
@@ -172,7 +160,6 @@ export interface GrapevineData {
 // about. Mirrors a subset of Personalization.
 export interface ReaderInterests {
   city: string;
-  cards: string[];
   f1Drivers: string[];
   f1Team: string;
   footballClub: string;
@@ -311,7 +298,6 @@ export interface Edition {
     skyReport: Story[];
     circuitBoard: Story[];
     ledger: Story[];
-    plasticPoints: Story[];
     marketPulse: Story[];
     grapevine: Story[];
   };
@@ -331,7 +317,6 @@ export interface Edition {
     indices: MarketIndex[];
     mood: MarketMood | null;
   };
-  creditCards: CreditCard[];
   trending: TrendingTopic[];
   grapevine?: GrapevineData;
   onThisDay: OnThisDayEntry[];
@@ -341,7 +326,6 @@ export interface Edition {
 export interface Personalization {
   onboarded: boolean;
   homeCity: string;
-  cardsFollowing: string[];           // card IDs to follow in Plastic & Points (checkbox list)
   sports: ("f1" | "football" | "tennis")[];
   favoriteF1Team: string;
   favoriteF1Drivers: string[];        // up to 2 driverIds

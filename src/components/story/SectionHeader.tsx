@@ -50,13 +50,6 @@ const ICONS: Partial<Record<SectionKey, React.ReactNode>> = {
       <rect x="11" y="3.5" width="2.5" height="10" rx="0.4" />
     </svg>
   ),
-  "plastic-points": (
-    <svg viewBox="0 0 16 16" className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="1" y="3.5" width="14" height="9" rx="1.5" />
-      <line x1="1" y1="7" x2="15" y2="7" />
-      <rect x="3" y="9" width="3.5" height="2" rx="0.5" />
-    </svg>
-  ),
   "market-pulse": (
     <svg viewBox="0 0 16 16" className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="1,8 4.5,8 6,4 8,12 10,5.5 11.5,8 15,8" />

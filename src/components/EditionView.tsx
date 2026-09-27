@@ -52,7 +52,6 @@ import SportsSection from "@/components/sections/SportsSection";
 import SkyReportSection from "@/components/sections/SkyReportSection";
 import CircuitBoardSection from "@/components/sections/CircuitBoardSection";
 import LedgerSection from "@/components/sections/LedgerSection";
-import PlasticPointsSection from "@/components/sections/PlasticPointsSection";
 import MarketPulseSection from "@/components/sections/MarketPulseSection";
 import GrapevineSection from "@/components/sections/GrapevineSection";
 import SummaryBanner from "@/components/widgets/SummaryBanner";
@@ -274,7 +273,6 @@ export default function EditionView({
         skyReport: prev.sections.skyReport,
         circuitBoard: enrich(prev.sections.circuitBoard),
         ledger: enrich(prev.sections.ledger),
-        plasticPoints: enrich(prev.sections.plasticPoints),
         marketPulse: prev.sections.marketPulse,
         grapevine: prev.sections.grapevine,
       },
@@ -541,7 +539,6 @@ export default function EditionView({
         dateline: slotStories.dateline ?? prev.sections.dateline,
         circuitBoard: slotStories["circuit-board"] ?? prev.sections.circuitBoard,
         ledger: slotStories.ledger ?? prev.sections.ledger,
-        plasticPoints: slotStories["plastic-points"] ?? prev.sections.plasticPoints,
         paddockNotes:
           paddockTotal > 0
             ? [...paddock.f1, ...paddock.football, ...paddock.tennis]
@@ -764,7 +761,6 @@ export default function EditionView({
     "paddock-notes": true,
     sports: footballStories.length > 0 || tennisStories.length > 0,
     "sky-report": true,
-    "plastic-points": true,
     "market-pulse": true,
     "circuit-board": edition.sections.circuitBoard.length > 0,
     ledger: edition.sections.ledger.length > 0,
@@ -826,11 +822,6 @@ export default function EditionView({
     ),
     "circuit-board": () => <CircuitBoardSection stories={without(edition.sections.circuitBoard)} />,
     ledger: () => <LedgerSection stories={without(edition.sections.ledger)} />,
-    "plastic-points": () => (
-      <PlasticPointsSection
-        stories={without(edition.sections.plasticPoints)}
-      />
-    ),
     "market-pulse": () => (
       <MarketPulseSection
         stories={without(edition.sections.marketPulse)}

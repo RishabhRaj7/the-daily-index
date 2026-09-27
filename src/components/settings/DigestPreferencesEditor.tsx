@@ -18,7 +18,6 @@ import {
   type DigestPreferences,
   type DigestSection,
 } from "@/lib/preferences/types";
-import type { CreditCard } from "@/lib/types";
 
 const inputCls =
   "w-full border hairline bg-paper px-2.5 py-1.5 text-sm font-body focus:outline-none focus:border-masthead-red";
@@ -49,14 +48,10 @@ function newId(existing: DigestSection[], base: string): string {
 }
 
 export default function DigestPreferencesEditor({
-  creditCards,
-  cardsFollowing,
   sportsWatchedEntities,
   onClose,
   onSavePaperDraft,
 }: {
-  creditCards: CreditCard[];
-  cardsFollowing: string[];
   sportsWatchedEntities: string[];
   onClose: () => void;
   onSavePaperDraft: () => void;
@@ -76,30 +71,14 @@ export default function DigestPreferencesEditor({
     setBaseline(JSON.stringify(loaded));
   }, []);
 
-  // Keep the digest view in step with card checkboxes on the Paper tab. Card
-  // names are the user's labels; issuer text belongs in the card fact file,
-  // not in the watched-entity prompt.
+  // Keep the sports section's watched entities in step with the favourites
+  // chosen on the Paper tab.
   const syncedDraft = useMemo(() => {
     if (!draft) return null;
-    const followedNames = creditCards
-      .filter((card) => cardsFollowing.includes(card.id))
-      .map((card) => card.name);
-    const managedNames = new Set(
-      creditCards.flatMap((card) => [card.name, `${card.issuer} ${card.name}`]),
-    );
     const managedSportsNames = new Set(sportsWatchedEntities);
     return {
       ...draft,
       sections: draft.sections.map((section) => {
-        if (section.slot === "plastic-points") {
-          return {
-            ...section,
-            watchEntities: [
-              ...(section.watchEntities ?? []).filter((entity) => !managedNames.has(entity)),
-              ...followedNames,
-            ],
-          };
-        }
         if (section.slot === "sports") {
           return {
             ...section,
@@ -112,7 +91,7 @@ export default function DigestPreferencesEditor({
         return section;
       }),
     };
-  }, [draft, cardsFollowing, creditCards, sportsWatchedEntities]);
+  }, [draft, sportsWatchedEntities]);
 
   const dirty = useMemo(
     () => {
@@ -205,30 +184,10 @@ export default function DigestPreferencesEditor({
 
   const handleSave = () => {
     if (!syncedDraft) return;
-    const followedNames = creditCards
-      .filter((card) => cardsFollowing.includes(card.id))
-      .map((card) => card.name);
-    const cardNames = new Set(
-      creditCards.flatMap((card) => [card.name, `${card.issuer} ${card.name}`]),
-    );
-    const next = {
-      ...syncedDraft,
-      sections: syncedDraft.sections.map((section) =>
-        section.slot === "plastic-points"
-          ? {
-              ...section,
-              watchEntities: [
-                ...(section.watchEntities ?? []).filter((entity) => !cardNames.has(entity)),
-                ...followedNames,
-              ],
-            }
-          : section,
-      ),
-    };
+    const next = syncedDraft;
     saveDigestPreferences(next);
-    // Card selections live in the shared Paper draft. Persist that draft in
-    // the same save action so the derived Plastic & Points entities survive a
-    // full reload of Settings.
+    // Sports favourites live in the shared Paper draft; persist it in the
+    // same action so the synced watch entities survive a reload.
     onSavePaperDraft();
     setDraft(next);
     setBaseline(JSON.stringify(next));

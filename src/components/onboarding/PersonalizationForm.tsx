@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { CreditCard, F1RosterEntry, Personalization } from "@/lib/types";
+import type { F1RosterEntry, Personalization } from "@/lib/types";
 import { F1_TEAM_COLORS } from "@/lib/personalization";
 import { SECTION_META, SECTION_ORDER } from "@/lib/sections";
 
@@ -257,13 +257,11 @@ function SuggestionInput({
 export default function PersonalizationForm({
   value,
   onChange,
-  creditCards,
   f1Roster,
   redditPanel,
 }: {
   value: Personalization;
   onChange: (next: Personalization) => void;
-  creditCards: CreditCard[];
   f1Roster: F1RosterEntry[];
   /** Rendered inside the Grapevine chapter (Settings passes the Reddit
    *  connect panel; onboarding shows a pointer to Settings instead). */
@@ -300,7 +298,7 @@ export default function PersonalizationForm({
       <Chapter
         numeral="I."
         title="The Basics"
-        effect="Your city sets the weather page and boosts local stories; your card runs the Plastic & Points section."
+        effect="Your city sets the weather page and boosts local stories."
       >
         <label className="block">
           <FieldLabel>Home city</FieldLabel>
@@ -312,40 +310,6 @@ export default function PersonalizationForm({
             placeholder="Bengaluru"
           />
         </label>
-
-        <div>
-          <FieldLabel>Credit cards you follow</FieldLabel>
-          <div className="grid sm:grid-cols-2 gap-x-6">
-            {creditCards.map((c) => {
-              const checked = value.cardsFollowing.includes(c.id);
-              return (
-                <label
-                  key={c.id}
-                  className="flex items-center gap-3 py-2 cursor-pointer border-b hairline"
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() =>
-                      onChange({
-                        ...value,
-                        cardsFollowing: checked
-                          ? value.cardsFollowing.filter((id) => id !== c.id)
-                          : [...value.cardsFollowing, c.id],
-                      })
-                    }
-                    className="accent-[#a6291d] shrink-0 w-4 h-4"
-                  />
-                  <span className="font-headline text-[15px] leading-tight">{c.name}</span>
-                </label>
-              );
-            })}
-          </div>
-          <Hint>
-            Leave all unticked for general card news. Ticked cards get their fact file at the top of
-            Plastic &amp; Points, and stories mentioning their issuers lead the section.
-          </Hint>
-        </div>
       </Chapter>
 
       {/* II. Sports Desk */}

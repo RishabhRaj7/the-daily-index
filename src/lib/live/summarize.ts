@@ -191,7 +191,6 @@ function inferSection(storyId: string): string {
   if (storyId.includes("ledger")) return "Markets";
   if (storyId.includes("paddock")) return "Sports";
   if (storyId.includes("circuit")) return "Tech";
-  if (storyId.includes("plastic")) return "Cards";
   return "";
 }
 
@@ -223,7 +222,7 @@ export async function generateEditionBrief(
 ${content}
 
 Return JSON: {"bullets": [{"section": "World", "text": "..."}, ...]}
-Include only sections with content. Sections: World, Markets, Sports, Tech, Cards.`;
+Include only sections with content. Sections: World, Markets, Sports, Tech.`;
 
   try {
     const result = await model.generateContent(prompt);

@@ -1,7 +1,7 @@
 // The preference-driven digest pipeline (server side).
 //
 //   1. collectCorpus() — fetch every news wire (World/India, Markets, F1,
-//      Football, Tennis, Tech, Credit Cards), dedupe, and drop what the
+//      Football, Tennis, Tech), dedupe, and drop what the
 //      reader's age window / literal exclusions rule out. RSS snippets only —
 //      no article pages are fetched yet.
 //   2. Selection pass — the model sees titles + short snippets and returns,
@@ -23,8 +23,6 @@ import { getF1News } from "./f1-news";
 import { getFootballNews } from "./football-news";
 import { getTennisNews } from "./tennis-news";
 import { getTechNews } from "./tech-news";
-import { getCreditCardWire } from "./credit-card-wire";
-import { CARD_BLOG_MAX_AGE_HOURS } from "./feeds";
 import { fetchArticleText, fetchedTextMatches, humanise, looksOnTopic } from "./summarize";
 import {
   buildSelectionPrompt,
@@ -119,20 +117,18 @@ async function mapWithConcurrency<T, R>(
 /**
  * Collate every news wire into one deduplicated corpus of RSS excerpts, then
  * drop what the reader's preferences rule out deterministically: articles
- * past the age window (Cards gets the card-blog window) and literal global
- * exclude keywords. The model never has to spend attention on either.
+ * past the age window and literal global exclude keywords. The model never has to spend attention on either.
  *
  * `i` always equals the article's position in the returned array.
  */
 export async function collectCorpus(prefs: DigestPreferences): Promise<CorpusArticle[]> {
-  const [world, markets, f1, football, tennis, tech, cards] = await Promise.all([
+  const [world, markets, f1, football, tennis, tech] = await Promise.all([
     getWorldIndiaWire(24),
     getMarketsWire(20),
     getF1News(20),
     getFootballNews(20),
     getTennisNews(20),
     getTechNews(20),
-    getCreditCardWire(12),
   ]);
 
   const pooled = [
@@ -142,7 +138,6 @@ export async function collectCorpus(prefs: DigestPreferences): Promise<CorpusArt
     ...tagPool(football, "Football"),
     ...tagPool(tennis, "Tennis"),
     ...tagPool(tech, "Tech"),
-    ...tagPool(cards, "Cards"),
   ];
 
   // URL-level dedupe first (the same link can appear in two wires), then the
@@ -174,8 +169,7 @@ export async function collectCorpus(prefs: DigestPreferences): Promise<CorpusArt
       };
     })
     .filter((a) => {
-      const limit = a.pool === "Cards" ? Math.max(maxAge, CARD_BLOG_MAX_AGE_HOURS) : maxAge;
-      if (a.ageHours !== null && a.ageHours > limit) return false;
+      if (a.ageHours !== null && a.ageHours > maxAge) return false;
       const hay = `${a.title} ${a.text}`.toLowerCase();
       return !excluded.some((k) => hay.includes(k));
     })
@@ -552,7 +546,6 @@ const POOL_HINTS: Record<string, string[]> = {
   markets: ["Markets", "World"],
   world: ["World", "Markets"],
   tech: ["Tech"],
-  cards: ["Cards"],
 };
 
 const SPORT_POOLS = new Set(["F1", "Football", "Tennis"]);

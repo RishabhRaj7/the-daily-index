@@ -7,7 +7,6 @@ import { getFootballNews } from "@/lib/live/football-news";
 import { getTennisNews } from "@/lib/live/tennis-news";
 import { getTechNews } from "@/lib/live/tech-news";
 import { getWorldIndiaWire, getMarketsWire } from "@/lib/live/news";
-import { getCreditCardWire } from "@/lib/live/credit-card-wire";
 import { getRedditTrending } from "@/lib/live/reddit";
 import { getLiveMarkets } from "@/lib/live/indices";
 import { buildSectionsSync } from "@/lib/live/wire-to-story";
@@ -16,7 +15,6 @@ import { getWordOfDay } from "@/lib/live/wordofday";
 import { getFootballStandings } from "@/lib/live/football-stats";
 import type { FootballLeagueData } from "@/lib/live/football-stats";
 import { getTennisRankings } from "@/lib/live/tennis-stats";
-import { MY_CARDS } from "@/lib/config/cards";
 import { buildEditorsPicks } from "@/lib/live/editors-picks";
 import { parseInterestsCookie } from "@/lib/personalization";
 import { buildMatchers, matchBrief, rankBriefsByInterest } from "@/lib/interest-match";
@@ -109,14 +107,8 @@ export default async function Home() {
   })();
 
   // Interests (names only) — used to weight Editor's Picks toward the reader.
-  const interestsRaw = parseInterestsCookie(cookieStore.get("daily-index:interests")?.value);
-  const followedCards = MY_CARDS.filter((c) => interestsRaw.cards.includes(c.id));
   // Driver names are resolved after the roster fetch below (see interests).
-  const interestsBase = {
-    ...interestsRaw,
-    // Resolve card IDs to matchable names, e.g. "Axis Bank Axis Atlas".
-    cards: followedCards.map((c) => `${c.issuer} ${c.name}`),
-  };
+  const interestsBase = parseInterestsCookie(cookieStore.get("daily-index:interests")?.value);
 
   const multiSport = userSports.length > 1;
   const perSport = multiSport ? 3 : 5;
@@ -168,7 +160,6 @@ export default async function Home() {
     techNewsAll,
     worldWireAll,
     marketsWireAll,
-    cardsWireAll,
     redditBundle,
     liveMarkets,
     onThisDay,
@@ -188,7 +179,6 @@ export default async function Home() {
     getTechNews(14),
     getWorldIndiaWire(16),
     getMarketsWire(14),
-    getCreditCardWire(),
     // The Reddit column waits on the connected-account lookup (started
     // above) — both still run inside this block, overlapping the rest.
     redditEnabled
@@ -237,7 +227,6 @@ export default async function Home() {
   const worldWire = rankPool(worldWireAll, "World");
   const marketsWire = rankPool(marketsWireAll, "Markets");
   const techNews = rankPool(techNewsAll, "Tech");
-  const cardsWire = rankPool(cardsWireAll, "Cards");
   const f1Feed = userSports.includes("f1") ? rankPool(f1FeedRaw, "F1") : f1FeedRaw;
   const footballFeed = userSports.includes("football") ? rankPool(footballFeedRaw, "Football") : footballFeedRaw;
   const tennisFeed = userSports.includes("tennis") ? rankPool(tennisFeedRaw, "Tennis") : tennisFeedRaw;
@@ -257,7 +246,6 @@ export default async function Home() {
       { label: "World", briefs: worldWire },
       { label: "Markets", briefs: marketsWire },
       { label: "Tech", briefs: techNews },
-      { label: "Cards", briefs: cardsWire },
       { label: "F1", briefs: f1Feed },
       { label: "Football", briefs: footballFeed },
       { label: "Tennis", briefs: tennisFeed },
@@ -288,7 +276,6 @@ export default async function Home() {
     { stories: footballRaw },
     { stories: tennisRaw },
     { stories: circuitStories },
-    { stories: plasticStories },
     { stories: hateWatchStories },
   ] = buildSectionsSync([
     { briefs: worldWire,    section: "dateline",      count: 5, personalize: personalTag("World") },
@@ -297,7 +284,6 @@ export default async function Home() {
     { briefs: footballFeed, section: "paddock-notes", count: perSport, personalize: personalTag("Football") },
     { briefs: tennisFeed,   section: "paddock-notes", count: perSport, personalize: personalTag("Tennis") },
     { briefs: techNews,     section: "circuit-board", count: 5, personalize: personalTag("Tech") },
-    { briefs: cardsWire,    section: "plastic-points", count: cardsWire.length, personalize: personalTag("Cards") },
     { briefs: hateWatchRaw, section: "paddock-notes", count: 1 },
   ]);
 
@@ -318,7 +304,6 @@ export default async function Home() {
     ...footballStories,
     ...tennisStories,
     ...circuitStories,
-    ...plasticStories,
     ...hateWatchStories,
   ]
     .filter((s) => s.sourceUrl)
@@ -349,7 +334,6 @@ export default async function Home() {
       indices: liveMarkets?.indices ?? [],
       mood: liveMarkets?.mood ?? null,
     },
-    creditCards: MY_CARDS,
     trending: redditResult.topics,
     grapevine,
     onThisDay,
@@ -360,7 +344,6 @@ export default async function Home() {
       skyReport: [],
       circuitBoard: circuitStories,
       ledger: ledgerStories,
-      plasticPoints: plasticStories,
       marketPulse: [],
       grapevine: [],
     },

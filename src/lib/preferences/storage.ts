@@ -88,6 +88,10 @@ export function normalizePreferences(raw: unknown): DigestPreferences {
     while (seenIds.has(id)) id = `${id}-${index + 1}`;
     seenIds.add(id);
 
+    // The credit-card section was retired; a stored copy of it must not
+    // resurface as a standalone section once its slot no longer exists.
+    if (s.slot === "plastic-points") return;
+
     const parsedSlot = asSlot(s.slot);
     const base = {
       id,
