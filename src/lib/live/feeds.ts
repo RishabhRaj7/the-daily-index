@@ -47,6 +47,11 @@ export const MARKETS_FEEDS: FeedSource[] = [
   { url: "https://www.livemint.com/rss/markets" },
   { url: "https://www.business-standard.com/rss/markets-106.rss" },
   { url: "https://economictimes.indiatimes.com/news/economy/rssfeeds/1373380680.cms" },
+  // Global markets that move India: Wall Street, the Fed, oil, big data.
+  // Fewer feeds than the Indian desk, so India still dominates the pool.
+  { url: "https://www.cnbc.com/id/10000664/device/rss/rss.html" },
+  { url: "https://feeds.content.dowjones.io/public/rss/mw_topstories" },
+  { url: "https://www.ft.com/markets?format=rss" },
 ];
 
 // Formula 1.

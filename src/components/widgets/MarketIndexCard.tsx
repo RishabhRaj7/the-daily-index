@@ -19,7 +19,16 @@ function Pct({ label, value }: { label: string; value: number | null }) {
 
 // One index as a tile: the level large, today's move as a pill, the month
 // as a line that draws itself in.
-export default function MarketIndexCard({ index, i = 0 }: { index: MarketIndex; i?: number }) {
+export default function MarketIndexCard({
+  index,
+  i = 0,
+  live = false,
+}: {
+  index: MarketIndex;
+  i?: number;
+  /** Once live updates are flowing, a level that changes flashes once. */
+  live?: boolean;
+}) {
   const positive = index.changePct >= 0;
   return (
     <li
@@ -40,7 +49,10 @@ export default function MarketIndexCard({ index, i = 0 }: { index: MarketIndex; 
           {positive ? "▲" : "▼"} {Math.abs(index.changePct).toFixed(2)}%
         </span>
       </div>
-      <div className="font-display font-bold text-[2.5rem] leading-[0.85] tracking-tight">
+      <div
+        key={index.level}
+        className={`font-display font-bold text-[2.5rem] leading-[0.85] tracking-tight ${live ? "animate-[tick-flash_1.2s_ease-out]" : ""}`}
+      >
         {index.level.toLocaleString("en-US", { maximumFractionDigits: 1 })}
       </div>
       <SparklineChart values={index.sparkline} positive={positive} className="w-full h-12" />

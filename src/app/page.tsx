@@ -37,39 +37,6 @@ function editionMeta() {
   return { date, isoDate, volume, issue };
 }
 
-// Keyword signals that indicate a sports article is genuinely bad news for the subject.
-// An article must mention the subject AND contain at least one of these to appear in Schadenfreude.
-const NEGATIVE_SIGNALS = [
-  "loses", "lost", "defeat", "crash", "penalt", "ban", "suspend", "drop",
-  "scandal", "fail", "miss", "error", "injur", "dnf", "retir", "fine",
-  "disqualif", "controversial", "resign", "sacked", "relegated", "protest",
-  "backlash", "criticis", "blunder", "red card", "poor", "worst",
-  "leav", "departing", "exit", "fired", "demot", "under investigation",
-  "stripped", "appeal", "overrul", "ruled out", "withdraw", "concede",
-];
-
-function filterHateWatch(articles: WireBrief[], subject: string): WireBrief[] {
-  if (!subject.trim()) return [];
-  const term = subject.toLowerCase();
-  const hasNeg = (text: string) =>
-    NEGATIVE_SIGNALS.some((s) => text.toLowerCase().includes(s));
-  return articles
-    .filter((a) => {
-      const title = a.title.toLowerCase();
-      const summary = (a.summary ?? "").toLowerCase();
-      const mentionsSubject = title.includes(term) || summary.includes(term);
-      const isNegative = hasNeg(a.title) || hasNeg(a.summary ?? "");
-      return mentionsSubject && isNegative;
-    })
-    .sort((a, b) => {
-      // Count negative signals — more signals = more negative, surface first
-      const score = (text: string) =>
-        NEGATIVE_SIGNALS.filter((s) => text.toLowerCase().includes(s)).length;
-      return (score(b.title) + score(b.summary ?? "")) - (score(a.title) + score(a.summary ?? ""));
-    })
-    .slice(0, 3);
-}
-
 async function loadInitialDigest(
   hash: string | undefined,
 ): Promise<{ result: DigestResult; prefs: DigestPreferences } | null> {
@@ -110,19 +77,6 @@ export default async function Home() {
     } catch { return ["f1"]; }
   })();
 
-  // Hate-watch subjects (one per sport)
-  const hateWatchCookie = cookieStore.get("daily-index:hate-watch");
-  const hateWatch: Record<"f1" | "football" | "tennis", string> = (() => {
-    if (!hateWatchCookie?.value) return { f1: "", football: "", tennis: "" };
-    try {
-      const p = JSON.parse(decodeURIComponent(hateWatchCookie.value));
-      return {
-        f1:       typeof p.f1       === "string" ? p.f1       : "",
-        football: typeof p.football === "string" ? p.football : "",
-        tennis:   typeof p.tennis   === "string" ? p.tennis   : "",
-      };
-    } catch { return { f1: "", football: "", tennis: "" }; }
-  })();
 
   // Interests (names only) — used to weight Editor's Picks toward the reader.
   // Driver names are resolved after the roster fetch below (see interests).
@@ -278,12 +232,6 @@ export default async function Home() {
     redditNote: redditResult.note,
   };
 
-  // Hate-watch stories — best negative headline per subject; total capped at 1
-  const hateWatchRaw = [
-    ...filterHateWatch(f1Feed,       hateWatch.f1).slice(0, 1),
-    ...filterHateWatch(footballFeed, hateWatch.football).slice(0, 1),
-    ...filterHateWatch(tennisFeed,   hateWatch.tennis).slice(0, 1),
-  ];
 
   // Build sections synchronously from raw RSS snippets — page renders immediately.
   // The client fetches AI summaries in the background via /api/summarize.
@@ -295,7 +243,6 @@ export default async function Home() {
     { stories: footballRaw },
     { stories: tennisRaw },
     { stories: circuitStories },
-    { stories: hateWatchStories },
   ] = buildSectionsSync([
     { briefs: worldWire,    section: "dateline",      count: 5, personalize: personalTag("World") },
     { briefs: marketsWire,  section: "ledger",        count: 5, personalize: personalTag("Markets") },
@@ -303,7 +250,6 @@ export default async function Home() {
     { briefs: footballFeed, section: "paddock-notes", count: perSport, personalize: personalTag("Football") },
     { briefs: tennisFeed,   section: "paddock-notes", count: perSport, personalize: personalTag("Tennis") },
     { briefs: techNews,     section: "circuit-board", count: 5, personalize: personalTag("Tech") },
-    { briefs: hateWatchRaw, section: "paddock-notes", count: 1 },
   ]);
 
   // Rename IDs to avoid collisions — all three sport sections share the same
@@ -360,7 +306,6 @@ export default async function Home() {
       edition={edition}
       f1Live={Boolean(f1Schedule)}
       redditLive={redditResult.status === "live"}
-      hateWatchStories={hateWatchStories}
       initialDigest={initialDigest}
       f1Stories={f1Stories}
       footballStories={footballStories}

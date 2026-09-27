@@ -79,6 +79,7 @@ import { OnThisDayBox, WordOfDayBox } from "@/components/widgets/FillerBox";
 import { digestArticleToStory } from "@/lib/preferences/stories";
 import { SECTION_META } from "@/lib/sections";
 import { requestEdition, waitForEdition } from "@/lib/edition-client";
+import { useLiveMarkets } from "@/lib/live-markets";
 
 type WeatherState = "loading" | "ready" | "failed";
 const WEATHER_TIMEOUT_MS = 9000;
@@ -146,7 +147,7 @@ export default function EditionView({
   const [edition, setEdition] = useState(() =>
     seed ? { ...initialEdition, sections: withProjection(initialEdition.sections, seed) } : initialEdition,
   );
-  const [hateWatchStories, setHateWatchStories] = useState(initialHateWatchStories);
+  const [hateWatchStories, setHateWatchStories] = useState(() => seed?.rivals ?? initialHateWatchStories);
   const [f1Stories, setF1Stories] = useState(() => (seed?.paddock.f1.length ? seed.paddock.f1 : initialF1Stories));
   const [footballStories, setFootballStories] = useState(() =>
     seed?.paddock.football.length ? seed.paddock.football : initialFootballStories,
@@ -252,6 +253,17 @@ export default function EditionView({
   useEffect(() => {
     document.documentElement.dataset.why = personalization.showWhy ? "on" : "off";
   }, [personalization.showWhy]);
+
+  // Index tiles, the mood gauge and the signal card stay live while open.
+  const [marketsAt, setMarketsAt] = useState<string | null>(null);
+  const applyMarkets = useCallback(
+    ({ indices, mood, at }: { indices: Edition["markets"]["indices"]; mood: NonNullable<Edition["markets"]["mood"]>; at: string }) => {
+      setEdition((prev) => ({ ...prev, markets: { indices, mood } }));
+      setMarketsAt(at);
+    },
+    [],
+  );
+  useLiveMarkets(!isArchive, applyMarkets);
 
   // --- weather: always resolves to ready or failed, never spins forever ----
   useEffect(() => {
@@ -500,6 +512,7 @@ export default function EditionView({
     if (paddock.football.length > 0) setFootballStories(paddock.football);
     if (paddock.tennis.length > 0) setTennisStories(paddock.tennis);
     setStandaloneDigest(standalone);
+    setHateWatchStories(projection.rivals);
     setAppliedDigest(result);
   }, []);
 
@@ -751,6 +764,7 @@ export default function EditionView({
         stories={without(edition.sections.marketPulse)}
         indices={edition.markets.indices}
         mood={edition.markets.mood}
+        updatedAt={marketsAt}
       />
     ),
     grapevine: () => (

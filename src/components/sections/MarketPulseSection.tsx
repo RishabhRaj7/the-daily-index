@@ -8,16 +8,28 @@ export default function MarketPulseSection({
   stories,
   indices,
   mood,
+  updatedAt = null,
 }: {
   stories: Story[];
   indices: MarketIndex[];
   mood: MarketMood | null;
+  /** When the live numbers last arrived; null until the first refresh. */
+  updatedAt?: string | null;
 }) {
+  const updated = updatedAt
+    ? new Date(updatedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+    : null;
   return (
     <section id="market-pulse">
       <SectionHeader
         sectionKey="market-pulse"
-        folio={indices.length > 0 ? <><span className="live-dot text-up" /> live tape</> : undefined}
+        folio={
+          indices.length > 0 ? (
+            <>
+              <span className="live-dot text-up" /> live{updated ? ` · ${updated}` : ""}
+            </>
+          ) : undefined
+        }
       />
       {indices.length > 0 && mood ? (
         // Mood leads as a tall tile beside two rows of indices, so the
@@ -27,7 +39,7 @@ export default function MarketPulseSection({
             <MoodGauge mood={mood} indices={indices} />
           </li>
           {indices.map((idx, i) => (
-            <MarketIndexCard key={idx.id} index={idx} i={i + 1} />
+            <MarketIndexCard key={idx.id} index={idx} i={i + 1} live={updatedAt !== null} />
           ))}
         </ul>
       ) : (

@@ -54,9 +54,14 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
     <TopBar sections={[]} isArchive alwaysShowLogo />
     <main className="flex-1 max-w-[1240px] mx-auto px-4 sm:px-6 pt-10 pb-20 w-full">
       <nav className="flex items-center justify-between gap-4 font-sans text-[13px] font-semibold mb-8">
-        <Link href="/archive" className="chip">
-          ← The Archive
-        </Link>
+        <span className="flex flex-wrap gap-2">
+          <Link href="/" className="chip chip-signal">
+            ← Today&rsquo;s paper
+          </Link>
+          <Link href="/archive" className="chip">
+            All back issues
+          </Link>
+        </span>
         <span className="flex gap-4">
           {older && (
             <Link href={`/archive/${older}`} className="chip">

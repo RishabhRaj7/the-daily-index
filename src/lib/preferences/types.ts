@@ -49,6 +49,9 @@ export interface DigestGlobal {
    * Geopolitics and policy with real-world consequences stay eligible.
    */
   avoidPolitics: boolean;
+  /** Rival teams / drivers / players whose genuinely bad days the reader
+   *  wants to read about ("Schadenfreude"). Filled from the sports settings. */
+  rivals: string[];
 }
 
 interface SectionBase {
@@ -194,6 +197,8 @@ export interface DigestResult {
    * display layer falls back to deriving the brief from the sections then.
    */
   atAGlance?: AtAGlanceItem[];
+  /** One story per rival who had a genuinely bad day; `group` is the rival. */
+  rivals?: DigestArticle[];
   generatedAt: string;
   /** "ai" when the model produced it, "heuristic" for the offline fallback. */
   engine: "ai" | "heuristic";

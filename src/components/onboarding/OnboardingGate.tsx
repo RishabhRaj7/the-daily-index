@@ -8,6 +8,8 @@ import {
   savePersonalization,
 } from "@/lib/personalization";
 import PersonalizationForm, { type FormPart } from "./PersonalizationForm";
+import { loadDigestPreferences, saveDigestPreferences } from "@/lib/preferences/storage";
+import { withSportsSettings } from "@/lib/preferences/paper";
 import ParticleWordmark from "@/components/masthead/ParticleWordmark";
 import { RisingWords } from "@/components/story/SectionHeader";
 
@@ -74,6 +76,7 @@ export default function OnboardingGate({ f1Roster }: { f1Roster: F1RosterEntry[]
       ? { ...DEFAULT_PERSONALIZATION, onboarded: true }
       : { ...draft, onboarded: true };
     savePersonalization(next);
+    if (!skip) saveDigestPreferences(withSportsSettings(loadDigestPreferences(), next));
     setVisible(false);
     window.location.reload();
   };

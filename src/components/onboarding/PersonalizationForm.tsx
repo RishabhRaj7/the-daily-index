@@ -216,48 +216,67 @@ function cleanSubreddit(raw: string): string | null {
   return /^[a-z0-9_]{3,21}$/.test(cleaned) ? cleaned : null;
 }
 
-function SuggestionInput({
+/** One followed sport: its name, then its few fields in a compact grid. */
+function SportCard({ name, accent, children }: { name: string; accent?: string; children: React.ReactNode }) {
+  return (
+    <div className="module">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="w-2 h-2 rounded-full" style={{ background: accent ?? "var(--accent)" }} />
+        <span className="font-display font-bold text-[1.35rem] leading-none">{name}</span>
+      </div>
+      <div className="grid sm:grid-cols-2 gap-x-4 gap-y-4">{children}</div>
+    </div>
+  );
+}
+
+/** A text field with the usual answers offered as the reader types. */
+function ListInput({
   label,
   value,
   onChange,
   suggestions,
   placeholder,
-  hint,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   suggestions: string[];
   placeholder?: string;
-  hint?: string;
 }) {
+  const id = `list-${label.toLowerCase().replace(/\W+/g, "-")}`;
   return (
     <label className="block">
       <FieldLabel>{label}</FieldLabel>
-      <div className="flex flex-wrap gap-1.5 mb-2">
-        {suggestions.map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => onChange(value === s ? "" : s)}
-            className={`text-xs px-2 py-1 border hairline rounded-full transition-colors ${
-              value === s
-                ? "bg-accent text-accent-ink border-accent"
-                : "hover:bg-card-bg"
-            }`}
-          >
-            {s}
-          </button>
-        ))}
-      </div>
       <input
         type="text"
+        list={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className={inputCls}
         placeholder={placeholder}
       />
-      {hint && <Hint>{hint}</Hint>}
+      <datalist id={id}>
+        {suggestions.map((s) => (
+          <option key={s} value={s} />
+        ))}
+      </datalist>
+    </label>
+  );
+}
+
+function RivalInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <label className="block">
+      <FieldLabel>Rival</FieldLabel>
+      <input type="text" value={value} onChange={(e) => onChange(e.target.value)} className={inputCls} placeholder={placeholder} />
     </label>
   );
 }
@@ -338,7 +357,7 @@ export default function PersonalizationForm({
         bare={bare}
         numeral={num("II.")}
         title="Sports Desk"
-        effect="Which sports get a section, whose stories lead it — and whose bad days you enjoy reading about."
+        effect="Pick your sports, then who you follow in each."
       >
         <div>
           <FieldLabel>Sports you follow</FieldLabel>
@@ -353,9 +372,6 @@ export default function PersonalizationForm({
               </Chip>
             ))}
           </div>
-          {value.sports.length > 1 && (
-            <Hint>Multiple sports — each gets its top stories, plus its own sidebar.</Hint>
-          )}
           {value.sports.length === 0 && (
             <Hint>
               <span className="text-accent">
@@ -366,18 +382,15 @@ export default function PersonalizationForm({
         </div>
 
         {value.sports.includes("f1") && (
-          <div className="pl-3 border-l-2 border-accent/30 space-y-4">
-            <div className="font-label text-[10px] text-accent">Formula 1</div>
+          <SportCard name="Formula 1" accent={value.favoriteF1Team ? F1_TEAM_COLORS[value.favoriteF1Team] : undefined}>
             <label className="block">
-              <FieldLabel>Your team</FieldLabel>
+              <FieldLabel>Team</FieldLabel>
               <select
                 value={value.favoriteF1Team}
-                onChange={(e) =>
-                  onChange({ ...value, favoriteF1Team: e.target.value })
-                }
+                onChange={(e) => onChange({ ...value, favoriteF1Team: e.target.value })}
                 className={inputCls}
               >
-                <option value="">No preference</option>
+                <option value="">No team</option>
                 {Object.keys(F1_TEAM_COLORS).map((team) => (
                   <option key={team} value={team}>
                     {team}
@@ -385,129 +398,92 @@ export default function PersonalizationForm({
                 ))}
               </select>
             </label>
-
-            <div>
-              <FieldLabel>
-                Your drivers{" "}
-                <span className="normal-case font-body italic tracking-normal text-ink-soft">
-                  — pick up to 2
-                </span>
-              </FieldLabel>
-              {f1Roster.length > 0 ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {f1Roster.map((d) => {
-                    const selected = value.favoriteF1Drivers.includes(d.id);
-                    const maxed =
-                      value.favoriteF1Drivers.length >= 2 && !selected;
-                    return (
-                      <Chip
-                        key={d.id}
-                        active={selected}
-                        disabled={maxed}
-                        onClick={() =>
-                          onChange({
-                            ...value,
-                            favoriteF1Drivers: selected
-                              ? value.favoriteF1Drivers.filter((id) => id !== d.id)
-                              : [...value.favoriteF1Drivers, d.id],
-                          })
-                        }
-                      >
-                        {d.code} — {d.team}
-                      </Chip>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-[11px] text-ink-soft italic">
-                  Driver list unavailable right now.
-                </p>
-              )}
-              <Hint>Their stories lead the F1 column and can make the front page.</Hint>
-            </div>
-
-            <label className="block">
-              <FieldLabel>Schadenfreude — a rival to follow</FieldLabel>
-              <input
-                type="text"
-                value={value.hateWatchF1}
-                onChange={(e) =>
-                  onChange({ ...value, hateWatchF1: e.target.value })
-                }
-                className={inputCls}
-                placeholder="e.g. Red Bull, Verstappen"
-              />
-              <Hint>A rival team or driver — we&rsquo;ll find their bad days.</Hint>
-            </label>
-          </div>
+            {[0, 1].map((slot) => (
+              <label key={slot} className="block">
+                <FieldLabel>{slot === 0 ? "Driver" : "Second driver"}</FieldLabel>
+                <select
+                  value={value.favoriteF1Drivers[slot] ?? ""}
+                  disabled={f1Roster.length === 0 || (slot === 1 && !value.favoriteF1Drivers[0])}
+                  onChange={(e) => {
+                    const next = [...value.favoriteF1Drivers];
+                    if (e.target.value) next[slot] = e.target.value;
+                    else next.splice(slot, 1);
+                    onChange({ ...value, favoriteF1Drivers: next.filter(Boolean).slice(0, 2) });
+                  }}
+                  className={`${inputCls} disabled:opacity-50`}
+                >
+                  <option value="">{f1Roster.length === 0 ? "Driver list unavailable" : "None"}</option>
+                  {f1Roster
+                    .filter((d) => d.id !== value.favoriteF1Drivers[slot === 0 ? 1 : 0])
+                    .map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name} · {d.team}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            ))}
+            <RivalInput
+              value={value.hateWatchF1}
+              onChange={(v) => onChange({ ...value, hateWatchF1: v })}
+              placeholder="e.g. Red Bull or Verstappen"
+            />
+          </SportCard>
         )}
 
         {value.sports.includes("football") && (
-          <div className="pl-3 border-l-2 border-accent/30 space-y-4">
-            <div className="font-label text-[10px] text-accent">Football</div>
-            <SuggestionInput
-              label="Your player"
-              value={value.favoriteFootballPlayer}
-              onChange={(v) => onChange({ ...value, favoriteFootballPlayer: v })}
-              suggestions={FOOTBALL_PLAYERS}
-              placeholder="or type any player…"
-            />
-            <SuggestionInput
-              label="Your club"
+          <SportCard name="Football">
+            <ListInput
+              label="Club"
               value={value.favoriteFootballClub}
               onChange={(v) => onChange({ ...value, favoriteFootballClub: v })}
               suggestions={FOOTBALL_CLUBS}
-              placeholder="or type any club…"
+              placeholder="e.g. Arsenal"
             />
-            <SuggestionInput
-              label="Your national team"
+            <ListInput
+              label="Player"
+              value={value.favoriteFootballPlayer}
+              onChange={(v) => onChange({ ...value, favoriteFootballPlayer: v })}
+              suggestions={FOOTBALL_PLAYERS}
+              placeholder="e.g. Saka"
+            />
+            <ListInput
+              label="National team"
               value={value.favoriteFootballNationalTeam}
-              onChange={(v) =>
-                onChange({ ...value, favoriteFootballNationalTeam: v })
-              }
+              onChange={(v) => onChange({ ...value, favoriteFootballNationalTeam: v })}
               suggestions={FOOTBALL_NATIONAL_TEAMS}
-              placeholder="or type any country…"
+              placeholder="e.g. India"
             />
-            <label className="block">
-              <FieldLabel>Schadenfreude — a rival to follow</FieldLabel>
-              <input
-                type="text"
-                value={value.hateWatchFootball}
-                onChange={(e) =>
-                  onChange({ ...value, hateWatchFootball: e.target.value })
-                }
-                className={inputCls}
-                placeholder="e.g. Man City, Ronaldo, Brazil"
-              />
-              <Hint>A rival club, country, or player — we&rsquo;ll find their bad days.</Hint>
-            </label>
-          </div>
+            <RivalInput
+              value={value.hateWatchFootball}
+              onChange={(v) => onChange({ ...value, hateWatchFootball: v })}
+              placeholder="e.g. Man City"
+            />
+          </SportCard>
         )}
 
         {value.sports.includes("tennis") && (
-          <div className="pl-3 border-l-2 border-accent/30 space-y-4">
-            <div className="font-label text-[10px] text-accent">Tennis</div>
-            <SuggestionInput
-              label="Your player"
+          <SportCard name="Tennis">
+            <ListInput
+              label="Player"
               value={value.favoriteTennisPlayer}
               onChange={(v) => onChange({ ...value, favoriteTennisPlayer: v })}
               suggestions={TENNIS_PLAYERS}
-              placeholder="or type any player…"
+              placeholder="e.g. Alcaraz"
             />
-            <label className="block">
-              <FieldLabel>Schadenfreude — a rival to follow</FieldLabel>
-              <input
-                type="text"
-                value={value.hateWatchTennis}
-                onChange={(e) =>
-                  onChange({ ...value, hateWatchTennis: e.target.value })
-                }
-                className={inputCls}
-                placeholder="e.g. Kyrgios, Djokovic"
-              />
-              <Hint>A rival player — we&rsquo;ll find their bad days.</Hint>
-            </label>
-          </div>
+            <RivalInput
+              value={value.hateWatchTennis}
+              onChange={(v) => onChange({ ...value, hateWatchTennis: v })}
+              placeholder="e.g. Djokovic"
+            />
+          </SportCard>
+        )}
+
+        {value.sports.length > 0 && (
+          <Hint>
+            Your team, drivers and players lead the sports pages. A rival&rsquo;s genuinely bad day runs under
+            Schadenfreude; leave it empty to skip that.
+          </Hint>
         )}
       </Chapter>
       )}

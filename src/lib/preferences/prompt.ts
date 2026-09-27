@@ -129,9 +129,13 @@ Section rules:
 - Grouped sections: every pick sets "group" to exactly one group — the place or entity the story is mainly about, not where the outlet is based. Never force a weak fit into a listed group; fill the section's total from other places instead, choosing what an Indian reader following world affairs would most want to know.
 - Fill every section to its number of stories whenever there are articles that honestly fit — a smaller but real story beats an empty slot. Return fewer only when the articles run out, and never pick something that breaks the rules above.
 
-At a glance: separately choose up to 6 articles this reader must not miss today, most important first. They may also appear in a section. No two may cover the same event. Spread them across the reader's interests unless one story genuinely dominates the day.
+${
+    g.rivals.length > 0
+      ? `Schadenfreude: the reader follows these rivals and enjoys their bad days — ${g.rivals.join(", ")}. For each rival, pick at most one article where that rival clearly had a bad day: lost, crashed, retired, was penalised, dropped, injured, sacked, fined or publicly criticised. The rival must be the one it went wrong for — not someone they beat, defended or commented on. Skip a rival when no article qualifies. These may also appear in a section.\n\n`
+      : ""
+  }At a glance: separately choose up to 6 articles this reader must not miss today, most important first. They may also appear in a section. No two may cover the same event. Spread them across the reader's interests unless one story genuinely dominates the day.
 
-Return JSON: "sections" with one entry for every section id listed above (use an empty "picks" list when nothing fits), and "atAGlance" as a list of article indices. Use only indices that appear in <articles>.`;
+Return JSON: "sections" with one entry for every section id listed above (use an empty "picks" list when nothing fits), "atAGlance" as a list of article indices, and "rivals" as a list of {"i", "rival"} (empty when there are no rivals or no bad days). Use only indices that appear in <articles>.`;
 }
 
 // ---- pass 2: writing ---------------------------------------------------------

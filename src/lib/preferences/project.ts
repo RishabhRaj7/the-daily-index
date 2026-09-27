@@ -12,6 +12,8 @@ export interface DigestProjection {
   paddock: { f1: Story[]; football: Story[]; tennis: Story[] };
   /** Sections with no paper slot — printed after the standing sections. */
   standalone: Array<{ section: DigestSection; articles: DigestArticle[] }>;
+  /** Schadenfreude: one story per rival who had a bad day. */
+  rivals: Story[];
 }
 
 // Each section is picked with one spare (see sectionTarget); stories past
@@ -50,7 +52,12 @@ export function projectDigest(result: DigestResult, prefs: DigestPreferences): D
       ];
     }
   }
-  return { slotStories, paddock, standalone };
+  const rivalSection: DigestSection = { id: "rivals", type: "topic", label: "Schadenfreude", order: 999, articleCount: 3, slot: "paddock-notes" };
+  const rivals = (result.rivals ?? []).map((a, i) => ({
+    ...digestArticleToStory(rivalSection, a, i),
+    kicker: a.group,
+  }));
+  return { slotStories, paddock, standalone, rivals };
 }
 
 /** The edition's sections with the projection poured in; empty slots keep

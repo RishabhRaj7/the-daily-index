@@ -516,3 +516,11 @@ numbered rails); colour from The Verge (near-black, mint signal, ultraviolet).
 - A section lead (`StoryArticle lead`) sits beside a `CoverArt` plate.
 - F1Sidebar renders two blocks into the section grid (root is `display: contents`): the race desk beside the stories, the championship tables full width below.
 - `EditionRecord.v` / `BUILD_VERSION` in `editions.ts`: an edition built by older code is treated as stale and rebuilt in the background.
+
+### Round 4
+
+- **Schadenfreude** is picked by the AI editor: `global.rivals` (from the sports settings via `lib/preferences/paper.ts` → `withSportsSettings`) asks the selection for at most one genuinely-bad-day story per rival (`rivals` in the selection schema, required). The stories are summarised as a synthetic `__rivals` section and returned as `DigestResult.rivals`; the old keyword matcher in `app/page.tsx` is gone.
+- **Markets** default is "Markets & Economy": mostly Indian, some global. CNBC, MarketWatch and FT feeds joined the Markets pool; readers still on the old India-only default are upgraded in `storage.ts`.
+- **Live markets**: `/api/markets` (60s Yahoo cache) polled every minute by `useLiveMarkets` while the tab is visible; tiles, mood and the signal card update in place.
+- **Archive** is a calendar (`CalendarMonth` in `app/archive/page.tsx`) with a back link and a floating "Today’s paper" button.
+- **Sports settings**: one card per sport, driver dropdowns, datalist suggestions, one Rival field.

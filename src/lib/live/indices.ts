@@ -63,12 +63,12 @@ function toIndex(spec: (typeof SYMBOLS)[number], series: SparkSeries | undefined
 // One request for every index: Yahoo's spark endpoint returns each
 // symbol's daily closes plus the live price and day change — the same
 // figures the per-symbol chart endpoint gave in six separate calls.
-async function fetchAllIndices(): Promise<MarketIndex[]> {
+async function fetchAllIndices(revalidate = 900): Promise<MarketIndex[]> {
   try {
     const symbols = SYMBOLS.map((s) => s.symbol).join(",");
     const res = await fetch(
       `https://query1.finance.yahoo.com/v8/finance/spark?symbols=${symbols}&range=1mo&interval=1d`,
-      { headers: { "User-Agent": BROWSER_UA }, next: { revalidate: 900 } },
+      { headers: { "User-Agent": BROWSER_UA }, next: { revalidate } },
     );
     if (!res.ok) return [];
     const data = (await res.json()) as Record<string, SparkSeries>;
@@ -111,8 +111,8 @@ export interface LiveMarkets {
 // Yahoo Finance; the "mood" gauge is a transparent formula over those same
 // numbers (average change + advancers/decliners), not an invented index.
 // Partial is fine: one index missing no longer blanks the whole panel.
-export async function getLiveMarkets(): Promise<LiveMarkets | null> {
-  const indices = await fetchAllIndices();
+export async function getLiveMarkets(revalidate = 900): Promise<LiveMarkets | null> {
+  const indices = await fetchAllIndices(revalidate);
   if (indices.length === 0) return null;
   return { indices, mood: buildMood(indices) };
 }

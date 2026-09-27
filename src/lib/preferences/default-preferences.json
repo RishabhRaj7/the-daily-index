@@ -10,7 +10,8 @@
     ],
     "maxAgeHours": 30,
     "summaryLengthWords": 140,
-    "avoidPolitics": true
+    "avoidPolitics": true,
+    "rivals": []
   },
   "sections": [
     {
@@ -31,7 +32,7 @@
     {
       "id": "markets",
       "type": "topic",
-      "label": "Indian Markets & Economy",
+      "label": "Markets & Economy",
       "order": 3,
       "slot": "ledger",
       "articleCount": 5,
@@ -41,7 +42,7 @@
       ],
       "excludeKeywords": [],
       "watchEntities": [],
-      "prompt": "Prioritize Nifty/Sensex movement, RBI policy, and SWP/mutual fund related news. Skip pure stock-tip articles."
+      "prompt": "Mostly Indian markets: Nifty/Sensex moves, RBI policy, the rupee, the Indian economy and SWP/mutual fund news — about three of every five stories. Fill the rest with global markets that move India: Wall Street, the Fed, oil, China and big global economic data. Skip pure stock-tip articles."
     },
     {
       "id": "world",

@@ -101,7 +101,7 @@ function isLiveBlog(title: string, url: string): boolean {
 export async function collectCorpus(prefs: DigestPreferences): Promise<CorpusArticle[]> {
   const [world, markets, f1, football, tennis, tech] = await Promise.all([
     getWorldIndiaWire(24),
-    getMarketsWire(20),
+    getMarketsWire(28),
     getF1News(20),
     getFootballNews(20),
     getTennisNews(20),
@@ -352,8 +352,18 @@ const SELECTION_SCHEMA: Schema = {
       },
     },
     atAGlance: { type: Type.ARRAY, items: { type: Type.INTEGER } },
+    rivals: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: { i: { type: Type.INTEGER }, rival: { type: Type.STRING } },
+        required: ["i", "rival"],
+      },
+    },
   },
-  required: ["sections", "atAGlance"],
+  // "rivals" is required so the editor always answers it (an empty list is
+  // fine); left optional, the model quietly skipped the task.
+  required: ["sections", "atAGlance", "rivals"],
 };
 
 const WRITING_SCHEMA: Schema = {
@@ -379,6 +389,7 @@ const WRITING_SCHEMA: Schema = {
 interface Selection {
   sections: Record<string, RawPick[]>;
   atAGlance: unknown[];
+  rivals: Array<{ i?: unknown; rival?: unknown }>;
 }
 
 async function runSelection(prefs: DigestPreferences, corpus: CorpusArticle[]): Promise<Selection> {
@@ -393,6 +404,7 @@ async function runSelection(prefs: DigestPreferences, corpus: CorpusArticle[]): 
   const parsed = JSON.parse(text) as {
     sections?: Array<{ id?: unknown; picks?: unknown }>;
     atAGlance?: unknown;
+    rivals?: unknown;
   };
   if (!Array.isArray(parsed?.sections)) throw new Error("selection missing sections");
   const sections: Record<string, RawPick[]> = {};
@@ -401,7 +413,52 @@ async function runSelection(prefs: DigestPreferences, corpus: CorpusArticle[]): 
       sections[entry.id] = entry.picks as RawPick[];
     }
   }
-  return { sections, atAGlance: Array.isArray(parsed.atAGlance) ? parsed.atAGlance : [] };
+  return {
+    sections,
+    atAGlance: Array.isArray(parsed.atAGlance) ? parsed.atAGlance : [],
+    rivals: Array.isArray(parsed.rivals) ? (parsed.rivals as Selection["rivals"]) : [],
+  };
+}
+
+// Schadenfreude rides through the writing pass as a section of its own,
+// so its stories get the same summaries (and cache) as everything else.
+const RIVALS_SECTION: DigestSection = {
+  id: "__rivals",
+  type: "topic",
+  label: "Schadenfreude",
+  order: 999,
+  articleCount: 3,
+  prompt: "The reader follows this rival and enjoys their bad day: lead with what went wrong for them, plainly.",
+};
+
+/** One real, on-topic story per named rival. */
+function rehydrateRivals(
+  raw: Selection["rivals"],
+  corpus: CorpusArticle[],
+  rivals: string[],
+): DigestArticle[] {
+  const out: DigestArticle[] = [];
+  const done = new Set<string>();
+  for (const entry of raw) {
+    const article = corpus[toIndex(entry.i)];
+    const rival = rivals.find((r) => typeof entry.rival === "string" && r.toLowerCase() === entry.rival.toLowerCase());
+    if (!article || !rival || done.has(rival)) continue;
+    // The rival has to be in the story, not just in the model's reply.
+    const hay = `${article.title} ${article.text}`.toLowerCase();
+    const last = rival.toLowerCase().split(/\s+/).pop() ?? "";
+    if (!hay.includes(rival.toLowerCase()) && !(last.length > 3 && hay.includes(last))) continue;
+    done.add(rival);
+    out.push({
+      title: article.title,
+      summary: "",
+      source: article.source,
+      url: article.url,
+      publishedAt: article.postedAgo,
+      priority: out.length + 1,
+      group: rival,
+    });
+  }
+  return out;
 }
 
 /** Fetch each shortlisted page; keep it only when it matches its headline. */
@@ -504,7 +561,7 @@ async function aiDigest(
   prefs: DigestPreferences,
   corpus: CorpusArticle[],
   cache?: WritingCache,
-): Promise<Pick<DigestResult, "sections" | "atAGlance">> {
+): Promise<Pick<DigestResult, "sections" | "atAGlance" | "rivals">> {
   const selection = await runSelection(prefs, corpus);
 
   const usedUrls = new Set<string>();
@@ -556,6 +613,11 @@ async function aiDigest(
     }
   }
   const atAGlance = rehydrateAtAGlance(selection.atAGlance, corpus);
+  const rivals = rehydrateRivals(selection.rivals, corpus, prefs.global.rivals);
+  if (rivals.length > 0) {
+    sections[RIVALS_SECTION.id] = rivals;
+    for (const a of rivals) if (!sectionByUrl.has(a.url)) sectionByUrl.set(a.url, RIVALS_SECTION);
+  }
 
   // Everything that needs writing, once each: section articles need a
   // summary, glance picks a gist, and an article can need both.
@@ -645,7 +707,8 @@ async function aiDigest(
     if (gist) g.summary = gist;
   }
 
-  return { sections, atAGlance };
+  const { [RIVALS_SECTION.id]: rivalStories = [], ...paperSections } = sections;
+  return { sections: paperSections, atAGlance, rivals: rivalStories };
 }
 
 // Places a World story can be filed under when it's added without the
@@ -891,8 +954,8 @@ export async function generateDigest(
   if (!aiEnabled() || corpus.length === 0) return heuristic();
 
   try {
-    const { sections, atAGlance } = await aiDigest(prefs, corpus, opts.writingCache);
-    return { sections, atAGlance, generatedAt, engine: "ai", corpusSize: corpus.length };
+    const { sections, atAGlance, rivals } = await aiDigest(prefs, corpus, opts.writingCache);
+    return { sections, atAGlance, rivals, generatedAt, engine: "ai", corpusSize: corpus.length };
   } catch (err) {
     console.error("[digest] AI selection failed, falling back to heuristic:", err);
     return heuristic();

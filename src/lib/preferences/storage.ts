@@ -36,6 +36,18 @@ const asNumber = (v: unknown, fallback: number, min: number, max: number): numbe
   return Math.min(max, Math.max(min, Math.round(n)));
 };
 
+// The markets section used to be India-only. A reader who never edited it
+// gets the current default (mostly India, some global markets).
+const OLD_MARKETS_PROMPT =
+  "Prioritize Nifty/Sensex movement, RBI policy, and SWP/mutual fund related news. Skip pure stock-tip articles.";
+function upgradeMarketsSection(sections: DigestSection[]): void {
+  const current = DEFAULT_DIGEST_PREFERENCES.sections.find((s) => s.id === "markets");
+  const i = sections.findIndex(
+    (s) => s.id === "markets" && s.label === "Indian Markets & Economy" && s.prompt === OLD_MARKETS_PROMPT,
+  );
+  if (current && i >= 0) sections[i] = { ...sections[i], label: current.label, prompt: current.prompt };
+}
+
 // The length presets grew (35/60/100 → 50/90/140). Saved preferences that
 // picked an old preset move to its new size, so the setting stays selected.
 const LEGACY_LENGTHS: Record<number, number> = { 35: 50, 60: 90, 100: 140 };
@@ -82,6 +94,7 @@ export function normalizePreferences(raw: unknown): DigestPreferences {
     ),
     avoidPolitics:
       typeof rawGlobal.avoidPolitics === "boolean" ? rawGlobal.avoidPolitics : d.global.avoidPolitics,
+    rivals: asStringArray(rawGlobal.rivals ?? []).slice(0, 6),
   };
 
   const rawSections = Array.isArray(obj.sections) ? obj.sections : d.sections;
@@ -145,6 +158,7 @@ export function normalizePreferences(raw: unknown): DigestPreferences {
 
   if (sections.length === 0) return structuredClone(d);
   sections.sort((a, b) => a.order - b.order);
+  upgradeMarketsSection(sections);
   return { version: PREFERENCES_VERSION, global, sections };
 }
 

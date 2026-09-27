@@ -10,6 +10,7 @@ import {
 } from "@/lib/personalization";
 import { loadDigestPreferences, saveDigestPreferences } from "@/lib/preferences/storage";
 import type { DigestPreferences } from "@/lib/preferences/types";
+import { withSportsSettings } from "@/lib/preferences/paper";
 import { requestEdition } from "@/lib/edition-client";
 import PersonalizationForm from "@/components/onboarding/PersonalizationForm";
 import DigestPreferencesEditor from "@/components/settings/DigestPreferencesEditor";
@@ -24,26 +25,6 @@ const MAX_SUBS = 8;
 
 // Football / tennis favourites chosen under "Your paper" also steer any news
 // section that feeds the sports page, so the reader sets them once.
-function withSportsFavourites(prefs: DigestPreferences, paper: Personalization): DigestPreferences {
-  const favourites = [
-    paper.favoriteFootballPlayer,
-    paper.favoriteFootballClub,
-    paper.favoriteFootballNationalTeam,
-    paper.favoriteTennisPlayer,
-  ]
-    .map((v) => v.trim())
-    .filter(Boolean);
-  if (favourites.length === 0) return prefs;
-  return {
-    ...prefs,
-    sections: prefs.sections.map((s) =>
-      s.slot === "sports"
-        ? { ...s, watchEntities: [...new Set([...(s.watchEntities ?? []), ...favourites])] }
-        : s,
-    ),
-  };
-}
-
 // Four short tabs instead of one long scroll; one Save covers all of them.
 const TABS = [
   { key: "news", label: "News", blurb: "What the AI editor prioritises everywhere, and how it writes." },
@@ -110,7 +91,7 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
     const paper = { ...draft, onboarded: true };
     if (paperDirty) savePersonalization(paper);
     if (news && (newsDirty || paperDirty)) {
-      saveDigestPreferences(withSportsFavourites(news, paper));
+      saveDigestPreferences(withSportsSettings(news, paper));
       // Start the server build now so it is already cooking while the
       // reader walks back to the paper; the front page's request joins it.
       void requestEdition(loadDigestPreferences(), { keepalive: true }).catch(() => {});
