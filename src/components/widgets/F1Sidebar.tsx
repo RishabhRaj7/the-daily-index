@@ -334,8 +334,48 @@ export default function F1Sidebar({
       busyRef.current.add("sequence");
       setRefreshing(true);
       try {
+        // Fresh cached parts apply instantly; everything else comes from
+        // ONE streamed request that answers in PART_ORDER, so the sidebar
+        // still fills top-down while the server works on all parts at once.
+        const needed: PartName[] = [];
         for (const part of PART_ORDER) {
-          await loadPart(part, setterFor(part), opts.force ?? false);
+          const cached = opts.force ? null : readF1Part(part);
+          if (cached && isFresh(cached) && !IS_EMPTY[part](cached.data)) {
+            if (mountedRef.current) setterFor(part)({ status: "ready", data: cached.data as never, stale: false });
+          } else {
+            needed.push(part);
+          }
+        }
+
+        const done = new Set<PartName>();
+        if (needed.length > 0) {
+          try {
+            const res = await fetch(`/api/f1?parts=${needed.join(",")}`, { cache: "no-store" });
+            if (!res.ok || !res.body) throw new Error(`f1 stream ${res.status}`);
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+            for (;;) {
+              const { value, done: finished } = await reader.read();
+              buffer += decoder.decode(value, { stream: !finished });
+              let newline: number;
+              while ((newline = buffer.indexOf("\n")) >= 0) {
+                const line = buffer.slice(0, newline).trim();
+                buffer = buffer.slice(newline + 1);
+                if (!line) continue;
+                const { part, result } = JSON.parse(line) as { part: PartName; result: F1PartResult<unknown> };
+                applyPart(part, setterFor(part), result as F1PartResult<never>);
+                done.add(part);
+              }
+              if (finished) break;
+            }
+          } catch {
+            // Stream broke part-way — fall back to one request per missing
+            // part, still in display order.
+          }
+          for (const part of needed) {
+            if (!done.has(part)) await fetchPart(part, setterFor(part));
+          }
         }
         if (mountedRef.current) setCheckedAt(new Date().toISOString());
       } finally {
@@ -343,7 +383,7 @@ export default function F1Sidebar({
         if (mountedRef.current) setRefreshing(false);
       }
     },
-    [loadPart, setterFor],
+    [applyPart, fetchPart, setterFor],
   );
 
   // Mount: seed the cache with anything the server already gave us, then walk

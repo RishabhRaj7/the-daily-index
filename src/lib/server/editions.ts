@@ -4,7 +4,7 @@ import { generateDigest, type WritingCache } from "@/lib/live/digest";
 import { DEFAULT_DIGEST_PREFERENCES, normalizePreferences } from "@/lib/preferences/storage";
 import type { DigestPreferences, DigestResult } from "@/lib/preferences/types";
 import { editionDate } from "@/lib/edition-date";
-import { getStore } from "./store";
+import { getStore, storeInfo } from "./store";
 import { captureSnapshot, type EditionSnapshot } from "./snapshot";
 
 // Server-built editions.
@@ -51,6 +51,8 @@ const key = {
   lock: (date: string, hash: string) => `lock:${date}:${hash}`,
   prefs: (hash: string) => `prefs:${hash}`,
   snapshot: (date: string) => `snapshot:${date}`,
+  /** Which hash was "the default edition" on a date — defaults change. */
+  defaultOn: (date: string) => `archive:default:${date}`,
   active: "editions:active",
   archive: "archive:dates",
   globalLimit: (date: string) => `limit:${date}`,
@@ -158,6 +160,9 @@ export async function buildEdition(
       hash === DEFAULT_HASH ? undefined : { ttlSeconds: CUSTOM_EDITION_TTL },
     );
     await store.zadd(key.archive, Date.parse(`${date}T00:00:00Z`) / 1000, date);
+    // Editing the shipped defaults changes DEFAULT_HASH; remember which hash
+    // was the default that day so the archive can still open it later.
+    if (hash === DEFAULT_HASH) await store.set(key.defaultOn(date), hash);
     await store.del(key.status(date, hash));
     return record;
   } catch (err) {
@@ -331,11 +336,52 @@ export async function archivedEdition(
     const own = await readEdition(date, readerHash);
     if (own) return { edition: own, isReaders: true };
   }
-  const fallback = await readEdition(date, DEFAULT_HASH);
-  return fallback ? { edition: fallback, isReaders: readerHash === DEFAULT_HASH } : null;
+  const defaultHash = (await getStore().get<string>(key.defaultOn(date))) ?? DEFAULT_HASH;
+  const fallback = await readEdition(date, defaultHash);
+  return fallback ? { edition: fallback, isReaders: readerHash === defaultHash } : null;
 }
 
 /** Whether editions (and so the archive) survive between requests. */
 export function archiveAvailable(): boolean {
   return getStore().persistent;
+}
+
+/**
+ * What /api/health reports about editions: enough to tell "Redis isn't
+ * connected" from "the build failed" from "looking at the wrong
+ * deployment" without reading function logs.
+ */
+export async function editionDiagnostics() {
+  const store = getStore();
+  const date = editionDate();
+  const info = storeInfo();
+  try {
+    const [dates, edition, status, snapshot] = await Promise.all([
+      archiveDates(5),
+      readEdition(date, DEFAULT_HASH),
+      store.get<StatusRecord>(key.status(date, DEFAULT_HASH)),
+      store.get(key.snapshot(date)),
+    ]);
+    return {
+      store: info.kind,
+      persistent: store.persistent,
+      namespace: info.namespace,
+      today: date,
+      defaultEdition: edition
+        ? { state: "ready", builtAt: edition.builtAt, engine: edition.digest.engine }
+        : status
+          ? { state: status.state, at: status.at, error: status.error }
+          : { state: "missing" },
+      snapshotToday: Boolean(snapshot),
+      latestArchiveDates: dates,
+    };
+  } catch (err) {
+    return {
+      store: info.kind,
+      persistent: store.persistent,
+      namespace: info.namespace,
+      today: date,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
 }

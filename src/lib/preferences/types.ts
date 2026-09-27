@@ -44,6 +44,11 @@ export interface DigestGlobal {
   maxAgeHours: number;
   /** Rough length, in words, each summary should aim for. */
   summaryLengthWords: number;
+  /**
+   * Skip party / electoral politics (elections, campaigns, party fights).
+   * Geopolitics and policy with real-world consequences stay eligible.
+   */
+  avoidPolitics: boolean;
 }
 
 interface SectionBase {

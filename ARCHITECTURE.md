@@ -398,3 +398,58 @@ edition starts building before the reader is back on the paper.
 - There is no "tap to update": a finished edition replaces the page as soon
   as it arrives — under the pressroom overlay before it fades, or in place
   when a background rebuild lands.
+
+## Front page render (current)
+
+- If the reader's edition for today is already stored, `app/page.tsx` reads
+  it (edition cookie → `readEdition` + `readStoredPrefs`) and passes it to
+  `EditionView` as `initialDigest`; `lib/preferences/project.ts` maps it onto
+  the sections, so the first HTML is the finished paper — no overlay, no
+  swap. The browser still checks for a newer build in the background.
+- Word of the Day comes from Merriam-Webster's free feed (cached 6 h). It was
+  a Gemini call on every render — ~1.2 s of each page load.
+- Measured on a local production build: repeat loads ~0.05 s (was 1.2–1.3 s).
+
+## F1 sidebar and markets (current)
+
+- The sidebar applies fresh cached parts instantly and loads the rest with
+  ONE streamed request, `GET /api/f1?parts=a,b,c` (NDJSON). The server starts
+  every part at once and writes results in the requested order, so the
+  sidebar still fills map → drivers → calendar → constructors → standings →
+  results. `?part=` remains for the per-block "Try again".
+- OpenF1 free tier: 3 req/s, 30 req/min. Every OpenF1 call waits for a slot
+  in both windows (`waitForOpenF1Slot` in `lib/live/f1.ts`) and retries once
+  on 429. A cold sidebar now makes 4 OpenF1 calls (was 7); warm, none.
+- Drivers' and constructors' tables come from Jolpica alone (points and wins
+  in one call each); Jolpica team names are mapped to OpenF1's.
+- "Last race" is the latest Race session that started ≥ 90 min ago — no
+  longer `session_key=latest`, which showed practice on race-weekend Fridays.
+- Market Pulse: one Yahoo `spark` request for all six indices (was six), and
+  a missing index no longer blanks the whole panel.
+
+## Politics and live blogs (current)
+
+- `politics-filter.ts` is a short list of unambiguous party / electoral
+  terms, checked against **World headlines only** (`politicsFilter` on the
+  World feeds). It used to check every feed's title + snippet against a
+  broad list including leaders' names, "president", "minister", "protest"
+  — dropping 65/297 World items (mostly geopolitics), Markets budget news,
+  EU tech regulation and FIA stories. Now: 9/297, headline-only.
+- `global.avoidPolitics` (Settings → News → "Skip party politics", on by
+  default) adds a judgement rule to the selection prompt: skip elections,
+  campaigns and party fights; keep geopolitics and consequential policy.
+- Live blogs (`… live:`, `live updates`, `as it happened`, a `/live/` URL
+  segment) are dropped in `collectCorpus` — the model picked them despite
+  the prompt saying not to.
+
+## Gemini access (current)
+
+- `lib/server/gemini.ts` is the only module that talks to Gemini, on
+  Google's current SDK (`@google/genai`; the old `@google/generative-ai` was
+  deprecated). `generateJson(prompt, { schema, temperature, timeoutMs })`
+  returns JSON text; `aiEnabled()` is the single on/off check. Model:
+  `GEMINI_MODEL`, falling back to `gemini-3.1-flash-lite`.
+- Callers: the digest (selection + writing, with response schemas),
+  `batchSummarize` (hate-watch), pick blurbs and the Editor's Desk note.
+- `/api/summarize` no longer writes an "at a glance" brief — the page always
+  used the one derived from the edition, so it was a wasted call per visit.

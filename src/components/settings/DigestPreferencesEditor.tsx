@@ -269,6 +269,21 @@ export default function DigestPreferencesEditor({
             />
           </div>
         </div>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={g.avoidPolitics}
+            onChange={(e) => updateGlobal({ avoidPolitics: e.target.checked })}
+            className="accent-[#a6291d] w-4 h-4 mt-0.5 shrink-0"
+          />
+          <span>
+            <span className="font-label text-[10px] block">Skip party politics</span>
+            <span className="font-body text-xs text-ink-soft">
+              Elections, campaigns and party fights stay out. Geopolitics and policy that moves
+              markets, tech or sport stay in.
+            </span>
+          </span>
+        </label>
         {customTone && (
           <input
             className={inputCls}

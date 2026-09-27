@@ -28,6 +28,8 @@ export default function MorgueClient() {
   const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
+    // Browser-only saved state is read after the first render so it matches the server HTML.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMemory(loadMemory());
     const onMemory = () => setMemory(loadMemory());
     window.addEventListener("daily-index:memory", onMemory);

@@ -23,17 +23,17 @@ export async function getFootballStandings(): Promise<{
       ]);
       if (!standingsRes.ok) return { league, standings: [] as FootballStanding[], leaders: [] };
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const data: any = await standingsRes.json();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const leadersData: any = leadersRes.ok ? await leadersRes.json() : null;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const entries: any[] = data?.children?.[0]?.standings?.entries ?? [];
 
     const standings: FootballStanding[] = entries
       .map((entry) => {
         const stat = (name: string): number => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           const found = (entry.stats as any[])?.find((s: any) => s.name === name);
           return (found?.value as number) ?? 0;
         };

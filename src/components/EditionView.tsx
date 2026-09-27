@@ -35,11 +35,9 @@ import { fallbackEditorsNote } from "@/lib/live/editorial-ai";
 import {
   consumeForcedSummarize,
   mergeSummaryRecord,
-  readBrief,
   readNote,
   readPickBlurbs,
   readSummaryRecord,
-  writeBrief,
   writeNote,
   writePickBlurbs,
 } from "@/lib/summary-cache";
@@ -68,7 +66,8 @@ import type {
   DigestSection,
   NewsSlot,
 } from "@/lib/preferences/types";
-import { deriveBriefFromDigest, digestArticleToStory } from "@/lib/preferences/stories";
+import { deriveBriefFromDigest } from "@/lib/preferences/stories";
+import { projectDigest, withProjection } from "@/lib/preferences/project";
 import {
   consumeEditionRefresh,
   readDigestCache,
@@ -100,7 +99,7 @@ export default function EditionView({
   isArchive = false,
   f1Live = false,
   hateWatchStories: initialHateWatchStories = [],
-  summaryArticles = [],
+  initialDigest = null,
   f1Stories: initialF1Stories = [],
   footballStories: initialFootballStories = [],
   tennisStories: initialTennisStories = [],
@@ -114,7 +113,9 @@ export default function EditionView({
   f1Live?: boolean;
   redditLive?: boolean;
   hateWatchStories?: Story[];
-  summaryArticles?: Array<{ id: string; url: string; snippet: string; title?: string }>;
+  /** Today's edition, when the server already had it — rendered into the
+   *  first HTML so the reader never sees raw wires or the overlay. */
+  initialDigest?: { result: DigestResult; prefs: DigestPreferences } | null;
   f1Stories?: Story[];
   footballStories?: Story[];
   tennisStories?: Story[];
@@ -123,31 +124,45 @@ export default function EditionView({
   redditUser?: string | null;
   feedSubreddits?: string[];
 }) {
-  const [edition, setEdition] = useState(initialEdition);
+  // Server-rendered edition, projected once for the initial state below.
+  const [seed] = useState(() =>
+    initialDigest ? projectDigest(initialDigest.result, initialDigest.prefs) : null,
+  );
+  const [edition, setEdition] = useState(() =>
+    seed ? { ...initialEdition, sections: withProjection(initialEdition.sections, seed) } : initialEdition,
+  );
   const [hateWatchStories, setHateWatchStories] = useState(initialHateWatchStories);
-  const [f1Stories, setF1Stories] = useState(initialF1Stories);
-  const [footballStories, setFootballStories] = useState(initialFootballStories);
-  const [tennisStories, setTennisStories] = useState(initialTennisStories);
+  const [f1Stories, setF1Stories] = useState(() => (seed?.paddock.f1.length ? seed.paddock.f1 : initialF1Stories));
+  const [footballStories, setFootballStories] = useState(() =>
+    seed?.paddock.football.length ? seed.paddock.football : initialFootballStories,
+  );
+  const [tennisStories, setTennisStories] = useState(() =>
+    seed?.paddock.tennis.length ? seed.paddock.tennis : initialTennisStories,
+  );
   const [summaryState, setSummaryState] = useState<SummaryState>("idle");
   const inFlightRef = useRef<AbortController | null>(null);
-  const [brief, setBrief] = useState<EditionBrief | null>(null);
+  const [brief, setBrief] = useState<EditionBrief | null>(() =>
+    initialDigest ? deriveBriefFromDigest(initialDigest.result, initialDigest.prefs) : null,
+  );
   const [personalization, setPersonalization] = useState<Personalization>(DEFAULT_PERSONALIZATION);
-  const [liveWeather, setLiveWeather] = useState<WeatherNow | null>(null);
-  const [weatherState, setWeatherState] = useState<WeatherState>("loading");
+  // Weather result tagged with the city it is for: a new city reads as
+  // "loading" until its own answer lands, without resetting state in an effect.
+  const [weatherResult, setWeatherResult] = useState<{
+    city: string;
+    state: WeatherState;
+    data: WeatherNow | null;
+  } | null>(null);
   const [grapevine, setGrapevine] = useState<GrapevineData>(initialEdition.grapevine ?? EMPTY_GRAPEVINE);
 
   // --- preference-driven digest state ---------------------------------------
-  const [appliedDigest, setAppliedDigest] = useState<DigestResult | null>(null);
+  const [appliedDigest, setAppliedDigest] = useState<DigestResult | null>(initialDigest?.result ?? null);
   const [standaloneDigest, setStandaloneDigest] = useState<
     Array<{ section: DigestSection; articles: DigestArticle[] }>
-  >([]);
+  >(() => seed?.standalone ?? []);
   const digestInFlightRef = useRef<AbortController | null>(null);
   // Set at mount when this visit follows "Refresh edition": the server must
   // rebuild rather than hand back the edition the reader already had.
   const forceRebuildRef = useRef(false);
-  // True once the digest pipeline has engaged for this edition — the legacy
-  // /api/summarize brief then stays out of the way of the digest-derived one.
-  const digestEngagedRef = useRef(false);
 
   // --- edition prep overlay ("cooking today's edition") -------------------
   // boot     — first render (SSR included): the opaque overlay is already on
@@ -161,10 +176,10 @@ export default function EditionView({
   // cooking entirely: the cached edition applies silently at mount and the
   // overlay never appears.
   type PrepPhase = "boot" | "cooking" | "failed" | "leaving" | "revealed";
-  const [prep, setPrep] = useState<PrepPhase>(() => (isArchive ? "revealed" : "boot"));
+  const [prep, setPrep] = useState<PrepPhase>(() => (isArchive || initialDigest ? "revealed" : "boot"));
   const [prepReason, setPrepReason] = useState<"first-visit" | "refresh">("first-visit");
   // Mirrors `prep` for callbacks that resolve long after render.
-  const prepActiveRef = useRef(!isArchive);
+  const prepActiveRef = useRef(!isArchive && !initialDigest);
   const prepLeaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -191,6 +206,8 @@ export default function EditionView({
 
   // --- mount: personalization + reader memory -----------------------------
   useEffect(() => {
+    // Browser-only saved state is read after the first render so it matches the server HTML.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPersonalization(loadPersonalization());
     if (isArchive) {
       setMemory(loadMemory());
@@ -219,25 +236,17 @@ export default function EditionView({
 
   // --- weather: always resolves to ready or failed, never spins forever ----
   useEffect(() => {
-    if (isArchive) {
-      setWeatherState("failed");
-      return;
-    }
+    if (isArchive) return;
     let cancelled = false;
-    setWeatherState("loading");
+    const city = personalization.homeCity;
     const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), WEATHER_TIMEOUT_MS));
-    Promise.race([getLiveWeather(personalization.homeCity), timeout])
+    Promise.race([getLiveWeather(city), timeout])
       .then((w) => {
         if (cancelled) return;
-        if (w) {
-          setLiveWeather(w);
-          setWeatherState("ready");
-        } else {
-          setWeatherState("failed");
-        }
+        setWeatherResult({ city, state: w ? "ready" : "failed", data: w });
       })
       .catch(() => {
-        if (!cancelled) setWeatherState("failed");
+        if (!cancelled) setWeatherResult({ city, state: "failed", data: null });
       });
     return () => {
       cancelled = true;
@@ -325,10 +334,9 @@ export default function EditionView({
       const askedUrls = new Set(cached ? cached.asked : []);
       const currentUrls = new Set(hateWatchInputs.map((a) => a.url));
 
-      // If we already asked for the brief / blurbs / note once today, don't
-      // ask again on every reload just because the model returned nothing.
+      // If we already asked for the blurbs / note once today, don't ask
+      // again on every reload just because the model returned nothing.
       const extrasDone = cached?.extrasAsked === true;
-      let haveBrief = extrasDone;
       let havePicks = extrasDone;
       let haveNote = extrasDone;
 
@@ -338,11 +346,6 @@ export default function EditionView({
         for (const url of currentUrls) if (cached.byUrl[url]) hit[url] = cached.byUrl[url];
         if (Object.keys(hit).length > 0) applyMap(hit);
 
-        const cachedBrief = readBrief<EditionBrief>(today);
-        if (cachedBrief) {
-          setBrief(cachedBrief);
-          haveBrief = true;
-        }
         const cachedPicks = readPickBlurbs(today);
         if (cachedPicks) {
           applyPickBlurbs(cachedPicks);
@@ -360,13 +363,12 @@ export default function EditionView({
         : hateWatchInputs.filter((a) => !cachedUrls.has(a.url) && !askedUrls.has(a.url));
       const picksToAsk = force || !havePicks ? grapevine.picks : [];
       const wantNote = force || !haveNote;
-      const wantBrief = force || !haveBrief;
 
-      if (toAsk.length === 0 && picksToAsk.length === 0 && !wantNote && !wantBrief) {
+      if (toAsk.length === 0 && picksToAsk.length === 0 && !wantNote) {
         setSummaryState("idle");
         return;
       }
-      // Nothing new to summarise and the brief/note are already on the page.
+      // Nothing new to summarise and the note is already on the page.
       if (toAsk.length === 0 && picksToAsk.length === 0 && hateWatchInputs.length === 0) {
         setSummaryState("idle");
         return;
@@ -413,12 +415,11 @@ export default function EditionView({
           if (!r.ok) throw new Error(`summarize ${r.status}`);
           return (await r.json()) as {
             summaries?: Record<string, string>;
-            brief?: EditionBrief | null;
             pickBlurbs?: Record<string, string>;
             editorsNote?: string | null;
           };
         })
-        .then(({ summaries, brief: apiBrief, pickBlurbs, editorsNote: apiNote }) => {
+        .then(({ summaries, pickBlurbs, editorsNote: apiNote }) => {
           if (controller.signal.aborted) return;
           const idToUrl = new Map(hateWatchInputs.map((a) => [a.id, a.url]));
           const askedNow = new Set((force ? hateWatchInputs : toAsk).map((a) => a.url));
@@ -437,15 +438,11 @@ export default function EditionView({
           // so the next load doesn't re-request it; keep only the entries that
           // would visibly change the page for the reader to apply.
           mergeSummaryRecord(today, byUrl, Array.from(askedNow), {
-            extrasAsked: force || picksToAsk.length > 0 || wantNote || wantBrief,
+            extrasAsked: force || picksToAsk.length > 0 || wantNote,
           });
-          if (apiBrief) writeBrief(today, apiBrief);
           if (pickBlurbs && Object.keys(pickBlurbs).length > 0) writePickBlurbs(today, pickBlurbs);
           if (apiNote) writeNote(today, apiNote);
 
-          // The digest derives its own "at a glance" brief; only fall back to
-          // the server-written one when the digest pipeline never engaged.
-          if (apiBrief && !digestEngagedRef.current) setBrief(apiBrief);
           if (pickBlurbs) applyPickBlurbs(pickBlurbs);
           if (apiNote) setEditorsNote({ text: apiNote, source: "ai" });
 
@@ -477,50 +474,9 @@ export default function EditionView({
   // section in one pass. When the result arrives it waits in pendingDigestRef
   // Digest results wait here until the reader taps "tap to update".
   const applyDigest = useCallback((result: DigestResult, prefs: DigestPreferences) => {
-    const slotStories: Partial<Record<NewsSlot, Story[]>> = {};
-    const paddock = { f1: [] as Story[], football: [] as Story[], tennis: [] as Story[] };
-    const standalone: Array<{ section: DigestSection; articles: DigestArticle[] }> = [];
-
-    for (const section of [...prefs.sections].sort((a, b) => a.order - b.order)) {
-      const articles = result.sections[section.id] ?? [];
-      if (articles.length === 0) continue;
-      if (!section.slot) {
-        standalone.push({ section, articles });
-        continue;
-      }
-      if (section.slot === "paddock-notes") {
-        articles.forEach((a, i) => {
-          const sport =
-            a.group === "football" || a.group === "tennis" ? a.group : "f1";
-          paddock[sport].push(digestArticleToStory(section, a, i));
-        });
-      } else if (section.slot === "sports") {
-        articles.forEach((a, i) => {
-          if (a.group === "football") paddock.football.push(digestArticleToStory(section, a, i));
-          if (a.group === "tennis") paddock.tennis.push(digestArticleToStory(section, a, i));
-        });
-      } else {
-        slotStories[section.slot] = [
-          ...(slotStories[section.slot] ?? []),
-          ...articles.map((a, i) => digestArticleToStory(section, a, i)),
-        ];
-      }
-    }
-
-    const paddockTotal = paddock.f1.length + paddock.football.length + paddock.tennis.length;
-    setEdition((prev) => ({
-      ...prev,
-      sections: {
-        ...prev.sections,
-        dateline: slotStories.dateline ?? prev.sections.dateline,
-        circuitBoard: slotStories["circuit-board"] ?? prev.sections.circuitBoard,
-        ledger: slotStories.ledger ?? prev.sections.ledger,
-        paddockNotes:
-          paddockTotal > 0
-            ? [...paddock.f1, ...paddock.football, ...paddock.tennis]
-            : prev.sections.paddockNotes,
-      },
-    }));
+    const projection = projectDigest(result, prefs);
+    const { paddock, standalone } = projection;
+    setEdition((prev) => ({ ...prev, sections: withProjection(prev.sections, projection) }));
     if (paddock.f1.length > 0) setF1Stories(paddock.f1);
     if (paddock.football.length > 0) setFootballStories(paddock.football);
     if (paddock.tennis.length > 0) setTennisStories(paddock.tennis);
@@ -531,7 +487,6 @@ export default function EditionView({
   const runDigest = useCallback(
     (force: boolean) => {
       if (isArchive) return;
-      digestEngagedRef.current = true;
       const prefs = loadDigestPreferences();
       const hash = hashPreferences(prefs);
 
@@ -622,7 +577,11 @@ export default function EditionView({
     // later, unrelated visit.
     const deliberateRefresh = consumeEditionRefresh();
     forceRebuildRef.current = deliberateRefresh;
+    // The server already printed today's edition into the page.
+    if (initialDigest && !deliberateRefresh) return;
     if (!loadPersonalization().onboarded) {
+      // Browser-only saved state is read after the first render so it matches the server HTML.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPrep("revealed");
       return;
     }
@@ -690,6 +649,12 @@ export default function EditionView({
   const accentColor = personalization.favoriteF1Team
     ? F1_TEAM_COLORS[personalization.favoriteF1Team]
     : undefined;
+  const weatherState: WeatherState = isArchive
+    ? "failed"
+    : weatherResult?.city === personalization.homeCity
+      ? weatherResult.state
+      : "loading";
+  const liveWeather = weatherResult?.city === personalization.homeCity ? weatherResult.data : null;
   const weather = liveWeather ?? edition.weather ?? null;
   const isSunday = new Date().getDay() === 0;
 

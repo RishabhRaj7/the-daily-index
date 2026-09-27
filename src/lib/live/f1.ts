@@ -8,18 +8,6 @@ import type {
   F1GridResult,
   F1LiveResult,
 } from "@/lib/types";
-export interface LiveF1Data {
-  nextRace: F1Race;
-  upcoming: F1Race[];
-  standings: F1Standing[];
-  constructorStandings: F1ConstructorStanding[];
-  lastRace: F1LastRace | null;
-  qualifyingGrid: F1GridResult[];
-  liveResults: F1LiveResult[];
-  currentRace: F1Race | null;
-  racePhase: "last-race" | "qualifying" | "race";
-}
-
 // Staged slices of LiveF1Data — each maps to one block of the F1 sidebar and
 // is fetched independently so the section can render progressively:
 //   schedule  — fastest (one memoized call): next race + upcoming calendar.
@@ -84,21 +72,54 @@ export interface F1PartFailure {
 export type F1PartResult<T> = F1PartSuccess<T> | F1PartFailure;
 
 const OPENF1_API = "https://api.openf1.org/v1";
-const ERGAST_API = "https://api.jolpi.ca/ergast/f1";
+const JOLPICA_API = "https://api.jolpi.ca/ergast/f1";
 const RESULT_DELAY_MS = 90 * 60 * 1000;
 
-// Maps Ergast constructor names (lowercased) to OpenF1 team_name (lowercased).
-// Confirmed against live data from both APIs — extend if new mismatches show up.
-const TEAM_NAME_ALIASES: Record<string, string> = {
-  "red bull": "red bull racing",
-  "rb f1 team": "racing bulls",
-  "alpine f1 team": "alpine",
-  "cadillac f1 team": "cadillac",
+// Jolpica (Ergast) constructor names → the OpenF1 team names the rest of the
+// sidebar (team colours, badges, the static roster) is keyed on. Confirmed
+// against live data from both APIs — extend if a new mismatch shows up.
+const JOLPICA_TEAM_NAMES: Record<string, string> = {
+  "Red Bull": "Red Bull Racing",
+  "RB F1 Team": "Racing Bulls",
+  "Alpine F1 Team": "Alpine",
+  "Cadillac F1 Team": "Cadillac",
 };
 
-function normalizeTeam(name: string): string {
-  const lower = name.toLowerCase().trim();
-  return TEAM_NAME_ALIASES[lower] ?? lower;
+function teamFromJolpica(name: string): string {
+  return JOLPICA_TEAM_NAMES[name] ?? name;
+}
+
+// ---- OpenF1 pacing ------------------------------------------------------------
+// The free OpenF1 tier allows 3 requests/second and 30/minute. Every OpenF1
+// call in this process waits for a slot in both windows, so a cold sidebar
+// (several parts at once) can never trip the limit. Upstream responses are
+// also cached (Next Data Cache + the memo below), so most renders make no
+// OpenF1 call at all.
+const OPENF1_PER_SECOND = 3;
+const OPENF1_PER_MINUTE = 30;
+const openF1Calls: number[] = [];
+let openF1Queue: Promise<void> = Promise.resolve();
+
+function waitForOpenF1Slot(): Promise<void> {
+  const turn = openF1Queue.then(async () => {
+    for (;;) {
+      const now = Date.now();
+      while (openF1Calls.length && now - openF1Calls[0] >= 60_000) openF1Calls.shift();
+      const lastSecond = openF1Calls.filter((t) => now - t < 1000);
+      if (openF1Calls.length < OPENF1_PER_MINUTE && lastSecond.length < OPENF1_PER_SECOND) {
+        openF1Calls.push(now);
+        return;
+      }
+      const waitMs =
+        openF1Calls.length >= OPENF1_PER_MINUTE
+          ? 60_000 - (now - openF1Calls[0])
+          : 1000 - (now - lastSecond[0]);
+      await new Promise((resolve) => setTimeout(resolve, Math.max(waitMs, 20)));
+    }
+  });
+  // The queue only orders callers; one failure must not block the next.
+  openF1Queue = turn.catch(() => {});
+  return turn;
 }
 
 interface OpenF1Session {
@@ -139,38 +160,28 @@ interface OpenF1Result {
   dsq: boolean;
 }
 
-interface OpenF1ChampionshipDriver {
-  meeting_key: number;
-  session_key: number;
-  driver_number: number;
-  position_start: number;
-  position_current: number;
-  points_start: number;
-  points_current: number;
-}
-
-interface OpenF1ChampionshipTeam {
-  meeting_key: number;
-  session_key: number;
-  team_name: string;
-  position_start: number;
-  position_current: number;
-  points_start: number;
-  points_current: number;
-}
-
-interface ErgastDriverStanding {
+interface JolpicaDriverStanding {
+  position: string;
+  points: string;
   wins: string;
-  Driver: { code: string };
+  Driver: { code?: string; givenName: string; familyName: string; permanentNumber?: string };
   Constructors: { name: string }[];
 }
 
-interface ErgastStandingsResponse {
+interface JolpicaConstructorStanding {
+  position: string;
+  points: string;
+  wins: string;
+  Constructor: { name: string };
+}
+
+interface JolpicaStandingsResponse {
   MRData: {
     StandingsTable: {
-      StandingsLists: {
-        DriverStandings: ErgastDriverStanding[];
-      }[];
+      StandingsLists: Array<{
+        DriverStandings?: JolpicaDriverStanding[];
+        ConstructorStandings?: JolpicaConstructorStanding[];
+      }>;
     };
   };
 }
@@ -231,14 +242,42 @@ export function clearF1Memo(): void {
 
 async function openF1<T>(path: string, revalidate = 3600): Promise<T | null> {
   try {
-    const response = await fetch(`${OPENF1_API}/${path}`, { next: { revalidate } });
+    await waitForOpenF1Slot();
+    let response = await fetch(`${OPENF1_API}/${path}`, { next: { revalidate } });
+    if (response.status === 429) {
+      // Another instance used the budget; one paced retry, then give up.
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await waitForOpenF1Slot();
+      response = await fetch(`${OPENF1_API}/${path}`, { next: { revalidate } });
+    }
     if (!response.ok) {
-      console.error(`openF1 failed: ${path} -> ${response.status} ${response.statusText}`);
+      // OpenF1 answers 404 when a query has no rows yet — e.g. the next
+      // race's starting_grid before qualifying. That is "no data", not a
+      // failure, so it stays out of the error log.
+      if (response.status !== 404) {
+        console.error(`openF1 failed: ${path} -> ${response.status} ${response.statusText}`);
+      }
       return null;
     }
     return await response.json() as T;
   } catch (err) {
     console.error(`openF1 error: ${path}`, err);
+    return null;
+  }
+}
+
+// Jolpica (the Ergast successor) serves both championship tables — with
+// positions, points and wins — in one request each.
+async function jolpica<T>(path: string, revalidate = 900): Promise<T | null> {
+  try {
+    const response = await fetch(`${JOLPICA_API}/${path}`, { next: { revalidate } });
+    if (!response.ok) {
+      console.error(`jolpica failed: ${path} -> ${response.status} ${response.statusText}`);
+      return null;
+    }
+    return (await response.json()) as T;
+  } catch (err) {
+    console.error(`jolpica error: ${path}`, err);
     return null;
   }
 }
@@ -394,42 +433,34 @@ function analyzeSeason(sorted: OpenF1Session[]) {
   return { nextSession, lastSession, latestSession, upcoming, nextRound };
 }
 
-// Raw rows of the latest session — no driver details attached yet. Split
-// from the labelling step so the network fetch can start before the season
-// sessions (needed for the fallback roster) have resolved.
-interface LatestResultRows {
-  session: OpenF1Session;
-  results: OpenF1Result[];
+// The race whose result is shown as "last race": the most recent Race
+// session that started at least RESULT_DELAY_MS ago, so provisional
+// classifications have settled. Taken from the season's Race sessions — the
+// old `session_key=latest` pointed at whatever ran last, which on a race
+// weekend's Friday printed practice times as the "last race".
+function resultSession(sorted: OpenF1Session[]): OpenF1Session | undefined {
+  const cutoff = Date.now() - RESULT_DELAY_MS;
+  return [...sorted].reverse().find((s) => new Date(s.date_start).getTime() <= cutoff);
 }
 
-async function fetchLatestResultRows(): Promise<LatestResultRows | null> {
-  // These two used to be sequential; both accept session_key=latest so they
-  // resolve independently and run in parallel. Only the driver lookup below
-  // needs the concrete session key from the first response.
-  const [latestSessions, results] = await Promise.all([
-    openF1<OpenF1Session[]>(`sessions?session_key=latest`, 900),
-    openF1<OpenF1Result[]>(`session_result?session_key=latest`, 900),
-  ]);
-  const latestSession = latestSessions?.[0];
-  if (!latestSession || !results?.length) return null;
-
-  if (Date.now() < new Date(latestSession.date_start).getTime() + RESULT_DELAY_MS) return null;
-
-  return { session: latestSession, results };
+function getSessionResult(sessionKey: number): Promise<OpenF1Result[]> {
+  return memoized(
+    `result:${sessionKey}`,
+    async () => (await openF1<OpenF1Result[]>(`session_result?session_key=${sessionKey}`, 3600)) ?? [],
+    (rows) => rows.length > 0,
+  );
 }
 
-async function labelLatestSessionResults(
-  rows: LatestResultRows,
-  fallbackSessionKey?: number,
-): Promise<F1LastRace> {
-  const { session: latestSession, results } = rows;
-  const drivers = await getDriverDetails(fallbackSessionKey);
-
+function labelRaceResults(
+  session: OpenF1Session,
+  results: OpenF1Result[],
+  drivers: Map<number, OpenF1Driver>,
+): F1LastRace {
   return {
-    name: `${raceFromSession(latestSession, 0).name} — ${latestSession.session_name}`,
-    circuit: latestSession.circuit_short_name,
-    date: latestSession.date_start,
-    results: results
+    name: `${raceFromSession(session, 0).name} — ${session.session_name}`,
+    circuit: session.circuit_short_name,
+    date: session.date_start,
+    results: [...results]
       .sort((a, b) => (a.position ?? Number.MAX_SAFE_INTEGER) - (b.position ?? Number.MAX_SAFE_INTEGER))
       .map((result) => ({
         position: result.position,
@@ -442,45 +473,27 @@ async function labelLatestSessionResults(
   };
 }
 
+// Memoized, empty answers included: before qualifying OpenF1 has no grid
+// (it answers 404), and asking again on every render would spend the
+// request budget on a guaranteed miss.
+function getStartingGrid(sessionKey: number) {
+  return memoized(`grid:${sessionKey}`, async () =>
+    (await openF1<{ driver_number: number; position: number; lap_duration: number | null }[]>(
+      `starting_grid?session_key=${sessionKey}`,
+      900,
+    )) ?? [],
+  );
+}
+
 async function fetchStartingGrid(sessionKey: number, drivers: Map<number, OpenF1Driver>): Promise<F1GridResult[]> {
-  const grid = await openF1<{ driver_number: number; position: number; lap_duration: number | null }[]>(`starting_grid?session_key=${sessionKey}`, 900);
-  return (grid ?? []).sort((a, b) => a.position - b.position).map((row) => ({
+  const grid = await getStartingGrid(sessionKey);
+  return [...grid].sort((a, b) => a.position - b.position).map((row) => ({
     position: row.position,
     driver: driverLabel(drivers.get(row.driver_number), row.driver_number),
     code: drivers.get(row.driver_number)?.name_acronym ?? "",
     team: drivers.get(row.driver_number)?.team_name ?? "",
     time: row.lap_duration ? `${row.lap_duration.toFixed(3)}s` : "—",
   }));
-}
-
-// Wins pulled from Ergast/Jolpica in a single request — no per-race loop
-// needed, unlike OpenF1 which requires one session_result call per completed
-// race to compute wins.
-async function fetchWins(year: number): Promise<{ drivers: Map<string, number>; teams: Map<string, number> }> {
-  const driverWins = new Map<string, number>();
-  const teamWins = new Map<string, number>();
-  try {
-    const response = await fetch(`${ERGAST_API}/${year}/driverstandings/`, { next: { revalidate: 900 } });
-    if (!response.ok) {
-      console.error(`ergast wins failed: ${response.status} ${response.statusText}`);
-      return { drivers: driverWins, teams: teamWins };
-    }
-    const data = await response.json() as ErgastStandingsResponse;
-    const standings = data.MRData.StandingsTable.StandingsLists[0]?.DriverStandings ?? [];
-    for (const entry of standings) {
-      const wins = Number(entry.wins) || 0;
-      if (wins === 0) continue;
-      driverWins.set(entry.Driver.code, wins);
-      const team = entry.Constructors.at(-1)?.name;
-      if (team) {
-        const key = normalizeTeam(team);
-        teamWins.set(key, (teamWins.get(key) ?? 0) + wins);
-      }
-    }
-  } catch (err) {
-    console.error(`ergast wins error`, err);
-  }
-  return { drivers: driverWins, teams: teamWins };
 }
 
 // --- staged fetchers, in sidebar fill order ---------------------------------
@@ -520,67 +533,64 @@ export async function getF1Calendar(): Promise<F1CalendarData | null> {
   return { upcoming: analyzeSeason(sessions).upcoming };
 }
 
-/** 4. Constructors' championship. Its own upstream call, so a failure here
- *     can never blank the drivers' table (and vice versa). */
+/** 4. Constructors' championship — one Jolpica call (points and wins). */
 export async function getF1Constructors(): Promise<F1ConstructorsData | null> {
-  const [teamRows, wins] = await Promise.all([
-    openF1<OpenF1ChampionshipTeam[]>(`championship_teams?session_key=latest`, 900),
-    fetchWins(new Date().getUTCFullYear()),
-  ]);
-  if (!teamRows?.length) return null;
+  const year = new Date().getUTCFullYear();
+  const data = await jolpica<JolpicaStandingsResponse>(`${year}/constructorstandings/`);
+  const rows = data?.MRData.StandingsTable.StandingsLists[0]?.ConstructorStandings ?? [];
+  if (rows.length === 0) return null;
   return {
-    constructorStandings: [...teamRows]
-      .sort((a, b) => a.position_current - b.position_current)
-      .map((row) => ({
-        position: row.position_current,
-        team: row.team_name,
-        points: row.points_current,
-        wins: wins.teams.get(normalizeTeam(row.team_name)) ?? 0,
-      })),
+    constructorStandings: rows.map((row) => ({
+      position: Number(row.position),
+      team: teamFromJolpica(row.Constructor.name),
+      points: Number(row.points),
+      wins: Number(row.wins) || 0,
+    })),
   };
 }
 
-/** 5. Drivers' championship. */
+/** 5. Drivers' championship — one Jolpica call (points and wins). Names and
+ *     teams come from the static roster when the driver is on it, so they
+ *     match every other table in the sidebar. */
 export async function getF1DriverStandings(): Promise<F1DriverStandingsData | null> {
-  const [driverRows, wins, drivers] = await Promise.all([
-    openF1<OpenF1ChampionshipDriver[]>(`championship_drivers?session_key=latest`, 900),
-    fetchWins(new Date().getUTCFullYear()),
+  const year = new Date().getUTCFullYear();
+  const [data, drivers] = await Promise.all([
+    jolpica<JolpicaStandingsResponse>(`${year}/driverstandings/`),
     getDriverDetails(),
   ]);
-  if (!driverRows?.length) return null;
+  const rows = data?.MRData.StandingsTable.StandingsLists[0]?.DriverStandings ?? [];
+  if (rows.length === 0) return null;
+  const byCode = new Map([...drivers.values()].map((d) => [d.name_acronym, d]));
   return {
-    standings: [...driverRows]
-      .sort((a, b) => a.position_current - b.position_current)
-      .map((row) => {
-        const code = drivers.get(row.driver_number)?.name_acronym ?? "";
-        return {
-          position: row.position_current,
-          driverId: code.toLowerCase() || String(row.driver_number),
-          name: driverLabel(drivers.get(row.driver_number), row.driver_number),
-          code: row.driver_number === 22 ? "TSU" : code,
-          team:
-            row.driver_number === 22
-              ? "Racing Bulls"
-              : (drivers.get(row.driver_number)?.team_name ?? ""),
-          points: row.points_current,
-          wins: wins.drivers.get(code) ?? 0,
-        };
-      }),
+    standings: rows.map((row) => {
+      const code = row.Driver.code ?? row.Driver.familyName.slice(0, 3).toUpperCase();
+      const known = byCode.get(code);
+      return {
+        position: Number(row.position),
+        driverId: code.toLowerCase(),
+        name: known
+          ? driverLabel(known, known.driver_number)
+          : `${row.Driver.givenName[0]}. ${row.Driver.familyName}`,
+        code,
+        team: known?.team_name ?? teamFromJolpica(row.Constructors.at(-1)?.name ?? ""),
+        points: Number(row.points),
+        wins: Number(row.wins) || 0,
+      };
+    }),
   };
 }
 
 /** 6. Latest race result + the next race's starting grid — the slow tail. */
 export async function getF1Results(): Promise<F1ResultsData | null> {
-  const [rows, sessions] = await Promise.all([
-    fetchLatestResultRows(),
-    getSeasonSessions(),
-  ]);
+  const sessions = await getSeasonSessions();
   if (!sessions?.length) return null;
   const { nextSession, lastSession } = analyzeSeason(sessions);
-  const [lastRace, drivers] = await Promise.all([
-    rows ? labelLatestSessionResults(rows, lastSession?.session_key) : Promise.resolve(null),
+  const race = resultSession(sessions);
+  const [results, drivers] = await Promise.all([
+    race ? getSessionResult(race.session_key) : Promise.resolve([] as OpenF1Result[]),
     getDriverDetails(lastSession?.session_key),
   ]);
+  const lastRace = race && results.length > 0 ? labelRaceResults(race, results, drivers) : null;
   const qualifyingGrid = await fetchStartingGrid(nextSession.session_key, drivers);
   const liveResults =
     paidLiveProvider && lastSession
@@ -603,30 +613,6 @@ export async function getF1Schedule(): Promise<F1ScheduleData | null> {
   const { nextSession, nextRound, upcoming } = analyzeSeason(sessions);
   const circuitImageUrl = await getMeetingImage(nextSession.meeting_key);
   return { nextRace: raceFromSession(nextSession, nextRound, circuitImageUrl), upcoming };
-}
-
-/** Full sidebar payload composed from the parts running in parallel. Kept for
- *  callers that want everything at once; the sidebar consumes the parts
- *  individually so each block renders (and retries) independently. */
-export async function getLiveF1(): Promise<LiveF1Data | null> {
-  const [schedule, constructors, standings, results] = await Promise.all([
-    getF1Schedule(),
-    getF1Constructors(),
-    getF1DriverStandings(),
-    getF1Results(),
-  ]);
-  if (!schedule) return null;
-  return {
-    nextRace: schedule.nextRace,
-    upcoming: schedule.upcoming,
-    standings: standings?.standings ?? [],
-    constructorStandings: constructors?.constructorStandings ?? [],
-    lastRace: results?.lastRace ?? null,
-    qualifyingGrid: results?.qualifyingGrid ?? [],
-    liveResults: results?.liveResults ?? [],
-    currentRace: results?.currentRace ?? null,
-    racePhase: results?.racePhase ?? "last-race",
-  };
 }
 
 /** Driver roster for the settings / onboarding chips. Static data — this used

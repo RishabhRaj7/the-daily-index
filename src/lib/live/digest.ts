@@ -17,7 +17,7 @@
 // fails → the selection stands with summaries condensed from the article.
 
 import { createHash } from "node:crypto";
-import { GoogleGenerativeAI, SchemaType, type ResponseSchema } from "@google/generative-ai";
+import { aiEnabled, generateJson, Type, type Schema } from "@/lib/server/gemini";
 import { dedupeWires } from "./rss";
 import { getWorldIndiaWire, getMarketsWire } from "./news";
 import { getF1News } from "./f1-news";
@@ -46,39 +46,6 @@ const SELECTION_TIMEOUT_MS = 45_000;
 const WRITING_TIMEOUT_MS = 70_000;
 const RSS_FALLBACK_CHARS = 2000;
 const MAX_GLANCE_PICKS = 6;
-
-function aiEnabled(): boolean {
-  return process.env.AI_SUMMARIZE !== "false" && Boolean(process.env.GEMINI_API_KEY);
-}
-
-// Structured output: the model must answer in exactly this shape, so there
-// are no markdown fences or stray prose to strip before parsing.
-function getModel(schema: ResponseSchema, temperature: number) {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) return null;
-  return new GoogleGenerativeAI(key).getGenerativeModel({
-    model: process.env.GEMINI_MODEL ?? "gemini-2.0-flash",
-    generationConfig: {
-      responseMimeType: "application/json",
-      responseSchema: schema,
-      temperature,
-    },
-  });
-}
-
-async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      promise,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error(`${label} timeout`)), ms);
-      }),
-    ]);
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 // "just now" → 0, "3h ago" → 3, "2d ago" → 48. Anything else → unknown.
 function parseAgeHours(postedAgo: string): number | null {
@@ -113,6 +80,21 @@ async function mapWithConcurrency<T, R>(
   });
   await Promise.all(workers);
   return results;
+}
+
+// Live blogs ("Iran war live: …", /live/ URLs) are rolling pages, not
+// stories: their snippet is whatever the latest post was, and the model
+// picked them despite being told not to. Dropped before it sees them.
+const LIVE_TITLE = /(^|[\s–—-])live(:|\s+updates?\b|\s+blog\b|\s+[–—-]\s)|\bas it happened\b/i;
+
+function isLiveBlog(title: string, url: string): boolean {
+  if (LIVE_TITLE.test(title)) return true;
+  try {
+    // A "/live/" path segment (Guardian, BBC) — not any slug starting "live-".
+    return /\/live(\/|$)/.test(new URL(url).pathname);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -171,6 +153,7 @@ export async function collectCorpus(prefs: DigestPreferences): Promise<CorpusArt
     })
     .filter((a) => {
       if (a.ageHours !== null && a.ageHours > maxAge) return false;
+      if (isLiveBlog(a.title, a.url)) return false;
       const hay = `${a.title} ${a.text}`.toLowerCase();
       return !excluded.some((k) => hay.includes(k));
     })
@@ -345,23 +328,23 @@ function rehydrateAtAGlance(raw: unknown, corpus: CorpusArticle[]): AtAGlanceIte
 
 // ---- AI passes -----------------------------------------------------------------
 
-const SELECTION_SCHEMA: ResponseSchema = {
-  type: SchemaType.OBJECT,
+const SELECTION_SCHEMA: Schema = {
+  type: Type.OBJECT,
   properties: {
     sections: {
-      type: SchemaType.ARRAY,
+      type: Type.ARRAY,
       items: {
-        type: SchemaType.OBJECT,
+        type: Type.OBJECT,
         properties: {
-          id: { type: SchemaType.STRING },
+          id: { type: Type.STRING },
           picks: {
-            type: SchemaType.ARRAY,
+            type: Type.ARRAY,
             items: {
-              type: SchemaType.OBJECT,
+              type: Type.OBJECT,
               properties: {
-                i: { type: SchemaType.INTEGER },
-                priority: { type: SchemaType.INTEGER },
-                group: { type: SchemaType.STRING, nullable: true },
+                i: { type: Type.INTEGER },
+                priority: { type: Type.INTEGER },
+                group: { type: Type.STRING, nullable: true },
               },
               required: ["i", "priority"],
             },
@@ -370,22 +353,22 @@ const SELECTION_SCHEMA: ResponseSchema = {
         required: ["id", "picks"],
       },
     },
-    atAGlance: { type: SchemaType.ARRAY, items: { type: SchemaType.INTEGER } },
+    atAGlance: { type: Type.ARRAY, items: { type: Type.INTEGER } },
   },
   required: ["sections", "atAGlance"],
 };
 
-const WRITING_SCHEMA: ResponseSchema = {
-  type: SchemaType.OBJECT,
+const WRITING_SCHEMA: Schema = {
+  type: Type.OBJECT,
   properties: {
     items: {
-      type: SchemaType.ARRAY,
+      type: Type.ARRAY,
       items: {
-        type: SchemaType.OBJECT,
+        type: Type.OBJECT,
         properties: {
-          i: { type: SchemaType.INTEGER },
-          summary: { type: SchemaType.STRING, nullable: true },
-          gist: { type: SchemaType.STRING, nullable: true },
+          i: { type: Type.INTEGER },
+          summary: { type: Type.STRING, nullable: true },
+          gist: { type: Type.STRING, nullable: true },
         },
         required: ["i"],
       },
@@ -402,14 +385,13 @@ interface Selection {
 async function runSelection(prefs: DigestPreferences, corpus: CorpusArticle[]): Promise<Selection> {
   // Temperature 0: the same corpus and preferences should pick the same
   // stories, so a refresh only changes what the news itself changed.
-  const model = getModel(SELECTION_SCHEMA, 0);
-  if (!model) throw new Error("model unavailable");
-  const response = await withTimeout(
-    model.generateContent(buildSelectionPrompt(prefs, corpus)),
-    SELECTION_TIMEOUT_MS,
-    "selection",
-  );
-  const parsed = JSON.parse(response.response.text()) as {
+  const text = await generateJson(buildSelectionPrompt(prefs, corpus), {
+    schema: SELECTION_SCHEMA,
+    temperature: 0,
+    timeoutMs: SELECTION_TIMEOUT_MS,
+    label: "selection",
+  });
+  const parsed = JSON.parse(text) as {
     sections?: Array<{ id?: unknown; picks?: unknown }>;
     atAGlance?: unknown;
   };
@@ -440,14 +422,13 @@ async function runWriting(
   prefs: DigestPreferences,
   items: WritingItem[],
 ): Promise<Map<number, { summary?: string; gist?: string }>> {
-  const model = getModel(WRITING_SCHEMA, 0.3);
-  if (!model) throw new Error("model unavailable");
-  const response = await withTimeout(
-    model.generateContent(buildWritingPrompt(prefs, items)),
-    WRITING_TIMEOUT_MS,
-    "writing",
-  );
-  const parsed = JSON.parse(response.response.text()) as {
+  const text = await generateJson(buildWritingPrompt(prefs, items), {
+    schema: WRITING_SCHEMA,
+    temperature: 0.3,
+    timeoutMs: WRITING_TIMEOUT_MS,
+    label: "writing",
+  });
+  const parsed = JSON.parse(text) as {
     items?: Array<{ i?: unknown; summary?: unknown; gist?: unknown }>;
   };
   const byIndex = new Map(items.map((it) => [it.article.i, it]));

@@ -1,4 +1,4 @@
-import { batchSummarize, generateEditionBrief, type SummarizeInput } from "@/lib/live/summarize";
+import { batchSummarize, type SummarizeInput } from "@/lib/live/summarize";
 import { writeEditorsNote, writePickBlurbs, type PickInput } from "@/lib/live/editorial-ai";
 import type { ReaderProfile } from "@/lib/types";
 
@@ -17,7 +17,7 @@ interface SummarizeRequest {
 }
 
 export async function POST(req: Request) {
-  const empty = { summaries: {}, brief: null, pickBlurbs: {}, editorsNote: null };
+  const empty = { summaries: {}, pickBlurbs: {}, editorsNote: null };
   try {
     const body = (await req.json()) as SummarizeRequest;
     const articles = (Array.isArray(body.articles) ? body.articles : [])
@@ -44,12 +44,9 @@ export async function POST(req: Request) {
         : Promise.resolve(null),
     ]);
 
-    const brief = articles.length > 0 ? await generateEditionBrief(articles, map) : null;
-
     return Response.json(
       {
         summaries: Object.fromEntries(map),
-        brief,
         pickBlurbs,
         editorsNote,
       },

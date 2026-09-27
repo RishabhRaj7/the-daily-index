@@ -45,7 +45,10 @@ export async function GET(req: Request) {
   const built = await buildIfIdle(date, DEFAULT_HASH, DEFAULT_DIGEST_PREFERENCES);
   const results = await fanout;
 
+  // A failed default build must not look like success in the cron log.
+  const ok = built !== null;
   return Response.json({
+    ok,
     date,
     default:
       built === "busy"
@@ -57,5 +60,5 @@ export async function GET(req: Request) {
       hash: others[i].hash,
       status: r.status === "fulfilled" ? r.value : "error",
     })),
-  });
+  }, { status: ok ? 200 : 500 });
 }

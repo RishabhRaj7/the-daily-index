@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { Edition } from "@/lib/types";
 import { allStories } from "@/lib/format";
 
@@ -18,10 +18,14 @@ function editionToScript(edition: Edition): string {
 
 export default function ListenButton({ edition }: { edition: Edition }) {
   const [speaking, setSpeaking] = useState(false);
-  const [supported, setSupported] = useState(true);
+  // Capability check: false on the server, the real answer in the browser.
+  const supported = useSyncExternalStore(
+    () => () => {},
+    () => "speechSynthesis" in window,
+    () => false,
+  );
 
   useEffect(() => {
-    setSupported(typeof window !== "undefined" && "speechSynthesis" in window);
     return () => {
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();

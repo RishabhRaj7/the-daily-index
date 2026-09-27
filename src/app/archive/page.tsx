@@ -13,7 +13,12 @@ function fmt(iso: string, opts: Intl.DateTimeFormatOptions) {
 
 export default async function ArchivePage() {
   const available = archiveAvailable();
-  const dates = available ? await archiveDates().catch(() => [] as string[]) : [];
+  const dates = available
+    ? await archiveDates().catch((err) => {
+        console.error("[archive] listing dates failed:", err);
+        return [] as string[];
+      })
+    : [];
 
   const byMonth = new Map<string, string[]>();
   for (const d of dates) {

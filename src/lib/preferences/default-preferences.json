@@ -9,7 +9,8 @@
       "clickbait"
     ],
     "maxAgeHours": 30,
-    "summaryLengthWords": 60
+    "summaryLengthWords": 60,
+    "avoidPolitics": true
   },
   "sections": [
     {

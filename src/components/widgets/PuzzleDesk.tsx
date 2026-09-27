@@ -760,16 +760,16 @@ function editorMove(b: Cell[]): number {
 function NoughtsAndCrosses({ saved, onSaved }: { saved: Saved; onSaved: (next: Saved) => void }) {
   const [board, setBoard] = useState<Cell[]>(Array(9).fill(null));
   const [turn, setTurn] = useState<"you" | "editor">("you");
-  const [thinking, setThinking] = useState(false);
   const result = useMemo(() => winnerOf(board), [board]);
   const full = board.every(Boolean);
   const over = Boolean(result) || full;
+  // The editor "thinks" for as long as it is its move.
+  const thinking = turn === "editor" && !over;
   const scoredRef = useRef(false);
 
   // Editor's turn, with a beat of "thinking" so it feels like a person.
   useEffect(() => {
     if (turn !== "editor" || over) return;
-    setThinking(true);
     const t = setTimeout(() => {
       setBoard((b) => {
         if (winnerOf(b) || b.every(Boolean)) return b;
@@ -779,7 +779,6 @@ function NoughtsAndCrosses({ saved, onSaved }: { saved: Saved; onSaved: (next: S
         return next;
       });
       setTurn("you");
-      setThinking(false);
     }, 450);
     return () => clearTimeout(t);
   }, [turn, over]);
@@ -900,6 +899,8 @@ export default function PuzzleDesk({
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // Browser-only saved state is read after the first render so it matches the server HTML.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSaved(loadSaved());
     setMounted(true);
   }, []);

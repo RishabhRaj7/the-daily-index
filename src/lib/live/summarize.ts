@@ -1,17 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-function aiEnabled(): boolean {
-  return process.env.AI_SUMMARIZE !== "false";
-}
-
-function getModel() {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) return null;
-  return new GoogleGenerativeAI(key).getGenerativeModel({
-    model: process.env.GEMINI_MODEL ?? "gemini-2.0-flash",
-    generationConfig: { responseMimeType: "application/json" },
-  });
-}
+import { aiEnabled, generateJson } from "@/lib/server/gemini";
 
 function extractText(html: string): string {
   return html
@@ -120,9 +107,6 @@ export async function batchSummarize(
   const fallback = new Map(articles.map((a) => [a.id, a.snippet]));
   if (!aiEnabled() || articles.length === 0) return fallback;
 
-  const model = getModel();
-  if (!model) return fallback;
-
   // Fetch full article text in parallel — plain HTTP, no AI quota used here.
   const texts = await Promise.all(articles.map((a) => fetchArticleText(a.url)));
 
@@ -161,9 +145,8 @@ Return ONLY a JSON array with exactly one object per article, in the same order,
 ${articleBlocks}`;
 
   try {
-    const result = await model.generateContent(prompt);
     const parsed: Array<{ i: number; summary: string }> = JSON.parse(
-      result.response.text(),
+      await generateJson(prompt, { timeoutMs: 60_000, label: "batchSummarize" }),
     );
 
     const out = new Map(articles.map((a) => [a.id, a.snippet]));
@@ -182,79 +165,5 @@ ${articleBlocks}`;
   } catch (err) {
     console.error("[batchSummarize] Gemini error:", err);
     return fallback;
-  }
-}
-
-// Maps a story ID (e.g. "wire-dateline-0") to a human section label.
-function inferSection(storyId: string): string {
-  if (storyId.includes("dateline")) return "World";
-  if (storyId.includes("ledger")) return "Markets";
-  if (storyId.includes("paddock")) return "Sports";
-  if (storyId.includes("circuit")) return "Tech";
-  return "";
-}
-
-// Generates a bullet-point "at a glance" brief from the batch summaries.
-// One bullet per section, written for fast scanning.
-export async function generateEditionBrief(
-  articles: Array<{ id: string; snippet: string }>,
-  summaries: Map<string, string>,
-): Promise<import("@/lib/types").EditionBrief | null> {
-  if (!aiEnabled()) return null;
-  const model = getModel();
-  if (!model) return null;
-
-  // One entry per section — take the first article that maps to each section.
-  const seen = new Set<string>();
-  const items: Array<{ section: string; text: string }> = [];
-  for (const article of articles) {
-    const section = inferSection(article.id);
-    if (!section || seen.has(section)) continue;
-    seen.add(section);
-    items.push({ section, text: (summaries.get(article.id) ?? article.snippet).slice(0, 500) });
-  }
-  if (items.length === 0) return null;
-
-  const content = items.map((s) => `${s.section}: ${s.text}`).join("\n\n");
-
-  const prompt = `You edit "The Daily Index", a one-reader morning paper. Write the "at a glance" strip: one line per section, at most 18 words, in the clipped voice of a front-page index — the fact first, no throat-clearing, no "matters because", no adjectives doing the work of facts.
-
-${content}
-
-Return JSON: {"bullets": [{"section": "World", "text": "..."}, ...]}
-Include only sections with content. Sections: World, Markets, Sports, Tech.`;
-
-  try {
-    const result = await model.generateContent(prompt);
-    return JSON.parse(result.response.text()) as import("@/lib/types").EditionBrief;
-  } catch {
-    return null;
-  }
-}
-
-// Explains in 2 sentences why a Reddit post is trending.
-// Kept as a separate call — different prompt, small volume (≤5 posts/page).
-export async function summarizeTrend(
-  title: string,
-  subreddit: string,
-  upvotes: number,
-  comments: number,
-): Promise<string | null> {
-  if (!aiEnabled()) return null;
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) return null;
-
-  const model = new GoogleGenerativeAI(key).getGenerativeModel({
-    model: process.env.GEMINI_MODEL ?? "gemini-2.0-flash",
-  });
-
-  const prompt = `A post on r/${subreddit} titled "${title}" has ${upvotes.toLocaleString()} upvotes and ${comments.toLocaleString()} comments. In two plain sentences, as a well-read friend would put it, say what the post is about and what people are likely arguing over. Use only what the title tells you — don't invent details. No "it matters because", no hype words, no emoji.`;
-
-  try {
-    const result = await model.generateContent(prompt);
-    return result.response.text().trim() || null;
-  } catch (err) {
-    console.error("[summarizeTrend] Gemini error:", err);
-    return null;
   }
 }

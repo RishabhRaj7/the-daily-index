@@ -174,7 +174,9 @@ export async function fetchRssFeed(
           ? (extractTag(item, "published") ?? extractTag(item, "updated"))
           : (extractTag(item, "pubDate") ?? extractTag(item, "dc:date"));
         if (!title || !link) return null;
-        if (isPolitical(`${title} ${description}`)) return null;
+        // Headline only: a geopolitics story whose snippet mentions an
+        // upcoming election is still geopolitics.
+        if (feed.politicsFilter && isPolitical(title)) return null;
         if (titleFilter && !titleFilter(title, description)) return null;
 
         const date = parseFeedDate(dateRaw);
