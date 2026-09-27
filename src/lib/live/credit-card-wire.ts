@@ -1,10 +1,11 @@
 import type { WireBrief } from "@/lib/types";
-import { fetchRssFeed, interleaveWires } from "./rss";
+import { fetchRssFeed, interleaveWires, dedupeWires } from "./rss";
+import { CARD_FEEDS } from "./feeds";
 
-// There's no dedicated free/legal Indian credit-card-news RSS feed, so this
-// filters broader personal-finance feeds down to card-related items instead.
-// On a given day that may mean zero matches — callers should treat an empty
-// result as "hide the panel," not an error.
+// There's still no dedicated Indian card-news wire, so the pool mixes two
+// card blogs (every post is on-topic; see feeds.ts) with personal-finance
+// feeds filtered down to card-related items. On a quiet week that may still
+// mean zero matches — callers treat an empty result as "hide the panel".
 const CARD_KEYWORDS = [
   "credit card",
   "debit card",
@@ -16,12 +17,6 @@ const CARD_KEYWORDS = [
   "milestone benefit",
 ];
 
-const FEEDS = [
-  "https://economictimes.indiatimes.com/wealth/rssfeeds/837555174.cms",
-  "https://economictimes.indiatimes.com/rssfeedsdefault.cms",
-  "https://www.livemint.com/rss/money",
-];
-
 function isCardRelated(title: string, description: string): boolean {
   const haystack = `${title} ${description}`.toLowerCase();
   return CARD_KEYWORDS.some((k) => haystack.includes(k));
@@ -29,7 +24,7 @@ function isCardRelated(title: string, description: string): boolean {
 
 export async function getCreditCardWire(limit = 6): Promise<WireBrief[]> {
   const results = await Promise.all(
-    FEEDS.map((f) => fetchRssFeed(f, 1800, isCardRelated)),
+    CARD_FEEDS.map((f) => fetchRssFeed(f, 1800, f.cardsOnly ? isCardRelated : undefined)),
   );
-  return interleaveWires(results).slice(0, limit);
+  return dedupeWires(interleaveWires(results)).slice(0, limit);
 }

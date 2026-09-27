@@ -2,6 +2,7 @@
 // "the reader's preferences JSON" into a preference-driven digest.
 
 import type { CorpusArticle, DigestPreferences, DigestSection } from "./types";
+import { CARD_BLOG_MAX_AGE_HOURS } from "@/lib/live/feeds";
 
 function describeSection(section: DigestSection): string {
   const shared: string[] = [];
@@ -59,7 +60,7 @@ GLOBAL RULES (apply to every section):
 - Tone: ${g.tone || "plain, no fluff"}
 - Watch topics: prioritise articles mentioning any of these across the whole digest: ${g.watchTopics.length > 0 ? g.watchTopics.join(", ") : "(none)"}
 - Never select an article whose title or text matches any global exclude keyword: ${g.excludeKeywords.length > 0 ? g.excludeKeywords.join(", ") : "(none)"}
-- Max article age: ${g.maxAgeHours} hours. Articles older than that (see "age") must not be selected.
+- Max article age: ${g.maxAgeHours} hours. Articles older than that (see "age") must not be selected — except pool=Cards, where card news is slow and anything up to ${CARD_BLOG_MAX_AGE_HOURS} hours old is fine.
 - Summaries: about ${g.summaryLengthWords} words, 4–5 complete sentences, fact-first, in the tone above. Stand alone without the title. Never invent facts, quotes or numbers that are not in the article text.
 
 SECTION RULES:

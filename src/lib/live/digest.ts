@@ -19,6 +19,7 @@ import { getFootballNews } from "./football-news";
 import { getTennisNews } from "./tennis-news";
 import { getTechNews } from "./tech-news";
 import { getCreditCardWire } from "./credit-card-wire";
+import { CARD_BLOG_MAX_AGE_HOURS } from "./feeds";
 import { fetchArticleText, fetchedTextMatches } from "./summarize";
 import { buildDigestPrompt } from "@/lib/preferences/prompt";
 import type {
@@ -336,7 +337,9 @@ function heuristicDigest(
   const result: Record<string, DigestArticle[]> = {};
   const maxAge = prefs.global.maxAgeHours;
   const fresh = corpus.filter(
-    (a) => a.ageHours === null || a.ageHours <= Math.max(maxAge, 30),
+    (a) =>
+      a.ageHours === null ||
+      a.ageHours <= (a.pool === "Cards" ? CARD_BLOG_MAX_AGE_HOURS : Math.max(maxAge, 30)),
   );
 
   for (const section of [...prefs.sections].sort((a, b) => a.order - b.order)) {

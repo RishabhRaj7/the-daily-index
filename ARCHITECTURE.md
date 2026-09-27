@@ -58,10 +58,11 @@ Key fields:
 | `lib/personalization.ts` | DEFAULT_PERSONALIZATION, loadPersonalization, savePersonalization, F1_TEAM_COLORS |
 | `lib/sections.ts` | SECTION_META and SECTION_ORDER — section keys, labels, kickers |
 | `lib/config/cards.ts` | MY_CARDS — the credit card list shown in preferences |
-| `lib/live/rss.ts` | fetchRssFeed, interleaveWires, dedupeWires — core RSS utilities |
-| `lib/live/f1-news.ts` | getF1News — Autosport + Motorsport feeds |
-| `lib/live/football-news.ts` | getFootballNews — BBC Sport + Sky Sports football feeds |
-| `lib/live/tennis-news.ts` | getTennisNews — BBC Sport + Sky Sports tennis feeds |
+| `lib/live/feeds.ts` | Every RSS/Atom source, per pool, with per-feed options (age window, undated, cards-only) |
+| `lib/live/rss.ts` | fetchRssFeed (RSS + Atom, zone-abbreviation dates), interleaveWires, dedupeWires |
+| `lib/live/f1-news.ts` | getF1News — F1 pool from feeds.ts |
+| `lib/live/football-news.ts` | getFootballNews — football pool from feeds.ts |
+| `lib/live/tennis-news.ts` | getTennisNews — tennis pool from feeds.ts |
 | `lib/live/f1.ts` | getLiveF1, getF1Roster — live F1 standings, race schedule, driver roster |
 | `lib/live/reddit.ts` | getRedditTrending — fetches from user subreddits or interest-aware fallback |
 | `lib/live/wire-to-story.ts` | promoteWireToStories — converts WireBrief to Story with LLM summary |
