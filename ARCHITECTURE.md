@@ -291,9 +291,16 @@ mount (EditionView)
         server: collectCorpus()          (existing fetchers, unchanged:
                   World/India, Markets, F1, Football, Tennis, Tech, Cards;
                   URL-dedupe + dedupeWires)
-                generateDigest(prefs)    (ONE Gemini call; model answers with
-                  corpus indices → rehydrated into real title/url/source;
-                  heuristic fallback when no GEMINI_API_KEY)
+                  (RSS snippets only; age window + literal excludes applied)
+                generateDigest(prefs)    (two Gemini calls, structured JSON:
+                  1. selection — titles + snippets → per-section indices
+                     + At a Glance picks (~13k tokens)
+                  2. full text fetched for the shortlist only (~30 pages)
+                  3. writing — summaries + gists for the shortlist
+                  Indices are rehydrated into real title/url/source; grouped
+                  picks must mention their group. Heuristic fallback when no
+                  GEMINI_API_KEY or selection fails; if writing fails the
+                  selection stands with condensed article text)
   ◄── { sections: { [sectionId]: [{ title, summary, source, url,
         publishedAt, group?, priority, matchedEntity? }] }, engine, … }
   └── banner "Your digest is ready — tap to update"

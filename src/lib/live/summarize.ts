@@ -69,7 +69,7 @@ export interface SummarizeInput {
 const ROBOTIC_OPENERS =
   /(^|\.\s+)(it|this|that)\s+(matters|is (significant|important|notable))\s+because[^.]*\.\s*/gi;
 
-function humanise(text: string): string {
+export function humanise(text: string): string {
   return text
     .replace(ROBOTIC_OPENERS, (m, lead: string) => (lead === "" ? "" : lead))
     .replace(/\s{2,}/g, " ")
@@ -90,7 +90,7 @@ function keyTokens(s: string): string[] {
     );
 }
 
-function looksOnTopic(title: string | undefined, summary: string): boolean {
+export function looksOnTopic(title: string | undefined, summary: string): boolean {
   if (!title) return true;
   const toks = keyTokens(title);
   if (toks.length === 0) return true;

@@ -1,17 +1,22 @@
 // The preference-driven digest pipeline (server side).
 //
-//   1. collectCorpus() — fetch every wire the paper already uses, untouched:
-//      World/India, Markets, F1, Football, Tennis, Tech, Credit Cards.
-//   2. generateDigest() — send the FULL collated corpus plus the reader's
-//      preferences JSON to the model in one call. The model filters,
-//      prioritises and summarises per section and answers with corpus
-//      indices; we rehydrate real article metadata so no link can be
-//      invented. The same reply also carries "atAGlance": up to 6 top
-//      headlines across the whole corpus for the floating At a Glance
-//      panel. When the AI is unavailable a deterministic heuristic keeps
-//      the digest working.
+//   1. collectCorpus() — fetch every news wire (World/India, Markets, F1,
+//      Football, Tennis, Tech, Credit Cards), dedupe, and drop what the
+//      reader's age window / literal exclusions rule out. RSS snippets only —
+//      no article pages are fetched yet.
+//   2. Selection pass — the model sees titles + short snippets and returns,
+//      per section, which corpus indices run and in what order, plus the six
+//      "At a glance" picks. Small prompt, no writing.
+//   3. Full text — only the shortlisted articles' pages are fetched (a few
+//      dozen instead of ~130), each checked against its headline.
+//   4. Writing pass — the model writes each summary / gist from that text.
+//
+// Both passes answer with corpus indices; we rehydrate real article
+// metadata, so no link can be invented. Every step degrades on its own:
+// no model → deterministic heuristic; selection fails → heuristic; writing
+// fails → the selection stands with summaries condensed from the article.
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType, type ResponseSchema } from "@google/generative-ai";
 import { dedupeWires } from "./rss";
 import { getWorldIndiaWire, getMarketsWire } from "./news";
 import { getF1News } from "./f1-news";
@@ -20,8 +25,14 @@ import { getTennisNews } from "./tennis-news";
 import { getTechNews } from "./tech-news";
 import { getCreditCardWire } from "./credit-card-wire";
 import { CARD_BLOG_MAX_AGE_HOURS } from "./feeds";
-import { fetchArticleText, fetchedTextMatches } from "./summarize";
-import { buildDigestPrompt } from "@/lib/preferences/prompt";
+import { fetchArticleText, fetchedTextMatches, humanise, looksOnTopic } from "./summarize";
+import {
+  buildSelectionPrompt,
+  buildWritingPrompt,
+  isSportsSection,
+  WRITING_TEXT_CHARS,
+  type WritingItem,
+} from "@/lib/preferences/prompt";
 import type {
   AtAGlanceItem,
   CorpusArticle,
@@ -32,20 +43,42 @@ import type {
 } from "@/lib/preferences/types";
 import type { WireBrief } from "@/lib/types";
 
-const DIGEST_TIMEOUT_MS = 120_000;
+const SELECTION_TIMEOUT_MS = 45_000;
+const WRITING_TIMEOUT_MS = 70_000;
 const RSS_FALLBACK_CHARS = 2000;
+const MAX_GLANCE_PICKS = 6;
 
 function aiEnabled(): boolean {
   return process.env.AI_SUMMARIZE !== "false" && Boolean(process.env.GEMINI_API_KEY);
 }
 
-function getModel() {
+// Structured output: the model must answer in exactly this shape, so there
+// are no markdown fences or stray prose to strip before parsing.
+function getModel(schema: ResponseSchema, temperature: number) {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return null;
   return new GoogleGenerativeAI(key).getGenerativeModel({
     model: process.env.GEMINI_MODEL ?? "gemini-2.0-flash",
-    generationConfig: { responseMimeType: "application/json" },
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: schema,
+      temperature,
+    },
   });
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timeout`)), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // "just now" → 0, "3h ago" → 3, "2d ago" → 48. Anything else → unknown.
@@ -64,11 +97,8 @@ function tagPool(briefs: WireBrief[], pool: string): Array<WireBrief & { pool: s
   return briefs.map((b) => ({ ...b, pool }));
 }
 
-// Bounded worker pool. The corpus is ~100 links; fetching every article page
-// at once (the old Promise.all) fired 100+ concurrent requests at ~40
-// publisher origins, each carrying an 8s timeout — a self-inflicted
-// thundering herd. Ten at a time is plenty: pages that answer do so fast,
-// and the stragglers were always going to burn their full timeout anyway.
+// Bounded worker pool, so the full-text step never fires dozens of page
+// fetches at publisher origins at once.
 async function mapWithConcurrency<T, R>(
   items: T[],
   limit: number,
@@ -87,17 +117,14 @@ async function mapWithConcurrency<T, R>(
 }
 
 /**
- * Collate every news wire the paper already fetches into one deduplicated
- * corpus. The fetchers themselves are the existing integrations, unchanged.
+ * Collate every news wire into one deduplicated corpus of RSS excerpts, then
+ * drop what the reader's preferences rule out deterministically: articles
+ * past the age window (Cards gets the card-blog window) and literal global
+ * exclude keywords. The model never has to spend attention on either.
  *
- * `fullText` controls whether each linked article page is fetched for its
- * complete text. The AI pass benefits from full articles; the deterministic
- * heuristic fallback only condenses a few lines per story, so it works off
- * the RSS excerpts and skips ~100 outbound page fetches entirely.
+ * `i` always equals the article's position in the returned array.
  */
-export async function collectCorpus(
-  { fullText = true }: { fullText?: boolean } = {},
-): Promise<CorpusArticle[]> {
+export async function collectCorpus(prefs: DigestPreferences): Promise<CorpusArticle[]> {
   const [world, markets, f1, football, tennis, tech, cards] = await Promise.all([
     getWorldIndiaWire(24),
     getMarketsWire(20),
@@ -119,7 +146,7 @@ export async function collectCorpus(
   ];
 
   // URL-level dedupe first (the same link can appear in two wires), then the
-  // existing near-duplicate title filter the sport feeds already rely on.
+  // near-duplicate title filter.
   const seen = new Set<string>();
   const poolByUrl = new Map<string, string>();
   const unique = pooled.filter((b) => {
@@ -128,67 +155,108 @@ export async function collectCorpus(
     poolByUrl.set(b.url, b.pool);
     return true;
   });
-  const deduped = dedupeWires(unique);
 
-  // RSS descriptions are only excerpts. Fetch each linked article page and
-  // use its complete extracted text when the page actually matches the RSS
-  // headline; paywalls, blocked pages, and unrelated redirects fall back to
-  // the RSS excerpt instead.
-  const fullTexts: (string | null)[] = fullText
-    ? await mapWithConcurrency(deduped, 10, (b) => fetchArticleText(b.url))
-    : deduped.map(() => null);
+  const excluded = prefs.global.excludeKeywords.map((k) => k.toLowerCase().trim()).filter(Boolean);
+  const maxAge = prefs.global.maxAgeHours;
 
-  return deduped.map((b, i) => {
-    const fetched = fullTexts[i];
-    const text =
-      fetched && fetchedTextMatches(b.title, fetched)
-        ? fetched
-        : (b.summary ?? "").slice(0, RSS_FALLBACK_CHARS);
-    return {
-      i,
-      title: b.title,
-      text,
-      url: b.url,
-      source: b.domain,
-      pool: poolByUrl.get(b.url) ?? "World",
-      postedAgo: b.postedAgo,
-      ageHours: parseAgeHours(b.postedAgo),
-    };
-  });
+  return dedupeWires(unique)
+    .map((b) => {
+      const pool = poolByUrl.get(b.url) ?? "World";
+      return {
+        i: 0,
+        title: b.title,
+        text: (b.summary ?? "").slice(0, RSS_FALLBACK_CHARS),
+        url: b.url,
+        source: b.domain,
+        pool,
+        postedAgo: b.postedAgo,
+        ageHours: parseAgeHours(b.postedAgo),
+      };
+    })
+    .filter((a) => {
+      const limit = a.pool === "Cards" ? Math.max(maxAge, CARD_BLOG_MAX_AGE_HOURS) : maxAge;
+      if (a.ageHours !== null && a.ageHours > limit) return false;
+      const hay = `${a.title} ${a.text}`.toLowerCase();
+      return !excluded.some((k) => hay.includes(k));
+    })
+    .map((a, i) => ({ ...a, i }));
 }
 
 // ---- validation / rehydration ------------------------------------------------
 
-interface RawSelection {
+interface RawPick {
   i?: unknown;
-  summary?: unknown;
   priority?: unknown;
   group?: unknown;
 }
 
+function toIndex(value: unknown): number {
+  return typeof value === "number" ? value : Number(value);
+}
+
+// Common ways a story names a country without spelling out the group label.
+const GROUP_ALIASES: Record<string, string[]> = {
+  "united states": ["u.s.", "us", "usa", "america", "american", "washington", "new york", "white house"],
+  "united kingdom": ["uk", "u.k.", "britain", "british", "england", "london", "scotland", "wales"],
+  china: ["chinese", "beijing", "shanghai", "hong kong", "xi jinping"],
+  india: ["indian", "delhi", "mumbai", "rbi", "sebi", "rupee"],
+  japan: ["japanese", "tokyo", "osaka", "yen"],
+};
+
+// Indian business desks write "the Centre", not "India", so their articles
+// count as mentioning India. Only India needs this: SCMP and Japan Times
+// stories name their country, and SCMP's China feed also carries regional
+// stories (an EU–Philippines deal) that must not pass as "China".
+// International outlets (BBC, Guardian, Al Jazeera) never get a pass —
+// filing by outlet nationality is the mistake this check exists to catch.
+const GROUP_SOURCES: Record<string, string[]> = {
+  india: ["thehindu.com", "economictimes.indiatimes.com", "livemint.com", "business-standard.com"],
+};
+
+// Whole-word match: "us" must not hit "bonus", "uk" must not hit "duke".
+function hasTerm(hay: string, term: string): boolean {
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^a-z])${escaped}([^a-z]|$)`).test(hay);
+}
+
+/**
+ * A grouped pick must actually be about its group. Models sometimes file a
+ * story under the outlet's country (a Guardian report on Athens under
+ * "United Kingdom"); requiring the article to mention the group — or a
+ * common alias — catches that without a second model call.
+ */
+function mentionsGroup(article: CorpusArticle, group: string): boolean {
+  const hay = `${article.title} ${article.text}`.toLowerCase();
+  const key = group.toLowerCase();
+  if (GROUP_SOURCES[key]?.some((d) => article.source.endsWith(d))) return true;
+  // Groups without an alias list (companies, people…) also match on their
+  // last word ("Elon Musk" → "musk"); known countries use their curated
+  // aliases instead, since "states" or "kingdom" alone would match anything.
+  const shortName = key.split(/\s+/).pop() ?? key;
+  const aliases = GROUP_ALIASES[key];
+  const terms = aliases ? [key, ...aliases] : [key, ...(shortName.length > 2 ? [shortName] : [])];
+  return terms.some((t) => hasTerm(hay, t));
+}
+
+// Summaries are filled in after the writing pass; rehydration only decides
+// which real corpus article sits where.
 function toDigestArticle(
-  entry: RawSelection,
+  entry: RawPick,
   corpus: CorpusArticle[],
   position: number,
   section: DigestSection,
   watchTopics: string[],
 ): DigestArticle | null {
-  const idx = typeof entry.i === "number" ? entry.i : Number(entry.i);
-  const article = corpus[idx];
+  const article = corpus[toIndex(entry.i)];
   if (!article) return null; // unknown index → the model pointed at nothing
-
-  let summary = typeof entry.summary === "string" ? entry.summary.trim() : "";
-  if (summary.length < 20) {
-    // Too thin to print — fall back to the wire's own text.
-    summary = article.text || article.title;
-  }
 
   let group: string | undefined;
   if (typeof entry.group === "string" && entry.group.trim()) {
     const g = entry.group.trim();
     if (section.type === "grouped") {
-      if (section.groups.some((x) => x.toLowerCase() === g.toLowerCase())) group = g;
-    } else if (section.slot === "paddock-notes") {
+      group = section.groups.find((x) => x.toLowerCase() === g.toLowerCase());
+      if (group && !mentionsGroup(article, group)) group = undefined;
+    } else if (isSportsSection(section)) {
       const sport = g.toLowerCase();
       if (sport === "f1" || sport === "football" || sport === "tennis") group = sport;
     }
@@ -206,7 +274,7 @@ function toDigestArticle(
 
   return {
     title: article.title,
-    summary,
+    summary: "",
     source: article.source,
     url: article.url,
     publishedAt: article.postedAgo,
@@ -224,7 +292,7 @@ function rehydrateSection(
   usedUrls: Set<string>,
   watchTopics: string[],
 ): DigestArticle[] {
-  const entries = Array.isArray(raw) ? (raw as RawSelection[]) : [];
+  const entries = Array.isArray(raw) ? (raw as RawPick[]) : [];
   const out: DigestArticle[] = [];
   const perGroup = new Map<string, number>();
 
@@ -239,9 +307,8 @@ function rehydrateSection(
       const count = perGroup.get(key) ?? 0;
       if (count >= section.articleCountPerGroup) return;
       perGroup.set(key, count + 1);
-    } else {
-      const cap = section.type === "custom" ? section.articleCount : section.articleCount;
-      if (out.length >= cap) return;
+    } else if (out.length >= section.articleCount) {
+      return;
     }
 
     usedUrls.add(article.url);
@@ -253,32 +320,24 @@ function rehydrateSection(
 }
 
 /**
- * Rehydrate the model's "At a Glance" picks. Same guarantees as the
- * sections: the reply carries corpus indices only, so every URL printed is
- * one we actually fetched. Capped at 6, URL-deduped, and independent of the
- * sections' usedUrls — these picks overlay the digest rather than compete
- * with it for articles.
+ * Rehydrate the "At a Glance" picks: capped at 6, URL-deduped, and
+ * independent of the sections' usedUrls — these overlay the digest rather
+ * than compete with it for articles. Gists are filled in after writing.
  */
 function rehydrateAtAGlance(raw: unknown, corpus: CorpusArticle[]): AtAGlanceItem[] {
-  const MAX_PICKS = 6;
-  const entries = Array.isArray(raw) ? (raw as RawSelection[]) : [];
+  const entries = Array.isArray(raw) ? raw : [];
   const out: AtAGlanceItem[] = [];
   const seen = new Set<string>();
 
   for (const entry of entries) {
-    if (out.length >= MAX_PICKS) break;
-    const idx = typeof entry.i === "number" ? entry.i : Number(entry.i);
+    if (out.length >= MAX_GLANCE_PICKS) break;
+    const idx = toIndex(typeof entry === "object" && entry !== null ? (entry as RawPick).i : entry);
     const article = corpus[idx];
     if (!article || seen.has(article.url)) continue;
     seen.add(article.url);
-
-    const gist = typeof (entry as { gist?: unknown }).gist === "string"
-      ? ((entry as { gist?: unknown }).gist as string).trim()
-      : "";
-
     out.push({
       title: article.title,
-      summary: gist.length >= 4 ? gist : article.title,
+      summary: article.title,
       source: article.source,
       url: article.url,
       publishedAt: article.postedAgo,
@@ -287,6 +346,202 @@ function rehydrateAtAGlance(raw: unknown, corpus: CorpusArticle[]): AtAGlanceIte
   }
 
   return out;
+}
+
+// ---- AI passes -----------------------------------------------------------------
+
+const SELECTION_SCHEMA: ResponseSchema = {
+  type: SchemaType.OBJECT,
+  properties: {
+    sections: {
+      type: SchemaType.ARRAY,
+      items: {
+        type: SchemaType.OBJECT,
+        properties: {
+          id: { type: SchemaType.STRING },
+          picks: {
+            type: SchemaType.ARRAY,
+            items: {
+              type: SchemaType.OBJECT,
+              properties: {
+                i: { type: SchemaType.INTEGER },
+                priority: { type: SchemaType.INTEGER },
+                group: { type: SchemaType.STRING, nullable: true },
+              },
+              required: ["i", "priority"],
+            },
+          },
+        },
+        required: ["id", "picks"],
+      },
+    },
+    atAGlance: { type: SchemaType.ARRAY, items: { type: SchemaType.INTEGER } },
+  },
+  required: ["sections", "atAGlance"],
+};
+
+const WRITING_SCHEMA: ResponseSchema = {
+  type: SchemaType.OBJECT,
+  properties: {
+    items: {
+      type: SchemaType.ARRAY,
+      items: {
+        type: SchemaType.OBJECT,
+        properties: {
+          i: { type: SchemaType.INTEGER },
+          summary: { type: SchemaType.STRING, nullable: true },
+          gist: { type: SchemaType.STRING, nullable: true },
+        },
+        required: ["i"],
+      },
+    },
+  },
+  required: ["items"],
+};
+
+interface Selection {
+  sections: Record<string, RawPick[]>;
+  atAGlance: unknown[];
+}
+
+async function runSelection(prefs: DigestPreferences, corpus: CorpusArticle[]): Promise<Selection> {
+  const model = getModel(SELECTION_SCHEMA, 0.2);
+  if (!model) throw new Error("model unavailable");
+  const response = await withTimeout(
+    model.generateContent(buildSelectionPrompt(prefs, corpus)),
+    SELECTION_TIMEOUT_MS,
+    "selection",
+  );
+  const parsed = JSON.parse(response.response.text()) as {
+    sections?: Array<{ id?: unknown; picks?: unknown }>;
+    atAGlance?: unknown;
+  };
+  if (!Array.isArray(parsed?.sections)) throw new Error("selection missing sections");
+  const sections: Record<string, RawPick[]> = {};
+  for (const entry of parsed.sections) {
+    if (typeof entry?.id === "string" && Array.isArray(entry.picks)) {
+      sections[entry.id] = entry.picks as RawPick[];
+    }
+  }
+  return { sections, atAGlance: Array.isArray(parsed.atAGlance) ? parsed.atAGlance : [] };
+}
+
+/** Fetch each shortlisted page; keep it only when it matches its headline. */
+async function fullTextFor(articles: CorpusArticle[]): Promise<Map<number, string>> {
+  const texts = await mapWithConcurrency(articles, 8, (a) =>
+    fetchArticleText(a.url, WRITING_TEXT_CHARS * 2),
+  );
+  const out = new Map<number, string>();
+  articles.forEach((a, n) => {
+    const fetched = texts[n];
+    if (fetched && fetchedTextMatches(a.title, fetched)) out.set(a.i, fetched);
+  });
+  return out;
+}
+
+async function runWriting(
+  prefs: DigestPreferences,
+  items: WritingItem[],
+): Promise<Map<number, { summary?: string; gist?: string }>> {
+  const model = getModel(WRITING_SCHEMA, 0.5);
+  if (!model) throw new Error("model unavailable");
+  const response = await withTimeout(
+    model.generateContent(buildWritingPrompt(prefs, items)),
+    WRITING_TIMEOUT_MS,
+    "writing",
+  );
+  const parsed = JSON.parse(response.response.text()) as {
+    items?: Array<{ i?: unknown; summary?: unknown; gist?: unknown }>;
+  };
+  const byIndex = new Map(items.map((it) => [it.article.i, it]));
+  const out = new Map<number, { summary?: string; gist?: string }>();
+
+  for (const entry of parsed?.items ?? []) {
+    const item = byIndex.get(toIndex(entry?.i));
+    if (!item) continue;
+    const written: { summary?: string; gist?: string } = {};
+    if (item.needsSummary && typeof entry.summary === "string") {
+      const summary = humanise(entry.summary);
+      // Reject thin or drifted paragraphs — the fallback below is better
+      // than a summary of the wrong story under this headline.
+      if (summary.length >= 40 && looksOnTopic(item.article.title, summary)) {
+        written.summary = summary;
+      }
+    }
+    if (item.needsGist && typeof entry.gist === "string") {
+      const gist = entry.gist.trim();
+      if (gist.length >= 4 && gist.length <= 140) written.gist = gist;
+    }
+    out.set(item.article.i, written);
+  }
+  return out;
+}
+
+async function aiDigest(
+  prefs: DigestPreferences,
+  corpus: CorpusArticle[],
+): Promise<Pick<DigestResult, "sections" | "atAGlance">> {
+  const selection = await runSelection(prefs, corpus);
+
+  const usedUrls = new Set<string>();
+  const sections: Record<string, DigestArticle[]> = {};
+  const sectionByUrl = new Map<string, DigestSection>();
+  for (const section of prefs.sections) {
+    sections[section.id] = rehydrateSection(
+      section,
+      selection.sections[section.id],
+      corpus,
+      usedUrls,
+      prefs.global.watchTopics,
+    );
+    sections[section.id].forEach((a) => sectionByUrl.set(a.url, section));
+  }
+  const atAGlance = rehydrateAtAGlance(selection.atAGlance, corpus);
+
+  // Everything that needs writing, once each: section articles need a
+  // summary, glance picks a gist, and an article can need both.
+  const indexByUrl = new Map(corpus.map((a) => [a.url, a.i]));
+  const glanceUrls = new Set(atAGlance.map((g) => g.url));
+  const shortlist = [...new Set([...sectionByUrl.keys(), ...glanceUrls])]
+    .map((url) => corpus[indexByUrl.get(url) ?? -1])
+    .filter((a): a is CorpusArticle => Boolean(a));
+
+  const fullText = await fullTextFor(shortlist);
+  const items: WritingItem[] = shortlist.map((article) => ({
+    article,
+    text: fullText.get(article.i) ?? article.text,
+    section: sectionByUrl.get(article.url),
+    needsSummary: sectionByUrl.has(article.url),
+    needsGist: glanceUrls.has(article.url),
+  }));
+
+  let written = new Map<number, { summary?: string; gist?: string }>();
+  try {
+    if (items.length > 0) written = await runWriting(prefs, items);
+  } catch (err) {
+    // The selection is still the reader's edition — print it with summaries
+    // condensed from the article text rather than throwing it away.
+    console.error("[digest] writing pass failed, keeping selection:", err);
+  }
+
+  const itemByUrl = new Map(items.map((it) => [it.article.url, it]));
+  const words = prefs.global.summaryLengthWords;
+  for (const list of Object.values(sections)) {
+    for (const a of list) {
+      const item = itemByUrl.get(a.url);
+      if (!item) continue;
+      a.summary =
+        written.get(item.article.i)?.summary ??
+        heuristicSummary({ ...item.article, text: item.text }, words);
+    }
+  }
+  for (const g of atAGlance) {
+    const idx = indexByUrl.get(g.url);
+    const gist = idx === undefined ? undefined : written.get(idx)?.gist;
+    if (gist) g.summary = gist;
+  }
+
+  return { sections, atAGlance };
 }
 
 // ---- heuristic fallback (no AI configured) -----------------------------------
@@ -335,12 +590,8 @@ function heuristicDigest(
 ): Record<string, DigestArticle[]> {
   const used = new Set<string>();
   const result: Record<string, DigestArticle[]> = {};
-  const maxAge = prefs.global.maxAgeHours;
-  const fresh = corpus.filter(
-    (a) =>
-      a.ageHours === null ||
-      a.ageHours <= (a.pool === "Cards" ? CARD_BLOG_MAX_AGE_HOURS : Math.max(maxAge, 30)),
-  );
+  // collectCorpus() already applied the age window.
+  const fresh = corpus;
 
   for (const section of [...prefs.sections].sort((a, b) => a.order - b.order)) {
     const exclude = [
@@ -469,12 +720,10 @@ function heuristicAtAGlance(
 // ---- public entry point --------------------------------------------------------
 
 export async function generateDigest(prefs: DigestPreferences): Promise<DigestResult> {
-  // Full article text only pays off when the model will actually read it —
-  // the heuristic engine works off the RSS excerpts alone.
-  const corpus = await collectCorpus({ fullText: aiEnabled() });
+  const corpus = await collectCorpus(prefs);
   const generatedAt = new Date().toISOString();
 
-  if (!aiEnabled() || corpus.length === 0) {
+  const heuristic = (): DigestResult => {
     const sections = heuristicDigest(prefs, corpus);
     return {
       sections,
@@ -483,53 +732,15 @@ export async function generateDigest(prefs: DigestPreferences): Promise<DigestRe
       engine: "heuristic",
       corpusSize: corpus.length,
     };
-  }
+  };
+
+  if (!aiEnabled() || corpus.length === 0) return heuristic();
 
   try {
-    const model = getModel();
-    if (!model) throw new Error("model unavailable");
-
-    const prompt = buildDigestPrompt(prefs, corpus);
-    const response = await Promise.race([
-      model.generateContent(prompt),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("digest timeout")), DIGEST_TIMEOUT_MS),
-      ),
-    ]);
-
-    const text = response.response.text().replace(/```(?:json)?/g, "").trim();
-    const parsed = JSON.parse(text) as {
-      sections?: Record<string, unknown>;
-      atAGlance?: unknown;
-    };
-    if (!parsed || typeof parsed.sections !== "object" || parsed.sections === null) {
-      throw new Error("response missing sections map");
-    }
-
-    const usedUrls = new Set<string>();
-    const sections: Record<string, DigestArticle[]> = {};
-    for (const section of prefs.sections) {
-      sections[section.id] = rehydrateSection(
-        section,
-        parsed.sections[section.id],
-        corpus,
-        usedUrls,
-        prefs.global.watchTopics,
-      );
-    }
-
-    const atAGlance = rehydrateAtAGlance(parsed.atAGlance, corpus);
-
+    const { sections, atAGlance } = await aiDigest(prefs, corpus);
     return { sections, atAGlance, generatedAt, engine: "ai", corpusSize: corpus.length };
   } catch (err) {
-    console.error("[digest] AI pass failed, falling back to heuristic:", err);
-    const sections = heuristicDigest(prefs, corpus);
-    return {
-      sections,
-      atAGlance: heuristicAtAGlance(prefs, sections, corpus),
-      generatedAt,
-      engine: "heuristic",
-      corpusSize: corpus.length,
-    };
+    console.error("[digest] AI selection failed, falling back to heuristic:", err);
+    return heuristic();
   }
 }
