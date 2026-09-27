@@ -35,11 +35,9 @@ import { fallbackEditorsNote } from "@/lib/live/editorial-ai";
 import {
   consumeForcedSummarize,
   mergeSummaryRecord,
-  readBrief,
   readNote,
   readPickBlurbs,
   readSummaryRecord,
-  writeBrief,
   writeNote,
   writePickBlurbs,
 } from "@/lib/summary-cache";
@@ -147,8 +145,13 @@ export default function EditionView({
     initialDigest ? deriveBriefFromDigest(initialDigest.result, initialDigest.prefs) : null,
   );
   const [personalization, setPersonalization] = useState<Personalization>(DEFAULT_PERSONALIZATION);
-  const [liveWeather, setLiveWeather] = useState<WeatherNow | null>(null);
-  const [weatherState, setWeatherState] = useState<WeatherState>("loading");
+  // Weather result tagged with the city it is for: a new city reads as
+  // "loading" until its own answer lands, without resetting state in an effect.
+  const [weatherResult, setWeatherResult] = useState<{
+    city: string;
+    state: WeatherState;
+    data: WeatherNow | null;
+  } | null>(null);
   const [grapevine, setGrapevine] = useState<GrapevineData>(initialEdition.grapevine ?? EMPTY_GRAPEVINE);
 
   // --- preference-driven digest state ---------------------------------------
@@ -160,9 +163,6 @@ export default function EditionView({
   // Set at mount when this visit follows "Refresh edition": the server must
   // rebuild rather than hand back the edition the reader already had.
   const forceRebuildRef = useRef(false);
-  // True once the digest pipeline has engaged for this edition — the legacy
-  // /api/summarize brief then stays out of the way of the digest-derived one.
-  const digestEngagedRef = useRef(false);
 
   // --- edition prep overlay ("cooking today's edition") -------------------
   // boot     — first render (SSR included): the opaque overlay is already on
@@ -206,6 +206,8 @@ export default function EditionView({
 
   // --- mount: personalization + reader memory -----------------------------
   useEffect(() => {
+    // Browser-only saved state is read after the first render so it matches the server HTML.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPersonalization(loadPersonalization());
     if (isArchive) {
       setMemory(loadMemory());
@@ -234,25 +236,17 @@ export default function EditionView({
 
   // --- weather: always resolves to ready or failed, never spins forever ----
   useEffect(() => {
-    if (isArchive) {
-      setWeatherState("failed");
-      return;
-    }
+    if (isArchive) return;
     let cancelled = false;
-    setWeatherState("loading");
+    const city = personalization.homeCity;
     const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), WEATHER_TIMEOUT_MS));
-    Promise.race([getLiveWeather(personalization.homeCity), timeout])
+    Promise.race([getLiveWeather(city), timeout])
       .then((w) => {
         if (cancelled) return;
-        if (w) {
-          setLiveWeather(w);
-          setWeatherState("ready");
-        } else {
-          setWeatherState("failed");
-        }
+        setWeatherResult({ city, state: w ? "ready" : "failed", data: w });
       })
       .catch(() => {
-        if (!cancelled) setWeatherState("failed");
+        if (!cancelled) setWeatherResult({ city, state: "failed", data: null });
       });
     return () => {
       cancelled = true;
@@ -340,10 +334,9 @@ export default function EditionView({
       const askedUrls = new Set(cached ? cached.asked : []);
       const currentUrls = new Set(hateWatchInputs.map((a) => a.url));
 
-      // If we already asked for the brief / blurbs / note once today, don't
-      // ask again on every reload just because the model returned nothing.
+      // If we already asked for the blurbs / note once today, don't ask
+      // again on every reload just because the model returned nothing.
       const extrasDone = cached?.extrasAsked === true;
-      let haveBrief = extrasDone;
       let havePicks = extrasDone;
       let haveNote = extrasDone;
 
@@ -353,11 +346,6 @@ export default function EditionView({
         for (const url of currentUrls) if (cached.byUrl[url]) hit[url] = cached.byUrl[url];
         if (Object.keys(hit).length > 0) applyMap(hit);
 
-        const cachedBrief = readBrief<EditionBrief>(today);
-        if (cachedBrief) {
-          setBrief(cachedBrief);
-          haveBrief = true;
-        }
         const cachedPicks = readPickBlurbs(today);
         if (cachedPicks) {
           applyPickBlurbs(cachedPicks);
@@ -375,13 +363,12 @@ export default function EditionView({
         : hateWatchInputs.filter((a) => !cachedUrls.has(a.url) && !askedUrls.has(a.url));
       const picksToAsk = force || !havePicks ? grapevine.picks : [];
       const wantNote = force || !haveNote;
-      const wantBrief = force || !haveBrief;
 
-      if (toAsk.length === 0 && picksToAsk.length === 0 && !wantNote && !wantBrief) {
+      if (toAsk.length === 0 && picksToAsk.length === 0 && !wantNote) {
         setSummaryState("idle");
         return;
       }
-      // Nothing new to summarise and the brief/note are already on the page.
+      // Nothing new to summarise and the note is already on the page.
       if (toAsk.length === 0 && picksToAsk.length === 0 && hateWatchInputs.length === 0) {
         setSummaryState("idle");
         return;
@@ -428,12 +415,11 @@ export default function EditionView({
           if (!r.ok) throw new Error(`summarize ${r.status}`);
           return (await r.json()) as {
             summaries?: Record<string, string>;
-            brief?: EditionBrief | null;
             pickBlurbs?: Record<string, string>;
             editorsNote?: string | null;
           };
         })
-        .then(({ summaries, brief: apiBrief, pickBlurbs, editorsNote: apiNote }) => {
+        .then(({ summaries, pickBlurbs, editorsNote: apiNote }) => {
           if (controller.signal.aborted) return;
           const idToUrl = new Map(hateWatchInputs.map((a) => [a.id, a.url]));
           const askedNow = new Set((force ? hateWatchInputs : toAsk).map((a) => a.url));
@@ -452,15 +438,11 @@ export default function EditionView({
           // so the next load doesn't re-request it; keep only the entries that
           // would visibly change the page for the reader to apply.
           mergeSummaryRecord(today, byUrl, Array.from(askedNow), {
-            extrasAsked: force || picksToAsk.length > 0 || wantNote || wantBrief,
+            extrasAsked: force || picksToAsk.length > 0 || wantNote,
           });
-          if (apiBrief) writeBrief(today, apiBrief);
           if (pickBlurbs && Object.keys(pickBlurbs).length > 0) writePickBlurbs(today, pickBlurbs);
           if (apiNote) writeNote(today, apiNote);
 
-          // The digest derives its own "at a glance" brief; only fall back to
-          // the server-written one when the digest pipeline never engaged.
-          if (apiBrief && !digestEngagedRef.current) setBrief(apiBrief);
           if (pickBlurbs) applyPickBlurbs(pickBlurbs);
           if (apiNote) setEditorsNote({ text: apiNote, source: "ai" });
 
@@ -505,7 +487,6 @@ export default function EditionView({
   const runDigest = useCallback(
     (force: boolean) => {
       if (isArchive) return;
-      digestEngagedRef.current = true;
       const prefs = loadDigestPreferences();
       const hash = hashPreferences(prefs);
 
@@ -599,6 +580,8 @@ export default function EditionView({
     // The server already printed today's edition into the page.
     if (initialDigest && !deliberateRefresh) return;
     if (!loadPersonalization().onboarded) {
+      // Browser-only saved state is read after the first render so it matches the server HTML.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPrep("revealed");
       return;
     }
@@ -666,6 +649,12 @@ export default function EditionView({
   const accentColor = personalization.favoriteF1Team
     ? F1_TEAM_COLORS[personalization.favoriteF1Team]
     : undefined;
+  const weatherState: WeatherState = isArchive
+    ? "failed"
+    : weatherResult?.city === personalization.homeCity
+      ? weatherResult.state
+      : "loading";
+  const liveWeather = weatherResult?.city === personalization.homeCity ? weatherResult.data : null;
   const weather = liveWeather ?? edition.weather ?? null;
   const isSunday = new Date().getDay() === 0;
 

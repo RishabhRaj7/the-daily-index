@@ -1,5 +1,5 @@
 // Client-side cache for the AI layer of an edition (article summaries, the
-// "at a glance" brief, Editor's Picks blurbs, the Editor's Desk note).
+// Editor's Picks blurbs and the Editor's Desk note).
 //
 // Everything lives in sessionStorage, keyed by the edition date. Summaries are
 // keyed by article URL — never by positional story id — so a cached paragraph
@@ -17,7 +17,7 @@ export interface SummaryCacheRecord {
   /** article URLs we have asked about at least once (even if the model only
    *  handed back the RSS snippet). Lets us skip re-requesting them. */
   asked: string[];
-  /** true once we have asked for the brief / pick blurbs / editor's note for
+  /** true once we have asked for the pick blurbs / editor's note for
    *  this edition, whether or not the model returned them. */
   extrasAsked: boolean;
   savedAt: number;
@@ -25,7 +25,6 @@ export interface SummaryCacheRecord {
 
 const PREFIX = "daily-index:";
 const SUMMARIES = (date: string) => `${PREFIX}summaries:v3:${date}`;
-const BRIEF = (date: string) => `${PREFIX}brief:${date}`;
 const PICKS = (date: string) => `${PREFIX}picks:${date}`;
 const NOTE = (date: string) => `${PREFIX}note:${date}`;
 const FORCE_FLAG = `${PREFIX}force-summarize`;
@@ -93,12 +92,6 @@ export function mergeSummaryRecord(
   return next;
 }
 
-export function readBrief<T>(date: string): T | null {
-  return readJson<T>(BRIEF(date));
-}
-export function writeBrief(date: string, brief: unknown) {
-  writeJson(BRIEF(date), brief);
-}
 
 export function readPickBlurbs(date: string): Record<string, string> | null {
   return readJson<Record<string, string>>(PICKS(date));

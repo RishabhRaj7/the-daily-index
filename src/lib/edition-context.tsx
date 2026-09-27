@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -26,6 +27,16 @@ function autoModeForHour(hour: number): EditionMode {
 
 const EditionContext = createContext<EditionContextValue | null>(null);
 
+// Cross-fade the whole page when the *reader* flips the edition. Initial
+// load and auto mode apply instantly so there's no fade on first paint.
+function animateSwitch() {
+  if (typeof window === "undefined") return;
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  const root = document.documentElement;
+  root.classList.add("theme-transition");
+  window.setTimeout(() => root.classList.remove("theme-transition"), 500);
+}
+
 export function EditionProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<EditionMode>("morning");
   const [isManual, setIsManual] = useState(false);
@@ -33,6 +44,8 @@ export function EditionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (stored === "morning" || stored === "evening") {
+      // Saved choice and the local clock are browser-only; read after first render.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setModeState(stored);
       setIsManual(true);
       return;
@@ -44,33 +57,24 @@ export function EditionProvider({ children }: { children: ReactNode }) {
     document.documentElement.setAttribute("data-edition", mode);
   }, [mode]);
 
-  // Cross-fade the whole page when the *reader* flips the edition. Initial
-  // load and auto mode apply instantly so there's no fade on first paint.
-  const animateSwitch = () => {
-    if (typeof window === "undefined") return;
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-    const root = document.documentElement;
-    root.classList.add("theme-transition");
-    window.setTimeout(() => root.classList.remove("theme-transition"), 500);
-  };
-
-  const setMode = (next: EditionMode) => {
+  // Stable callbacks, so the memoised context value only changes with state.
+  const setMode = useCallback((next: EditionMode) => {
     animateSwitch();
     setModeState(next);
     setIsManual(true);
     window.localStorage.setItem(STORAGE_KEY, next);
-  };
+  }, []);
 
-  const resetToAuto = () => {
+  const resetToAuto = useCallback(() => {
     animateSwitch();
     setIsManual(false);
     window.localStorage.removeItem(STORAGE_KEY);
     setModeState(autoModeForHour(new Date().getHours()));
-  };
+  }, []);
 
   const value = useMemo(
     () => ({ mode, isManual, setMode, resetToAuto }),
-    [mode, isManual],
+    [mode, isManual, setMode, resetToAuto],
   );
 
   return (

@@ -31,6 +31,8 @@ export default function RedditConnect({
     // One-line confirmation after the OAuth round-trip.
     const params = new URLSearchParams(window.location.search);
     if (params.get("reddit") === "connected") {
+      // One-shot read of the OAuth redirect's query string, browser-only.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMessage("Reddit account connected — your subscriptions now feed the column.");
       window.history.replaceState(null, "", window.location.pathname);
     } else if (params.get("reddit") === "error") {

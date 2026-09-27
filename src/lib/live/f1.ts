@@ -8,18 +8,6 @@ import type {
   F1GridResult,
   F1LiveResult,
 } from "@/lib/types";
-export interface LiveF1Data {
-  nextRace: F1Race;
-  upcoming: F1Race[];
-  standings: F1Standing[];
-  constructorStandings: F1ConstructorStanding[];
-  lastRace: F1LastRace | null;
-  qualifyingGrid: F1GridResult[];
-  liveResults: F1LiveResult[];
-  currentRace: F1Race | null;
-  racePhase: "last-race" | "qualifying" | "race";
-}
-
 // Staged slices of LiveF1Data — each maps to one block of the F1 sidebar and
 // is fetched independently so the section can render progressively:
 //   schedule  — fastest (one memoized call): next race + upcoming calendar.
@@ -625,30 +613,6 @@ export async function getF1Schedule(): Promise<F1ScheduleData | null> {
   const { nextSession, nextRound, upcoming } = analyzeSeason(sessions);
   const circuitImageUrl = await getMeetingImage(nextSession.meeting_key);
   return { nextRace: raceFromSession(nextSession, nextRound, circuitImageUrl), upcoming };
-}
-
-/** Full sidebar payload composed from the parts running in parallel. Kept for
- *  callers that want everything at once; the sidebar consumes the parts
- *  individually so each block renders (and retries) independently. */
-export async function getLiveF1(): Promise<LiveF1Data | null> {
-  const [schedule, constructors, standings, results] = await Promise.all([
-    getF1Schedule(),
-    getF1Constructors(),
-    getF1DriverStandings(),
-    getF1Results(),
-  ]);
-  if (!schedule) return null;
-  return {
-    nextRace: schedule.nextRace,
-    upcoming: schedule.upcoming,
-    standings: standings?.standings ?? [],
-    constructorStandings: constructors?.constructorStandings ?? [],
-    lastRace: results?.lastRace ?? null,
-    qualifyingGrid: results?.qualifyingGrid ?? [],
-    liveResults: results?.liveResults ?? [],
-    currentRace: results?.currentRace ?? null,
-    racePhase: results?.racePhase ?? "last-race",
-  };
 }
 
 /** Driver roster for the settings / onboarding chips. Static data — this used

@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { aiEnabled, generateJson } from "@/lib/server/gemini";
 import type { ReaderProfile, SectionKey } from "@/lib/types";
 import { SECTION_META } from "@/lib/sections";
 
@@ -6,18 +6,10 @@ import { SECTION_META } from "@/lib/sections";
 // here is constrained to material we already hold — the model is allowed to
 // rephrase, never to report.
 
-function aiEnabled(): boolean {
-  return process.env.AI_SUMMARIZE !== "false" && Boolean(process.env.GEMINI_API_KEY);
-}
-
-function jsonModel() {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) return null;
-  return new GoogleGenerativeAI(key).getGenerativeModel({
-    model: process.env.GEMINI_MODEL ?? "gemini-2.0-flash",
-    generationConfig: { responseMimeType: "application/json", temperature: 0.7 },
-  });
-}
+// A little warmth for one-liners and the desk note; facts stay grounded by
+// the prompts themselves.
+const EDITORIAL_TEMPERATURE = 0.7;
+const EDITORIAL_TIMEOUT_MS = 30_000;
 
 export interface PickInput {
   id: string;
@@ -34,8 +26,6 @@ export interface PickInput {
  */
 export async function writePickBlurbs(picks: PickInput[]): Promise<Record<string, string>> {
   if (!aiEnabled() || picks.length === 0) return {};
-  const model = jsonModel();
-  if (!model) return {};
 
   const blocks = picks
     .map(
@@ -58,8 +48,13 @@ Return JSON: [{"i": 0, "line": "..."}, ...] in the same order.
 ${blocks}`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const parsed = JSON.parse(result.response.text()) as Array<{ i: number; line: string }>;
+    const parsed = JSON.parse(
+      await generateJson(prompt, {
+        temperature: EDITORIAL_TEMPERATURE,
+        timeoutMs: EDITORIAL_TIMEOUT_MS,
+        label: "pickBlurbs",
+      }),
+    ) as Array<{ i: number; line: string }>;
     const out: Record<string, string> = {};
     for (const item of parsed) {
       const pick = picks[item.i];
@@ -110,8 +105,6 @@ export async function writeEditorsNote(
   ctx: { weekday: string; heroHeadline?: string; recentHeadlines: string[]; dateLabel: string },
 ): Promise<string | null> {
   if (!aiEnabled()) return null;
-  const model = jsonModel();
-  if (!model) return null;
 
   const facts = [
     `date: ${ctx.dateLabel} (${ctx.weekday})`,
@@ -136,8 +129,13 @@ ${facts}
 Return JSON: {"note": "..."}`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const parsed = JSON.parse(result.response.text()) as { note?: string };
+    const parsed = JSON.parse(
+      await generateJson(prompt, {
+        temperature: EDITORIAL_TEMPERATURE,
+        timeoutMs: EDITORIAL_TIMEOUT_MS,
+        label: "editorsNote",
+      }),
+    ) as { note?: string };
     const note = parsed.note?.trim();
     return note && note.length > 20 ? note : null;
   } catch (err) {

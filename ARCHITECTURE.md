@@ -441,3 +441,15 @@ edition starts building before the reader is back on the paper.
 - Live blogs (`… live:`, `live updates`, `as it happened`, a `/live/` URL
   segment) are dropped in `collectCorpus` — the model picked them despite
   the prompt saying not to.
+
+## Gemini access (current)
+
+- `lib/server/gemini.ts` is the only module that talks to Gemini, on
+  Google's current SDK (`@google/genai`; the old `@google/generative-ai` was
+  deprecated). `generateJson(prompt, { schema, temperature, timeoutMs })`
+  returns JSON text; `aiEnabled()` is the single on/off check. Model:
+  `GEMINI_MODEL`, falling back to `gemini-3.1-flash-lite`.
+- Callers: the digest (selection + writing, with response schemas),
+  `batchSummarize` (hate-watch), pick blurbs and the Editor's Desk note.
+- `/api/summarize` no longer writes an "at a glance" brief — the page always
+  used the one derived from the edition, so it was a wasted call per visit.

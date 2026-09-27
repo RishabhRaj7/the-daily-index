@@ -20,6 +20,8 @@ export default function OnboardingGate({
   useEffect(() => {
     const existing = loadPersonalization();
     if (!existing.onboarded) {
+      // Browser-only saved state is read after the first render so it matches the server HTML.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDraft(existing);
       setVisible(true);
     }

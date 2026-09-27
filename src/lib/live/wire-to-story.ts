@@ -1,5 +1,4 @@
 import type { SectionKey, Story, WireBrief } from "@/lib/types";
-import { batchSummarize } from "./summarize";
 
 const BASE_SIGNIFICANCE = 55;
 
@@ -53,54 +52,6 @@ export function buildSectionsSync(
         i,
         b.summary ?? `Read the full story at ${b.domain}.`,
         personalize?.(b),
-      ),
-    );
-    return { stories, rest };
-  });
-}
-
-// Promotes all sections in a single function so every article that needs
-// a summary is collected upfront and sent to Gemini in one batch call.
-// This replaces multiple per-article calls with a single prompt → response.
-export async function promoteAllSections(
-  sections: Array<{
-    briefs: WireBrief[];
-    section: SectionKey;
-    count: number;
-  }>,
-): Promise<Array<{ stories: Story[]; rest: WireBrief[] }>> {
-  // Decide which briefs to promote for each section.
-  const sectionWork = sections.map(({ briefs, count }) => {
-    const byRichness = [...briefs].sort(
-      (a, b) => (b.summary?.length ?? 0) - (a.summary?.length ?? 0),
-    );
-    const promoted = byRichness.slice(0, count);
-    const promotedIds = new Set(promoted.map((p) => p.id));
-    const rest = briefs.filter((b) => !promotedIds.has(b.id));
-    return { promoted, rest };
-  });
-
-  // Collect every brief that needs a summary across all sections.
-  const allPromoted = sectionWork.flatMap((s) => s.promoted);
-
-  // One Gemini call for everything.
-  const summaries = await batchSummarize(
-    allPromoted.map((b) => ({
-      id: b.id,
-      url: b.url,
-      snippet: b.summary ?? `Read the full story at ${b.domain}.`,
-    })),
-  );
-
-  // Build stories for each section using the pre-fetched summaries.
-  return sections.map(({ section }, si) => {
-    const { promoted, rest } = sectionWork[si];
-    const stories = promoted.map((b, i) =>
-      wireBriefToStory(
-        b,
-        section,
-        i,
-        summaries.get(b.id) ?? b.summary ?? `Read the full story at ${b.domain}.`,
       ),
     );
     return { stories, rest };

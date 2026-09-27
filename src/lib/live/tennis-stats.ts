@@ -8,9 +8,9 @@ export async function getTennisRankings(): Promise<TennisRanking[]> {
     );
     if (!res.ok) return [];
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const data: any = await res.json();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const ranks: any[] = data?.rankings?.[0]?.ranks ?? [];
 
     return ranks.map((r) => ({

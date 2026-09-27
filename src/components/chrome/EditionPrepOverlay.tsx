@@ -136,11 +136,7 @@ function usePrepProgress(active: boolean, leaving: boolean): number {
   const [pct, setPct] = useState(3);
 
   useEffect(() => {
-    if (leaving) {
-      setPct(100);
-      return;
-    }
-    if (!active) return;
+    if (leaving || !active) return;
     const id = setInterval(() => {
       setPct((p) => {
         if (p >= 92) return 92;
@@ -151,7 +147,7 @@ function usePrepProgress(active: boolean, leaving: boolean): number {
     return () => clearInterval(id);
   }, [active, leaving]);
 
-  return pct;
+  return leaving ? 100 : pct;
 }
 
 export default function EditionPrepOverlay({
