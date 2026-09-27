@@ -531,7 +531,11 @@ async function aiDigest(
       if (list.length >= target) break;
       // A grouped section files the story under the place it names.
       const group =
-        section.type === "grouped" ? countryIn(a) : isSportsSection(section) ? a.pool.toLowerCase() : undefined;
+        section.type === "grouped"
+          ? (countryIn(a) ?? (list.length === target - 1 ? "World" : undefined))
+          : isSportsSection(section)
+            ? a.pool.toLowerCase()
+            : undefined;
       if (section.type === "grouped") {
         if (!group) continue;
         // Spread the extra places around rather than piling onto one country.

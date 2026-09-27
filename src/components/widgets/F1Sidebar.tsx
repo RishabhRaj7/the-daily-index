@@ -477,7 +477,12 @@ export default function F1Sidebar({
   const normFavTeam = favoriteF1Team.replace(/\s*F1 Team$/i, "").trim();
 
   return (
-    <div className="space-y-4">
+    // Two blocks that join the section's own grid (the root is
+    // display: contents): the race desk sits beside the stories, the two
+    // championship tables run full width underneath, so the stories column
+    // is never outgrown by a tall sidebar.
+    <div className="contents">
+      <div className="space-y-4 min-w-0 lg:col-start-2 lg:row-start-1">
       {/* Pit wall header — the single section-scoped refresh control. It
           re-reads local data first and only fetches what's missing or stale,
           so it can never blank a table that is already on screen. */}
@@ -573,6 +578,9 @@ export default function F1Sidebar({
         </div>
       )}
 
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-4 items-start lg:col-span-2">
       {/* Constructors' Championship — before the drivers' table, matching the
           order the section fills in. */}
       <div className="module" data-reveal>
@@ -664,6 +672,7 @@ export default function F1Sidebar({
             {standings.stale && <StaleNote onRetry={() => retry("standings")} />}
           </>
         )}
+      </div>
       </div>
     </div>
   );

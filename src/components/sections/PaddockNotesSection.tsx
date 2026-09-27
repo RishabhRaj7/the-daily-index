@@ -155,7 +155,7 @@ export default function PaddockNotesSection({
           return (
             <>
               <div className="grid lg:grid-cols-[minmax(0,1fr)_340px] gap-10">
-                <div>
+                <div className="min-w-0 lg:col-start-1 lg:row-start-1">
                   {stories.length > 0 && (
                     <div className="story-grid">
                       {stories.map((s) => (
@@ -183,7 +183,7 @@ export default function PaddockNotesSection({
                     </p>
                   )}
                 </div>
-                <div>{sidebarForSport(sport)}</div>
+                <div className="contents">{sidebarForSport(sport)}</div>
               </div>
             </>
           );
@@ -215,7 +215,7 @@ export default function PaddockNotesSection({
                 </div>
 
                 <div className="grid lg:grid-cols-[minmax(0,1fr)_340px] gap-10">
-                  <div>
+                  <div className="min-w-0 lg:col-start-1 lg:row-start-1">
                     {stories.length > 0 && (
                       <div className="story-grid">
                         {stories.map((s) => (
@@ -224,7 +224,7 @@ export default function PaddockNotesSection({
                       </div>
                     )}
                   </div>
-                  <div>{sidebarForSport(sport)}</div>
+                  <div className="contents">{sidebarForSport(sport)}</div>
                 </div>
               </div>
             );

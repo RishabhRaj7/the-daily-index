@@ -514,3 +514,5 @@ numbered rails); colour from The Verge (near-black, mint signal, ultraviolet).
 - Sections are picked with one spare (`sectionTarget` in `prompt.ts`); stories past the count carry `Story.reserve` and are printed only by the section that lent the front page its lead. Thin sections are topped up from their own wire (`backfillFor` in `digest.ts`; World files extras under the country in the headline via `countryIn`).
 - "Why it matters" display is `Personalization.showWhy` (default off), applied as `html[data-why]` so CSS hides `.why-line`.
 - A section lead (`StoryArticle lead`) sits beside a `CoverArt` plate.
+- F1Sidebar renders two blocks into the section grid (root is `display: contents`): the race desk beside the stories, the championship tables full width below.
+- `EditionRecord.v` / `BUILD_VERSION` in `editions.ts`: an edition built by older code is treated as stale and rebuilt in the background.

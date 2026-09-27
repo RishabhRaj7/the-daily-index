@@ -75,7 +75,16 @@ export interface EditionRecord {
   digest: DigestResult;
   /** Absent on editions stored before the archive existed. */
   layout?: EditionLayoutEntry[];
+  /** BUILD_VERSION of the code that built it; absent on older builds. */
+  v?: number;
 }
+
+/**
+ * Bumped when the way an edition is assembled changes (2: every section
+ * carries a spare story for the front-page lead). An edition from older
+ * code is served as it is but rebuilt in the background, like a stale one.
+ */
+const BUILD_VERSION = 2;
 
 export type EditionState =
   | { state: "ready"; date: string; hash: string; edition: EditionRecord; refreshing: boolean; note?: string }
@@ -106,6 +115,7 @@ function ageHours(iso: string): number {
 // failed — retry it much sooner than a normal refresh.
 function isStale(edition: EditionRecord): boolean {
   const aiConfigured = Boolean(process.env.GEMINI_API_KEY) && process.env.AI_SUMMARIZE !== "false";
+  if ((edition.v ?? 1) < BUILD_VERSION) return true;
   const limit = edition.digest.engine === "heuristic" && aiConfigured ? 0.5 : STALE_HOURS;
   return ageHours(edition.builtAt) > limit;
 }
@@ -150,6 +160,7 @@ export async function buildEdition(
       hash,
       builtAt: new Date().toISOString(),
       digest,
+      v: BUILD_VERSION,
       layout: [...prefs.sections]
         .sort((a, b) => a.order - b.order)
         .map((sec) => ({ id: sec.id, label: sec.label, order: sec.order, type: sec.type })),
