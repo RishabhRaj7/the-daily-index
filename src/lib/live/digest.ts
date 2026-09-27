@@ -16,6 +16,7 @@
 // no model → deterministic heuristic; selection fails → heuristic; writing
 // fails → the selection stands with summaries condensed from the article.
 
+import { createHash } from "node:crypto";
 import { GoogleGenerativeAI, SchemaType, type ResponseSchema } from "@google/generative-ai";
 import { dedupeWires } from "./rss";
 import { getWorldIndiaWire, getMarketsWire } from "./news";
@@ -399,7 +400,9 @@ interface Selection {
 }
 
 async function runSelection(prefs: DigestPreferences, corpus: CorpusArticle[]): Promise<Selection> {
-  const model = getModel(SELECTION_SCHEMA, 0.2);
+  // Temperature 0: the same corpus and preferences should pick the same
+  // stories, so a refresh only changes what the news itself changed.
+  const model = getModel(SELECTION_SCHEMA, 0);
   if (!model) throw new Error("model unavailable");
   const response = await withTimeout(
     model.generateContent(buildSelectionPrompt(prefs, corpus)),
@@ -437,7 +440,7 @@ async function runWriting(
   prefs: DigestPreferences,
   items: WritingItem[],
 ): Promise<Map<number, { summary?: string; gist?: string }>> {
-  const model = getModel(WRITING_SCHEMA, 0.5);
+  const model = getModel(WRITING_SCHEMA, 0.3);
   if (!model) throw new Error("model unavailable");
   const response = await withTimeout(
     model.generateContent(buildWritingPrompt(prefs, items)),
@@ -471,9 +474,41 @@ async function runWriting(
   return out;
 }
 
+/**
+ * Remembers what the writing pass already wrote, so rebuilding an edition
+ * (Refresh edition, the morning cron, a stale rebuild) only writes articles
+ * that are new — an unchanged story keeps the exact summary the reader saw.
+ * Supplied by the caller (lib/server/editions.ts); absent means no reuse.
+ */
+export interface WritingCache {
+  getMany(keys: string[]): Promise<Map<string, string>>;
+  setMany(entries: Map<string, string>): Promise<void>;
+}
+
+// A summary is reusable only when everything that shaped it is the same:
+// the article, the length, the voice, and the section's own guidance.
+function summaryKey(prefs: DigestPreferences, article: CorpusArticle, section?: DigestSection): string {
+  const guidance = section ? `${section.prompt ?? ""}|${section.type === "custom" ? section.instruction : ""}` : "";
+  return (
+    "sum:" +
+    createHash("sha256")
+      .update([article.url, prefs.global.summaryLengthWords, prefs.global.tone, guidance].join("|"))
+      .digest("hex")
+      .slice(0, 24)
+  );
+}
+
+function gistKey(prefs: DigestPreferences, article: CorpusArticle): string {
+  return (
+    "gist:" +
+    createHash("sha256").update([article.url, prefs.global.tone].join("|")).digest("hex").slice(0, 24)
+  );
+}
+
 async function aiDigest(
   prefs: DigestPreferences,
   corpus: CorpusArticle[],
+  cache?: WritingCache,
 ): Promise<Pick<DigestResult, "sections" | "atAGlance">> {
   const selection = await runSelection(prefs, corpus);
 
@@ -500,18 +535,57 @@ async function aiDigest(
     .map((url) => corpus[indexByUrl.get(url) ?? -1])
     .filter((a): a is CorpusArticle => Boolean(a));
 
-  const fullText = await fullTextFor(shortlist);
-  const items: WritingItem[] = shortlist.map((article) => ({
+  // Reuse anything already written for these exact articles and settings.
+  const keysFor = (article: CorpusArticle) => ({
+    summary: summaryKey(prefs, article, sectionByUrl.get(article.url)),
+    gist: gistKey(prefs, article),
+  });
+  const wanted = shortlist.flatMap((a) => {
+    const k = keysFor(a);
+    return [
+      ...(sectionByUrl.has(a.url) ? [k.summary] : []),
+      ...(glanceUrls.has(a.url) ? [k.gist] : []),
+    ];
+  });
+  const cached = cache ? await cache.getMany(wanted).catch(() => new Map<string, string>()) : new Map<string, string>();
+
+  const written = new Map<number, { summary?: string; gist?: string }>();
+  for (const a of shortlist) {
+    const k = keysFor(a);
+    const summary = cached.get(k.summary);
+    const gist = cached.get(k.gist);
+    if (summary || gist) written.set(a.i, { summary, gist });
+  }
+
+  // Only what is still missing goes to the model — and only those pages
+  // are fetched for full text.
+  const pending = shortlist.filter(
+    (a) =>
+      (sectionByUrl.has(a.url) && !written.get(a.i)?.summary) ||
+      (glanceUrls.has(a.url) && !written.get(a.i)?.gist),
+  );
+  const fullText = await fullTextFor(pending);
+  const items: WritingItem[] = pending.map((article) => ({
     article,
     text: fullText.get(article.i) ?? article.text,
     section: sectionByUrl.get(article.url),
-    needsSummary: sectionByUrl.has(article.url),
-    needsGist: glanceUrls.has(article.url),
+    needsSummary: sectionByUrl.has(article.url) && !written.get(article.i)?.summary,
+    needsGist: glanceUrls.has(article.url) && !written.get(article.i)?.gist,
   }));
 
-  let written = new Map<number, { summary?: string; gist?: string }>();
   try {
-    if (items.length > 0) written = await runWriting(prefs, items);
+    if (items.length > 0) {
+      const fresh = await runWriting(prefs, items);
+      const toStore = new Map<string, string>();
+      for (const [i, out] of fresh) {
+        const article = corpus[i];
+        const merged = { ...written.get(i), ...out };
+        written.set(i, merged);
+        if (out.summary) toStore.set(keysFor(article).summary, out.summary);
+        if (out.gist) toStore.set(keysFor(article).gist, out.gist);
+      }
+      if (cache && toStore.size > 0) await cache.setMany(toStore).catch(() => {});
+    }
   } catch (err) {
     // The selection is still the reader's edition — print it with summaries
     // condensed from the article text rather than throwing it away.
@@ -522,11 +596,12 @@ async function aiDigest(
   const words = prefs.global.summaryLengthWords;
   for (const list of Object.values(sections)) {
     for (const a of list) {
+      const idx = indexByUrl.get(a.url);
+      if (idx === undefined) continue;
       const item = itemByUrl.get(a.url);
-      if (!item) continue;
       a.summary =
-        written.get(item.article.i)?.summary ??
-        heuristicSummary({ ...item.article, text: item.text }, words);
+        written.get(idx)?.summary ??
+        heuristicSummary({ ...corpus[idx], text: item?.text ?? corpus[idx].text }, words);
     }
   }
   for (const g of atAGlance) {
@@ -712,7 +787,10 @@ function heuristicAtAGlance(
 
 // ---- public entry point --------------------------------------------------------
 
-export async function generateDigest(prefs: DigestPreferences): Promise<DigestResult> {
+export async function generateDigest(
+  prefs: DigestPreferences,
+  opts: { writingCache?: WritingCache } = {},
+): Promise<DigestResult> {
   const corpus = await collectCorpus(prefs);
   const generatedAt = new Date().toISOString();
 
@@ -730,7 +808,7 @@ export async function generateDigest(prefs: DigestPreferences): Promise<DigestRe
   if (!aiEnabled() || corpus.length === 0) return heuristic();
 
   try {
-    const { sections, atAGlance } = await aiDigest(prefs, corpus);
+    const { sections, atAGlance } = await aiDigest(prefs, corpus, opts.writingCache);
     return { sections, atAGlance, generatedAt, engine: "ai", corpusSize: corpus.length };
   } catch (err) {
     console.error("[digest] AI selection failed, falling back to heuristic:", err);

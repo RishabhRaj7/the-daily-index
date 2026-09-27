@@ -17,7 +17,11 @@ export interface Store {
   /** True when data survives across serverless instances (Redis). */
   persistent: boolean;
   get<T>(key: string): Promise<T | null>;
+  /** Several keys in one round trip; missing keys are absent from the map. */
+  getMany<T>(keys: string[]): Promise<Map<string, T>>;
   set(key: string, value: unknown, opts?: { ttlSeconds?: number }): Promise<void>;
+  /** Several writes in one round trip, all with the same expiry. */
+  setMany(entries: Map<string, unknown>, ttlSeconds: number): Promise<void>;
   /** Set only if absent; true when this call took the key (a lock). */
   setIfAbsent(key: string, value: unknown, ttlSeconds: number): Promise<boolean>;
   del(key: string): Promise<void>;
@@ -43,6 +47,21 @@ function redisStore(redis: Redis): Store {
     persistent: true,
     async get<T>(key: string) {
       return (await redis.get<T>(key)) ?? null;
+    },
+    async getMany<T>(keys: string[]) {
+      const out = new Map<string, T>();
+      if (keys.length === 0) return out;
+      const values = await redis.mget<(T | null)[]>(...keys);
+      keys.forEach((k, i) => {
+        if (values[i] !== null && values[i] !== undefined) out.set(k, values[i] as T);
+      });
+      return out;
+    },
+    async setMany(entries, ttlSeconds) {
+      if (entries.size === 0) return;
+      const pipe = redis.pipeline();
+      for (const [k, v] of entries) pipe.set(k, v, { ex: ttlSeconds });
+      await pipe.exec();
     },
     async set(key, value, opts) {
       if (opts?.ttlSeconds) await redis.set(key, value, { ex: opts.ttlSeconds });
@@ -105,6 +124,17 @@ function memoryStore(): Store {
     persistent: process.env.VERCEL !== "1",
     async get<T>(key: string) {
       return (live(key)?.value as T | undefined) ?? null;
+    },
+    async getMany<T>(keys: string[]) {
+      const out = new Map<string, T>();
+      for (const k of keys) {
+        const hit = live(k);
+        if (hit) out.set(k, hit.value as T);
+      }
+      return out;
+    },
+    async setMany(entries, ttlSeconds) {
+      for (const [k, v] of entries) kv.set(k, { value: v, expires: expiry(ttlSeconds) });
     },
     async set(key, value, opts) {
       kv.set(key, { value, expires: expiry(opts?.ttlSeconds) });

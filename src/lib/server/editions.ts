@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { after } from "next/server";
-import { generateDigest } from "@/lib/live/digest";
+import { generateDigest, type WritingCache } from "@/lib/live/digest";
 import { DEFAULT_DIGEST_PREFERENCES, normalizePreferences } from "@/lib/preferences/storage";
 import type { DigestPreferences, DigestResult } from "@/lib/preferences/types";
 import { editionDate } from "@/lib/edition-date";
@@ -29,6 +29,18 @@ const LOCK_SECONDS = 180;
 /** Non-default editions expire; the default edition is the permanent archive. */
 const CUSTOM_EDITION_TTL = 60 * DAY;
 const PREFS_TTL = 14 * DAY;
+/** Written summaries are reused across rebuilds for this long. */
+const WRITING_TTL = 3 * DAY;
+
+// Shared by every edition: a story selected again (by a refresh, the cron,
+// or another reader with the same writing settings) keeps its summary.
+const writingCache: WritingCache = {
+  getMany: (keys) => getStore().getMany<string>(keys.map((k) => `w:${k}`)).then(
+    (found) => new Map([...found].map(([k, v]) => [k.slice(2), v])),
+  ),
+  setMany: (entries) =>
+    getStore().setMany(new Map([...entries].map(([k, v]) => [`w:${k}`, v])), WRITING_TTL),
+};
 /** Visitor-triggered builds per day — each one is two Gemini calls. */
 const GLOBAL_DAILY_LIMIT = Number(process.env.EDITION_BUILDS_PER_DAY ?? 60);
 const IP_DAILY_LIMIT = Number(process.env.EDITION_BUILDS_PER_IP ?? 8);
@@ -130,7 +142,7 @@ export async function buildEdition(
 ): Promise<EditionRecord | null> {
   const store = getStore();
   try {
-    const [digest] = await Promise.all([generateDigest(prefs), ensureSnapshot(date)]);
+    const [digest] = await Promise.all([generateDigest(prefs, { writingCache }), ensureSnapshot(date)]);
     const record: EditionRecord = {
       date,
       hash,
@@ -218,7 +230,10 @@ export async function requestEdition(
   const existing = await readEdition(date, hash);
   const wantsBuild = !existing || opts.force || isStale(existing);
   if (!wantsBuild) {
-    return { state: "ready", date, hash, edition: existing, refreshing: false };
+    // Say so when a rebuild someone else started (Refresh, cron) is running,
+    // so a poller knows a newer edition is on its way.
+    const running = await store.get<StatusRecord>(key.status(date, hash));
+    return { state: "ready", date, hash, edition: existing, refreshing: running?.state === "building" };
   }
 
   // Only one build per edition at a time; a second request joins the first.
