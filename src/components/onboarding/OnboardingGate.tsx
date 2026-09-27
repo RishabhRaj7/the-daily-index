@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { CreditCard, F1RosterEntry, Personalization } from "@/lib/types";
+import type { F1RosterEntry, Personalization } from "@/lib/types";
 import {
   DEFAULT_PERSONALIZATION,
   loadPersonalization,
@@ -10,10 +10,8 @@ import {
 import PersonalizationForm from "./PersonalizationForm";
 
 export default function OnboardingGate({
-  creditCards,
   f1Roster,
 }: {
-  creditCards: CreditCard[];
   f1Roster: F1RosterEntry[];
 }) {
   const [visible, setVisible] = useState(false);
@@ -51,7 +49,6 @@ export default function OnboardingGate({
         <PersonalizationForm
           value={draft}
           onChange={setDraft}
-          creditCards={creditCards}
           f1Roster={f1Roster}
         />
 

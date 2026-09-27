@@ -37,12 +37,6 @@ export const SECTION_META: Record<SectionKey, SectionMeta> = {
     kicker: "Finance",
     slug: "ledger",
   },
-  "plastic-points": {
-    key: "plastic-points",
-    label: "Plastic & Points — India Credit Cards",
-    kicker: "Rewards Desk",
-    slug: "plastic-points",
-  },
   "market-pulse": {
     key: "market-pulse",
     label: "Market Pulse — Indices",
@@ -64,7 +58,6 @@ export const SECTION_ORDER: SectionKey[] = [
   "sky-report",
   "circuit-board",
   "ledger",
-  "plastic-points",
   "market-pulse",
   "grapevine",
 ];

@@ -1,4 +1,5 @@
 import type { WireBrief } from "@/lib/types";
+import type { FeedSource } from "./feeds";
 import { isPolitical } from "./politics-filter";
 
 function decodeEntities(input: string): string {
@@ -91,32 +92,96 @@ function summarize(description: string, maxLen = 2000): string {
   return clean.slice(0, maxLen).replace(/\s+\S*$/, "") + "…";
 }
 
+// RFC 822 dates only carry numeric offsets or US/UT zone names as far as
+// `Date` is concerned — "Sat, 26 Sep 2026 23:15:00 BST" (Sky Sports) parses
+// to Invalid Date, which silently dropped every Sky item all summer. Swap
+// the abbreviations our feeds actually use for their offsets first.
+const ZONE_OFFSETS: Record<string, string> = {
+  BST: "+0100",
+  IST: "+0530", // India — the only IST among our sources
+  CET: "+0100",
+  CEST: "+0200",
+  JST: "+0900",
+  HKT: "+0800",
+  SGT: "+0800",
+  AEST: "+1000",
+  AEDT: "+1100",
+};
+
+export function parseFeedDate(raw: string | null): Date | null {
+  if (!raw) return null;
+  const normalized = raw
+    .trim()
+    .replace(/\b(BST|IST|CET|CEST|JST|HKT|SGT|AEST|AEDT)\s*$/, (zone) => ZONE_OFFSETS[zone]);
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+// RSS items are <item>…</item>; Atom entries are <entry>…</entry>. Either may
+// carry attributes (RDF feeds write <item rdf:about="…">), which the old
+// bare `<item>` pattern missed.
+function splitEntries(xml: string): { entries: string[]; atom: boolean } {
+  const items = [...xml.matchAll(/<item(?:\s[^>]*)?>([\s\S]*?)<\/item>/g)].map((m) => m[1]);
+  if (items.length > 0) return { entries: items, atom: false };
+  const entries = [...xml.matchAll(/<entry(?:\s[^>]*)?>([\s\S]*?)<\/entry>/g)].map((m) => m[1]);
+  return { entries, atom: true };
+}
+
+// Atom links are attributes: <link rel="alternate" href="…"/>. Prefer the
+// alternate (the article page) over self/edit/enclosure links.
+function extractAtomLink(entryXml: string): string | null {
+  const links = [...entryXml.matchAll(/<link\b([^>]*)\/?>/gi)].map((m) => m[1]);
+  const href = (attrs: string) => attrs.match(/\bhref="([^"]+)"/i)?.[1] ?? null;
+  const alternate = links.find((attrs) => {
+    const rel = attrs.match(/\brel="([^"]+)"/i)?.[1];
+    return !rel || rel === "alternate";
+  });
+  const chosen = alternate ?? links[0];
+  return chosen ? decodeEntities(href(chosen) ?? "") || null : null;
+}
+
+// Some CDNs refuse Node's default fetch UA outright; identify ourselves.
+const FEED_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (compatible; TheDailyIndex/1.0; personal RSS reader)",
+  Accept: "application/rss+xml, application/atom+xml, application/xml;q=0.9, */*;q=0.8",
+};
+
 export async function fetchRssFeed(
-  url: string,
+  source: FeedSource | string,
   revalidate: number,
   titleFilter?: (title: string, description: string) => boolean,
 ): Promise<WireBrief[]> {
+  const feed: FeedSource = typeof source === "string" ? { url: source } : source;
+  const maxAge = feed.maxAgeHours ?? MAX_AGE_HOURS;
   try {
-    const res = await fetch(url, { next: { revalidate } });
+    const res = await fetch(feed.url, {
+      headers: FEED_HEADERS,
+      next: { revalidate },
+      signal: AbortSignal.timeout(10_000),
+    });
     if (!res.ok) return [];
     const xml = await res.text();
-    const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].map(
-      (m) => m[1],
-    );
+    const { entries, atom } = splitEntries(xml);
 
-    return items
+    return entries
       .map((item): WireBrief | null => {
         const title = extractTag(item, "title");
-        const link = extractTag(item, "link");
-        const description = extractTag(item, "description") ?? "";
-        const pubDateRaw = extractTag(item, "pubDate");
+        const link = atom ? extractAtomLink(item) : extractTag(item, "link");
+        const description = atom
+          ? (extractTag(item, "summary") ?? extractTag(item, "content") ?? "")
+          : (extractTag(item, "description") ?? "");
+        const dateRaw = atom
+          ? (extractTag(item, "published") ?? extractTag(item, "updated"))
+          : (extractTag(item, "pubDate") ?? extractTag(item, "dc:date"));
         if (!title || !link) return null;
         if (isPolitical(`${title} ${description}`)) return null;
         if (titleFilter && !titleFilter(title, description)) return null;
 
-        const date = pubDateRaw ? new Date(pubDateRaw) : null;
-        if (!date || Number.isNaN(date.getTime())) return null;
-        if (ageInHours(date) > MAX_AGE_HOURS) return null;
+        const date = parseFeedDate(dateRaw);
+        // Undated items are only trusted from feeds known to be a rolling
+        // newest-first window; anywhere else we can't verify freshness.
+        if (!date && !feed.undated) return null;
+        if (date && ageInHours(date) > maxAge) return null;
 
         return {
           id: link,
@@ -125,7 +190,9 @@ export async function fetchRssFeed(
           domain: domainFrom(link),
           image: extractImage(item),
           summary: description ? summarize(description) : undefined,
-          postedAgo: timeAgo(date),
+          // Empty for undated items: downstream prints "recently" and the
+          // digest treats the age as unknown rather than inventing one.
+          postedAgo: date ? timeAgo(date) : "",
         };
       })
       .filter((b): b is WireBrief => b !== null);

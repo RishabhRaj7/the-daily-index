@@ -69,7 +69,7 @@ export interface SummarizeInput {
 const ROBOTIC_OPENERS =
   /(^|\.\s+)(it|this|that)\s+(matters|is (significant|important|notable))\s+because[^.]*\.\s*/gi;
 
-function humanise(text: string): string {
+export function humanise(text: string): string {
   return text
     .replace(ROBOTIC_OPENERS, (m, lead: string) => (lead === "" ? "" : lead))
     .replace(/\s{2,}/g, " ")
@@ -90,7 +90,7 @@ function keyTokens(s: string): string[] {
     );
 }
 
-function looksOnTopic(title: string | undefined, summary: string): boolean {
+export function looksOnTopic(title: string | undefined, summary: string): boolean {
   if (!title) return true;
   const toks = keyTokens(title);
   if (toks.length === 0) return true;
@@ -191,7 +191,6 @@ function inferSection(storyId: string): string {
   if (storyId.includes("ledger")) return "Markets";
   if (storyId.includes("paddock")) return "Sports";
   if (storyId.includes("circuit")) return "Tech";
-  if (storyId.includes("plastic")) return "Cards";
   return "";
 }
 
@@ -223,7 +222,7 @@ export async function generateEditionBrief(
 ${content}
 
 Return JSON: {"bullets": [{"section": "World", "text": "..."}, ...]}
-Include only sections with content. Sections: World, Markets, Sports, Tech, Cards.`;
+Include only sections with content. Sections: World, Markets, Sports, Tech.`;
 
   try {
     const result = await model.generateContent(prompt);

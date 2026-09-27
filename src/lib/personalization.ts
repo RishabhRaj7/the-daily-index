@@ -6,7 +6,6 @@ const STORAGE_KEY = "daily-index:personalization";
 export const DEFAULT_PERSONALIZATION: Personalization = {
   onboarded: false,
   homeCity: "Bengaluru",
-  cardsFollowing: [],
   sports: ["f1"],
   favoriteF1Team: "",
   favoriteF1Drivers: [],
@@ -27,9 +26,13 @@ export function loadPersonalization(): Personalization {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_PERSONALIZATION;
-    const parsed = JSON.parse(raw) as Partial<Personalization> & { cardFollowing?: string };
+    const parsed = JSON.parse(raw) as Partial<Personalization>;
     const merged: Personalization = { ...DEFAULT_PERSONALIZATION, ...parsed };
-    const savedOrder = [...merged.sectionOrder].filter((key) => key !== "sports") as typeof SECTION_ORDER[number][];
+    // Drops "sports" (re-inserted below) and any retired section key — e.g.
+    // "plastic-points" from before the credit-card section was removed.
+    const savedOrder = merged.sectionOrder.filter(
+      (key) => key !== "sports" && SECTION_ORDER.includes(key),
+    );
     const paddockIndex = savedOrder.indexOf("paddock-notes");
     const insertAt = paddockIndex >= 0 ? paddockIndex + 1 : savedOrder.length;
     savedOrder.splice(insertAt, 0, "sports");
@@ -37,11 +40,6 @@ export function loadPersonalization(): Personalization {
       ...savedOrder,
       ...SECTION_ORDER.filter((key) => !savedOrder.includes(key)),
     ];
-    // Migration: the old single-card radio stored `cardFollowing: string`.
-    if (!Array.isArray(merged.cardsFollowing)) {
-      merged.cardsFollowing =
-        typeof parsed.cardFollowing === "string" && parsed.cardFollowing ? [parsed.cardFollowing] : [];
-    }
     return merged;
   } catch {
     return DEFAULT_PERSONALIZATION;
@@ -69,7 +67,6 @@ export function savePersonalization(data: Personalization) {
   // toward what the reader actually follows. Names only; nothing sensitive.
   const interests: ReaderInterests = {
     city: data.homeCity ?? "",
-    cards: data.cardsFollowing ?? [],
     f1Drivers: data.favoriteF1Drivers ?? [],
     f1Team: data.favoriteF1Team ?? "",
     footballClub: data.favoriteFootballClub ?? "",
@@ -84,7 +81,6 @@ export function savePersonalization(data: Personalization) {
 
 export const EMPTY_INTERESTS: ReaderInterests = {
   city: "",
-  cards: [],
   f1Drivers: [],
   f1Team: "",
   footballClub: "",
@@ -98,13 +94,11 @@ export const EMPTY_INTERESTS: ReaderInterests = {
 export function parseInterestsCookie(value: string | undefined): ReaderInterests {
   if (!value) return EMPTY_INTERESTS;
   try {
-    const p = JSON.parse(decodeURIComponent(value)) as Partial<ReaderInterests> & { card?: string };
+    const p = JSON.parse(decodeURIComponent(value)) as Partial<ReaderInterests>;
     const str = (v: unknown) => (typeof v === "string" ? v : "");
     const arr = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === "string") : []);
     return {
       city: str(p.city),
-      // Accept the legacy single `card` cookie until the reader next saves.
-      cards: Array.isArray(p.cards) ? arr(p.cards) : p.card ? [str(p.card)] : [],
       f1Drivers: arr(p.f1Drivers),
       f1Team: str(p.f1Team),
       footballClub: str(p.footballClub),

@@ -3,7 +3,11 @@
   "global": {
     "tone": "No-fluff newspaper briefs: fact first, concrete detail, no hype, no filler.",
     "watchTopics": [],
-    "excludeKeywords": ["horoscope", "celebrity gossip", "clickbait"],
+    "excludeKeywords": [
+      "horoscope",
+      "celebrity gossip",
+      "clickbait"
+    ],
     "maxAgeHours": 30,
     "summaryLengthWords": 60
   },
@@ -15,7 +19,10 @@
       "order": 1,
       "slot": "paddock-notes",
       "articleCount": 5,
-      "preferredSources": ["formula1.com", "autosport.com"],
+      "preferredSources": [
+        "formula1.com",
+        "autosport.com"
+      ],
       "excludeKeywords": [],
       "watchEntities": [],
       "prompt": ""
@@ -27,7 +34,10 @@
       "order": 3,
       "slot": "ledger",
       "articleCount": 5,
-      "preferredSources": ["economictimes.indiatimes.com", "livemint.com"],
+      "preferredSources": [
+        "economictimes.indiatimes.com",
+        "livemint.com"
+      ],
       "excludeKeywords": [],
       "watchEntities": [],
       "prompt": "Prioritize Nifty/Sensex movement, RBI policy, and SWP/mutual fund related news. Skip pure stock-tip articles."
@@ -39,7 +49,13 @@
       "order": 4,
       "slot": "dateline",
       "groupBy": "country",
-      "groups": ["United States", "China", "United Kingdom", "India", "Japan"],
+      "groups": [
+        "United States",
+        "China",
+        "United Kingdom",
+        "India",
+        "Japan"
+      ],
       "articleCountPerGroup": 1,
       "preferredSources": [],
       "excludeKeywords": [],
@@ -57,18 +73,6 @@
       "excludeKeywords": [],
       "watchEntities": [],
       "prompt": "Prefer product launches, AI research and big platform moves over listicles and deals."
-    },
-    {
-      "id": "cards",
-      "type": "topic",
-      "label": "Credit Cards & Rewards",
-      "order": 6,
-      "slot": "plastic-points",
-      "articleCount": 4,
-      "preferredSources": [],
-      "excludeKeywords": [],
-      "watchEntities": [],
-      "prompt": "Indian credit card launches, reward-programme changes, and devaluations. Skip generic money-saving listicles."
     }
   ]
 }

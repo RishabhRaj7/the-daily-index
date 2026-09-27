@@ -46,7 +46,7 @@ const asSlot = (v: unknown): NewsSlot | undefined =>
     ? (v as NewsSlot)
     : undefined;
 
-export function slugifyId(label: string, fallback = "section"): string {
+function slugifyId(label: string, fallback = "section"): string {
   const slug = label
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
@@ -87,6 +87,10 @@ export function normalizePreferences(raw: unknown): DigestPreferences {
     let id = slugifyId(asString(s.id), slugifyId(label, `section-${index + 1}`));
     while (seenIds.has(id)) id = `${id}-${index + 1}`;
     seenIds.add(id);
+
+    // The credit-card section was retired; a stored copy of it must not
+    // resurface as a standalone section once its slot no longer exists.
+    if (s.slot === "plastic-points") return;
 
     const parsedSlot = asSlot(s.slot);
     const base = {
@@ -182,25 +186,6 @@ export function saveDigestPreferences(prefs: DigestPreferences): void {
   const normalized = normalizePreferences(prefs);
   window.localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(normalized));
   window.dispatchEvent(new CustomEvent(PREFERENCES_CHANGED_EVENT));
-}
-
-/** Drop the local copy — the next load falls back to the shipped JSON. */
-export function resetDigestPreferences(): DigestPreferences {
-  if (storageAvailable()) {
-    window.localStorage.removeItem(PREFERENCES_STORAGE_KEY);
-    window.dispatchEvent(new CustomEvent(PREFERENCES_CHANGED_EVENT));
-  }
-  return structuredClone(DEFAULT_DIGEST_PREFERENCES);
-}
-
-/** True when the reader is running the shipped defaults untouched. */
-export function hasStoredPreferences(): boolean {
-  if (!storageAvailable()) return false;
-  try {
-    return window.localStorage.getItem(PREFERENCES_STORAGE_KEY) !== null;
-  } catch {
-    return false;
-  }
 }
 
 /** Short stable hash of the preferences — used to key the digest cache so a

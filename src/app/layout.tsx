@@ -4,7 +4,6 @@ import "./globals.css";
 import { EditionProvider } from "@/lib/edition-context";
 import ReadingProgressBar from "@/components/chrome/ReadingProgressBar";
 import OnboardingGate from "@/components/onboarding/OnboardingGate";
-import { MY_CARDS } from "@/lib/config/cards";
 import { getF1Roster } from "@/lib/live/f1";
 
 export const metadata: Metadata = {
@@ -38,7 +37,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <EditionProvider>
           <ReadingProgressBar />
           {children}
-          <OnboardingGate creditCards={MY_CARDS} f1Roster={f1Roster} />
+          <OnboardingGate f1Roster={f1Roster} />
         </EditionProvider>
       </body>
     </html>

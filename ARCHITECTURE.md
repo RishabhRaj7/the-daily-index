@@ -58,10 +58,11 @@ Key fields:
 | `lib/personalization.ts` | DEFAULT_PERSONALIZATION, loadPersonalization, savePersonalization, F1_TEAM_COLORS |
 | `lib/sections.ts` | SECTION_META and SECTION_ORDER — section keys, labels, kickers |
 | `lib/config/cards.ts` | MY_CARDS — the credit card list shown in preferences |
-| `lib/live/rss.ts` | fetchRssFeed, interleaveWires, dedupeWires — core RSS utilities |
-| `lib/live/f1-news.ts` | getF1News — Autosport + Motorsport feeds |
-| `lib/live/football-news.ts` | getFootballNews — BBC Sport + Sky Sports football feeds |
-| `lib/live/tennis-news.ts` | getTennisNews — BBC Sport + Sky Sports tennis feeds |
+| `lib/live/feeds.ts` | Every RSS/Atom source, per pool, with per-feed options (age window, undated, cards-only) |
+| `lib/live/rss.ts` | fetchRssFeed (RSS + Atom, zone-abbreviation dates), interleaveWires, dedupeWires |
+| `lib/live/f1-news.ts` | getF1News — F1 pool from feeds.ts |
+| `lib/live/football-news.ts` | getFootballNews — football pool from feeds.ts |
+| `lib/live/tennis-news.ts` | getTennisNews — tennis pool from feeds.ts |
 | `lib/live/f1.ts` | getLiveF1, getF1Roster — live F1 standings, race schedule, driver roster |
 | `lib/live/reddit.ts` | getRedditTrending — fetches from user subreddits or interest-aware fallback |
 | `lib/live/wire-to-story.ts` | promoteWireToStories — converts WireBrief to Story with LLM summary |
@@ -290,9 +291,16 @@ mount (EditionView)
         server: collectCorpus()          (existing fetchers, unchanged:
                   World/India, Markets, F1, Football, Tennis, Tech, Cards;
                   URL-dedupe + dedupeWires)
-                generateDigest(prefs)    (ONE Gemini call; model answers with
-                  corpus indices → rehydrated into real title/url/source;
-                  heuristic fallback when no GEMINI_API_KEY)
+                  (RSS snippets only; age window + literal excludes applied)
+                generateDigest(prefs)    (two Gemini calls, structured JSON:
+                  1. selection — titles + snippets → per-section indices
+                     + At a Glance picks (~13k tokens)
+                  2. full text fetched for the shortlist only (~30 pages)
+                  3. writing — summaries + gists for the shortlist
+                  Indices are rehydrated into real title/url/source; grouped
+                  picks must mention their group. Heuristic fallback when no
+                  GEMINI_API_KEY or selection fails; if writing fails the
+                  selection stands with condensed article text)
   ◄── { sections: { [sectionId]: [{ title, summary, source, url,
         publishedAt, group?, priority, matchedEntity? }] }, engine, … }
   └── banner "Your digest is ready — tap to update"
@@ -328,3 +336,62 @@ mount (EditionView)
 - `/api/summarize` still runs, but only for hate-watch stories, Editor's Picks
   blurbs, and the Editor's Desk note. The "at a glance" brief is derived from
   the digest itself (no extra model call).
+
+---
+
+## Server-built editions (current)
+
+The digest is no longer generated per browser visit. The server builds one
+**edition per set of preferences per day** and stores it.
+
+- **Identity is the preferences, not the person.** Preferences stay in the
+  reader's localStorage. `POST /api/edition { preferences }` normalises and
+  hashes them (sha256, 16 hex chars); the hash keys the edition. Identical
+  preferences share one edition; changing any preference points the reader
+  at a different one. The hash is mirrored to the `daily-index:edition`
+  cookie for server-rendered pages (the archive).
+- **States:** ready (with digest) | building | failed | missing. The client
+  (`lib/edition-client.ts`) POSTs, then polls `GET /api/edition?hash&date`
+  every 4 s while building. The pressroom overlay and "tap to update" banner
+  are driven exactly as before.
+- **Background builds:** `lib/server/editions.ts` takes a lock
+  (`lock:{date}:{hash}`, 180 s), records `status`, and builds in `after()`.
+  A second request for the same edition joins the running build.
+- **Stale-while-revalidate:** a ready edition older than
+  `EDITION_STALE_HOURS` (6) is served at once while a rebuild runs; a
+  heuristic edition built while AI was configured is retried after 30 min.
+- **Refresh edition** sets a one-shot flag; the next mount POSTs
+  `force: true` and holds the overlay until the fresh build lands.
+- **Settings save** POSTs the new preferences immediately (`keepalive`) so
+  the build is already running when the reader returns to the paper.
+- **Limits:** visitor-triggered builds are capped per day globally
+  (`EDITION_BUILDS_PER_DAY`, 60) and per IP (`EDITION_BUILDS_PER_IP`, 8).
+- **Cron** (`vercel.json`, 00:00 UTC = 05:30 IST): `/api/cron/daily` builds
+  the default edition inline and fans out `/api/cron/build` (202 + `after()`)
+  for editions read in the last 3 days (max 10). Both need `CRON_SECRET`.
+- **Dates** follow `NEXT_PUBLIC_EDITION_TIME_ZONE` (Asia/Kolkata), not UTC.
+- **Store** (`lib/server/store.ts`): Upstash Redis when `KV_REST_API_*` or
+  `UPSTASH_REDIS_REST_*` is set; otherwise process memory. On Vercel without
+  Redis, builds run inline and the response carries the edition directly.
+
+## Settings (current)
+
+Four short tabs with one Save bar: **News** (always prioritise / never show
+me tags, summary length and voice presets), **Sections** (one collapsed card
+per section — name + a one-line summary; "Edit" expands it: story count or
+countries, watched entities, note to the editor; "+ Add a section" makes a
+free-text section; raw JSON under "Advanced"), **Sports** and
+**Page & Reddit** (the `PersonalizationForm` chapters, via its `parts` prop —
+onboarding still renders all chapters). `/settings#sections` deep-links a tab.
+Save writes both preference stores and POSTs `/api/edition` so the new
+edition starts building before the reader is back on the paper.
+
+## Stable summaries and live updates
+
+- Every written summary / gist is cached server-side for 3 days, keyed by
+  article URL + summary length + voice + section guidance. A rebuild
+  (Refresh edition, cron, stale rebuild) only writes articles that are new,
+  and only fetches their pages. Selection runs at temperature 0.
+- There is no "tap to update": a finished edition replaces the page as soon
+  as it arrives — under the pressroom overlay before it fades, or in place
+  when a background rebuild lands.

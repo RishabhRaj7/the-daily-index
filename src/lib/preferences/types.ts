@@ -22,8 +22,7 @@ export type NewsSlot =
   | "sports"          // Optional football and tennis topic
   | "paddock-notes"   // Sports (F1 / football / tennis)
   | "circuit-board"   // Technology
-  | "ledger"          // Finance & Markets
-  | "plastic-points"; // India Credit Cards
+  | "ledger";         // Finance & Markets
 
 export const NEWS_SLOTS: NewsSlot[] = [
   "dateline",
@@ -31,17 +30,7 @@ export const NEWS_SLOTS: NewsSlot[] = [
   "paddock-notes",
   "circuit-board",
   "ledger",
-  "plastic-points",
 ];
-
-export const SLOT_LABELS: Record<NewsSlot, string> = {
-  dateline: "Dateline — World & India",
-  sports: "Sports",
-  "paddock-notes": "Paddock Notes — Sports",
-  "circuit-board": "The Circuit Board — Tech",
-  ledger: "The Ledger — Finance & Markets",
-  "plastic-points": "Plastic & Points — Credit Cards",
-};
 
 /** Applies to every section, in addition to each section's own rules. */
 export interface DigestGlobal {
@@ -162,7 +151,7 @@ export interface AtAGlanceItem {
   /** ISO timestamp when known, else the feed's own age string ("3h ago"). */
   publishedAt: string;
   /** Wire pool the article came from: World, Markets, F1, Football, Tennis,
-   *  Tech, Cards. */
+   *  Tech. */
   pool: string;
 }
 
@@ -178,7 +167,7 @@ export interface CorpusArticle {
   /** Publisher domain. */
   source: string;
   /** Which wire the article came from: World, Markets, F1, Football, Tennis,
-   *  Tech, Cards. */
+   *  Tech. */
   pool: string;
   /** Feed-reported age, e.g. "3h ago". */
   postedAgo: string;

@@ -6,7 +6,7 @@ node_modules/
 out/
 
 # Production builds
-build/
+/build/
 dist/
 
 # Environment files and local secrets
