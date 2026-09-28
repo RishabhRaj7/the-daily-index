@@ -100,7 +100,11 @@ function Podium({ rows }: { rows: Row[] }) {
         return (
           <div key={r!.code} className="flex flex-col items-center text-center min-w-0">
             <span className="font-sans font-semibold text-[12px] leading-tight truncate max-w-full">{r!.driver}</span>
-            <span className="font-mono text-[9px] text-ink-soft truncate max-w-full mb-1.5">{r!.team}</span>
+            <span className="font-mono text-[9px] text-ink-soft truncate max-w-full">{r!.team}</span>
+            {/* The winner's race time; the others' gap to the winner. */}
+            <span className="font-mono text-[10px] tabular-nums truncate max-w-full mt-0.5 mb-1.5">
+              {("interval" in r! ? r!.interval : r!.time) || "—"}
+            </span>
             <span
               className={`w-full ${heights[i]} rounded-t-md flex items-start justify-center pt-1.5 font-display font-extrabold text-[1.3rem] leading-none bar-grow-y`}
               style={{ background: `color-mix(in srgb, ${color} 75%, var(--paper))`, color: "var(--paper)", ["--bar-i" as string]: i }}
