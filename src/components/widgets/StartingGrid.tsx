@@ -74,15 +74,16 @@ function TimingRowsSkeleton({ rows = 5 }: { rows?: number }) {
 // The pit wall's race desk, one job per card:
 //   1. Next race  — round, name, circuit map and the countdown to lights out
 //   2. Race weekend — every session in the reader's time (RaceWeekend)
-//   3. Timing     — last race's podium and field (or the grid / live order)
-//   4. Coming up  — the next rounds of the calendar
+//   3. Coming up  — the next rounds of the calendar
+//   4. Timing     — last race's podium and field (or the grid / live order)
 // During a race the first card turns into a "live now" header and the
 // timing card carries the running order.
 //
 // `part` splits the cards between the two places the F1 section has: the
-// "desk" beside the stories (next race, its weekend — and the live order
-// during a race) and the full-width "archive" row under them (last race and
-// the calendar), so the column beside the stories never outgrows them.
+// "desk" beside the stories (next race, its weekend, the calendar — and the
+// live order during a race) and the full-width row under them (the last
+// race, beside the reader's paddock), so the column beside the stories
+// never outgrows them.
 
 type Row = F1GridResult | F1LiveResult | F1LastRace["results"][number];
 
@@ -233,7 +234,46 @@ export default function StartingGrid({
       </>
       )}
 
-      {/* 3. Timing — the slower "session" part streams in behind the rest. No
+      {/* 3. Coming up — the calendar after this weekend, under the weekend. */}
+      {part !== "desk" ? null : upcoming.length > 1 ? (
+        <div className="module" data-reveal>
+          <div className="font-label text-[10px] text-ink-soft mb-2">Coming up</div>
+          <ol>
+            {upcoming.slice(1).map((race) => (
+              <li key={race.round} className="grid grid-cols-[2rem_minmax(0,1fr)_auto] items-baseline gap-2 border-t hairline first:border-t-0 py-2">
+                <span className="font-mono text-[11px] text-ink-faint">R{race.round}</span>
+                <span className="text-[13px] truncate">{race.name}</span>
+                <span className="font-mono text-[11px] text-ink-soft">
+                  {new Date(race.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : calendarStatus === "loading" ? (
+        <div className="module">
+          <div className="font-label text-[10px] text-ink-soft mb-1">Coming up</div>
+          <TimingRowsSkeleton rows={4} />
+        </div>
+      ) : calendarStatus === "failed" ? (
+        <div className="module">
+          <div className="font-label text-[10px] text-ink-soft mb-1">Coming up</div>
+          <p className="text-[11px] text-ink-soft italic">
+            The race calendar didn&rsquo;t answer.{" "}
+            {onRetryCalendar && (
+              <button
+                type="button"
+                onClick={onRetryCalendar}
+                className="font-label text-[10px] text-accent underline not-italic ml-1"
+              >
+                Try again
+              </button>
+            )}
+          </p>
+        </div>
+      ) : null}
+
+      {/* 4. Timing — the slower "session" part streams in behind the rest. No
           refresh here by design: the single control lives in the pit-wall
           header, so the two can never race each other. */}
       {timingHere && (resultRows.length > 0 || sessionStatus !== "ready") && (
@@ -320,44 +360,6 @@ export default function StartingGrid({
         </div>
       )}
 
-      {/* 4. Coming up — the calendar after this weekend. */}
-      {part !== "archive" ? null : upcoming.length > 1 ? (
-        <div className="module self-stretch" data-reveal>
-          <div className="font-label text-[10px] text-ink-soft mb-2">Coming up</div>
-          <ol>
-            {upcoming.slice(1).map((race) => (
-              <li key={race.round} className="grid grid-cols-[2rem_minmax(0,1fr)_auto] items-baseline gap-2 border-t hairline first:border-t-0 py-2">
-                <span className="font-mono text-[11px] text-ink-faint">R{race.round}</span>
-                <span className="text-[13px] truncate">{race.name}</span>
-                <span className="font-mono text-[11px] text-ink-soft">
-                  {new Date(race.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}
-                </span>
-              </li>
-            ))}
-          </ol>
-        </div>
-      ) : calendarStatus === "loading" ? (
-        <div className="module">
-          <div className="font-label text-[10px] text-ink-soft mb-1">Coming up</div>
-          <TimingRowsSkeleton rows={4} />
-        </div>
-      ) : calendarStatus === "failed" ? (
-        <div className="module">
-          <div className="font-label text-[10px] text-ink-soft mb-1">Coming up</div>
-          <p className="text-[11px] text-ink-soft italic">
-            The race calendar didn&rsquo;t answer.{" "}
-            {onRetryCalendar && (
-              <button
-                type="button"
-                onClick={onRetryCalendar}
-                className="font-label text-[10px] text-accent underline not-italic ml-1"
-              >
-                Try again
-              </button>
-            )}
-          </p>
-        </div>
-      ) : null}
     </>
   );
 }

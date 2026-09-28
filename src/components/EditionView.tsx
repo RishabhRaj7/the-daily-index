@@ -20,6 +20,7 @@ import { pickHeroStory } from "@/lib/format";
 import {
   DEFAULT_PERSONALIZATION,
   loadPersonalization,
+  PERSONALIZATION_CHANGED_EVENT,
   F1_TEAM_COLORS,
 } from "@/lib/personalization";
 import { getLiveWeather, getWeatherAt } from "@/lib/live/weather";
@@ -236,9 +237,12 @@ export default function EditionView({
     // Browser-only saved state is read after the first render so it matches the server HTML.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPersonalization(loadPersonalization());
+    const onPersonalization = () => setPersonalization(loadPersonalization());
+    window.addEventListener(PERSONALIZATION_CHANGED_EVENT, onPersonalization);
+    const stopPersonalization = () => window.removeEventListener(PERSONALIZATION_CHANGED_EVENT, onPersonalization);
     if (isArchive) {
       setMemory(loadMemory());
-      return;
+      return stopPersonalization;
     }
     const mem = recordIssueOpened({
       isoDate: initialEdition.isoDate,
@@ -248,7 +252,10 @@ export default function EditionView({
     setMemory(mem);
     const onMemory = () => setMemory(loadMemory());
     window.addEventListener("daily-index:memory", onMemory);
-    return () => window.removeEventListener("daily-index:memory", onMemory);
+    return () => {
+      window.removeEventListener("daily-index:memory", onMemory);
+      stopPersonalization();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -57,9 +57,14 @@ export function loadPersonalization(): Personalization {
   }
 }
 
+/** Fired on `window` after the page personalisation is saved, so an open
+ *  paper can pick up a change made elsewhere on it (the F1 paddock picker). */
+export const PERSONALIZATION_CHANGED_EVENT = "daily-index:personalization-changed";
+
 export function savePersonalization(data: Personalization) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  window.dispatchEvent(new Event(PERSONALIZATION_CHANGED_EVENT));
   const maxAge = `max-age=${60 * 60 * 24 * 365}`;
   // Subreddits cookie — read server-side to fetch the right Reddit feeds.
   const subVal = encodeURIComponent(JSON.stringify(data.subreddits ?? []));
@@ -166,7 +171,7 @@ const F1_TEAM_ALIASES: Record<string, string> = {
   "Aston Martin Aramco Mercedes": "Aston Martin",
 };
 
-function normalizeF1Team(teamName: string): string {
+export function normalizeF1Team(teamName: string): string {
   const withoutSuffix = teamName.replace(/\s*F1 Team$/i, "").trim();
   return F1_TEAM_ALIASES[withoutSuffix] ?? withoutSuffix;
 }
