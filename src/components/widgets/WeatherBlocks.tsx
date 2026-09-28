@@ -39,7 +39,9 @@ export default function WeatherBlocks({ blocks, compact = false }: { blocks: Wea
           </span>
           <span className="flex flex-col min-w-0 flex-1">
             <span className="flex items-center justify-between gap-2">
-              <span className="font-label text-[9px] text-ink-soft truncate">{b.label}</span>
+              <span className="font-label text-[9px] text-ink-soft truncate">
+                {compact ? b.label.replace(/^This /, "") : b.label}
+              </span>
               <span style={{ color: "var(--section-hue, var(--accent))" }}>
                 <WeatherIcon code={b.weatherCode} size={compact ? 18 : 22} night={b.night} />
               </span>

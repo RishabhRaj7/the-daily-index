@@ -147,30 +147,59 @@ export default function SkyReportSection({
   return <SkyReading weather={weather} live={live} others={others} travelling={travelling} />;
 }
 
-/** Another city, small: now, the day's range and its chance of rain. */
+/**
+ * Another of the reader's cities, at about half the home city's weight: the
+ * reading and its range on the left, the rest of its day in rain blocks on
+ * the right, then sun times and the air in one line.
+ */
 export function CityMini({ weather }: { weather: WeatherNow }) {
   const clock = useSkyClock(weather);
   const night = isNight(weather, clock);
-  const condition = night && weather.night ? weather.night.condition : weather.condition;
+  const words = night && weather.night ? weather.night : weather;
+  const hasRange = typeof weather.tempMin === "number" && typeof weather.tempMax === "number";
   return (
-    <div className="module flex items-center gap-4" data-reveal>
-      <span style={{ color: "var(--section-hue, var(--accent))" }}>
-        <WeatherIcon code={weather.weatherCode} size={34} night={night} />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block font-label text-[10px] text-ink-soft">
-          {weather.city} · {night ? "tonight" : "now"}
-        </span>
-        <span className="block font-sans text-[14px] truncate mt-0.5">{condition}</span>
-        <span className="block font-mono text-[11px] text-ink-soft mt-1 tabular-nums">
-          {typeof weather.tempMax === "number" && typeof weather.tempMin === "number"
-            ? `${weather.tempMax}° / ${weather.tempMin}°`
-            : ""}
-          {typeof weather.rainChance === "number" ? ` · rain ${weather.rainChance}%` : ""}
-          {` · AQI ${weather.aqi}`}
-        </span>
-      </span>
-      <span className="font-display font-bold text-[2.4rem] leading-none">{weather.tempC}°</span>
+    <div className="module grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)] gap-x-8 gap-y-5 p-5" data-reveal>
+      <div className="min-w-0">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="font-display font-extrabold uppercase text-[1.8rem] leading-none" style={{ color: "var(--section-hue, var(--accent))" }}>
+            {weather.city}
+          </span>
+          <span className="font-label text-[9px] text-ink-soft">{night ? "Tonight" : "Today"}</span>
+        </div>
+        <div className="flex items-center gap-3 mt-3">
+          <span className="font-display font-extrabold text-[3.6rem] leading-[0.8]">{weather.tempC}°</span>
+          <span style={{ color: "var(--section-hue, var(--accent))" }}>
+            <WeatherIcon code={weather.weatherCode} size={40} night={night} />
+          </span>
+          <span className="min-w-0">
+            <span className="block font-headline text-[1.15rem] leading-tight">{words.condition}</span>
+            <span className="block font-mono text-[11px] text-ink-soft mt-1 tabular-nums">
+              {typeof weather.feelsLikeC === "number" ? `Feels ${weather.feelsLikeC}°` : ""}
+              {typeof weather.humidity === "number" ? ` · ${weather.humidity}% hum.` : ""}
+            </span>
+          </span>
+        </div>
+        {hasRange && (
+          <div className="mt-4">
+            <TempRange min={weather.tempMin!} max={weather.tempMax!} now={weather.tempC} />
+          </div>
+        )}
+        <p className="font-headline italic text-ink-soft text-[14px] mt-3">{words.quip}</p>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 font-mono text-[11px] text-ink-soft">
+          <span>↑ {weather.sunrise}</span>
+          <span>↓ {weather.sunset}</span>
+          <span>AQI {weather.aqi} · {weather.aqiLabel.toLowerCase()}</span>
+          {!night && <span>UV {weather.uvIndex}</span>}
+        </div>
+      </div>
+      {weather.blocks && weather.blocks.length > 0 && (
+        <div className="min-w-0">
+          <div className="font-label text-[9px] text-ink-soft mb-2">
+            Chance of rain{typeof weather.rainChance === "number" ? ` · peak ${weather.rainChance}%` : ""}
+          </div>
+          <WeatherBlocks blocks={weather.blocks} compact />
+        </div>
+      )}
     </div>
   );
 }
@@ -259,19 +288,20 @@ function SkyReading({
         </div>
       )}
 
-      {(others.length > 0 || !travelling) && (
-        <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 items-stretch">
+      {others.length > 0 && (
+        <div className="mt-8 space-y-3">
+          <h3 className="font-label text-[11px] text-ink-soft">Also on your map</h3>
           {others.map((o) => (
             <CityMini key={o.city} weather={o} />
           ))}
-          {!travelling && (
-            <div className="module flex flex-col justify-center items-start gap-2 border-dashed" data-reveal>
-              <span className="font-sans text-[13px] text-ink-soft">
-                Away from {weather.city}? Get the weather and news where you are.
-              </span>
-              <TravelButton label="Use my location" />
-            </div>
-          )}
+        </div>
+      )}
+      {!travelling && (
+        <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-dashed hairline px-5 py-4" data-reveal>
+          <span className="font-sans text-[13px] text-ink-soft">
+            Away from {weather.city}? Get the weather and news where you are.
+          </span>
+          <TravelButton label="Use my location" />
         </div>
       )}
     </section>

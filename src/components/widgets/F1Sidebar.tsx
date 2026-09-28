@@ -22,6 +22,7 @@ import type {
 import { teamColor, teamAbbrev, isLightTeamColor } from "@/lib/personalization";
 import { isFresh, readF1Part, writeF1Part } from "@/lib/f1-cache";
 import StartingGrid from "./StartingGrid";
+import RaceWeekend from "./RaceWeekend";
 import FavoriteDriverCard from "./FavoriteDriverCard";
 
 // Progressive F1 sidebar.
@@ -542,6 +543,11 @@ export default function F1Sidebar({
           accentColor={teamColor(standing?.team ?? pending?.team ?? "")}
         />
       ))}
+
+      {/* The next weekend's sessions, in the reader's time. */}
+      {map.status === "ready" && map.data?.nextRace.sessions && map.data.nextRace.sessions.length > 0 && (
+        <RaceWeekend sessions={map.data.nextRace.sessions} raceName={map.data.nextRace.name} />
+      )}
 
       {/* Starting Grid — the map leads, the calendar and the results table
           stream in behind it, each with its own status. */}

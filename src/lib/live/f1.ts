@@ -1,6 +1,7 @@
 import { F1_DRIVERS, F1_DRIVER_SEASON } from "@/lib/config/f1-drivers";
 import type {
   F1Race,
+  F1Session,
   F1Standing,
   F1RosterEntry,
   F1LastRace,
@@ -413,6 +414,20 @@ function getMeetingImage(meetingKey: number): Promise<string | undefined> {
   });
 }
 
+/** Every session of one race weekend, in running order. */
+function getMeetingSessions(meetingKey: number): Promise<F1Session[]> {
+  return memoized(
+    `meeting-sessions:${meetingKey}`,
+    async () => {
+      const sessions = await openF1<OpenF1Session[]>(`sessions?meeting_key=${meetingKey}`, 21600);
+      return (sessions ?? [])
+        .sort((a, b) => a.date_start.localeCompare(b.date_start))
+        .map((s) => ({ name: s.session_name, start: s.date_start, end: s.date_end }));
+    },
+    (list) => list.length > 0,
+  );
+}
+
 // Time-sensitive derivation from the (cached) season sessions — computed on
 // every call, never memoized, so countdowns and "next race" stay correct.
 function analyzeSeason(sorted: OpenF1Session[]) {
@@ -508,8 +523,11 @@ export async function getF1Map(): Promise<F1MapData | null> {
   const sessions = await getSeasonSessions();
   if (!sessions?.length) return null;
   const { nextSession, nextRound } = analyzeSeason(sessions);
-  const circuitImageUrl = await getMeetingImage(nextSession.meeting_key);
-  return { nextRace: raceFromSession(nextSession, nextRound, circuitImageUrl) };
+  const [circuitImageUrl, weekend] = await Promise.all([
+    getMeetingImage(nextSession.meeting_key),
+    getMeetingSessions(nextSession.meeting_key).catch(() => []),
+  ]);
+  return { nextRace: { ...raceFromSession(nextSession, nextRound, circuitImageUrl), sessions: weekend } };
 }
 
 /** 2. Driver details — served from static season data, so this resolves
@@ -611,8 +629,14 @@ export async function getF1Schedule(): Promise<F1ScheduleData | null> {
   const sessions = await getSeasonSessions();
   if (!sessions?.length) return null;
   const { nextSession, nextRound, upcoming } = analyzeSeason(sessions);
-  const circuitImageUrl = await getMeetingImage(nextSession.meeting_key);
-  return { nextRace: raceFromSession(nextSession, nextRound, circuitImageUrl), upcoming };
+  const [circuitImageUrl, weekend] = await Promise.all([
+    getMeetingImage(nextSession.meeting_key),
+    getMeetingSessions(nextSession.meeting_key).catch(() => []),
+  ]);
+  return {
+    nextRace: { ...raceFromSession(nextSession, nextRound, circuitImageUrl), sessions: weekend },
+    upcoming,
+  };
 }
 
 /** Driver roster for the settings / onboarding chips. Static data — this used

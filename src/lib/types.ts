@@ -101,6 +101,17 @@ export interface F1Race {
   date: string; // ISO date
   circuitImageUrl?: string;
   polePosition?: { driver: string; team: string; time: string };
+  /** Every session of the race weekend (practice, sprint, qualifying, race);
+   *  only filled for the next race. */
+  sessions?: F1Session[];
+}
+
+export interface F1Session {
+  /** "Practice 1", "Sprint Qualifying", "Sprint", "Qualifying", "Race". */
+  name: string;
+  /** ISO timestamps (UTC). */
+  start: string;
+  end: string;
 }
 
 export interface F1Standing {
