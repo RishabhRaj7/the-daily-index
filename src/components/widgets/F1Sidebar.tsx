@@ -22,7 +22,6 @@ import type {
 import { teamColor, teamAbbrev, isLightTeamColor } from "@/lib/personalization";
 import { isFresh, readF1Part, writeF1Part } from "@/lib/f1-cache";
 import StartingGrid from "./StartingGrid";
-import RaceWeekend from "./RaceWeekend";
 import FavoriteDriverCard from "./FavoriteDriverCard";
 
 // Progressive F1 sidebar.
@@ -544,11 +543,6 @@ export default function F1Sidebar({
         />
       ))}
 
-      {/* The next weekend's sessions, in the reader's time. */}
-      {map.status === "ready" && map.data?.nextRace.sessions && map.data.nextRace.sessions.length > 0 && (
-        <RaceWeekend sessions={map.data.nextRace.sessions} raceName={map.data.nextRace.name} />
-      )}
-
       {/* Starting Grid — the map leads, the calendar and the results table
           stream in behind it, each with its own status. */}
       {map.status === "ready" && map.data ? (
@@ -587,6 +581,26 @@ export default function F1Sidebar({
       </div>
 
       <div className="grid md:grid-cols-2 gap-4 items-start lg:col-span-2">
+      {/* Last race and the calendar run full width, beside each other, so the
+          desk column stays shorter than the stories. */}
+      {map.status === "ready" && map.data && (
+        <StartingGrid
+          part="archive"
+          nextRace={map.data.nextRace}
+          upcoming={calendar.data?.upcoming ?? []}
+          calendarStatus={calendar.status}
+          onRetryCalendar={() => retry("calendar")}
+          lastRace={results.data?.lastRace ?? null}
+          qualifyingGrid={results.data?.qualifyingGrid ?? []}
+          liveResults={results.data?.liveResults ?? []}
+          currentRace={results.data?.currentRace ?? null}
+          racePhase={results.data?.racePhase ?? "last-race"}
+          accentColor={accentColor}
+          sessionStatus={results.status}
+          sessionStale={results.stale}
+          onRetrySession={() => retry("results")}
+        />
+      )}
       {/* Constructors' Championship — before the drivers' table, matching the
           order the section fills in. */}
       <div className="module" data-reveal>

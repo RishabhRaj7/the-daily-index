@@ -31,7 +31,7 @@ function until(ms: number): string {
   return `in ${m}m`;
 }
 
-export default function RaceWeekend({ sessions, raceName }: { sessions: F1Session[]; raceName: string }) {
+export default function RaceWeekend({ sessions }: { sessions: F1Session[] }) {
   const at = useSyncExternalStore(subscribe, now, () => null);
   if (sessions.length === 0) return null;
 
@@ -52,13 +52,12 @@ export default function RaceWeekend({ sessions, raceName }: { sessions: F1Sessio
 
   return (
     <div className="module" data-reveal>
-      <div className="flex items-baseline justify-between gap-2 mb-3">
+      <div className="flex items-baseline justify-between gap-2 mb-2">
         <div className="font-label text-[10px] text-ink-soft">
           Race weekend{isSprint ? " · sprint" : ""}
         </div>
         {tz && <div className="font-mono text-[10px] text-ink-faint">times in {tz}</div>}
       </div>
-      <div className="font-headline text-[15px] leading-tight mb-3">{raceName}</div>
       <ol className="space-y-3">
         {days.map(({ day, items }) => (
           <li key={day}>
