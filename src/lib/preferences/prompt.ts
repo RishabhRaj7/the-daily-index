@@ -41,7 +41,7 @@ function describeSection(section: DigestSection, isSports: boolean): string {
   const lines: string[] = [];
   if (section.type === "grouped" && isCitySection(section)) {
     lines.push(
-      `- id "${section.id}" — "${section.label}" (grouped by ${section.groupBy}): ${sectionTarget(section)} stories in all, up to ${section.articleCountPerGroup + 1} per ${section.groupBy}. ${section.groupBy[0].toUpperCase()}${section.groupBy.slice(1)}s: ${section.groups.join(", ")}. Articles whose pool is a ${section.groupBy}'s name come from its local desk. Local news that changes daily life there comes first: civic decisions, transport, water, power, roads, weather alerts, schools, hospitals, jobs and local business, and serious crime. A story about the surrounding state counts for its ${section.groupBy} when there is little closer to home. Never add other ${section.groupBy}s and never file a story under a ${section.groupBy} it isn't about — return fewer instead.`,
+      `- id "${section.id}" — "${section.label}" (grouped by ${section.groupBy}): exactly ${section.articleCountPerGroup} per ${section.groupBy} (${sectionTarget(section)} in all). ${section.groupBy[0].toUpperCase()}${section.groupBy.slice(1)}s: ${section.groups.join(", ")}. Articles whose pool is a ${section.groupBy}'s name come from its local desk. Local news that changes daily life there comes first: civic decisions, transport, water, power, roads, weather alerts, schools, hospitals, jobs and local business, and serious crime. A story about the surrounding state counts for its ${section.groupBy} when there is little closer to home. Never add other ${section.groupBy}s and never file a story under a ${section.groupBy} it isn't about — return fewer instead.`,
     );
   } else if (section.type === "grouped") {
     lines.push(
@@ -75,8 +75,9 @@ function describeSection(section: DigestSection, isSports: boolean): string {
  * the section should still print its full count.
  */
 export function sectionTarget(section: DigestSection): number {
-  // Cities never borrow other places, so they ask for exactly their share.
-  if (section.type === "grouped" && isCitySection(section)) return section.groups.length * section.articleCountPerGroup + 1;
+  // Cities ask for exactly their share and no spare: the front-page lead is
+  // never taken from them, and a spare would give one city an extra story.
+  if (section.type === "grouped" && isCitySection(section)) return section.groups.length * section.articleCountPerGroup;
   if (section.type === "grouped") {
     return Math.max(5, section.groups.length * section.articleCountPerGroup) + 1;
   }

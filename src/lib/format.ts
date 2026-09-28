@@ -28,7 +28,8 @@ export function pickHeroStory(
   opts?: { preferPersonal?: boolean },
 ): Story | undefined {
   const preferPersonal = opts?.preferPersonal ?? true;
-  const all = allStories(edition);
+  // Local city news never leads the paper; it has its own section.
+  const all = allStories(edition).filter((s) => s.section !== "two-cities");
   const promoted = all.find((s) => s.promoted);
   if (promoted) return promoted;
   const eligible = all.filter((s) => bodyLength(s) >= MIN_HERO_BODY_CHARS);

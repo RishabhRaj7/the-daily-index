@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { MarketIndex, MarketMood } from "@/lib/types";
+import type { LiveMarkets } from "@/lib/live/indices";
 
 const POLL_MS = 60_000;
 
@@ -12,7 +12,7 @@ const POLL_MS = 60_000;
  */
 export function useLiveMarkets(
   enabled: boolean,
-  onUpdate: (markets: { indices: MarketIndex[]; mood: MarketMood; at: string }) => void,
+  onUpdate: (markets: LiveMarkets & { at: string }) => void,
 ) {
   const onUpdateRef = useRef(onUpdate);
   useEffect(() => {

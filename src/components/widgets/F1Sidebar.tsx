@@ -19,10 +19,10 @@ import type {
   F1PartResult,
   F1ResultsData,
 } from "@/lib/live/f1";
-import { teamColor, teamAbbrev, isLightTeamColor } from "@/lib/personalization";
+import { teamColor } from "@/lib/personalization";
 import { isFresh, readF1Part, writeF1Part } from "@/lib/f1-cache";
 import StartingGrid from "./StartingGrid";
-import FavoriteDriverCard from "./FavoriteDriverCard";
+import YourPaddock from "./YourPaddock";
 
 // Progressive F1 sidebar.
 //
@@ -96,19 +96,6 @@ const IS_EMPTY: Record<PartName, (data: unknown) => boolean> = {
 };
 
 // Square badge showing the team's abbreviation on their brand color.
-function TeamBadge({ team, color }: { team: string; color: string }) {
-  const abbr = teamAbbrev(team);
-  const textColor = isLightTeamColor(color) ? "#111111" : "#ffffff";
-  return (
-    <div
-      className="flex items-center justify-center rounded-sm font-mono font-black text-[11px] tracking-wider shrink-0"
-      style={{ backgroundColor: color, color: textColor, width: 40, height: 40 }}
-    >
-      {abbr}
-    </div>
-  );
-}
-
 // Pulsing hairline rows styled like the standings tables they stand in for.
 function TableSkeleton({ rows = 5 }: { rows?: number }) {
   return (
@@ -453,29 +440,6 @@ export default function F1Sidebar({
     ? constructorRows
     : constructorRows.slice(0, 5);
 
-  // "Your driver" cards: identity comes from the static roster (available
-  // immediately), championship figures fill in when the standings land.
-  const favoriteCards = favoriteDriverIds
-    .map((id) => {
-      const key = id.toLowerCase();
-      const standing = driverRows.find(
-        (s) =>
-          s.driverId === key ||
-          s.code.toLowerCase() === key ||
-          s.name.toLowerCase().includes(key),
-      );
-      if (standing) return { key: standing.driverId, standing, pending: null };
-      const entry = roster.find(
-        (d) => d.id === key || d.code.toLowerCase() === key || d.name.toLowerCase().includes(key),
-      );
-      return entry ? { key: entry.id, standing: null, pending: entry } : null;
-    })
-    .filter((x): x is NonNullable<typeof x> => x !== null);
-
-  // Normalized team name used only for the "Following" badge — the standings
-  // tables below are fully decoupled from the user's selection.
-  const normFavTeam = favoriteF1Team.replace(/\s*F1 Team$/i, "").trim();
-
   return (
     // Two blocks that join the section's own grid (the root is
     // display: contents): the race desk sits beside the stories, the two
@@ -515,34 +479,6 @@ export default function F1Sidebar({
         </span>
       </div>
 
-      {/* Team badge card — pure personalization, no data dependency. */}
-      {accentColor && favoriteF1Team && (
-        <div
-          className="rounded-[14px] p-4 flex items-center gap-3"
-          style={{ backgroundColor: accentColor + "18", borderLeft: `3px solid ${accentColor}` }}
-        >
-          <TeamBadge team={favoriteF1Team} color={accentColor} />
-          <div>
-            <div className="font-label text-[10px] text-ink-soft">Following</div>
-            <div
-              className="font-headline text-sm font-semibold leading-tight"
-              style={{ color: accentColor }}
-            >
-              {normFavTeam || favoriteF1Team}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {favoriteCards.map(({ key, standing, pending }) => (
-        <FavoriteDriverCard
-          key={key}
-          standing={standing}
-          pendingDriver={pending}
-          accentColor={teamColor(standing?.team ?? pending?.team ?? "")}
-        />
-      ))}
-
       {/* Starting Grid — the map leads, the calendar and the results table
           stream in behind it, each with its own status. */}
       {map.status === "ready" && map.data ? (
@@ -581,6 +517,34 @@ export default function F1Sidebar({
       </div>
 
       <div className="grid md:grid-cols-2 gap-4 items-start lg:col-span-2">
+      {/* Last race and the calendar run full width, beside each other, so the
+          desk column stays shorter than the stories. */}
+      {map.status === "ready" && map.data && (
+        <StartingGrid
+          part="archive"
+          nextRace={map.data.nextRace}
+          upcoming={calendar.data?.upcoming ?? []}
+          calendarStatus={calendar.status}
+          onRetryCalendar={() => retry("calendar")}
+          lastRace={results.data?.lastRace ?? null}
+          qualifyingGrid={results.data?.qualifyingGrid ?? []}
+          liveResults={results.data?.liveResults ?? []}
+          currentRace={results.data?.currentRace ?? null}
+          racePhase={results.data?.racePhase ?? "last-race"}
+          accentColor={accentColor}
+          sessionStatus={results.status}
+          sessionStale={results.stale}
+          onRetrySession={() => retry("results")}
+        />
+      )}
+      <YourPaddock
+        favoriteTeam={favoriteF1Team}
+        favoriteDriverIds={favoriteDriverIds}
+        driverRows={driverRows}
+        constructorRows={constructorRows}
+        roster={roster}
+        lastRace={results.data?.lastRace ?? null}
+      />
       {/* Constructors' Championship — before the drivers' table, matching the
           order the section fills in. */}
       <div className="module" data-reveal>

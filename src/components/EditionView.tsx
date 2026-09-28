@@ -20,9 +20,19 @@ import { pickHeroStory } from "@/lib/format";
 import {
   DEFAULT_PERSONALIZATION,
   loadPersonalization,
+  PERSONALIZATION_CHANGED_EVENT,
   F1_TEAM_COLORS,
 } from "@/lib/personalization";
-import { getLiveWeather } from "@/lib/live/weather";
+import { getLiveWeather, getWeatherAt } from "@/lib/live/weather";
+import PostcardSection from "@/components/sections/PostcardSection";
+import {
+  loadTravel,
+  refreshTravel,
+  travelIsStale,
+  TRAVEL_CHANGED_EVENT,
+  type TravelState,
+} from "@/lib/travel";
+import { isCitySection } from "@/lib/preferences/prompt";
 import {
   buildProfile,
   engagementsSince,
@@ -81,6 +91,7 @@ import { digestArticleToStory } from "@/lib/preferences/stories";
 import { SECTION_META } from "@/lib/sections";
 import { requestEdition, waitForEdition } from "@/lib/edition-client";
 import { useLiveMarkets } from "@/lib/live-markets";
+import type { LiveMarkets } from "@/lib/live/indices";
 
 type WeatherState = "loading" | "ready" | "failed";
 const WEATHER_TIMEOUT_MS = 9000;
@@ -226,9 +237,12 @@ export default function EditionView({
     // Browser-only saved state is read after the first render so it matches the server HTML.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPersonalization(loadPersonalization());
+    const onPersonalization = () => setPersonalization(loadPersonalization());
+    window.addEventListener(PERSONALIZATION_CHANGED_EVENT, onPersonalization);
+    const stopPersonalization = () => window.removeEventListener(PERSONALIZATION_CHANGED_EVENT, onPersonalization);
     if (isArchive) {
       setMemory(loadMemory());
-      return;
+      return stopPersonalization;
     }
     const mem = recordIssueOpened({
       isoDate: initialEdition.isoDate,
@@ -238,7 +252,10 @@ export default function EditionView({
     setMemory(mem);
     const onMemory = () => setMemory(loadMemory());
     window.addEventListener("daily-index:memory", onMemory);
-    return () => window.removeEventListener("daily-index:memory", onMemory);
+    return () => {
+      window.removeEventListener("daily-index:memory", onMemory);
+      stopPersonalization();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -258,8 +275,8 @@ export default function EditionView({
   // Index tiles, the mood gauge and the signal card stay live while open.
   const [marketsAt, setMarketsAt] = useState<string | null>(null);
   const applyMarkets = useCallback(
-    ({ indices, mood, at }: { indices: Edition["markets"]["indices"]; mood: NonNullable<Edition["markets"]["mood"]>; at: string }) => {
-      setEdition((prev) => ({ ...prev, markets: { indices, mood } }));
+    ({ indices, mood, moods, commodities, at }: LiveMarkets & { at: string }) => {
+      setEdition((prev) => ({ ...prev, markets: { indices, mood, moods, commodities } }));
       setMarketsAt(at);
     },
     [],
@@ -284,6 +301,63 @@ export default function EditionView({
       cancelled = true;
     };
   }, [isArchive, personalization.homeCity]);
+
+  // --- the reader's other cities, smaller in the Sky Report ----------------
+  // Taken from the Two Cities section, minus the home city.
+  const [otherWeather, setOtherWeather] = useState<WeatherNow[]>([]);
+  useEffect(() => {
+    if (isArchive) return;
+    let cancelled = false;
+    const load = () => {
+      const home = personalization.homeCity.trim().toLowerCase();
+      const same = (a: string) => a === home || (["bengaluru", "bangalore"].includes(a) && ["bengaluru", "bangalore"].includes(home));
+      const cities = [
+        ...new Set(
+          loadDigestPreferences()
+            .sections.flatMap((s) => (s.type === "grouped" && isCitySection(s) ? s.groups : []))
+            .map((c) => c.trim())
+            .filter((c) => c && !same(c.toLowerCase())),
+        ),
+      ].slice(0, 3);
+      Promise.all(cities.map((c) => getLiveWeather(c).catch(() => null))).then((list) => {
+        if (!cancelled) setOtherWeather(list.filter((w): w is WeatherNow => w !== null));
+      });
+    };
+    load();
+    window.addEventListener(PREFERENCES_CHANGED_EVENT, load);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(PREFERENCES_CHANGED_EVENT, load);
+    };
+  }, [isArchive, personalization.homeCity]);
+
+  // --- travel mode: news and weather where the reader is ---------------------
+  const [travel, setTravel] = useState<TravelState | null>(null);
+  const [travelWeather, setTravelWeather] = useState<WeatherNow | null>(null);
+  useEffect(() => {
+    if (isArchive) return;
+    const sync = () => setTravel(loadTravel());
+    sync();
+    window.addEventListener(TRAVEL_CHANGED_EVENT, sync);
+    return () => window.removeEventListener(TRAVEL_CHANGED_EVENT, sync);
+  }, [isArchive]);
+  const travelKey = travel ? `${travel.place.lat},${travel.place.lon}` : null;
+  useEffect(() => {
+    if (!travel) return;
+    let cancelled = false;
+    getWeatherAt(travel.place.lat, travel.place.lon, travel.place.city).then((w) => {
+      if (!cancelled) setTravelWeather(w);
+    });
+    // The headlines kept from last time are shown at once; stale ones are
+    // re-read in the background without asking for the location again.
+    if (travelIsStale(travel)) refreshTravel(travel).catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // Re-run for a new place only, not for each refreshed copy of the news.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [travelKey]);
+  const travelling = travel !== null && !isArchive;
 
   // --- summaries / picks / editor's note -----------------------------------
   // Summaries are keyed by the article URL, never by the positional story id
@@ -763,6 +837,8 @@ export default function EditionView({
         live={liveWeather !== null}
         status={weatherState}
         city={personalization.homeCity}
+        others={otherWeather}
+        travelling={travelling}
       />
     ),
     "circuit-board": () => <CircuitBoardSection stories={without(edition.sections.circuitBoard)} />,
@@ -772,6 +848,8 @@ export default function EditionView({
         stories={without(edition.sections.marketPulse)}
         indices={edition.markets.indices}
         mood={edition.markets.mood}
+        moods={edition.markets.moods ?? []}
+        commodities={edition.markets.commodities ?? []}
         updatedAt={marketsAt}
       />
     ),
@@ -794,6 +872,7 @@ export default function EditionView({
 
   // One entry per printed section for the sticky bar.
   const navSections: NavSection[] = [
+    ...(travelling ? [{ id: "postcard", label: "Postcard", hue: "var(--hue-travel)" }] : []),
     ...order.map((key) => ({ id: SECTION_META[key].slug, label: SECTION_META[key].short, hue: SECTION_META[key].hue })),
     ...visibleStandalone.map(({ section }) => ({
       id: `digest-${section.id}`,
@@ -854,7 +933,7 @@ export default function EditionView({
       <Masthead
         edition={edition}
         isArchive={isArchive}
-        weather={weather ?? undefined}
+        weather={(travelling && travelWeather) || weather || undefined}
       />
       <div className="max-w-[1240px] mx-auto px-4 sm:px-6">
         {/* Front page, three columns with hairline rules between them:
@@ -891,6 +970,11 @@ export default function EditionView({
           </div>
         )}
         <div className="edition-body">
+          {travelling && travel && (
+            <div className="paper-section" style={{ ["--section-hue" as string]: "var(--hue-travel)" }}>
+              <PostcardSection travel={travel} weather={travelWeather} />
+            </div>
+          )}
           {order.map((key) => (
             <div key={key} className="paper-section" style={{ ["--section-hue" as string]: SECTION_META[key].hue }}>
               {sectionRenderers[key]()}

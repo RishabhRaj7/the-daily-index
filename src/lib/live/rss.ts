@@ -80,6 +80,9 @@ export function ageInHours(date: Date): number {
 // better. The LLM condenses it; we just don't want it starved of context.
 function summarize(description: string, maxLen = 2000): string {
   const clean = description
+    // TOI escapes an <img> link and then opens a CDATA block mid-description;
+    // markers anywhere but the ends survive stripCdata(), so drop them all.
+    .replace(/<!\[CDATA\[|\]\]>/g, " ")
     // block-level/line-break tags collapse to nothing otherwise, jamming
     // adjacent sentences together ("round.Following...") — turn them into
     // a space first, then strip whatever tags remain.

@@ -285,6 +285,8 @@ export default async function Home() {
     markets: {
       indices: liveMarkets?.indices ?? [],
       mood: liveMarkets?.mood ?? null,
+      moods: liveMarkets?.moods ?? [],
+      commodities: liveMarkets?.commodities ?? [],
     },
     trending: redditResult.topics,
     grapevine,

@@ -5,7 +5,7 @@
 import type { Edition, Story } from "@/lib/types";
 import type { DigestArticle, DigestPreferences, DigestResult, DigestSection, NewsSlot } from "./types";
 import { digestArticleToStory } from "./stories";
-import { sectionTarget } from "./prompt";
+import { isCitySection, sectionTarget } from "./prompt";
 
 export interface DigestProjection {
   slotStories: Partial<Record<NewsSlot, Story[]>>;
@@ -20,6 +20,8 @@ export interface DigestProjection {
 // the reader's count are marked so the page can hold them back.
 function toStory(section: DigestSection, article: DigestArticle, i: number): Story {
   const story = digestArticleToStory(section, article, i);
+  // City sections carry no spare (the lead never comes from them).
+  if (isCitySection(section)) return story;
   return i >= sectionTarget(section) - 1 ? { ...story, reserve: true } : story;
 }
 

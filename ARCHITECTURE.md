@@ -546,3 +546,17 @@ numbered rails); colour from The Verge (near-black, mint signal, ultraviolet).
 | Reddit (Grapevine) | server | page render | Next.js data cache |
 | Reader's preferences | browser | settings save | localStorage (`daily-index:digest-preferences`, `daily-index:personalization`); a copy in Redis `prefs:{hash}` for the cron |
 | Digest copy for instant reloads | browser | after each edition arrives | localStorage, keyed by date + hash |
+
+### Round 6
+
+- **Two Cities is even**: a city section asks for exactly `articleCountPerGroup` per city with no spare (`sectionTarget`, the per-group cap in `rehydrateSection`, backfill). The front-page lead never comes from it (`pickHeroStory` skips `two-cities`), so it needs no reserve story.
+- **Market Pulse by region**: 16 indices (India, US, Europe, Asia; four each) in two Yahoo spark batches. Each region has its own mood (`MarketMood.region`): average move, breadth and, for India and the US, the day's change in India VIX / VIX. Region cards double as tabs and show open/closed from each lead exchange's hours (holidays not known). **Commodities in ₹** (`Commodity`): COMEX gold/silver/copper, WTI crude and Henry Hub gas converted at USD/INR. Gold and silver include 6% import duty (`BULLION_DUTY`) and exclude GST. The day's change combines the benchmark's move with the rupee's.
+- **Sky Report**: `WeatherNow.blocks` gives the next four parts of the day (morning 06–12, afternoon 12–17, evening 17–21, night 21–06), each with its highest chance of rain, from Open-Meteo hourly data. The reader's other Two Cities cities appear as smaller `CityMini` cards. The weather cache key is `v3`.
+- **Travel mode (Postcard)**: "Use my location" (`TravelButton`) asks for the browser's position once and rounds it to ~1 km. It then POSTs `/api/travel`, which reverse-geocodes with Nominatim (zoom 8 = the metro, suffixes like "Urban"/"Emirate" trimmed) and reads two Google News searches: the city, plus the country abroad or the state inside India. The state is kept in localStorage (`daily-index:travel`), and headlines are re-read after an hour without asking for the location again. The Postcard section prints first, the masthead weather card switches to that place, and "I'm home" clears it all.
+- RSS: all CDATA markers inside a description are stripped (TOI puts one mid-description).
+
+| Data | Fetched where | When | Stored |
+|---|---|---|---|
+| Travel place + headlines | browser → `/api/travel` (Nominatim, Google News) | on "Use my location"; re-read after 1 h | localStorage `daily-index:travel` |
+| Travel weather | browser → Open-Meteo by coordinates | on travel / 15 min | sessionStorage `daily-index:weather:v3:@lat,lon` |
+| Commodities, regional moods | with the indices (`/api/markets`) | every 60 s | 60 s route cache |

@@ -39,7 +39,15 @@ function Movers({ indices }: { indices: MarketIndex[] }) {
 
 // Fear ⇄ greed as a half dial. The needle sweeps up from "fear" to today's
 // reading when the gauge scrolls in; the arc is split into five bands.
-export default function MoodGauge({ mood, indices = [] }: { mood: MarketMood; indices?: MarketIndex[] }) {
+export default function MoodGauge({
+  mood,
+  indices = [],
+  title = "Market mood",
+}: {
+  mood: MarketMood;
+  indices?: MarketIndex[];
+  title?: string;
+}) {
   const angle = (mood.score / 100) * 180 - 90;
   const bands = 5;
   const r = 42;
@@ -54,7 +62,7 @@ export default function MoodGauge({ mood, indices = [] }: { mood: MarketMood; in
 
   return (
     <div className="module h-full flex flex-col" data-reveal>
-      <div className="font-label text-[10px] text-ink-soft mb-4">Market mood</div>
+      <div className="font-label text-[10px] text-ink-soft mb-4">{title}</div>
       <svg viewBox="0 0 100 60" className="w-full max-w-[260px] mx-auto block overflow-visible">
         {Array.from({ length: bands }).map((_, i) => (
           <path

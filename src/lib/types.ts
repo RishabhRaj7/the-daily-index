@@ -59,7 +59,7 @@ export interface MarketIndex {
   id: string;
   name: string;
   symbol: string;
-  market: "India" | "US";
+  market: MarketRegion;
   level: number;
   changePct: number;  // 1-day % change
   change7d: number | null;
@@ -68,10 +68,29 @@ export interface MarketIndex {
   narrative: string;
 }
 
+export type MarketRegion = "India" | "US" | "Europe" | "Asia";
+
 export interface MarketMood {
+  /** The market this mood reads; absent on moods stored before the split. */
+  region?: MarketRegion;
   score: number; // 0-100, 0 = extreme fear, 100 = extreme greed
   label: string;
   inputs: StatItem[];
+}
+
+/** A commodity priced in rupees (converted from its dollar benchmark). */
+export interface Commodity {
+  id: string;
+  name: string;
+  /** What one price buys: "10 g", "kg", "barrel"… */
+  unit: string;
+  priceInr: number;
+  priceUsd?: number;
+  /** Day change in rupee terms (the benchmark's move and the rupee's). */
+  changePct: number;
+  sparkline: number[];
+  /** How the rupee figure is derived. */
+  note: string;
 }
 
 export interface F1Race {
@@ -82,6 +101,17 @@ export interface F1Race {
   date: string; // ISO date
   circuitImageUrl?: string;
   polePosition?: { driver: string; team: string; time: string };
+  /** Every session of the race weekend (practice, sprint, qualifying, race);
+   *  only filled for the next race. */
+  sessions?: F1Session[];
+}
+
+export interface F1Session {
+  /** "Practice 1", "Sprint Qualifying", "Sprint", "Qualifying", "Race". */
+  name: string;
+  /** ISO timestamps (UTC). */
+  start: string;
+  end: string;
 }
 
 export interface F1Standing {
@@ -312,6 +342,27 @@ export interface WeatherNow {
   utcOffsetSeconds?: number;
   /** The same reading, written for after dark. */
   night?: { condition: string; narrative: string; quip: string };
+  /** Highest chance of rain today, %. */
+  rainChance?: number;
+  /** The next four parts of the day (morning, afternoon, evening, night). */
+  blocks?: WeatherBlock[];
+  latitude?: number;
+  longitude?: number;
+}
+
+export interface WeatherBlock {
+  /** "This afternoon", "Evening", "Night", "Morning". */
+  label: string;
+  /** Local clock, "12:00". */
+  from: string;
+  to: string;
+  /** Highest chance of rain in the block, %. */
+  rainPct: number;
+  tempMin: number;
+  tempMax: number;
+  /** Weather code of the block's wettest hour. */
+  weatherCode: number;
+  night: boolean;
 }
 
 export interface Edition {
@@ -345,6 +396,10 @@ export interface Edition {
   markets: {
     indices: MarketIndex[];
     mood: MarketMood | null;
+    /** One mood per region (India, US, Europe, Asia). */
+    moods?: MarketMood[];
+    /** Commodities in rupees. */
+    commodities?: Commodity[];
   };
   trending: TrendingTopic[];
   grapevine?: GrapevineData;

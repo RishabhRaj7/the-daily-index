@@ -293,7 +293,8 @@ function rehydrateSection(
       if (!article.group) return; // grouped selections must name a real group
       const key = article.group.toLowerCase();
       const count = perGroup.get(key) ?? 0;
-      if (count >= section.articleCountPerGroup + 1) return;
+      // A city gets exactly its share, so the columns stay even.
+      if (count >= section.articleCountPerGroup + (isCitySection(section) ? 0 : 1)) return;
       // Backfilled places share the section's total, never exceed it.
       if (out.length >= sectionTarget(section)) return;
       perGroup.set(key, count + 1);
@@ -612,8 +613,7 @@ async function aiDigest(
         if (!group) continue;
         // Spread the extra places around rather than piling onto one country.
         const already = list.filter((x) => x.group?.toLowerCase() === group.toLowerCase()).length;
-        // A city may carry the section's spare story too.
-        if (already >= section.articleCountPerGroup + (isCitySection(section) ? 1 : 0)) continue;
+        if (already >= section.articleCountPerGroup) continue;
       }
       usedUrls.add(a.url);
       list.push({
