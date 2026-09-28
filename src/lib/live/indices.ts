@@ -1,18 +1,80 @@
-import type { MarketIndex, MarketMood } from "@/lib/types";
+import type { Commodity, MarketIndex, MarketMood, MarketRegion } from "@/lib/types";
 
-// Yahoo Finance's chart endpoint requires no key, but does require a
+// Yahoo Finance's spark endpoint requires no key, but does require a
 // browser-like User-Agent or it 429s — this is the same unofficial-but-
 // widely-used endpoint many open-source finance tools rely on.
 const BROWSER_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
 
-const SYMBOLS: { id: string; symbol: string; name: string; market: "India" | "US" }[] = [
-  { id: "nifty50",  symbol: "%5ENSEI",   name: "Nifty 50",          market: "India" },
-  { id: "niftyit",  symbol: "%5ECNXIT",  name: "Nifty IT",          market: "India" },
-  { id: "sensex",   symbol: "%5EBSESN",  name: "Sensex",            market: "India" },
-  { id: "sp500",    symbol: "%5EGSPC",   name: "S&P 500",           market: "US"    },
-  { id: "dow",      symbol: "%5EDJI",    name: "Dow Jones",         market: "US"    },
-  { id: "nasdaq",   symbol: "%5EIXIC",   name: "Nasdaq Composite",  market: "US"    },
+type Spec = { id: string; symbol: string; name: string; market: MarketRegion };
+
+// Four indices per region, so every region fills the same grid. India leads.
+const SYMBOLS: Spec[] = [
+  { id: "nifty50",   symbol: "^NSEI",      name: "Nifty 50",       market: "India"  },
+  { id: "sensex",    symbol: "^BSESN",     name: "Sensex",         market: "India"  },
+  { id: "niftybank", symbol: "^NSEBANK",   name: "Nifty Bank",     market: "India"  },
+  { id: "niftyit",   symbol: "^CNXIT",     name: "Nifty IT",       market: "India"  },
+  { id: "sp500",     symbol: "^GSPC",      name: "S&P 500",        market: "US"     },
+  { id: "dow",       symbol: "^DJI",       name: "Dow Jones",      market: "US"     },
+  { id: "nasdaq",    symbol: "^IXIC",      name: "Nasdaq",         market: "US"     },
+  { id: "russell",   symbol: "^RUT",       name: "Russell 2000",   market: "US"     },
+  { id: "ftse",      symbol: "^FTSE",      name: "FTSE 100",       market: "Europe" },
+  { id: "dax",       symbol: "^GDAXI",     name: "DAX",            market: "Europe" },
+  { id: "cac",       symbol: "^FCHI",      name: "CAC 40",         market: "Europe" },
+  { id: "stoxx50",   symbol: "^STOXX50E",  name: "Euro Stoxx 50",  market: "Europe" },
+  { id: "nikkei",    symbol: "^N225",      name: "Nikkei 225",     market: "Asia"   },
+  { id: "hangseng",  symbol: "^HSI",       name: "Hang Seng",      market: "Asia"   },
+  { id: "shanghai",  symbol: "000001.SS",  name: "Shanghai",       market: "Asia"   },
+  { id: "kospi",     symbol: "^KS11",      name: "KOSPI",          market: "Asia"   },
+];
+
+// Volatility gauges feed each region's mood; they are not shown as tiles.
+const VOLATILITY: Partial<Record<MarketRegion, string>> = { India: "^INDIAVIX", US: "^VIX" };
+
+// Commodities are priced in dollars abroad; the page shows rupees.
+const USD_INR = "INR=X";
+const TROY_OZ_GRAMS = 31.1035;
+const LB_PER_KG = 2.20462;
+// Customs duty on gold and silver (6% since the July 2024 budget). Added so
+// the figure tracks what the metal costs landed in India (the MCX price),
+// not the bare international price. GST (3%) and making charges are not.
+const BULLION_DUTY = 0.06;
+
+type CommoditySpec = {
+  id: string;
+  symbol: string;
+  name: string;
+  unit: string;
+  /** Dollar quote → rupees per unit, given USD/INR. */
+  toInr: (usd: number, inr: number) => number;
+  note: string;
+};
+const COMMODITIES: CommoditySpec[] = [
+  {
+    id: "gold", symbol: "GC=F", name: "Gold", unit: "10 g",
+    toInr: (usd, inr) => (usd / TROY_OZ_GRAMS) * 10 * inr * (1 + BULLION_DUTY),
+    note: "COMEX gold in rupees, with 6% import duty (before GST)",
+  },
+  {
+    id: "silver", symbol: "SI=F", name: "Silver", unit: "kg",
+    toInr: (usd, inr) => (usd / TROY_OZ_GRAMS) * 1000 * inr * (1 + BULLION_DUTY),
+    note: "COMEX silver in rupees, with 6% import duty (before GST)",
+  },
+  {
+    id: "crude", symbol: "CL=F", name: "Crude oil", unit: "barrel",
+    toInr: (usd, inr) => usd * inr,
+    note: "WTI crude in rupees — the benchmark MCX crude follows",
+  },
+  {
+    id: "natgas", symbol: "NG=F", name: "Natural gas", unit: "mmBtu",
+    toInr: (usd, inr) => usd * inr,
+    note: "Henry Hub gas in rupees",
+  },
+  {
+    id: "copper", symbol: "HG=F", name: "Copper", unit: "kg",
+    toInr: (usd, inr) => usd * LB_PER_KG * inr,
+    note: "COMEX copper in rupees",
+  },
 ];
 
 interface SparkSeries {
@@ -20,16 +82,30 @@ interface SparkSeries {
   fulldayPrice?: number;
   fulldayChangePercent?: number;
   chartPreviousClose?: number;
+  previousClose?: number;
 }
 
-function toIndex(spec: (typeof SYMBOLS)[number], series: SparkSeries | undefined): MarketIndex | null {
-  const validCloses = (series?.close ?? []).filter((c): c is number => typeof c === "number");
-  const level = series?.fulldayPrice ?? validCloses.at(-1);
-  const changePct =
-    series?.fulldayChangePercent ??
-    (typeof level === "number" && series?.chartPreviousClose
-      ? ((level - series.chartPreviousClose) / series.chartPreviousClose) * 100
-      : undefined);
+function closes(series: SparkSeries | undefined): number[] {
+  return (series?.close ?? []).filter((c): c is number => typeof c === "number");
+}
+
+function levelOf(series: SparkSeries | undefined): number | undefined {
+  return series?.fulldayPrice ?? closes(series).at(-1);
+}
+
+/** Today's move: Yahoo's own figure, else the last two closes. */
+function dayChange(series: SparkSeries | undefined): number | undefined {
+  if (typeof series?.fulldayChangePercent === "number") return series.fulldayChangePercent;
+  const c = closes(series);
+  const level = levelOf(series);
+  const prev = c.length >= 2 ? c[c.length - 2] : undefined;
+  return typeof level === "number" && prev ? ((level - prev) / prev) * 100 : undefined;
+}
+
+function toIndex(spec: Spec, series: SparkSeries | undefined): MarketIndex | null {
+  const validCloses = closes(series);
+  const level = levelOf(series);
+  const changePct = dayChange(series);
   if (typeof level !== "number" || typeof changePct !== "number") return null;
 
   // 7-day change: price 7 trading sessions ago vs today
@@ -60,59 +136,139 @@ function toIndex(spec: (typeof SYMBOLS)[number], series: SparkSeries | undefined
   };
 }
 
-// One request for every index: Yahoo's spark endpoint returns each
-// symbol's daily closes plus the live price and day change — the same
-// figures the per-symbol chart endpoint gave in six separate calls.
-async function fetchAllIndices(revalidate = 900): Promise<MarketIndex[]> {
-  try {
-    const symbols = SYMBOLS.map((s) => s.symbol).join(",");
-    const res = await fetch(
-      `https://query1.finance.yahoo.com/v8/finance/spark?symbols=${symbols}&range=1mo&interval=1d`,
-      { headers: { "User-Agent": BROWSER_UA }, next: { revalidate } },
-    );
-    if (!res.ok) return [];
-    const data = (await res.json()) as Record<string, SparkSeries>;
-    return SYMBOLS.map((spec) => toIndex(spec, data[decodeURIComponent(spec.symbol)])).filter(
-      (i): i is MarketIndex => i !== null,
-    );
-  } catch {
-    return [];
-  }
+// Yahoo's spark endpoint answers up to 20 symbols per request; the board
+// needs ~24, so it is asked in two batches at once.
+async function fetchSpark(symbols: string[], revalidate: number): Promise<Record<string, SparkSeries>> {
+  const batches: string[][] = [];
+  for (let i = 0; i < symbols.length; i += 20) batches.push(symbols.slice(i, i + 20));
+  const parts = await Promise.all(
+    batches.map(async (batch) => {
+      try {
+        const res = await fetch(
+          `https://query1.finance.yahoo.com/v8/finance/spark?symbols=${batch.map(encodeURIComponent).join(",")}&range=1mo&interval=1d`,
+          { headers: { "User-Agent": BROWSER_UA }, next: { revalidate } },
+        );
+        return res.ok ? ((await res.json()) as Record<string, SparkSeries>) : {};
+      } catch {
+        return {};
+      }
+    }),
+  );
+  return Object.assign({}, ...parts);
 }
 
-function buildMood(indices: MarketIndex[]): MarketMood {
-  const avgChange =
-    indices.reduce((sum, i) => sum + i.changePct, 0) / (indices.length || 1);
-  const advancers = indices.filter((i) => i.changePct > 0).length;
-
-  const score = Math.max(0, Math.min(100, Math.round(50 + avgChange * 15)));
-  const label =
-    score >= 75 ? "Extreme Greed" :
-    score >= 60 ? "Greed" :
-    score >= 40 ? "Neutral" :
-    score >= 25 ? "Fear" : "Extreme Fear";
-
+function toCommodity(spec: CommoditySpec, series: SparkSeries | undefined, fx: SparkSeries | undefined): Commodity | null {
+  const usd = levelOf(series);
+  const inr = levelOf(fx);
+  const change = dayChange(series);
+  if (typeof usd !== "number" || typeof inr !== "number" || typeof change !== "number") return null;
+  // The rupee moves too: the day's change in rupees combines both.
+  const fxChange = dayChange(fx) ?? 0;
+  const changePct = ((1 + change / 100) * (1 + fxChange / 100) - 1) * 100;
+  const fxCloses = closes(fx);
+  const spark = closes(series)
+    .slice(-7)
+    .map((c, i, arr) => spec.toInr(c, fxCloses[fxCloses.length - arr.length + i] ?? inr));
+  const priceInr = spec.toInr(usd, inr);
   return {
-    score,
-    label,
-    inputs: [
-      { label: "Average change", value: `${avgChange >= 0 ? "+" : ""}${avgChange.toFixed(2)}%` },
-      { label: "Advancers", value: `${advancers} of ${indices.length} up` },
-    ],
+    id: spec.id,
+    name: spec.name,
+    unit: spec.unit,
+    priceInr,
+    priceUsd: usd,
+    changePct,
+    sparkline: spark.length > 1 ? spark : [priceInr, priceInr],
+    note: spec.note,
   };
 }
 
-export interface LiveMarkets {
-  indices: MarketIndex[];
-  mood: MarketMood;
+function usdInr(fx: SparkSeries | undefined): Commodity | null {
+  const level = levelOf(fx);
+  const changePct = dayChange(fx);
+  if (typeof level !== "number" || typeof changePct !== "number") return null;
+  const spark = closes(fx).slice(-7);
+  return {
+    id: "usdinr",
+    name: "US dollar",
+    unit: "USD",
+    priceInr: level,
+    changePct,
+    sparkline: spark.length > 1 ? spark : [level, level],
+    note: "Rupees per dollar — up means a weaker rupee",
+  };
 }
 
-// Real numbers only — level, % change, and sparkline all come straight from
-// Yahoo Finance; the "mood" gauge is a transparent formula over those same
-// numbers (average change + advancers/decliners), not an invented index.
-// Partial is fine: one index missing no longer blanks the whole panel.
+const MOOD_LABELS = (score: number) =>
+  score >= 75 ? "Extreme Greed" : score >= 60 ? "Greed" : score >= 40 ? "Neutral" : score >= 25 ? "Fear" : "Extreme Fear";
+
+/**
+ * One region's mood: the average move of its indices, nudged by breadth and,
+ * where there is one, the day's change in its volatility index (fear rising
+ * pulls the score down). Every input is shown under the gauge.
+ */
+function buildMood(region: MarketRegion, indices: MarketIndex[], vix?: SparkSeries): MarketMood {
+  const avgChange = indices.reduce((sum, i) => sum + i.changePct, 0) / (indices.length || 1);
+  const advancers = indices.filter((i) => i.changePct > 0).length;
+  const breadth = indices.length ? advancers / indices.length - 0.5 : 0; // -0.5..0.5
+  const vixLevel = levelOf(vix);
+  const vixChange = dayChange(vix);
+
+  let score = 50 + avgChange * 15 + breadth * 10;
+  if (typeof vixChange === "number") score -= Math.max(-10, Math.min(10, vixChange * 0.6));
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  const inputs = [
+    { label: "Average move", value: `${avgChange >= 0 ? "+" : ""}${avgChange.toFixed(2)}%` },
+    { label: "Advancers", value: `${advancers} of ${indices.length} up` },
+  ];
+  if (typeof vixLevel === "number" && typeof vixChange === "number") {
+    inputs.push({
+      label: region === "India" ? "India VIX" : "VIX",
+      value: `${vixLevel.toFixed(1)} (${vixChange >= 0 ? "+" : ""}${vixChange.toFixed(1)}%)`,
+    });
+  }
+  return { region, score, label: MOOD_LABELS(score), inputs };
+}
+
+export const MARKET_REGIONS: MarketRegion[] = ["India", "US", "Europe", "Asia"];
+
+export interface LiveMarkets {
+  indices: MarketIndex[];
+  /** India's mood — kept for older readers of this shape. */
+  mood: MarketMood;
+  moods: MarketMood[];
+  commodities: Commodity[];
+}
+
+// Real numbers only — levels, changes and sparklines come straight from
+// Yahoo Finance; each "mood" is a transparent formula over those numbers.
+// Partial is fine: one missing symbol never blanks the panel.
 export async function getLiveMarkets(revalidate = 900): Promise<LiveMarkets | null> {
-  const indices = await fetchAllIndices(revalidate);
+  const data = await fetchSpark(
+    [
+      ...SYMBOLS.map((s) => s.symbol),
+      ...Object.values(VOLATILITY),
+      USD_INR,
+      ...COMMODITIES.map((c) => c.symbol),
+    ],
+    revalidate,
+  );
+  const indices = SYMBOLS.map((spec) => toIndex(spec, data[spec.symbol])).filter(
+    (i): i is MarketIndex => i !== null,
+  );
   if (indices.length === 0) return null;
-  return { indices, mood: buildMood(indices) };
+
+  const moods = MARKET_REGIONS.flatMap((region) => {
+    const inRegion = indices.filter((i) => i.market === region);
+    const vix = VOLATILITY[region];
+    return inRegion.length > 0 ? [buildMood(region, inRegion, vix ? data[vix] : undefined)] : [];
+  });
+
+  const fx = data[USD_INR];
+  const commodities = [
+    ...COMMODITIES.map((spec) => toCommodity(spec, data[spec.symbol], fx)),
+    usdInr(fx),
+  ].filter((c): c is Commodity => c !== null);
+
+  return { indices, mood: moods[0], moods, commodities };
 }

@@ -5,6 +5,8 @@ import type { WeatherNow } from "@/lib/types";
 import SectionHeader from "@/components/story/SectionHeader";
 import SunArc from "@/components/widgets/SunArc";
 import WeatherIcon from "@/components/widgets/WeatherIcon";
+import WeatherBlocks from "@/components/widgets/WeatherBlocks";
+import TravelButton from "@/components/extras/TravelButton";
 import { isNight, moonPhase } from "@/lib/sky";
 import { useSkyClock } from "@/lib/use-sky-clock";
 
@@ -90,11 +92,17 @@ export default function SkyReportSection({
   live = false,
   status = "ready",
   city,
+  others = [],
+  travelling = false,
 }: {
   weather: WeatherNow | null;
   live?: boolean;
   status?: "loading" | "ready" | "failed";
   city?: string;
+  /** The reader's other cities, printed smaller under the home city. */
+  others?: WeatherNow[];
+  /** Travel mode is on (the Postcard section carries the local weather). */
+  travelling?: boolean;
 }) {
   if (!weather) {
     return (
@@ -136,10 +144,48 @@ export default function SkyReportSection({
     );
   }
 
-  return <SkyReading weather={weather} live={live} />;
+  return <SkyReading weather={weather} live={live} others={others} travelling={travelling} />;
 }
 
-function SkyReading({ weather, live }: { weather: WeatherNow; live: boolean }) {
+/** Another city, small: now, the day's range and its chance of rain. */
+export function CityMini({ weather }: { weather: WeatherNow }) {
+  const clock = useSkyClock(weather);
+  const night = isNight(weather, clock);
+  const condition = night && weather.night ? weather.night.condition : weather.condition;
+  return (
+    <div className="module flex items-center gap-4" data-reveal>
+      <span style={{ color: "var(--section-hue, var(--accent))" }}>
+        <WeatherIcon code={weather.weatherCode} size={34} night={night} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-label text-[10px] text-ink-soft">
+          {weather.city} · {night ? "tonight" : "now"}
+        </span>
+        <span className="block font-sans text-[14px] truncate mt-0.5">{condition}</span>
+        <span className="block font-mono text-[11px] text-ink-soft mt-1 tabular-nums">
+          {typeof weather.tempMax === "number" && typeof weather.tempMin === "number"
+            ? `${weather.tempMax}° / ${weather.tempMin}°`
+            : ""}
+          {typeof weather.rainChance === "number" ? ` · rain ${weather.rainChance}%` : ""}
+          {` · AQI ${weather.aqi}`}
+        </span>
+      </span>
+      <span className="font-display font-bold text-[2.4rem] leading-none">{weather.tempC}°</span>
+    </div>
+  );
+}
+
+function SkyReading({
+  weather,
+  live,
+  others = [],
+  travelling = false,
+}: {
+  weather: WeatherNow;
+  live: boolean;
+  others?: WeatherNow[];
+  travelling?: boolean;
+}) {
   const clock = useSkyClock(weather);
   const night = isNight(weather, clock);
   const words = night && weather.night ? weather.night : weather;
@@ -200,6 +246,34 @@ function SkyReading({ weather, live }: { weather: WeatherNow; live: boolean }) {
           </div>
         </div>
       </div>
+
+      {weather.blocks && weather.blocks.length > 0 && (
+        <div className="mt-10">
+          <div className="flex items-baseline justify-between gap-4 mb-3">
+            <h3 className="font-label text-[11px] text-ink-soft">The rest of the day · chance of rain</h3>
+            {typeof weather.rainChance === "number" && (
+              <span className="font-mono text-[11px] text-ink-soft">today&rsquo;s peak {weather.rainChance}%</span>
+            )}
+          </div>
+          <WeatherBlocks blocks={weather.blocks} />
+        </div>
+      )}
+
+      {(others.length > 0 || !travelling) && (
+        <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 items-stretch">
+          {others.map((o) => (
+            <CityMini key={o.city} weather={o} />
+          ))}
+          {!travelling && (
+            <div className="module flex flex-col justify-center items-start gap-2 border-dashed" data-reveal>
+              <span className="font-sans text-[13px] text-ink-soft">
+                Away from {weather.city}? Get the weather and news where you are.
+              </span>
+              <TravelButton label="Use my location" />
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }
