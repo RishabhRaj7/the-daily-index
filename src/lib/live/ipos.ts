@@ -179,11 +179,12 @@ export function parseGmpTable(html: string): GmpRow[] {
   return rows;
 }
 
-async function gmpRows(): Promise<GmpRow[]> {
+async function fetchGmpTable(): Promise<GmpRow[]> {
   try {
     const res = await fetch(GMP_PAGE, {
       headers: { "User-Agent": UA, Accept: "text/html" },
-      next: { revalidate: 1800 },
+      // The schedule below decides when to read; never serve a cached copy.
+      cache: "no-store",
       signal: AbortSignal.timeout(12_000),
     });
     if (!res.ok) return [];
@@ -191,6 +192,58 @@ async function gmpRows(): Promise<GmpRow[]> {
   } catch {
     return [];
   }
+}
+
+// ---- when GMP is read ------------------------------------------------------------
+//
+// GMP moves slowly before an issue opens and fast around its close, so the
+// GMP page is read on a schedule set by where each IPO is (times IST):
+//   not yet open                        10:00, once a day
+//   bidding days before the last one    10:00 and 14:00
+//   closing day through listing day     every hour, 10:00 to 18:00
+//   after listing                       not read
+// The busiest IPO sets the pace. Between slots the last reading is served
+// from the store, so the page is never read more often than the schedule —
+// however many readers load the paper. (There is no background job: the
+// first request after a slot does the read.)
+
+const GMP_TABLE_KEY = "ipo:gmp-table";
+const HOURLY = [10, 11, 12, 13, 14, 15, 16, 17, 18];
+
+/** Refresh hours (IST) for one IPO on one day. */
+export function gmpHoursFor(e: Pick<IpoEntry, "open" | "close" | "listing">, day: string): number[] {
+  if (e.listing && day > e.listing) return [];
+  if (e.close && day >= e.close) return HOURLY;
+  if (e.open && day >= e.open) return [10, 14];
+  return [10];
+}
+
+/** The latest scheduled read at or before `now` across the board, if any. */
+export function latestGmpSlot(entries: Array<Pick<IpoEntry, "open" | "close" | "listing">>, now = Date.now()): number | null {
+  const today = new Date(now + 5.5 * 3_600_000).toISOString().slice(0, 10);
+  const yesterday = new Date(now + 5.5 * 3_600_000 - DAY).toISOString().slice(0, 10);
+  let latest: number | null = null;
+  for (const day of [today, yesterday]) {
+    for (const e of entries) {
+      for (const h of gmpHoursFor(e, day)) {
+        const t = Date.parse(`${day}T${String(h).padStart(2, "0")}:00:00+05:30`);
+        if (t <= now && (latest === null || t > latest)) latest = t;
+      }
+    }
+  }
+  return latest;
+}
+
+async function gmpRows(known: IpoEntry[]): Promise<GmpRow[]> {
+  const store = getStore();
+  const cached = await store.get<{ at: number; rows: GmpRow[] }>(GMP_TABLE_KEY).catch(() => null);
+  // With nothing on the board yet, one read finds out what is coming.
+  const due = known.length === 0 ? Date.now() : latestGmpSlot(known);
+  if (cached && (due === null || cached.at >= due)) return cached.rows;
+  const fresh = await fetchGmpTable();
+  if (fresh.length === 0) return cached?.rows ?? [];
+  await store.set(GMP_TABLE_KEY, { at: Date.now(), rows: fresh }, { ttlSeconds: 7 * 86_400 }).catch(() => {});
+  return fresh;
 }
 
 // ---- the board -----------------------------------------------------------------
@@ -225,10 +278,10 @@ function addWorkingDays(iso: string, days: number): string {
 
 export async function getIpoBoard(): Promise<IpoEntry[]> {
   const today = istToday();
-  const [nse, gmp, stored, pastSymbols] = await Promise.all([
+  const stored = await getStore().get<Record<string, IpoEntry>>(BOARD_KEY).catch(() => null);
+  const [nse, gmp, pastSymbols] = await Promise.all([
     nseIssues(),
-    gmpRows(),
-    getStore().get<Record<string, IpoEntry>>(BOARD_KEY).catch(() => null),
+    gmpRows(Object.values(stored ?? {})),
     nsePastSymbols(),
   ]);
   // Re-key what was stored, so a change in how names are matched never
