@@ -200,7 +200,8 @@ async function fetchGmpTable(): Promise<GmpRow[]> {
 // GMP page is read on a schedule set by where each IPO is (times IST):
 //   not yet open                        10:00, once a day
 //   bidding days before the last one    10:00 and 14:00
-//   closing day through listing day     every hour, 10:00 to 18:00
+//   closing day                         every hour, 10:00 to 18:00
+//   after closing, through listing day  10:00, once a day
 //   after listing                       not read
 // The busiest IPO sets the pace. Between slots the last reading is served
 // from the store, so the page is never read more often than the schedule —
@@ -213,7 +214,8 @@ const HOURLY = [10, 11, 12, 13, 14, 15, 16, 17, 18];
 /** Refresh hours (IST) for one IPO on one day. */
 export function gmpHoursFor(e: Pick<IpoEntry, "open" | "close" | "listing">, day: string): number[] {
   if (e.listing && day > e.listing) return [];
-  if (e.close && day >= e.close) return HOURLY;
+  if (e.close && day > e.close) return [10];
+  if (e.close && day === e.close) return HOURLY;
   if (e.open && day >= e.open) return [10, 14];
   return [10];
 }
