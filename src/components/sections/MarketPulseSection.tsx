@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
-import type { Commodity, MarketIndex, MarketMood, MarketRegion, Story } from "@/lib/types";
+import type { Commodity, CryptoQuote, MarketIndex, MarketMood, MarketRegion, Story } from "@/lib/types";
 import SectionHeader from "@/components/story/SectionHeader";
 import StoryArticle from "@/components/story/StoryArticle";
 import MarketIndexCard from "@/components/widgets/MarketIndexCard";
 import MoodGauge from "@/components/widgets/MoodGauge";
 import SparklineChart from "@/components/widgets/SparklineChart";
+import MarketChartSheet, { type ChartTarget } from "@/components/widgets/MarketChartSheet";
+import IpoWatch from "@/components/widgets/IpoWatch";
 
 // Market Pulse: the world's markets one region at a time. A row of region
 // cards (each with its own mood) doubles as the tabs; the selected region
@@ -103,26 +105,58 @@ function RegionTab({
   );
 }
 
-function CommodityTile({ c, i }: { c: Commodity; i: number }) {
-  const up = c.changePct >= 0;
-  const digits = c.priceInr >= 1000 ? 0 : 2;
+/** A compact price tile (commodities in ₹, crypto in USDT) that opens its chart. */
+function PriceTile({
+  name,
+  unit,
+  price,
+  changePct,
+  sparkline,
+  note,
+  i,
+  onOpen,
+}: {
+  name: string;
+  unit: string;
+  price: string;
+  changePct: number;
+  sparkline: number[];
+  note?: string;
+  i: number;
+  onOpen: () => void;
+}) {
+  const up = changePct >= 0;
   return (
-    <li className="module flex flex-col gap-2" data-reveal style={{ ["--reveal-i" as string]: i }} title={c.note}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="font-sans font-semibold text-[14px] leading-tight">{c.name}</div>
-          <div className="font-label text-[8px] text-ink-faint mt-0.5">₹ per {c.unit}</div>
-        </div>
-        <span className={`font-mono text-[11px] font-semibold ${up ? "text-up" : "text-down"}`}>
-          {up ? "▲" : "▼"} {Math.abs(c.changePct).toFixed(2)}%
+    <li className="h-full" data-reveal style={{ ["--reveal-i" as string]: i }}>
+      <button
+        type="button"
+        onClick={onOpen}
+        title={note}
+        className="module w-full h-full text-left flex flex-col gap-2 transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-[color:var(--section-hue)]"
+      >
+        <span className="flex items-start justify-between gap-2 w-full">
+          <span className="min-w-0">
+            <span className="block font-sans font-semibold text-[14px] leading-tight">{name}</span>
+            <span className="block font-label text-[8px] text-ink-faint mt-0.5">{unit}</span>
+          </span>
+          <span className={`font-mono text-[11px] font-semibold ${up ? "text-up" : "text-down"}`}>
+            {up ? "▲" : "▼"} {Math.abs(changePct).toFixed(2)}%
+          </span>
         </span>
-      </div>
-      <div className="font-display font-bold text-[1.7rem] leading-none tracking-tight tabular-nums">
-        ₹{c.priceInr.toLocaleString("en-IN", { maximumFractionDigits: digits, minimumFractionDigits: digits })}
-      </div>
-      <SparklineChart values={c.sparkline} positive={up} className="w-full h-8" />
+        <span className="font-display font-bold text-[1.7rem] leading-none tracking-tight tabular-nums">{price}</span>
+        <SparklineChart values={sparkline} positive={up} className="w-full h-8" />
+      </button>
     </li>
   );
+}
+
+function inr(v: number): string {
+  const digits = v >= 1000 ? 0 : 2;
+  return `₹${v.toLocaleString("en-IN", { maximumFractionDigits: digits, minimumFractionDigits: digits })}`;
+}
+
+function usdt(v: number): string {
+  return `${v.toLocaleString("en-US", { maximumFractionDigits: v >= 1000 ? 0 : 2 })}`;
 }
 
 export default function MarketPulseSection({
@@ -131,6 +165,7 @@ export default function MarketPulseSection({
   mood,
   moods = [],
   commodities = [],
+  crypto = [],
   updatedAt = null,
 }: {
   stories: Story[];
@@ -138,10 +173,12 @@ export default function MarketPulseSection({
   mood: MarketMood | null;
   moods?: MarketMood[];
   commodities?: Commodity[];
+  crypto?: CryptoQuote[];
   /** When the live numbers last arrived; null until the first refresh. */
   updatedAt?: string | null;
 }) {
   const [region, setRegion] = useState<MarketRegion>("India");
+  const [chart, setChart] = useState<ChartTarget | null>(null);
   const minute = useSyncExternalStore(subscribe, minuteNow, () => null);
   const updated = updatedAt
     ? new Date(updatedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
@@ -190,25 +227,56 @@ export default function MarketPulseSection({
               </li>
             )}
             {activeIndices.map((idx, i) => (
-              <MarketIndexCard key={idx.id} index={idx} i={i + 1} live={updatedAt !== null} />
+              <MarketIndexCard
+                key={idx.id}
+                index={idx}
+                i={i + 1}
+                live={updatedAt !== null}
+                onOpen={() => setChart({ kind: "index", id: idx.id, name: idx.name, kicker: `${idx.market} · index` })}
+              />
             ))}
           </ul>
 
-          {commodities.length > 0 && (
+          <IpoWatch />
+
+          {(commodities.length > 0 || crypto.length > 0) && (
             <div className="mt-12">
               <div className="flex items-baseline justify-between gap-4 mb-4">
-                <h3 className="font-display font-bold text-[1.8rem] leading-none">Commodities in ₹</h3>
+                <h3 className="font-display font-bold text-[1.8rem] leading-none">Commodities &amp; crypto</h3>
                 <span className="font-mono text-[10px] text-ink-soft text-right">
-                  International benchmarks in rupees · bullion incl. 6% import duty, before GST
+                  Benchmarks in rupees · bullion incl. 6% import duty, before GST · crypto in USDT · tap for a chart
                 </span>
               </div>
-              <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <ul className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {commodities.map((c, i) => (
-                  <CommodityTile key={c.id} c={c} i={i} />
+                  <PriceTile
+                    key={c.id}
+                    name={c.name}
+                    unit={c.id === "usdinr" ? "₹ per USD" : `₹ per ${c.unit}`}
+                    price={inr(c.priceInr)}
+                    changePct={c.changePct}
+                    sparkline={c.sparkline}
+                    note={c.note}
+                    i={i}
+                    onOpen={() => setChart({ kind: "commodity", id: c.id, name: c.name, kicker: "Commodity · ₹", prefix: "₹" })}
+                  />
+                ))}
+                {crypto.map((c, i) => (
+                  <PriceTile
+                    key={c.id}
+                    name={c.name}
+                    unit={`${c.pair.replace("USDT", "")} / USDT · 24h`}
+                    price={usdt(c.price)}
+                    changePct={c.changePct}
+                    sparkline={c.sparkline}
+                    i={commodities.length + i}
+                    onOpen={() => setChart({ kind: "crypto", id: c.id, name: `${c.name} (${c.pair.replace("USDT", "/USDT")})`, kicker: "Crypto · USDT" })}
+                  />
                 ))}
               </ul>
             </div>
           )}
+          {chart && <MarketChartSheet target={chart} onClose={() => setChart(null)} />}
         </>
       ) : (
         <div className="border-l-2 border-accent pl-4 py-1">

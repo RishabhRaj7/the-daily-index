@@ -287,6 +287,7 @@ export default async function Home() {
       mood: liveMarkets?.mood ?? null,
       moods: liveMarkets?.moods ?? [],
       commodities: liveMarkets?.commodities ?? [],
+      crypto: liveMarkets?.crypto ?? [],
     },
     trending: redditResult.topics,
     grapevine,

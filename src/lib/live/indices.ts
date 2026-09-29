@@ -1,15 +1,15 @@
-import type { Commodity, MarketIndex, MarketMood, MarketRegion } from "@/lib/types";
+import type { Commodity, CryptoQuote, MarketIndex, MarketMood, MarketRegion } from "@/lib/types";
 
 // Yahoo Finance's spark endpoint requires no key, but does require a
 // browser-like User-Agent or it 429s — this is the same unofficial-but-
 // widely-used endpoint many open-source finance tools rely on.
-const BROWSER_UA =
+export const BROWSER_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
 
 type Spec = { id: string; symbol: string; name: string; market: MarketRegion };
 
 // Four indices per region, so every region fills the same grid. India leads.
-const SYMBOLS: Spec[] = [
+export const SYMBOLS: Spec[] = [
   { id: "nifty50",   symbol: "^NSEI",      name: "Nifty 50",       market: "India"  },
   { id: "sensex",    symbol: "^BSESN",     name: "Sensex",         market: "India"  },
   { id: "niftybank", symbol: "^NSEBANK",   name: "Nifty Bank",     market: "India"  },
@@ -32,7 +32,7 @@ const SYMBOLS: Spec[] = [
 const VOLATILITY: Partial<Record<MarketRegion, string>> = { India: "^INDIAVIX", US: "^VIX" };
 
 // Commodities are priced in dollars abroad; the page shows rupees.
-const USD_INR = "INR=X";
+export const USD_INR = "INR=X";
 const TROY_OZ_GRAMS = 31.1035;
 const LB_PER_KG = 2.20462;
 // Customs duty on gold and silver (6% since the July 2024 budget). Added so
@@ -49,7 +49,7 @@ type CommoditySpec = {
   toInr: (usd: number, inr: number) => number;
   note: string;
 };
-const COMMODITIES: CommoditySpec[] = [
+export const COMMODITIES: CommoditySpec[] = [
   {
     id: "gold", symbol: "GC=F", name: "Gold", unit: "10 g",
     toInr: (usd, inr) => (usd / TROY_OZ_GRAMS) * 10 * inr * (1 + BULLION_DUTY),
@@ -232,18 +232,63 @@ function buildMood(region: MarketRegion, indices: MarketIndex[], vix?: SparkSeri
 
 export const MARKET_REGIONS: MarketRegion[] = ["India", "US", "Europe", "Asia"];
 
+// Crypto in USDT from Binance's public market-data mirror (no key; the
+// mirror answers from any region, unlike api.binance.com).
+export const BINANCE = "https://data-api.binance.vision/api/v3";
+export const CRYPTO_PAIRS: Array<{ id: string; name: string; pair: string }> = [
+  { id: "btc", name: "Bitcoin", pair: "BTCUSDT" },
+  { id: "eth", name: "Ethereum", pair: "ETHUSDT" },
+];
+
+async function fetchCrypto(revalidate: number): Promise<CryptoQuote[]> {
+  try {
+    const symbols = encodeURIComponent(JSON.stringify(CRYPTO_PAIRS.map((c) => c.pair)));
+    const [tickerRes, ...klineRes] = await Promise.all([
+      fetch(`${BINANCE}/ticker/24hr?symbols=${symbols}`, { next: { revalidate } }),
+      ...CRYPTO_PAIRS.map((c) =>
+        fetch(`${BINANCE}/klines?symbol=${c.pair}&interval=1d&limit=7`, { next: { revalidate: 3600 } }),
+      ),
+    ]);
+    if (!tickerRes.ok) return [];
+    const tickers = (await tickerRes.json()) as Array<Record<string, string>>;
+    const klines = await Promise.all(klineRes.map((r) => (r.ok ? r.json() : Promise.resolve([]))));
+    return CRYPTO_PAIRS.flatMap((c, i) => {
+      const t = tickers.find((x) => x.symbol === c.pair);
+      if (!t) return [];
+      const price = Number(t.lastPrice);
+      const spark = (klines[i] as string[][]).map((k) => Number(k[4])).filter(Number.isFinite);
+      return [
+        {
+          id: c.id,
+          name: c.name,
+          pair: c.pair,
+          price,
+          changePct: Number(t.priceChangePercent),
+          high24h: Number(t.highPrice),
+          low24h: Number(t.lowPrice),
+          sparkline: spark.length > 1 ? [...spark.slice(0, -1), price] : [price, price],
+        },
+      ];
+    });
+  } catch {
+    return [];
+  }
+}
+
 export interface LiveMarkets {
   indices: MarketIndex[];
   /** India's mood — kept for older readers of this shape. */
   mood: MarketMood;
   moods: MarketMood[];
   commodities: Commodity[];
+  crypto: CryptoQuote[];
 }
 
 // Real numbers only — levels, changes and sparklines come straight from
 // Yahoo Finance; each "mood" is a transparent formula over those numbers.
 // Partial is fine: one missing symbol never blanks the panel.
 export async function getLiveMarkets(revalidate = 900): Promise<LiveMarkets | null> {
+  const cryptoPromise = fetchCrypto(Math.min(revalidate, 60));
   const data = await fetchSpark(
     [
       ...SYMBOLS.map((s) => s.symbol),
@@ -270,5 +315,5 @@ export async function getLiveMarkets(revalidate = 900): Promise<LiveMarkets | nu
     usdInr(fx),
   ].filter((c): c is Commodity => c !== null);
 
-  return { indices, mood: moods[0], moods, commodities };
+  return { indices, mood: moods[0], moods, commodities, crypto: await cryptoPromise };
 }

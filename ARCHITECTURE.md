@@ -560,3 +560,10 @@ numbered rails); colour from The Verge (near-black, mint signal, ultraviolet).
 | Travel place + headlines | browser → `/api/travel` (Nominatim, Google News) | on "Use my location"; re-read after 1 h | localStorage `daily-index:travel` |
 | Travel weather | browser → Open-Meteo by coordinates | on travel / 15 min | sessionStorage `daily-index:weather:v3:@lat,lon` |
 | Commodities, regional moods | with the indices (`/api/markets`) | every 60 s | 60 s route cache |
+
+### Round 7
+
+- **IPO watch** (`lib/live/ipos.ts`, `components/widgets/IpoWatch.tsx`, `/api/ipos`, `/api/ipos/[id]`): mainboard IPOs from announcement to two days after listing. NSE (`all-upcoming-issues`, `ipo-detail`, `public-past-issues`) gives the issue list, symbols, category-wise subscription, issue facts and documents. investorgain.com's live GMP table (parsed by its `data-label` cells) gives the GMP, the issue size in crores and the allotment/listing dates. Missing dates follow SEBI's T+3 rule and are marked as estimated. The board and a daily GMP reading per IPO are kept in the store (`ipo:board`, `ipo:gmp:{id}`) for the GMP trend. On the page, five rows show by default: name and size, an opens→closes→lists track, and a GMP pill (red <20%, orange 20–30%, green 30%+). A row opens a sheet with everything, including listing-day prices from Yahoo (`SYMBOL.NS`).
+- **Market charts** (`lib/live/charts.ts`, `/api/chart`, `MarketChartSheet`, `PriceChart`): any index, commodity or crypto tile opens a TradingView Lightweight Charts view with 1D–5Y ranges, area/candles, volume, a pointer readout and range stats. Commodities are converted to rupees bar by bar at the USD/INR rate of the same moment. The library loads only when a chart opens.
+- **Crypto**: BTC/USDT and ETH/USDT from Binance's public market-data mirror (`data-api.binance.vision`, reachable from any region). 24-hour change; polled with the other markets.
+- `components/extras/Sheet.tsx` is the shared popup shell.

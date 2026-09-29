@@ -275,8 +275,8 @@ export default function EditionView({
   // Index tiles, the mood gauge and the signal card stay live while open.
   const [marketsAt, setMarketsAt] = useState<string | null>(null);
   const applyMarkets = useCallback(
-    ({ indices, mood, moods, commodities, at }: LiveMarkets & { at: string }) => {
-      setEdition((prev) => ({ ...prev, markets: { indices, mood, moods, commodities } }));
+    ({ indices, mood, moods, commodities, crypto, at }: LiveMarkets & { at: string }) => {
+      setEdition((prev) => ({ ...prev, markets: { indices, mood, moods, commodities, crypto } }));
       setMarketsAt(at);
     },
     [],
@@ -850,6 +850,7 @@ export default function EditionView({
         mood={edition.markets.mood}
         moods={edition.markets.moods ?? []}
         commodities={edition.markets.commodities ?? []}
+        crypto={edition.markets.crypto ?? []}
         updatedAt={marketsAt}
       />
     ),

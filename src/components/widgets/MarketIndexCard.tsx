@@ -23,18 +23,30 @@ export default function MarketIndexCard({
   index,
   i = 0,
   live = false,
+  onOpen,
 }: {
   index: MarketIndex;
   i?: number;
+  /** Opens the detail chart. */
+  onOpen?: () => void;
   /** Once live updates are flowing, a level that changes flashes once. */
   live?: boolean;
 }) {
   const positive = index.changePct >= 0;
   return (
     <li
-      className="module group h-full flex flex-col gap-3 transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-[color:var(--section-hue)]"
+      className={`module group h-full flex flex-col gap-3 transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-[color:var(--section-hue)] ${onOpen ? "cursor-pointer" : ""}`}
       data-reveal
       style={{ ["--reveal-i" as string]: i }}
+      {...(onOpen
+        ? {
+            role: "button",
+            tabIndex: 0,
+            "aria-label": `${index.name} chart`,
+            onClick: onOpen,
+            onKeyDown: (e: React.KeyboardEvent) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), onOpen()),
+          }
+        : {})}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">

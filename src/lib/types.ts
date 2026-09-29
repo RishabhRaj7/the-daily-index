@@ -70,6 +70,66 @@ export interface MarketIndex {
 
 export type MarketRegion = "India" | "US" | "Europe" | "Asia";
 
+/** A coin priced in USDT (Binance spot). */
+export interface CryptoQuote {
+  id: string;
+  name: string;
+  /** Exchange pair, e.g. "BTCUSDT". */
+  pair: string;
+  price: number;
+  /** Rolling 24-hour change. */
+  changePct: number;
+  high24h: number;
+  low24h: number;
+  sparkline: number[];
+}
+
+/** One price bar for the detail charts. Time is UNIX seconds. */
+export interface PriceBar {
+  t: number;
+  o: number;
+  h: number;
+  l: number;
+  c: number;
+  v?: number;
+}
+
+export type IpoStage = "upcoming" | "open" | "closed" | "listing" | "listed";
+
+/** A mainboard IPO on the watch board. Dates are ISO days (IST). */
+export interface IpoEntry {
+  id: string;
+  name: string;
+  /** NSE symbol once the exchange lists the issue. */
+  symbol: string | null;
+  open: string | null;
+  close: string | null;
+  allotment: string | null;
+  listing: string | null;
+  /** True when the listing date is worked out (T+3), not announced. */
+  listingEstimated?: boolean;
+  priceLow: number | null;
+  priceHigh: number | null;
+  /** Issue size, ₹ crore. */
+  sizeCr: number | null;
+  /** Grey market premium, ₹ per share (unofficial). */
+  gmp: number | null;
+  gmpPct: number | null;
+  /** Overall subscription as printed by the GMP table, e.g. "5.07x". */
+  subscription: string | null;
+  gmpUrl: string | null;
+  stage: IpoStage;
+}
+
+export interface IpoDetail extends IpoEntry {
+  subscriptionByCategory: Array<{ category: string; times: number }>;
+  subscriptionUpdated: string | null;
+  facts: Array<{ label: string; value: string }>;
+  documents: Array<{ label: string; url: string }>;
+  gmpHistory: Array<{ date: string; gmp: number }>;
+  listingPerformance: { open: number; close: number | null; last: number | null } | null;
+}
+
 export interface MarketMood {
   /** The market this mood reads; absent on moods stored before the split. */
   region?: MarketRegion;
@@ -400,6 +460,8 @@ export interface Edition {
     moods?: MarketMood[];
     /** Commodities in rupees. */
     commodities?: Commodity[];
+    /** Bitcoin and Ethereum in USDT. */
+    crypto?: CryptoQuote[];
   };
   trending: TrendingTopic[];
   grapevine?: GrapevineData;

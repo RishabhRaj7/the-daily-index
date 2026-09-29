@@ -19,7 +19,7 @@ Vercel.
 | **Paddock Notes** | Formula 1 stories plus the pit wall: next race, countdown and circuit map, weekend session times, last race podium, your team and drivers, championship tables |
 | **Sports** | Football and tennis, when you follow them |
 | **The Ledger** | Markets and economy news — mostly India, some global |
-| **Market Pulse** | 16 live indices across India, US, Europe and Asia, a mood gauge per region, and commodities in rupees |
+| **Market Pulse** | 16 live indices across India, US, Europe and Asia with a mood gauge per region, commodities in rupees, BTC/ETH in USDT, a tap-to-open chart for each, and IPO watch (mainboard IPOs with dates, size and GMP) |
 | **The Circuit Board** | Technology |
 | **Sky Report** | Weather that follows the clock (moon and stars after sunset), rain chances through the day, air quality, and your other cities |
 | **The Grapevine** | Editor's picks from the day's wires, Reddit, and a puzzle desk |
@@ -130,7 +130,9 @@ which feeds were dropped and why. Default sections and their prompts live in
 ## Data sources
 
 RSS feeds from the publishers listed in `feeds.ts`, Google News search feeds
-(city and travel news), Yahoo Finance (indices and commodities), OpenF1
+(city and travel news), Yahoo Finance (indices, commodities and charts), Binance
+(crypto), NSE (IPO list, subscription and issue details), investorgain.com (IPO
+GMP, unofficial), OpenF1
 (F1 schedule, results and standings), Open-Meteo (weather and air quality),
 OpenStreetMap Nominatim (travel-mode place names), Merriam-Webster (Word of the
 Day), Wikipedia (On This Day) and Reddit. Every story links to its original

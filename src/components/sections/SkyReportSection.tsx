@@ -299,7 +299,9 @@ function SkyReading({
       {!travelling && (
         <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-dashed hairline px-5 py-4" data-reveal>
           <span className="font-sans text-[13px] text-ink-soft">
-            Away from {weather.city}? Get the weather and news where you are.
+            {/* "Away from Bengaluru and Ranchi?" — every city on the reader's map. */}
+            Away from {[weather.city, ...others.map((o) => o.city)].join(" and ")}? Get the weather and news where you
+            are.
           </span>
           <TravelButton label="Use my location" />
         </div>
