@@ -14,6 +14,7 @@
 // IPO's GMP is recorded once a day to draw its trend.
 
 import type { IpoDetail, IpoEntry, IpoStage } from "@/lib/types";
+import { stageOf } from "@/lib/ipo-order";
 import { getStore } from "@/lib/server/store";
 
 const UA =
@@ -249,14 +250,6 @@ async function gmpRows(known: IpoEntry[]): Promise<GmpRow[]> {
 }
 
 // ---- the board -----------------------------------------------------------------
-
-function stageOf(e: Pick<IpoEntry, "open" | "close" | "listing">, today: string): IpoStage {
-  if (e.listing && today > e.listing) return "listed";
-  if (e.listing && today === e.listing) return "listing";
-  if (e.close && today > e.close) return "closed";
-  if (e.open && today >= e.open) return "open";
-  return "upcoming";
-}
 
 /** Price band "Rs.208 to Rs.220" → [208, 220]. */
 function band(raw: string | undefined): [number, number] | null {

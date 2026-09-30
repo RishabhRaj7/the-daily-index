@@ -1,4 +1,5 @@
 import type { MarketIndex, MarketMood } from "@/lib/types";
+import { moodZone, moodZones } from "@/lib/mood-zones";
 
 /** "30 Sep, 10:33" in the reader's zone. */
 function when(iso: string): string {
@@ -45,7 +46,9 @@ function Movers({ indices }: { indices: MarketIndex[] }) {
 }
 
 // Fear ⇄ greed as a half dial. The needle sweeps up from "fear" to today's
-// reading when the gauge scrolls in; the arc is split into five bands.
+// reading when the gauge scrolls in. The arc is split at the publisher's own
+// zone cut-offs, and the zone the reading sits in is lit in its colour (red
+// for fear through green for greed), so the arc always agrees with the word.
 export default function MoodGauge({
   mood,
   indices = [],
@@ -56,27 +59,27 @@ export default function MoodGauge({
   title?: string;
 }) {
   const angle = (mood.score / 100) * 180 - 90;
-  const bands = 5;
+  const zones = moodZones(mood);
+  const lit = moodZone(mood);
   const r = 42;
   const cx = 50;
   const cy = 52;
-  const arc = (i: number) => {
-    const a0 = Math.PI + (i / bands) * Math.PI + 0.04;
-    const a1 = Math.PI + ((i + 1) / bands) * Math.PI - 0.04;
+  const arc = (from: number, to: number) => {
+    const a0 = Math.PI + (from / 100) * Math.PI + 0.04;
+    const a1 = Math.PI + (to / 100) * Math.PI - 0.04;
     return `M ${cx + r * Math.cos(a0)} ${cy + r * Math.sin(a0)} A ${r} ${r} 0 0 1 ${cx + r * Math.cos(a1)} ${cy + r * Math.sin(a1)}`;
   };
-  const active = Math.min(bands - 1, Math.floor((mood.score / 100) * bands));
 
   return (
     <div className="module h-full flex flex-col" data-reveal>
       <div className="font-label text-[10px] text-ink-soft mb-4">{title}</div>
       <svg viewBox="0 0 100 60" className="w-full max-w-[260px] mx-auto block overflow-visible">
-        {Array.from({ length: bands }).map((_, i) => (
+        {zones.map((z) => (
           <path
-            key={i}
-            d={arc(i)}
+            key={z.label}
+            d={arc(z.from, z.to)}
             fill="none"
-            stroke={i === active ? "var(--section-hue, var(--accent))" : "var(--rule)"}
+            stroke={z === lit ? z.color : "var(--rule)"}
             strokeWidth={7}
             strokeLinecap="round"
           />
@@ -87,7 +90,7 @@ export default function MoodGauge({
         <circle cx={cx} cy={cy} r={3.5} fill="var(--ink)" />
       </svg>
       <div className="flex items-end justify-between mt-4">
-        <span className="font-display font-extrabold text-[2.6rem] leading-[0.85]">{mood.label}</span>
+        <span className="font-display font-extrabold text-[2.6rem] leading-[0.85]" style={lit.label === "Neutral" ? undefined : { color: lit.color }}>{mood.label}</span>
         <span className="font-mono text-sm text-ink-soft">{mood.score}/100</span>
       </div>
       <div className="flex justify-between font-label text-[8px] text-ink-faint mt-3">

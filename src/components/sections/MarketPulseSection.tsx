@@ -10,6 +10,8 @@ import SparklineChart from "@/components/widgets/SparklineChart";
 import MarketChartSheet, { type ChartTarget } from "@/components/widgets/MarketChartSheet";
 import IpoWatch from "@/components/widgets/IpoWatch";
 import StaleTag from "@/components/widgets/StaleTag";
+import { moodZone } from "@/lib/mood-zones";
+import { regionState, reopenLabel, type HolidayMap, type SessionState } from "@/lib/market-hours";
 
 // Market Pulse: the world's markets one region at a time. A row of region
 // cards (each with its own mood) doubles as the tabs; the selected region
@@ -17,30 +19,6 @@ import StaleTag from "@/components/widgets/StaleTag";
 // rupees.
 
 const REGIONS: MarketRegion[] = ["India", "US", "Europe", "Asia"];
-
-// Regular trading hours on each region's lead exchange, local time.
-// Exchange holidays are not known here, so a holiday reads as "open".
-const SESSIONS: Record<MarketRegion, { tz: string; open: number; close: number }> = {
-  India: { tz: "Asia/Kolkata", open: 9 * 60 + 15, close: 15 * 60 + 30 },
-  US: { tz: "America/New_York", open: 9 * 60 + 30, close: 16 * 60 },
-  Europe: { tz: "Europe/London", open: 8 * 60, close: 16 * 60 + 30 },
-  Asia: { tz: "Asia/Tokyo", open: 9 * 60, close: 15 * 60 + 30 },
-};
-
-function isOpen(region: MarketRegion, at: number): boolean {
-  const { tz, open, close } = SESSIONS[region];
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: tz,
-    weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(new Date(at));
-  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
-  if (get("weekday") === "Sat" || get("weekday") === "Sun") return false;
-  const minutes = Number(get("hour")) * 60 + Number(get("minute"));
-  return minutes >= open && minutes < close;
-}
 
 // Minute clock for the open/closed chips; null on the server so the first
 // client render matches the HTML.
@@ -59,16 +37,20 @@ function RegionTab({
   mood,
   indices,
   selected,
-  open,
+  session,
+  now,
   onSelect,
 }: {
   region: MarketRegion;
   mood?: MarketMood;
   indices: MarketIndex[];
   selected: boolean;
-  open: boolean | null;
+  /** Null on the server render, before the clock is known. */
+  session: SessionState | null;
+  now: number;
   onSelect: () => void;
 }) {
+  const open = session?.open ?? null;
   const avg = indices.reduce((s, i) => s + i.changePct, 0) / (indices.length || 1);
   return (
     <button
@@ -84,9 +66,12 @@ function RegionTab({
       <span className="flex items-center justify-between gap-2">
         <span className="font-label text-[10px]">{region}</span>
         {open !== null && (
-          <span className={`flex items-center gap-1 font-mono text-[10px] ${open ? "text-up" : "text-ink-faint"}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${open ? "bg-up animate-pulse" : "bg-ink-faint"}`} />
-            {open ? "open" : "closed"}
+          <span
+            className={`flex items-center gap-1 font-mono text-[10px] whitespace-nowrap ${open ? "text-up" : "text-ink-faint"}`}
+            title={session?.holiday ? `Closed for ${session.holiday}` : undefined}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${open ? "bg-up animate-pulse" : "bg-ink-faint"}`} />
+            {open ? "open" : session?.nextOpen ? `opens ${reopenLabel(session.nextOpen, now)}` : "closed"}
           </span>
         )}
       </span>
@@ -98,7 +83,7 @@ function RegionTab({
         <span className="block h-1 rounded-full bg-card-bg mt-2.5 overflow-hidden">
           <span
             className="block h-full rounded-full"
-            style={{ width: `${Math.max(4, mood.score)}%`, background: "var(--section-hue, var(--accent))" }}
+            style={{ width: `${Math.max(4, mood.score)}%`, background: moodZone(mood).color }}
           />
         </span>
       )}
@@ -178,6 +163,7 @@ export default function MarketPulseSection({
   moods = [],
   commodities = [],
   crypto = [],
+  holidays = {},
   updatedAt = null,
 }: {
   stories: Story[];
@@ -186,6 +172,8 @@ export default function MarketPulseSection({
   moods?: MarketMood[];
   commodities?: Commodity[];
   crypto?: CryptoQuote[];
+  /** Exchange holidays, for open / reopens-at. */
+  holidays?: HolidayMap;
   /** When the live numbers last arrived; null until the first refresh. */
   updatedAt?: string | null;
 }) {
@@ -203,17 +191,25 @@ export default function MarketPulseSection({
   const active = regions.includes(region) ? region : (regions[0] ?? "India");
   const activeIndices = indices.filter((i) => i.market === active);
   const activeMood = moodFor(active);
+  const now = minute === null ? null : minute * 60_000;
+  const sessionOf = (r: MarketRegion) => (now === null ? null : regionState(r, now, holidays));
+  const activeSession = sessionOf(active);
 
   return (
     <section id="market-pulse">
       <SectionHeader
         sectionKey="market-pulse"
         folio={
-          indices.length > 0 ? (
+          indices.length === 0 ? undefined : activeSession && !activeSession.open ? (
+            <span title={activeSession.holiday ? `Closed for ${activeSession.holiday}` : undefined}>
+              {active} closed{activeSession.holiday ? ` for ${activeSession.holiday}` : ""}
+              {activeSession.nextOpen && now !== null ? ` · reopens ${reopenLabel(activeSession.nextOpen, now)}` : ""}
+            </span>
+          ) : (
             <>
               <span className="live-dot text-up" /> live{updated ? ` · ${updated}` : ""}
             </>
-          ) : undefined
+          )
         }
       />
       {indices.length > 0 ? (
@@ -226,7 +222,8 @@ export default function MarketPulseSection({
                 mood={moodFor(r)}
                 indices={indices.filter((i) => i.market === r)}
                 selected={r === active}
-                open={minute === null ? null : isOpen(r, minute * 60_000)}
+                session={sessionOf(r)}
+                now={now ?? 0}
                 onSelect={() => setRegion(r)}
               />
             ))}

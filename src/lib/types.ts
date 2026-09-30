@@ -481,6 +481,8 @@ export interface Edition {
     commodities?: Commodity[];
     /** Bitcoin and Ethereum in USDT. */
     crypto?: CryptoQuote[];
+    /** Exchange holidays (lib/market-hours.ts HolidayMap). */
+    holidays?: Partial<Record<string, Record<string, string>>>;
   };
   trending: TrendingTopic[];
   grapevine?: GrapevineData;

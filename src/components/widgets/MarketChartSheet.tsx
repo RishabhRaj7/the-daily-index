@@ -175,7 +175,7 @@ export default function MarketChartSheet({ target, onClose }: { target: ChartTar
             height={340}
             onHover={onHover}
             format={format}
-            hue={undefined}
+            trend={up ? "up" : "down"}
           />
         )}
       </div>

@@ -41,6 +41,13 @@
   --hue-travel: #e0457b;
   --hue-night: #5b6cff;
 
+  /* Fear ⇄ greed zones, red through grey to green. */
+  --mood-xfear: #d4002a;
+  --mood-fear: #f76b15;
+  --mood-neutral: #8d8d96;
+  --mood-greed: #46a758;
+  --mood-xgreed: #008a5e;
+
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -84,6 +91,12 @@ html[data-edition="evening"] {
   --hue-nation: #ff8f4d;
   --hue-travel: #ff7aa8;
   --hue-night: #b8c4ff;
+
+  --mood-xfear: #ff4d6a;
+  --mood-fear: #ff9a4d;
+  --mood-neutral: #8d8d96;
+  --mood-greed: #8fe08a;
+  --mood-xgreed: #3cffd0;
 }
 
 @theme inline {

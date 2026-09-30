@@ -1,4 +1,6 @@
 import type { Commodity, CryptoQuote, MarketIndex, MarketMood, MarketRegion } from "@/lib/types";
+import { getMarketHolidays } from "./market-holidays";
+import type { HolidayMap } from "@/lib/market-hours";
 import { getCnnFearGreed, getIbjaRates, getTickertapeMood, type IbjaRates, type PublishedMood } from "./published-markets";
 import { withLastGood } from "./last-good";
 
@@ -319,6 +321,8 @@ export interface LiveMarkets {
   moods: MarketMood[];
   commodities: Commodity[];
   crypto: CryptoQuote[];
+  /** Days each exchange is shut, so the page knows when a market reopens. */
+  holidays?: HolidayMap;
 }
 
 // Real numbers only — levels, changes and sparklines come straight from
@@ -328,7 +332,11 @@ export interface LiveMarkets {
 // blanks the panel, and anything missing falls back to its last good
 // reading, marked stale (lib/live/last-good.ts).
 export async function getLiveMarkets(revalidate = 900): Promise<LiveMarkets | null> {
-  return withLastGood(await readLiveMarkets(revalidate));
+  const [markets, holidays] = await Promise.all([
+    readLiveMarkets(revalidate).then(withLastGood),
+    getMarketHolidays().catch(() => ({})),
+  ]);
+  return markets ? { ...markets, holidays } : null;
 }
 
 async function readLiveMarkets(revalidate: number): Promise<LiveMarkets | null> {

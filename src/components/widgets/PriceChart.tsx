@@ -35,6 +35,7 @@ export default function PriceChart({
   height = 320,
   intraday = true,
   hue,
+  trend,
   onHover,
   format,
 }: {
@@ -47,6 +48,9 @@ export default function PriceChart({
   intraday?: boolean;
   /** Series colour; defaults to the section hue. */
   hue?: string;
+  /** Colour the series by direction instead: green when the range rose,
+   *  red when it fell, like the change beside it. */
+  trend?: "up" | "down";
   /** Crosshair readout: the bar under the pointer, or null when it leaves. */
   onHover?: (bar: PriceBar | null) => void;
   format?: (price: number) => string;
@@ -70,7 +74,7 @@ export default function PriceChart({
       const rule = token(el, "--rule", "#ddd");
       const up = token(el, "--up", "#00a870");
       const down = token(el, "--down", "#e5484d");
-      const color = hue ?? token(el, "--section-hue", token(el, "--accent", "#5200ff"));
+      const color = trend ? (trend === "up" ? up : down) : (hue ?? token(el, "--section-hue", token(el, "--accent", "#5200ff")));
       const shift = localShift();
 
       const chart = lc.createChart(el, {
@@ -154,7 +158,7 @@ export default function PriceChart({
       disposed = true;
       cleanup();
     };
-  }, [bars, mode, previousClose, showVolume, intraday, hue, format]);
+  }, [bars, mode, previousClose, showVolume, intraday, hue, trend, format]);
 
   return <div ref={ref} style={{ height }} className="w-full" />;
 }

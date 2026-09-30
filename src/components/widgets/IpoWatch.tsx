@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { IpoDetail, IpoEntry, IpoStage, PriceBar } from "@/lib/types";
 import Sheet from "@/components/extras/Sheet";
 import PriceChart from "./PriceChart";
+import { sortIpos } from "@/lib/ipo-order";
 
 // IPO watch: every live mainboard IPO as one slim row — name and size, a
 // three-stop track (opens → closes → lists) filled up to today, and the GMP
@@ -329,9 +330,8 @@ function IpoSheet({ ipo, onClose }: { ipo: IpoEntry; onClose: () => void }) {
 
 // ---- the strip -----------------------------------------------------------------
 
-// What leads the strip: bidding now, listing today, about to open, waiting
-// to list, just listed. Within a stage, the soonest date first.
-const ORDER: Record<IpoStage, number> = { open: 0, listing: 1, upcoming: 2, closed: 3, listed: 4 };
+// The order lives in lib/ipo-order.ts: open, listing today, waiting to
+// list, upcoming, just listed, each by its next date.
 const SHOWN = 5;
 
 export default function IpoWatch() {
@@ -355,11 +355,7 @@ export default function IpoWatch() {
   }, []);
 
   if (!ipos || ipos.length === 0) return null;
-  const sorted = [...ipos].sort(
-    (a, b) =>
-      ORDER[a.stage] - ORDER[b.stage] ||
-      (a.stage === "open" ? (a.close ?? "").localeCompare(b.close ?? "") : (a.open ?? "").localeCompare(b.open ?? "")),
-  );
+  const sorted = sortIpos(ipos, todayIso());
   const visible = all ? sorted : sorted.slice(0, SHOWN);
 
   return (

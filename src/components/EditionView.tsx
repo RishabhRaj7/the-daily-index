@@ -92,7 +92,8 @@ import { OnThisDayBox, WordOfDayBox } from "@/components/widgets/FillerBox";
 import { digestArticleToStory } from "@/lib/preferences/stories";
 import { SECTION_META } from "@/lib/sections";
 import { requestEdition, waitForEdition } from "@/lib/edition-client";
-import { useLiveMarkets } from "@/lib/live-markets";
+import { mergeOpenMarkets, useLiveMarkets } from "@/lib/live-markets";
+import type { HolidayMap } from "@/lib/market-hours";
 import type { LiveMarkets } from "@/lib/live/indices";
 
 type WeatherState = "loading" | "ready" | "failed";
@@ -276,14 +277,20 @@ export default function EditionView({
 
   // Index tiles, the mood gauge and the signal card stay live while open.
   const [marketsAt, setMarketsAt] = useState<string | null>(null);
-  const applyMarkets = useCallback(
-    ({ indices, mood, moods, commodities, crypto, at }: LiveMarkets & { at: string }) => {
-      setEdition((prev) => ({ ...prev, markets: { indices, mood, moods, commodities, crypto } }));
-      setMarketsAt(at);
-    },
-    [],
+  const applyMarkets = useCallback(({ at, ...next }: LiveMarkets & { at: string }) => {
+    setEdition((prev) => {
+      const holidays = (next.holidays ?? prev.markets.holidays ?? {}) as HolidayMap;
+      const { indices, mood, moods, commodities, crypto } = mergeOpenMarkets(prev.markets, next, holidays);
+      return { ...prev, markets: { indices, mood, moods, commodities, crypto, holidays } };
+    });
+    setMarketsAt(at);
+  }, []);
+  useLiveMarkets(
+    !isArchive,
+    applyMarkets,
+    edition.markets.indices.map((i) => i.id),
+    (edition.markets.holidays ?? {}) as HolidayMap,
   );
-  useLiveMarkets(!isArchive, applyMarkets);
 
   // --- weather: always resolves to ready or failed, never spins forever ----
   useEffect(() => {
@@ -856,6 +863,7 @@ export default function EditionView({
         moods={edition.markets.moods ?? []}
         commodities={edition.markets.commodities ?? []}
         crypto={edition.markets.crypto ?? []}
+        holidays={(edition.markets.holidays ?? {}) as HolidayMap}
         updatedAt={marketsAt}
       />
     ),
