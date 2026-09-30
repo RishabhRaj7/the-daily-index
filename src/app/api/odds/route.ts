@@ -1,5 +1,6 @@
 import { after } from "next/server";
 import { getOddsUniverse } from "@/lib/live/odds";
+import { oddsRecordSummary } from "@/lib/live/odds-record";
 
 // GET /api/odds?f=Max Verstappen|Real Madrid — every candidate market for
 // Straw Poll, classified and cleaned (lib/live/odds.ts). `f` adds a search
@@ -16,11 +17,14 @@ export async function GET(req: Request) {
     .filter((s) => s.length >= 2 && s.length <= 40)
     .slice(0, 8);
   // A stale reading is served at once; the fresh one is read after the response.
-  const universe = await getOddsUniverse(follows, (task) => after(task));
+  const [universe, record] = await Promise.all([
+    getOddsUniverse(follows, (task) => after(task)),
+    oddsRecordSummary().catch(() => null),
+  ]);
   if (universe.markets.length === 0) {
     return Response.json({ error: "odds unavailable", ...universe }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }
-  return Response.json(universe, {
+  return Response.json({ ...universe, record }, {
     headers: { "Cache-Control": "public, max-age=120, s-maxage=300, stale-while-revalidate=900" },
   });
 }

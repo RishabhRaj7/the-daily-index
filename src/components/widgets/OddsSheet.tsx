@@ -1,6 +1,8 @@
 "use client";
 
-import type { OddsMarket } from "@/lib/types";
+import { useEffect, useState } from "react";
+import type { OddsMarket, PriceBar } from "@/lib/types";
+import PriceChart from "./PriceChart";
 import Sheet from "@/components/extras/Sheet";
 import { compactMoney, SUBJECT_LABEL } from "@/lib/odds-pick";
 
@@ -14,6 +16,17 @@ const date = (iso: string) =>
 
 export default function OddsSheet({ market: m, why, onClose }: { market: OddsMarket; why?: string; onClose: () => void }) {
   const max = Math.max(...m.outcomes.map((o) => o.prob), 1);
+  // A week of the favourite's chance (Polymarket's own history; the
+  // paper's hourly snapshots for Kalshi).
+  const [history, setHistory] = useState<PriceBar[] | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`/api/odds/history?id=${encodeURIComponent(m.id)}${m.token ? `&token=${m.token}` : ""}`, { signal: controller.signal })
+      .then((r) => (r.ok ? (r.json() as Promise<{ points: Array<[number, number]> }>) : null))
+      .then((d) => setHistory((d?.points ?? []).map(([t, p]) => ({ t: Math.floor(t / 1000), o: p, h: p, l: p, c: p }))))
+      .catch(() => setHistory([]));
+    return () => controller.abort();
+  }, [m.id, m.token]);
   return (
     <Sheet title={m.title} kicker={`Straw Poll · ${SUBJECT_LABEL[m.subject]}${why ? ` · ${why}` : ""}`} onClose={onClose} width={720}>
       <ul className="space-y-3" style={{ ["--section-hue" as string]: "var(--hue-poll)" }}>
@@ -44,6 +57,17 @@ export default function OddsSheet({ market: m, why, onClose }: { market: OddsMar
         })}
       </ul>
       <p className="font-mono text-[10px] text-ink-faint mt-2">The thin line marks where each stood a day ago.</p>
+
+      {history && history.length >= 6 && (
+        <div className="mt-5">
+          <div className="font-label text-[9px] text-ink-soft mb-1">
+            {m.lead.name === "Yes" ? "Yes" : m.lead.name}, the past week
+          </div>
+          <div className="rounded-xl border hairline bg-card-bg p-2" style={{ ["--section-hue" as string]: "var(--hue-poll)" }}>
+            <PriceChart bars={history} mode="line" height={150} intraday format={(p) => `${p.toFixed(0)}%`} />
+          </div>
+        </div>
+      )}
 
       <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 mt-6">
         {[

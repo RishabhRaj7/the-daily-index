@@ -69,7 +69,8 @@ import ClutchSection from "@/components/sections/ClutchSection";
 import StrawPollSection from "@/components/sections/StrawPollSection";
 import OddsLine from "@/components/widgets/OddsLine";
 import InBrief from "@/components/story/InBrief";
-import { layoutOdds, scoreOdds, type OddsFollow } from "@/lib/odds-pick";
+import { layoutOdds, scoreOdds, storyOdds, type OddsFollow, type OddsPick } from "@/lib/odds-pick";
+import { StoryOddsContext } from "@/components/story/StoryOdds";
 import type { OddsUniverse } from "@/lib/types";
 import GrapevineSection from "@/components/sections/GrapevineSection";
 import DigestSectionView from "@/components/digest/DigestSectionView";
@@ -838,16 +839,21 @@ export default function EditionView({
     return () => controller.abort();
   }, [isArchive, oddsQuery]);
   const oddsLayout = useMemo(() => {
-    if (!odds) return { poll: [], lines: {} } as ReturnType<typeof layoutOdds>;
+    if (!odds) return { poll: [], lines: {}, stories: new Map() } as ReturnType<typeof layoutOdds> & { stories: Map<string, OddsPick> };
     const headlines = [
       ...Object.values(edition.sections).flatMap((list) => (list ?? []).map((s) => s.headline)),
+      ...f1Stories.map((s) => s.headline),
       ...footballStories.map((s) => s.headline),
       ...tennisStories.map((s) => s.headline),
     ];
     const sports = [...personalization.sports, ...(personalization.valorantTeams.length ? (["valorant"] as const) : [])];
     const picks = scoreOdds(odds.markets, { follows: oddsFollows, sports, subjects: ["money", "world", "india", "tech"], headlines });
-    return layoutOdds(picks, personalization.hiddenSections);
-  }, [odds, edition.sections, footballStories, tennisStories, personalization, oddsFollows]);
+    // Markets about a story print under it; the rest go to Straw Poll and the section feet.
+    const stories = storyOdds(picks);
+    const under = new Set([...stories.values()].map((p) => p.market.id));
+    // Each market prints once on the page.
+    return { ...layoutOdds(picks.filter((p) => !under.has(p.market.id)), personalization.hiddenSections, under), stories };
+  }, [odds, edition.sections, f1Stories, footballStories, tennisStories, personalization, oddsFollows]);
 
   // In Brief: the leading stories each section had no room for (from the
   // digest; a story already on the page anywhere is left out).
@@ -925,7 +931,7 @@ export default function EditionView({
         favoriteTennisPlayer={personalization.favoriteTennisPlayer}
       />
     ),
-    "straw-poll": () => <StrawPollSection poll={oddsLayout.poll} readAt={odds?.at ?? null} />,
+    "straw-poll": () => <StrawPollSection poll={oddsLayout.poll} readAt={odds?.at ?? null} record={odds?.record ?? null} />,
     clutch: () => <ClutchSection initial={edition.valorant ?? null} follows={personalization.valorantTeams} />,
     "sky-report": () => (
       <SkyReportSection
@@ -1021,6 +1027,7 @@ export default function EditionView({
 
   return (
     <main className="flex-1">
+      <StoryOddsContext.Provider value={oddsLayout.stories}>
       {prep !== "revealed" && (
         <EditionPrepOverlay
           failed={prep === "failed"}
@@ -1117,6 +1124,7 @@ export default function EditionView({
           </div>
         </div>
       </footer>
+      </StoryOddsContext.Provider>
     </main>
   );
 }

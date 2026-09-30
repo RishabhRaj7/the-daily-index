@@ -519,8 +519,30 @@ interface Kept {
   sources?: OddsUniverse["sources"];
 }
 
+// Snapshots, written as each reading lands: every hour, Kalshi's prices
+// (Polymarket keeps its own history, Kalshi's API doesn't give one freely),
+// for the detail sheet's chart; every day, each market's favourite, for the
+// track record (lib/live/odds-record.ts). One key each, first write wins.
+export const HOUR_KEY = (hour: string) => `odds:snap:v1:${hour}`;
+export const DAY_KEY = (day: string) => `odds:day:v1:${day}`;
+export interface DaySnap { n: string; p: number; c: string | null; t: string }
+
+async function snapshot(markets: OddsMarket[]): Promise<void> {
+  const store = getStore();
+  const now = new Date().toISOString();
+  const kalshiPrices = Object.fromEntries(markets.filter((m) => m.source === "Kalshi").map((m) => [m.id, m.lead.prob]));
+  const favourites: Record<string, DaySnap> = Object.fromEntries(
+    markets.map((m) => [m.id, { n: m.lead.name, p: m.lead.prob, c: m.closes, t: m.title.slice(0, 90) }]),
+  );
+  await Promise.all([
+    store.setIfAbsent(HOUR_KEY(now.slice(0, 13)), kalshiPrices, 8 * 86_400).catch(() => false),
+    store.setIfAbsent(DAY_KEY(now.slice(0, 10)), favourites, 45 * 86_400).catch(() => false),
+  ]);
+}
+
 async function readBase(): Promise<Kept> {
   const [byTag, ks] = await Promise.all([polymarketByTags().catch(() => [] as OddsMarket[]), kalshi().catch(() => [] as OddsMarket[])]);
+  await snapshot([...byTag, ...ks]).catch(() => {});
   return {
     at: new Date().toISOString(),
     markets: [...byTag, ...ks],

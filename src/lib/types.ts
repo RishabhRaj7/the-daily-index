@@ -669,6 +669,8 @@ export interface OddsUniverse {
   sources: Array<{ name: string; ok: boolean; count: number }>;
   at: string;
   tookMs: number;
+  /** How often the favourite a week out won, over the past month (once 10+ settled). */
+  record?: { called: number; total: number } | null;
 }
 
 /** A severe-weather alert near one of the reader's places (lib/live/alerts.ts). */

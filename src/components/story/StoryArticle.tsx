@@ -4,6 +4,7 @@ import { Fragment, useState } from "react";
 import type { Story } from "@/lib/types";
 import StatCallout from "./StatCallout";
 import CoverArt from "./CoverArt";
+import StoryOdds from "./StoryOdds";
 import { SECTION_META } from "@/lib/sections";
 import ShareButton from "@/components/extras/ShareButton";
 import { recordEngagement } from "@/lib/reader-memory";
@@ -93,6 +94,7 @@ export default function StoryArticle({
             {story.why}
           </p>
         )}
+        <StoryOdds headline={story.headline} />
         {expanded &&
           rest.map((paragraph, i) => (
             <Fragment key={`${story.id}-frag-${i}`}>

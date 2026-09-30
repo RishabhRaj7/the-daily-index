@@ -104,7 +104,15 @@ function Row({ p, onOpen }: { p: OddsPick; onOpen: () => void }) {
   );
 }
 
-export default function StrawPollSection({ poll, readAt }: { poll: OddsPick[]; readAt: string | null }) {
+export default function StrawPollSection({
+  poll,
+  readAt,
+  record = null,
+}: {
+  poll: OddsPick[];
+  readAt: string | null;
+  record?: { called: number; total: number } | null;
+}) {
   const [open, setOpen] = useState<OddsPick | null>(null);
   if (poll.length === 0) return null;
   const [lead, ...rest] = poll;
@@ -127,6 +135,11 @@ export default function StrawPollSection({ poll, readAt }: { poll: OddsPick[]; r
       </div>
       <p className="font-mono text-[10px] text-ink-faint mt-4">
         From Polymarket and Kalshi: what traders with money on it expect, as a chance. Chosen for you: things you follow, today&rsquo;s news, real moves. The paper reads prices; it takes no bets.
+        {record && (
+          <span className="block mt-1" style={{ color: "var(--section-hue)" }}>
+            Track record: a week before the answer, the favourite won {record.called} of {record.total} questions settled this past month.
+          </span>
+        )}
       </p>
       {open && <OddsSheet market={open.market} why={open.why} onClose={() => setOpen(null)} />}
     </section>

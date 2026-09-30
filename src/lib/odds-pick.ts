@@ -77,6 +77,8 @@ const STOP = new Set(
 );
 const words = (t: string) =>
   t
+    // Headlines say "GP", markets "Grand Prix".
+    .replace(/\bGP\b/g, "Grand Prix")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
@@ -204,7 +206,22 @@ export interface OddsLayout {
   lines: Partial<Record<SectionKey, OddsPick>>;
 }
 
-export function layoutOdds(picks: OddsPick[], hidden: SectionKey[] = []): OddsLayout {
+/**
+ * Markets tied to a story in today's edition, keyed by that headline: they
+ * print under the story itself ("Markets: 64% …"). Three at most, the
+ * strongest first, one per story.
+ */
+export function storyOdds(picks: OddsPick[], limit = 3): Map<string, OddsPick> {
+  const out = new Map<string, OddsPick>();
+  for (const p of picks) {
+    if (out.size >= limit) break;
+    if (!p.headline || out.has(p.headline) || p.market.subject === "valorant") continue;
+    out.set(p.headline, p);
+  }
+  return out;
+}
+
+export function layoutOdds(picks: OddsPick[], hidden: SectionKey[] = [], underStories: Set<string> = new Set()): OddsLayout {
   const poll: OddsPick[] = [];
   const per = new Map<OddsSubject, number>();
   for (const p of picks) {
@@ -223,7 +240,8 @@ export function layoutOdds(picks: OddsPick[], hidden: SectionKey[] = []): OddsLa
   const lines: OddsLayout["lines"] = {};
   for (const p of picks) {
     const key = SUBJECT_SECTION[p.market.subject];
-    if (!key || lines[key] || used.has(p.market.id) || hidden.includes(key)) continue;
+    // A market already printed under its story doesn't repeat at the foot.
+    if (!key || lines[key] || used.has(p.market.id) || underStories.has(p.market.id) || hidden.includes(key)) continue;
     if (poll.some((q) => alike(q.market, p.market))) continue;
     const strong = !!p.follow || !!p.headline || Math.abs(p.move) >= 8;
     if (!strong) continue;

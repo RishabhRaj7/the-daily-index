@@ -2,6 +2,7 @@ import { DEFAULT_DIGEST_PREFERENCES } from "@/lib/preferences/storage";
 import { DEFAULT_HASH, buildIfIdle, recentlyActive } from "@/lib/server/editions";
 import { isCronAuthorized } from "@/lib/server/cron-auth";
 import { editionDate } from "@/lib/edition-date";
+import { updateOddsRecord } from "@/lib/live/odds-record";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -42,14 +43,21 @@ export async function GET(req: Request) {
     ),
   );
 
+  // Straw Poll's track record: judge the questions that settled (alongside the build).
+  const record = updateOddsRecord()
+    .then((r) => r.verdicts.length)
+    .catch(() => null);
+
   const built = await buildIfIdle(date, DEFAULT_HASH, DEFAULT_DIGEST_PREFERENCES);
   const results = await fanout;
+  const verdicts = await record;
 
   // A failed default build must not look like success in the cron log.
   const ok = built !== null;
   return Response.json({
     ok,
     date,
+    oddsVerdicts: verdicts,
     default:
       built === "busy"
         ? "already building"
