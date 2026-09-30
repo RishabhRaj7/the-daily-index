@@ -79,6 +79,10 @@ export const CITY_FEEDS: Record<string, { aliases: string[]; feeds: FeedSource[]
       { url: "https://timesofindia.indiatimes.com/rssfeeds/-2128833038.cms" },
       { url: "https://www.hindustantimes.com/feeds/rss/cities/bengaluru-news/rssfeed.xml" },
       { url: "https://www.thehindu.com/news/national/karnataka/feeder/default.rss", politicsFilter: true },
+      // Civic desk (Oct 2026): the city's own agencies by name, and Indian
+      // Express Bangalore (200 items, much of it politics, so filtered).
+      { ...googleNewsFeed('BBMP OR GBA OR BMRCL OR "Namma Metro" OR BWSSB OR BESCOM OR BMTC when:2d'), maxAgeHours: 48 },
+      { url: "https://indianexpress.com/section/cities/bangalore/feed/", politicsFilter: true },
     ],
   },
   ranchi: {
@@ -86,6 +90,8 @@ export const CITY_FEEDS: Record<string, { aliases: string[]; feeds: FeedSource[]
     feeds: [
       { url: "https://timesofindia.indiatimes.com/rssfeeds/4118245.cms" },
       { ...googleNewsFeed("Ranchi OR Jharkhand"), politicsFilter: true },
+      // Civic desk: the municipal corporation, power and the smart-city works.
+      { ...googleNewsFeed('"Ranchi Municipal Corporation" OR JBVNL OR "Ranchi Smart City" OR "Ranchi traffic" when:3d'), maxAgeHours: 72 },
     ],
   },
 };
@@ -218,4 +224,12 @@ export const TECH_FEEDS: FeedSource[] = [
   { url: "https://www.engadget.com/rss.xml" },
   // Added Sept 2026: long snippets and fewer gadget reviews than the rest.
   { url: "https://www.theguardian.com/technology/rss" },
+  // Added Oct 2026 (both peers' pick): Techmeme, the single best index of
+  // what tech is talking about; the AI labs' own news (OpenAI's feed holds
+  // 1,200 posts, so only the last three days count); and a search that
+  // catches Anthropic, which has no feed of its own.
+  { url: "https://www.techmeme.com/feed.xml" },
+  { url: "https://openai.com/news/rss.xml", maxAgeHours: 72 },
+  { url: "https://deepmind.google/blog/rss.xml", maxAgeHours: 72 },
+  googleNewsFeed('Anthropic OR OpenAI OR "Google DeepMind" when:1d'),
 ];

@@ -1,7 +1,8 @@
 "use client";
 
 import SettingsLink from "@/components/chrome/SettingsLink";
-import type { WeatherNow } from "@/lib/types";
+import type { WeatherAlert, WeatherNow } from "@/lib/types";
+import WeatherAlerts from "@/components/widgets/WeatherAlerts";
 import SectionHeader from "@/components/story/SectionHeader";
 import SunArc from "@/components/widgets/SunArc";
 import WeatherIcon from "@/components/widgets/WeatherIcon";
@@ -94,6 +95,7 @@ export default function SkyReportSection({
   city,
   others = [],
   travelling = false,
+  alerts = [],
 }: {
   weather: WeatherNow | null;
   live?: boolean;
@@ -103,6 +105,8 @@ export default function SkyReportSection({
   others?: WeatherNow[];
   /** Travel mode is on (the Postcard section carries the local weather). */
   travelling?: boolean;
+  /** Severe-weather alerts near the reader's places. */
+  alerts?: WeatherAlert[];
 }) {
   if (!weather) {
     return (
@@ -144,7 +148,7 @@ export default function SkyReportSection({
     );
   }
 
-  return <SkyReading weather={weather} live={live} others={others} travelling={travelling} />;
+  return <SkyReading weather={weather} live={live} others={others} travelling={travelling} alerts={alerts} />;
 }
 
 /**
@@ -209,11 +213,13 @@ function SkyReading({
   live,
   others = [],
   travelling = false,
+  alerts = [],
 }: {
   weather: WeatherNow;
   live: boolean;
   others?: WeatherNow[];
   travelling?: boolean;
+  alerts?: WeatherAlert[];
 }) {
   const clock = useSkyClock(weather);
   const night = isNight(weather, clock);
@@ -232,6 +238,7 @@ function SkyReading({
         sectionKey="sky-report"
         folio={live ? <><span className="live-dot text-up" /> {night ? "tonight" : "live"}</> : undefined}
       />
+      <WeatherAlerts alerts={alerts} />
 
       <div className="grid md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-10 items-start">
         <div data-reveal>

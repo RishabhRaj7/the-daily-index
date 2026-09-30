@@ -667,3 +667,17 @@ export interface OddsUniverse {
   at: string;
   tookMs: number;
 }
+
+/** A severe-weather alert near one of the reader's places (lib/live/alerts.ts). */
+export interface WeatherAlert {
+  place: string;
+  /** watch, alert, warning, orange or red. */
+  severity: string;
+  type: string;
+  area: string;
+  from: string | null;
+  until: string | null;
+  message: string;
+  /** IMD, CWC, a state authority… */
+  source: string;
+}

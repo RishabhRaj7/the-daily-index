@@ -12,7 +12,12 @@ export function cityAliases(city: string): string[] {
 
 export async function getCityWire(city: string, limit = 16): Promise<WireBrief[]> {
   const known = CITY_FEEDS[city.trim().toLowerCase()];
-  const feeds = known?.feeds ?? [{ ...googleNewsFeed(city), politicsFilter: true }];
+  // A city without its own desk: its news, and a civic search (the
+  // municipality, metro, water, power and traffic).
+  const feeds = known?.feeds ?? [
+    { ...googleNewsFeed(city), politicsFilter: true },
+    { ...googleNewsFeed(`"${city}" (municipal OR metro OR "water supply" OR "power cut" OR traffic OR civic) when:2d`), maxAgeHours: 48 },
+  ];
   const results = await Promise.all(feeds.map((f) => fetchRssFeed(f, 1800)));
   return dedupeWires(interleaveWires(results)).slice(0, limit);
 }

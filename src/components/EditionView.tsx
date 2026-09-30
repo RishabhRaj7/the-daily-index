@@ -13,6 +13,7 @@ import type {
   SectionKey,
   Story,
   TennisRanking,
+  WeatherAlert,
   WeatherNow,
 } from "@/lib/types";
 import type { FootballLeagueData } from "@/lib/live/football-stats";
@@ -789,6 +790,22 @@ export default function EditionView({
 
   const paddockSports: Array<"f1"> = ["f1"];
 
+  // --- severe-weather alerts near the reader's places (NDMA Sachet) ----------
+  const alertPlaces = [weather, ...otherWeather]
+    .filter((w): w is WeatherNow => !!w && typeof w.latitude === "number" && typeof w.longitude === "number")
+    .map((w) => `${w.city},${w.latitude!.toFixed(2)},${w.longitude!.toFixed(2)}`)
+    .join("|");
+  const [weatherAlerts, setWeatherAlerts] = useState<WeatherAlert[]>([]);
+  useEffect(() => {
+    if (isArchive || !alertPlaces) return;
+    const controller = new AbortController();
+    fetch(`/api/alerts?p=${encodeURIComponent(alertPlaces)}`, { signal: controller.signal })
+      .then((r) => (r.ok ? (r.json() as Promise<{ alerts: WeatherAlert[] }>) : null))
+      .then((d) => d && setWeatherAlerts(d.alerts))
+      .catch(() => {});
+    return () => controller.abort();
+  }, [isArchive, alertPlaces]);
+
   // --- Straw Poll: the reader's own odds (lib/odds-pick.ts) ------------------
   const oddsFollows = useMemo<OddsFollow[]>(() => {
     const standings = edition.f1?.standings ?? [];
@@ -918,6 +935,7 @@ export default function EditionView({
         city={personalization.homeCity}
         others={otherWeather}
         travelling={travelling}
+        alerts={weatherAlerts}
       />
     ),
     "circuit-board": () => <CircuitBoardSection stories={without(edition.sections.circuitBoard)} />,
