@@ -608,3 +608,30 @@ Taken from a read of The House of 1400 and kylo-news (Sept 30 2026), keeping onl
 | Build report | server, each build | per build | Redis `report:{date}:{hash}` 14 days |
 | Tickertape MMI, CNN Fear & Greed, IBJA | with the indices (`/api/markets`) | every 60 s request; publishers cached 10–30 min | last good board in Redis `live:markets:last` |
 | Week Ahead | browser → `/api/ahead` | on load | edge cache 30 min; sources cached 12 h |
+
+### Round 9: odds, Valorant, In Brief, market hours
+
+Built Oct 1 2026 from the reader's own interest profile (see the plan in the conversation): Paper Rex and the VCT majors; odds on sport they follow, money now and then, wars, elections and India policy, and AI; nothing on US state politics, crypto or awards.
+
+- **Market hours** (`market-hours.ts`, `market-holidays.ts`): each index belongs to an exchange with its own session and holidays (NSE's list, NYSE rules computed, GOV.UK bank holidays, Euronext/Xetra rules, Google calendars for Japan, Hong Kong, China and Korea). Region chips say "opens Thu 09:15" in the reader's time; the folio says when the region reopens. The page polls every minute while anything trades and every ten when only crypto does, and a closed market's numbers are never replaced (`mergeOpenMarkets`, 20 minutes' grace for the closing print).
+- **Mood zones** (`mood-zones.ts`): the dial lights the zone the reading is in, at the publisher's own cut-offs (Tickertape 30/50/70, CNN 25/45/55/75, ours 25/40/60/75), red for fear through grey to green for greed. The enlarged chart is green or red by the range's direction.
+- **IPO order** (`ipo-order.ts`): open (closing soonest first), listing today, waiting to list, upcoming, just listed; ties by GMP then size. The stage is recomputed on the page so an open tab re-files itself at midnight.
+- **Clutch** (`valorant.ts`, `/api/valorant`, `ClutchSection.tsx`): Valorant's majors (Champions, Masters, VCT Americas/EMEA/Pacific/China, EWC, LOCK//IN) from Riot's esports API (valorantesports.com's backend, its public key), VLR.gg's RSS and Polymarket's match and winner prices. One band: your teams (next match with odds, last result, status worked out from the win/loss record and whether the market still prices them), the running event (progress, next matches, favourites), three headlines. Off-season it shrinks to dates and news. Team picker in the section (up to 3, `valorantTeams`, default PRX). The Week Ahead carries your teams' matches and an international's final. Server-rendered with a 2.5 s cap; times in IST so server and client agree.
+- **Straw Poll** (`odds.ts`, `odds-pick.ts`, `/api/odds`):
+  - Reading: Polymarket by subject tags plus a search per followed name; Kalshi by series, found weekly from its own series list (no hand-kept tickers), three calls at a time with retries. Polymarket's pages run to megabytes, so they skip Next's data cache; the cleaned reading is kept in the store (`odds:base:v1`, each name `odds:q:v1:*`) for 15 minutes and refreshed after the response (`after()`), stale up to 12 hours.
+  - Cleaning: andaaza's rules (settled 98.5%+, decided past due at 95%+, side bets, price and date ladders), the reader's exclusions, and cross-site merging by title or by shared front-runners (aliases: Claude = Anthropic, "no change" = "maintains rate").
+  - Choosing, on the page with the reader's follows: about them, real money ($100k in all; less for F1, India, Valorant; $5k for a follow), worth a look today (a follow, a story in today's paper, a 5-point move on a tight market with real trade, settling within a week, or $500k traded today). Five cards at most (one money card, never two alike); one line at the foot of a section only for a follow, today's news or an 8-point move; a market about a story prints under that story instead (`StoryOdds`), three at most. Each market prints once.
+  - Detail sheet: every contender with yesterday's mark, money, settle date, rules, the other site's price, and a week's chart (Polymarket's CLOB history; the paper's hourly Kalshi snapshots `odds:snap:v1:*`).
+  - Track record (`odds-record.ts`): daily snapshots of every favourite (`odds:day:v1:*`); the morning cron scores questions that settled against the favourite a week before, and Straw Poll prints the month's score once ten have settled.
+- **In Brief** (`digest.ts`, `InBrief.tsx`): leading stories (India top page first 12, or 3+ outlets) that no section or At a Glance printed go to the foot of The Nation, Dateline, The Ledger or The Circuit Board by pool, four each, with a one-line gist from the same writing call. Party politics is held back for readers who skip it. `BUILD_VERSION` 5.
+- **Market Pulse extras**: a rates row (`rates.ts`, `/api/rates`): RBI repo (RBI home page), Fed funds (FRED, with its last move), US 10-year (Yahoo), FII/DII (NSE, month total built from kept days), and the markets' odds on the next decision. Index cards tag a day at twice the month's usual move; India's mood lists Nifty 50 breadth (NSE allIndices); the chart sheet adds the 52-week range and 50/200-day averages.
+- **More sources**: severe-weather alerts from NDMA's Sachet near the reader's places (`alerts.ts`, banner in Sky Report); civic searches for the reader's cities; Techmeme, OpenAI, DeepMind and an AI-labs search in the tech pool.
+
+| Data | Fetched where | When | Stored |
+|---|---|---|---|
+| Exchange holidays | with the indices | 12 h fetch cache | no |
+| Valorant (Riot, VLR, Polymarket) | page render + browser → `/api/valorant` | every 2 min while an event is on | edge cache 2–15 min |
+| Odds | browser → `/api/odds` | on load | Redis `odds:base:v1` 15 min fresh / 12 h stale; snapshots hourly and daily |
+| Odds verdicts | cron | daily | Redis `odds:record:v1` |
+| Rates and flows | browser → `/api/rates` | on load | edge 30 min; FII/DII days in Redis `fiidii:v1:*` |
+| Weather alerts | browser → `/api/alerts` | on load | edge 10 min |

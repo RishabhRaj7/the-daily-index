@@ -19,10 +19,12 @@ Vercel.
 | **Two Cities** | Local news from your cities, side by side (Bengaluru and Ranchi by default) |
 | **Paddock Notes** | Formula 1 stories plus the pit wall: next race, countdown and circuit map, weekend session times, last race podium, your team and drivers, championship tables |
 | **Sports** | Football and tennis, when you follow them |
+| **Clutch** | Valorant: your teams (next match with the market's odds, last result, where they stand), the running VCT major and the scene's headlines; small, and smaller still in the off-season |
 | **The Ledger** | Markets and economy news — mostly India, some global |
-| **Market Pulse** | 16 live indices across India, US, Europe and Asia with a mood gauge per region (India: Tickertape's Market Mood Index, US: CNN Fear & Greed), gold and silver at IBJA's rate, other commodities in rupees, BTC/ETH in USDT, a tap-to-open chart for each, and IPO watch (mainboard IPOs with dates, size and GMP) |
+| **Market Pulse** | 16 live indices across India, US, Europe and Asia with a mood gauge per region (India: Tickertape's Market Mood Index, US: CNN Fear & Greed), gold and silver at IBJA's rate, other commodities in rupees, BTC/ETH in USDT, a tap-to-open chart for each (with its 52-week range and 50/200-day averages), a rates row (RBI repo, Fed funds, US 10-year, FII/DII flows, and the odds on the next decision), when each market reopens, and IPO watch (mainboard IPOs with dates, size and GMP) |
 | **The Circuit Board** | Technology |
-| **Sky Report** | Weather that follows the clock (moon and stars after sunset), rain chances through the day, air quality, and your other cities |
+| **Straw Poll** | Prediction-market odds from Polymarket and Kalshi, chosen for you: up to five, plus one line in a section or under a story when one earns it, a week's chart for each, and a track record |
+| **Sky Report** | Severe-weather alerts near you (NDMA), weather that follows the clock (moon and stars after sunset), rain chances through the day, air quality, and your other cities |
 | **The Grapevine** | Editor's picks from the day's wires, Reddit, and a puzzle desk |
 
 Also: an archive of past editions as a calendar, a share sheet that turns any
@@ -139,8 +141,11 @@ personal-finance desks), Google News search feeds (city, travel, SEBI, PIB, tax
 and GST news) and Google News top and topic pages (a ranking signal: how many
 outlets carry a story and where it leads), Yahoo Finance (indices, commodities and charts), Binance
 (crypto), Tickertape and CNN (market mood), IBJA (gold and silver rates), NSE
-(IPO list, subscription, issue details and trading holidays), the Federal
-Reserve's FOMC calendar, Google's India holidays calendar, investorgain.com (IPO
+(IPO list, subscription, issue details, trading holidays, FII/DII flows and
+Nifty breadth), the Federal Reserve's FOMC calendar, FRED (Fed funds target),
+the RBI's home page (repo rate), Polymarket and Kalshi (prediction markets),
+Riot's esports API and VLR.gg (Valorant), NDMA's Sachet (weather alerts),
+GOV.UK and Google's holiday calendars (exchange holidays), Google's India holidays calendar, investorgain.com (IPO
 GMP, unofficial), OpenF1
 (F1 schedule, results and standings), Open-Meteo (weather and air quality),
 OpenStreetMap Nominatim (travel-mode place names), Merriam-Webster (Word of the
