@@ -101,7 +101,8 @@ export function buildSelectionPrompt(prefs: DigestPreferences, corpus: CorpusArt
     .map((a) => {
       const age = a.ageHours !== null ? `${Math.round(a.ageHours)}h` : "unknown";
       const snippet = clip(a.text, SELECTION_SNIPPET_CHARS);
-      return `<a i="${a.i}" pool="${a.pool}" source="${a.source}" age="${age}">
+      const signal = `${a.event ? ` event="${a.event}"` : ""}${a.coverage ? ` outlets="${a.coverage}"` : ""}${a.lead ? ` lead="${a.lead}"` : ""}`;
+      return `<a i="${a.i}" pool="${a.pool}" source="${a.source}" age="${age}"${signal}>
 <title>${escapeXml(a.title)}</title>${snippet ? `\n<snippet>${escapeXml(snippet)}</snippet>` : ""}
 </a>`;
     })
@@ -132,11 +133,13 @@ How to judge an article, in this order:
 1. Fit. It must belong in the section and respect the reader's exclusions. A solid article about a watched topic or entity beats a stronger article the reader didn't ask for.
 2. News value. A concrete new development — a result, decision, launch, figure, deal, injury, penalty, rule change — beats previews, opinion, explainers and recaps of older news. Fresher beats older when the news value is similar.
 3. Format. Skip live blogs and minute-by-minute pages, quizzes, betting tips, deal and discount roundups, "best X to buy" lists, sponsored posts, horoscopes, how-to-watch guides and photo galleries — unless a reader's note asks for them.
-4. One event, one article. When several outlets cover the same event, pick the version with the most concrete detail (a preferred source wins a tie) and ignore the others — across every section, not just within one.
-5. Judge from the title and snippet. If the snippet is missing, the title alone must carry real news.
+4. One event, one article. When several outlets cover the same event, pick the version with the most concrete detail (a preferred source wins a tie) and ignore the others — across every section, not just within one. Articles with the same "event" attribute are the same story.
+5. Reach. "outlets" is how many news outlets are running the story today, and "lead" is its place on Google News India's top stories (1 = the day's biggest). A story many outlets carry, or one near the top of "lead", is one a well-informed reader in India would be embarrassed to miss: it belongs in the paper, and in "At a glance" when it also fits the reader. Reach never overrides fit or the reader's exclusions.
+6. Judge from the title and snippet. If the snippet is missing, the title alone must carry real news.
 
 Section rules:
 - An article may appear in at most one section; place it where this reader would look for it.
+- Pool "India" is the country's national desk; pool "Money" is regulators (RBI, SEBI, PIB, TRAI), tax and personal finance. A Money article that changes what people in India pay, earn, save, borrow, invest or insure (a rule, rate, charge, tax, fee or deadline) belongs in the markets or economy section, and a change that hits everyone's money deserves "At a glance".
 - Order each section by importance to this reader: priority 1 is the lead.
 - Grouped sections: every pick sets "group" to exactly one group — the place or entity the story is mainly about, not where the outlet is based. Never force a weak fit into a listed group; fill the section's total from other places instead, choosing what an Indian reader following world affairs would most want to know. City sections are the exception: they only ever carry their own cities.
 - Fill every section to its number of stories whenever there are articles that honestly fit — a smaller but real story beats an empty slot. Return fewer only when the articles run out, and never pick something that breaks the rules above.
@@ -187,6 +190,12 @@ const BANNED_PHRASES = [
   "crucial",
   "game-changer",
   "testament",
+  "notably",
+  "robust",
+  "seamless",
+  "navigate",
+  "amid",
+  "landmark",
 ];
 
 function sentenceRange(words: number): string {
@@ -225,7 +234,7 @@ Summaries — write one for every article whose "needs" includes summary:
 - Use only facts found in the headline and text. Never invent quotes, figures, reasons or outcomes. If the text is plainly about a different story than the headline (a paywall, homepage or wrong page), write one or two sentences from the headline alone.
 - Tone: ${g.tone || "plain and factual, no fluff"}. Where a <section_note> says what the reader cares about, lean the summary toward that angle.
 - Sound like a person: plain, specific verbs, varied sentence length; contractions are fine. Don't open every item the same way or close every item with why it matters.
-- Never use these words or phrases: ${BANNED_PHRASES.map((p) => `"${p}"`).join(", ")}. No markdown, bullet points, hashtags, emoji or first person.
+- Never use these words or phrases: ${BANNED_PHRASES.map((p) => `"${p}"`).join(", ")}. No em dashes (use a comma, colon or full stop). No ", highlighting…" style tails, no "not just X, but Y", no "experts say". No markdown, bullet points, hashtags, emoji or first person.
 
 Why it matters — with every summary, also write "why":
 - One sentence, at most 22 words, on what this changes for this reader: money, plans, a team or topic they follow, what to watch next. The reader lives in India.

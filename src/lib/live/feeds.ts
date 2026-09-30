@@ -41,6 +41,24 @@ export function googleNewsFeed(query: string): FeedSource {
   };
 }
 
+/** A short name for a feed in the build report: host plus first path part. */
+export function feedName(url: string): string {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^(www|feeds|rss)\./, "");
+    if (host === "news.google.com") {
+      const q = u.searchParams.get("q");
+      if (q) return `Google News: ${q.replace(/\s*when:\d+d/, "").slice(0, 40)}`;
+      const topic = u.pathname.match(/topic\/([A-Z]+)/)?.[1];
+      return `Google News ${u.searchParams.get("gl") ?? ""} ${topic ? topic.toLowerCase() : "top"}`.replace(/\s+/g, " ");
+    }
+    const part = u.pathname.split("/").filter(Boolean)[0];
+    return part && !/\.(xml|rss|cms)$/.test(part) ? `${host}/${part}` : host;
+  } catch {
+    return url;
+  }
+}
+
 // The reader's cities (the "Two Cities" section). Keyed by lowercase city
 // name; `aliases` also match the state, so a Karnataka story counts for
 // Bengaluru. Checked against live output (Sept 2026):
@@ -84,9 +102,60 @@ export const WORLD_FEEDS: FeedSource[] = [
   { url: "https://www.japantimes.co.jp/feed/", politicsFilter: true },     // Japan
   { url: "https://www.thehindu.com/business/feeder/default.rss", politicsFilter: true },
   { url: "https://www.thehindu.com/sci-tech/feeder/default.rss", politicsFilter: true },
-  // India's own national desk (audit, Sept 27 2026: 60 items, all < 30h).
-  // Heavy on party politics, so the filter matters most here.
+];
+
+// India's national desk: its own pool, so a busy world day can't crowd the
+// country's news out of the corpus (before Sept 30 2026 the only national
+// feed was The Hindu, one of eight in the World pool). Checked Sept 30 2026:
+//   The Hindu national   60 items, all < 30h, long snippets
+//   HT India            100 items, fresh, one-line snippets
+//   NDTV top             20 items, fresh, snippets
+//   Deccan Herald India  24 items, all < 30h, short snippets
+//   TOI top              47 items, all < 30h, headlines only
+// Dropped: Indian Express India (200 items, no descriptions, mostly state
+// politics). Party politics is heavy here, so every feed is filtered.
+export const INDIA_FEEDS: FeedSource[] = [
   { url: "https://www.thehindu.com/news/national/feeder/default.rss", politicsFilter: true },
+  { url: "https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml", politicsFilter: true },
+  { url: "https://feeds.feedburner.com/ndtvnews-top-stories", politicsFilter: true },
+  { url: "https://www.deccanherald.com/stories.rss?section=india", politicsFilter: true },
+  { url: "https://timesofindia.indiatimes.com/rssfeedstopstories.cms", politicsFilter: true },
+];
+
+// Money: rules and prices that change what people in India pay, earn, save,
+// borrow or insure — the regulators' own releases plus the personal-finance
+// desks. Regulators publish a few items a week, so they get a 72h window.
+// Checked Sept 30 2026: RBI press (8 of 10 < 30h, full text in the feed),
+// RBI notifications, TRAI, ET Wealth (17 fresh), Mint Money and Insurance,
+// BS Personal Finance, and Google News searches for PIB, SEBI, income tax,
+// GST and credit cards (14-64 fresh each). SEBI's own RSS host doesn't
+// resolve from every network, so SEBI comes through Google News.
+export const MONEY_FEEDS: FeedSource[] = [
+  { url: "https://www.rbi.org.in/pressreleases_rss.xml", maxAgeHours: 72 },
+  { url: "https://economictimes.indiatimes.com/wealth/rssfeeds/837555174.cms" },
+  { url: "https://www.livemint.com/rss/money" },
+  { ...googleNewsFeed("site:sebi.gov.in when:2d"), maxAgeHours: 72 },
+  { url: "https://www.livemint.com/rss/insurance", maxAgeHours: 72 }, // a few items a week
+  { ...googleNewsFeed("site:pib.gov.in when:2d") },
+  { url: "https://www.business-standard.com/rss/finance/personal-finance-10317.rss" },
+  { ...googleNewsFeed('CBDT OR "income tax" India when:2d') },
+  { url: "https://www.rbi.org.in/notifications_rss.xml", maxAgeHours: 72 },
+  { ...googleNewsFeed('"GST council" OR CBIC OR "GST rate" when:2d') },
+  { url: "https://www.trai.gov.in/rss.xml", maxAgeHours: 72 },
+  { ...googleNewsFeed('"credit card" (devaluation OR lounge OR "annual fee" OR rewards) India when:3d'), maxAgeHours: 72 },
+];
+
+// Google News edition and topic pages. Not stories for the paper: signals.
+// Each item's position says what leads the day, and its description lists
+// up to five other outlets running the same story — the best free measure
+// of how widely a story is covered (both friends' papers settled on it).
+export const SIGNAL_FEEDS: Array<{ url: string; name: string; pool: string; top: boolean }> = [
+  { url: "https://news.google.com/rss?hl=en-IN&gl=IN&ceid=IN:en", name: "India top", pool: "India", top: true },
+  { url: "https://news.google.com/rss/headlines/section/topic/NATION?hl=en-IN&gl=IN&ceid=IN:en", name: "India nation", pool: "India", top: false },
+  { url: "https://news.google.com/rss/headlines/section/topic/WORLD?hl=en-IN&gl=IN&ceid=IN:en", name: "World", pool: "World", top: false },
+  { url: "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=en-IN&gl=IN&ceid=IN:en", name: "Business", pool: "Markets", top: false },
+  { url: "https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=en-IN&gl=IN&ceid=IN:en", name: "Technology", pool: "Tech", top: false },
+  { url: "https://news.google.com/rss/headlines/section/topic/SPORTS?hl=en-IN&gl=IN&ceid=IN:en", name: "Sports", pool: "Sports", top: false },
 ];
 
 // Indian markets & economy.

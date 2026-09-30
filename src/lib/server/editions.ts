@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { after } from "next/server";
 import { generateDigest, type WritingCache } from "@/lib/live/digest";
+import type { BuildReport } from "@/lib/live/build-report";
 import { DEFAULT_DIGEST_PREFERENCES, normalizePreferences } from "@/lib/preferences/storage";
 import type { DigestPreferences, DigestResult } from "@/lib/preferences/types";
 import { editionDate } from "@/lib/edition-date";
@@ -51,6 +52,8 @@ const key = {
   lock: (date: string, hash: string) => `lock:${date}:${hash}`,
   prefs: (hash: string) => `prefs:${hash}`,
   snapshot: (date: string) => `snapshot:${date}`,
+  /** What the last build of an edition did (lib/live/build-report.ts). */
+  report: (date: string, hash: string) => `report:${date}:${hash}`,
   /** Which hash was "the default edition" on a date — defaults change. */
   defaultOn: (date: string) => `archive:default:${date}`,
   active: "editions:active",
@@ -83,8 +86,9 @@ export interface EditionRecord {
  * Bumped when the way an edition is assembled changes (2: every section
  * carries a spare story for the front-page lead). An edition from older
  * code is served as it is but rebuilt in the background, like a stale one.
+ * (4: India and Money pools, Google News signal, decoded links.)
  */
-const BUILD_VERSION = 3;
+const BUILD_VERSION = 4;
 
 export type EditionState =
   | { state: "ready"; date: string; hash: string; edition: EditionRecord; refreshing: boolean; note?: string }
@@ -154,7 +158,9 @@ export async function buildEdition(
 ): Promise<EditionRecord | null> {
   const store = getStore();
   try {
-    const [digest] = await Promise.all([generateDigest(prefs, { writingCache }), ensureSnapshot(date)]);
+    // The build report stays out of the edition (readers download that);
+    // it is kept beside it for /api/health.
+    const [{ report, ...digest }] = await Promise.all([generateDigest(prefs, { writingCache }), ensureSnapshot(date)]);
     const record: EditionRecord = {
       date,
       hash,
@@ -170,6 +176,8 @@ export async function buildEdition(
       record,
       hash === DEFAULT_HASH ? undefined : { ttlSeconds: CUSTOM_EDITION_TTL },
     );
+    await store.set(key.report(date, hash), report, { ttlSeconds: 14 * DAY }).catch(() => {});
+    if (report.degraded.length > 0) console.warn(`[editions] ${date}/${hash} degraded:`, report.degraded.join("; "));
     await store.zadd(key.archive, Date.parse(`${date}T00:00:00Z`) / 1000, date);
     // Editing the shipped defaults changes DEFAULT_HASH; remember which hash
     // was the default that day so the archive can still open it later.
@@ -362,16 +370,42 @@ export function archiveAvailable(): boolean {
  * connected" from "the build failed" from "looking at the wrong
  * deployment" without reading function logs.
  */
+export async function readBuildReport(date: string, hash = DEFAULT_HASH): Promise<BuildReport | null> {
+  return getStore().get<BuildReport>(key.report(date, hash));
+}
+
+/** The report's headline figures, without the per-feed list. */
+function reportSummary(r: BuildReport) {
+  return {
+    at: r.startedAt,
+    seconds: Math.round(r.ms / 100) / 10,
+    engine: r.engine,
+    ...(r.fallback ? { fallback: r.fallback } : {}),
+    feeds: `${r.feedsOk}/${r.feedsTotal} ok`,
+    failedFeeds: r.feeds.filter((f) => !f.ok).map((f) => `${f.name}: ${f.error ?? "failed"}`),
+    corpus: r.corpus,
+    pools: r.pools,
+    stages: r.stages,
+    signals: r.signals,
+    fullText: r.fullText,
+    googleLinks: r.googleLinks,
+    copy: r.copy,
+    printed: r.printed,
+    degraded: r.degraded,
+  };
+}
+
 export async function editionDiagnostics() {
   const store = getStore();
   const date = editionDate();
   const info = storeInfo();
   try {
-    const [dates, edition, status, snapshot] = await Promise.all([
+    const [dates, edition, status, snapshot, report] = await Promise.all([
       archiveDates(5),
       readEdition(date, DEFAULT_HASH),
       store.get<StatusRecord>(key.status(date, DEFAULT_HASH)),
       store.get(key.snapshot(date)),
+      readBuildReport(date),
     ]);
     return {
       store: info.kind,
@@ -384,6 +418,7 @@ export async function editionDiagnostics() {
           ? { state: status.state, at: status.at, error: status.error }
           : { state: "missing" },
       snapshotToday: Boolean(snapshot),
+      lastBuild: report ? reportSummary(report) : null,
       latestArchiveDates: dates,
     };
   } catch (err) {

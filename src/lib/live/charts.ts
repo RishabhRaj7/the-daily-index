@@ -126,7 +126,10 @@ export async function getChart(kind: ChartKind, id: string, range: ChartRange): 
       bars,
       previousClose: typeof prev === "number" ? spec.toInr(prev, fxBars[0]?.c ?? lastFx) : null,
       hasVolume: false,
-      note: spec.note,
+      // The tile prints IBJA's rate, which has no intraday history to chart.
+      note: spec.id === "gold" || spec.id === "silver"
+        ? `Chart: ${spec.note}. The price on the tile is IBJA's published rate.`
+        : spec.note,
     };
   }
 

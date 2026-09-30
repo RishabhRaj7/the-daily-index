@@ -1,6 +1,7 @@
 import type { WireBrief } from "@/lib/types";
-import type { FeedSource } from "./feeds";
+import { feedName, type FeedSource } from "./feeds";
 import { isPolitical } from "./politics-filter";
+import { recordFeed } from "./build-report";
 
 export function decodeEntities(input: string): string {
   return input
@@ -156,17 +157,23 @@ export async function fetchRssFeed(
 ): Promise<WireBrief[]> {
   const feed: FeedSource = typeof source === "string" ? { url: source } : source;
   const maxAge = feed.maxAgeHours ?? MAX_AGE_HOURS;
+  const t0 = Date.now();
+  const stat = (ok: boolean, items: number, kept: number, status?: number, error?: string) =>
+    recordFeed({ url: feed.url, name: feedName(feed.url), ok, status, items, kept, ms: Date.now() - t0, ...(error ? { error } : {}) });
   try {
     const res = await fetch(feed.url, {
       headers: FEED_HEADERS,
       next: { revalidate },
       signal: AbortSignal.timeout(10_000),
     });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      stat(false, 0, 0, res.status, `HTTP ${res.status}`);
+      return [];
+    }
     const xml = await res.text();
     const { entries, atom } = splitEntries(xml);
 
-    return entries
+    const kept = entries
       .map((item): WireBrief | null => {
         let title = extractTag(item, "title");
         const link = atom ? extractAtomLink(item) : extractTag(item, "link");
@@ -211,7 +218,11 @@ export async function fetchRssFeed(
         };
       })
       .filter((b): b is WireBrief => b !== null);
-  } catch {
+    // A feed that answers with no entries at all is broken, not quiet.
+    stat(entries.length > 0, entries.length, kept.length, res.status, entries.length > 0 ? undefined : "no entries");
+    return kept;
+  } catch (err) {
+    stat(false, 0, 0, undefined, err instanceof Error ? (err.name === "TimeoutError" ? "timeout" : err.message) : String(err));
     return [];
   }
 }

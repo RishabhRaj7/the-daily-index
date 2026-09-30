@@ -1,5 +1,12 @@
 import type { MarketIndex, MarketMood } from "@/lib/types";
 
+/** "30 Sep, 10:33" in the reader's zone. */
+function when(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}, ${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+}
+
 /** Today's move per index as bars either side of zero, largest move full width. */
 function Movers({ indices }: { indices: MarketIndex[] }) {
   const max = Math.max(...indices.map((i) => Math.abs(i.changePct)), 0.01);
@@ -97,6 +104,19 @@ export default function MoodGauge({
           </div>
         ))}
       </dl>
+      <p className="font-mono text-[10px] text-ink-faint mt-3 leading-snug">
+        {mood.source ? (
+          <>
+            <a href={mood.source.url} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted underline-offset-2 hover:text-ink">
+              {mood.source.name}
+            </a>
+            {when(mood.source.asOf) && ` · ${when(mood.source.asOf)}`}
+          </>
+        ) : (
+          "Our reading: the day's average move, breadth and volatility"
+        )}
+        {mood.stale && mood.asOf && ` · last read ${when(mood.asOf)}`}
+      </p>
     </div>
   );
 }

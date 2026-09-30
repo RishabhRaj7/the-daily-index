@@ -66,6 +66,10 @@ export interface MarketIndex {
   change1m: number | null;
   sparkline: number[];
   narrative: string;
+  /** Live figures fall back to the last good reading, marked stale with
+   *  its time, before they are ever left out (lib/live/last-good.ts). */
+  stale?: boolean;
+  asOf?: string;
 }
 
 export type MarketRegion = "India" | "US" | "Europe" | "Asia";
@@ -82,6 +86,8 @@ export interface CryptoQuote {
   high24h: number;
   low24h: number;
   sparkline: number[];
+  stale?: boolean;
+  asOf?: string;
 }
 
 /** One price bar for the detail charts. Time is UNIX seconds. */
@@ -136,6 +142,11 @@ export interface MarketMood {
   score: number; // 0-100, 0 = extreme fear, 100 = extreme greed
   label: string;
   inputs: StatItem[];
+  /** A published index (Tickertape MMI, CNN Fear & Greed); absent when the
+   *  score is the paper's own formula over the region's indices. */
+  source?: { name: string; url: string; asOf: string };
+  stale?: boolean;
+  asOf?: string;
 }
 
 /** A commodity priced in rupees (converted from its dollar benchmark). */
@@ -151,6 +162,11 @@ export interface Commodity {
   sparkline: number[];
   /** How the rupee figure is derived. */
   note: string;
+  /** Where the price comes from when it isn't the converted benchmark
+   *  (gold and silver: IBJA's published rate). */
+  source?: string;
+  stale?: boolean;
+  asOf?: string;
 }
 
 export interface F1Race {
@@ -497,4 +513,24 @@ export interface F1RosterEntry {
   name: string;
   code: string;
   team: string;
+}
+
+/** One dated thing in the Week Ahead (lib/live/ahead.ts). */
+export interface AheadEvent {
+  /** IST date, YYYY-MM-DD. */
+  date: string;
+  /** IST time, HH:MM, when the event has one. */
+  time?: string;
+  label: string;
+  kind: "policy" | "markets" | "holiday" | "ipo" | "f1";
+  url?: string;
+}
+
+export interface WeekAhead {
+  from: string;
+  to: string;
+  events: AheadEvent[];
+  /** The next policy decisions beyond the week. */
+  later: AheadEvent[];
+  at: string;
 }

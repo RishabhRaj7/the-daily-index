@@ -9,6 +9,7 @@ import MoodGauge from "@/components/widgets/MoodGauge";
 import SparklineChart from "@/components/widgets/SparklineChart";
 import MarketChartSheet, { type ChartTarget } from "@/components/widgets/MarketChartSheet";
 import IpoWatch from "@/components/widgets/IpoWatch";
+import StaleTag from "@/components/widgets/StaleTag";
 
 // Market Pulse: the world's markets one region at a time. A row of region
 // cards (each with its own mood) doubles as the tabs; the selected region
@@ -113,6 +114,9 @@ function PriceTile({
   changePct,
   sparkline,
   note,
+  source,
+  stale,
+  asOf,
   i,
   onOpen,
 }: {
@@ -122,6 +126,10 @@ function PriceTile({
   changePct: number;
   sparkline: number[];
   note?: string;
+  /** Publisher of the price, when it isn't the converted benchmark. */
+  source?: string;
+  stale?: boolean;
+  asOf?: string;
   i: number;
   onOpen: () => void;
 }) {
@@ -137,7 +145,10 @@ function PriceTile({
         <span className="flex items-start justify-between gap-2 w-full">
           <span className="min-w-0">
             <span className="block font-sans font-semibold text-[14px] leading-tight">{name}</span>
-            <span className="block font-label text-[8px] text-ink-faint mt-0.5">{unit}</span>
+            <span className="block font-label text-[8px] text-ink-faint mt-0.5">
+              {unit}
+              {source ? ` · ${source}` : ""}
+            </span>
           </span>
           <span className={`font-mono text-[11px] font-semibold ${up ? "text-up" : "text-down"}`}>
             {up ? "▲" : "▼"} {Math.abs(changePct).toFixed(2)}%
@@ -145,6 +156,7 @@ function PriceTile({
         </span>
         <span className="font-display font-bold text-[1.7rem] leading-none tracking-tight tabular-nums">{price}</span>
         <SparklineChart values={sparkline} positive={up} className="w-full h-8" />
+        {stale && <StaleTag asOf={asOf} />}
       </button>
     </li>
   );
@@ -244,7 +256,9 @@ export default function MarketPulseSection({
               <div className="flex items-baseline justify-between gap-4 mb-4">
                 <h3 className="font-display font-bold text-[1.8rem] leading-none">Commodities &amp; crypto</h3>
                 <span className="font-mono text-[10px] text-ink-soft text-right">
-                  Benchmarks in rupees · bullion incl. 6% import duty, before GST · crypto in USDT · tap for a chart
+                  {commodities.some((c) => c.source === "IBJA")
+                    ? "Gold and silver at IBJA's published rate, before GST · other benchmarks in rupees · crypto in USDT · tap for a chart"
+                    : "Benchmarks in rupees · bullion incl. 6% import duty, before GST · crypto in USDT · tap for a chart"}
                 </span>
               </div>
               <ul className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -257,6 +271,9 @@ export default function MarketPulseSection({
                     changePct={c.changePct}
                     sparkline={c.sparkline}
                     note={c.note}
+                    source={c.source}
+                    stale={c.stale}
+                    asOf={c.asOf}
                     i={i}
                     onOpen={() => setChart({ kind: "commodity", id: c.id, name: c.name, kicker: "Commodity · ₹", prefix: "₹" })}
                   />
@@ -269,6 +286,8 @@ export default function MarketPulseSection({
                     price={usdt(c.price)}
                     changePct={c.changePct}
                     sparkline={c.sparkline}
+                    stale={c.stale}
+                    asOf={c.asOf}
                     i={commodities.length + i}
                     onOpen={() => setChart({ kind: "crypto", id: c.id, name: `${c.name} (${c.pair.replace("USDT", "/USDT")})`, kicker: "Crypto · USDT" })}
                   />

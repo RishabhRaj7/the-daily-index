@@ -568,3 +568,41 @@ numbered rails); colour from The Verge (near-black, mint signal, ultraviolet).
 - **Crypto**: BTC/USDT and ETH/USDT from Binance's public market-data mirror (`data-api.binance.vision`, reachable from any region). 24-hour change; polled with the other markets.
 - `components/extras/Sheet.tsx` is the shared popup shell.
 - **GMP refresh schedule** (`gmpHoursFor` / `latestGmpSlot` in `ipos.ts`): the GMP page is read at 10:00 IST daily before an IPO opens, at 10:00 and 14:00 on its bidding days, hourly 10:00–18:00 on closing day, and 10:00 daily after that through listing day. The busiest IPO on the board sets the pace. The last reading is kept in the store (`ipo:gmp-table`) and served between slots. There is no background job: the first request after a slot does the read. NSE figures keep their own short caches.
+
+### Round 8: ideas from two friends' papers
+
+Taken from a read of The House of 1400 and kylo-news (Sept 30 2026), keeping only what improves this paper.
+
+- **New pools** (`feeds.ts`): **India** is the national desk (The Hindu national, HT India, NDTV, Deccan Herald India, TOI top). Before this round, the only national feed was one of eight in World. **Money** covers regulators and personal finance: RBI press releases and notifications (RSS), TRAI, SEBI and PIB through Google News, ET Wealth, Mint Money and Insurance, BS Personal Finance, and Google News searches for income tax, GST and credit-card changes. Regulators get a 72-hour window. The selection prompt says a Money story that changes what people in India pay, earn, save, borrow, invest or insure belongs in the markets desk.
+- **Google News signal** (`signals.ts`): six Google News pages (India top, nation, world, business, tech, sports) are read for ranking, not printed. Stories are grouped by Google's own lists of other outlets carrying the same story. Headline overlap is not used, because it splits or merges stories wrongly. Each corpus article that matches a story gets `coverage` (outlets carrying it), `lead` (position on India's top page) and an `event` id shared with other versions of that story, and the selection prompt reads all three. Up to 8 leading stories that no feed of ours carried are added to the corpus, filtered for party politics; sports pages are only used as a signal.
+- **Google News links decoded** (`google-links.ts`): printed `news.google.com/rss/articles/…` links are traded for the publisher URL through Google's own `batchexecute` call, using the signature on the article page. Only printed stories are decoded, at most 30 per build, three at a time. Results are cached for 30 days (`gn:{id}`). The first 429 stops decoding for that build, and anything left keeps its Google link. Full text is fetched from the decoded URL.
+- **Build report** (`build-report.ts`): each build records, through AsyncLocalStorage:
+  - every feed (ok, status, items, kept, ms, error)
+  - stage times (collect, selection, links, fullText, writing)
+  - articles per pool, and signal matches and additions
+  - full-text and link-decoding counts, and copy-check counts
+  - printed stories, distinct domains and Google links left
+  - a `degraded` list: any pool under 3 articles, fewer than 80% of feeds answering, or a heuristic fallback
+
+  It is stored at `report:{date}:{hash}` for 14 days, outside the edition. `/api/health` shows a summary of the default edition's last build, and `/api/health?report=1[&date=]` returns the full report.
+- **Copy checks** (`copy-check.ts`): AI tells in written summaries, "why" lines and gists are found: em dashes, words like pivotal/crucial/landmark/robust/notably/amid, "-ing" tails, "not just X, but Y", and "experts say". Flagged items go back to Gemini once, with the problems named. A rewrite is kept only if it has fewer tells and stays on the story. Dashes are then fixed mechanically. The writing prompt names the same rules.
+- **Published moods** (`published-markets.ts`): India's gauge is Tickertape's Market Mood Index and the US gauge is CNN's Fear & Greed Index (which only answers with CNN's Origin/Referer). Each shows the publisher's own earlier readings, keeps our VIX line, and links to its source. Europe and Asia keep the paper's formula, and so does India or the US when its publisher fails.
+- **IBJA bullion**: the gold (999, per 10 g) and silver (999, per kg) tiles show IBJA's published AM/PM rate. The day's change is taken against the previous day's last rate, and the sparkline comes from IBJA's roughly four months of daily rates. COMEX in rupees stays as the chart and as the fallback.
+- **Last good reading** (`last-good.ts`): the markets board is saved to `live:markets:last`, at most every 5 minutes. When an index, mood, commodity or coin is missing from a read, its last reading returns in its place, marked `stale` with `asOf`, and the tile shows "as of …". A total Yahoo outage serves the whole last board, and readings older than 4 days are dropped.
+- **The Week Ahead** (`ahead.ts`, `/api/ahead`, `WeekAhead.tsx`): the next seven days in IST under the front page:
+  - RBI policy decisions, from RBI's 2026-27 MPC schedule, hand-kept in `RBI_DECISIONS`
+  - Fed decisions, parsed from the FOMC calendar page (14:00 Washington time, converted to IST)
+  - NSE trading holidays
+  - Google's India public holidays (observances left out)
+  - IPO open, close and listing dates, grouped per day
+  - the next F1 weekend's sprint, qualifying and race
+
+  The next policy dates beyond the week show as "Later". The route is cached for 30 minutes at the edge.
+
+| Data | Fetched where | When | Stored |
+|---|---|---|---|
+| Google News signal pages | server, inside each edition build | per build (30 min fetch cache) | not stored; matches recorded in the build report |
+| Decoded Google links | server, after selection | per build, printed stories only | Redis `gn:{id}` 30 days |
+| Build report | server, each build | per build | Redis `report:{date}:{hash}` 14 days |
+| Tickertape MMI, CNN Fear & Greed, IBJA | with the indices (`/api/markets`) | every 60 s request; publishers cached 10–30 min | last good board in Redis `live:markets:last` |
+| Week Ahead | browser → `/api/ahead` | on load | edge cache 30 min; sources cached 12 h |

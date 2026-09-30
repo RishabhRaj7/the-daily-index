@@ -12,14 +12,14 @@ Vercel.
 
 | Section | What it carries |
 |---|---|
-| **Front page** | The day's lead story, *At a Glance* (six must-read one-liners), the Editor's Desk note, On This Day and Word of the Day |
+| **Front page** | The day's lead story, *At a Glance* (six must-read one-liners), the Editor's Desk note, On This Day, Word of the Day, and **The Week Ahead**: RBI and Fed decisions, market holidays, public holidays, IPO dates and the F1 weekend, in IST |
 | **Postcard** | Travel mode: weather and local news for wherever you are (opt-in, one tap) |
 | **Dateline** | World and India, grouped by the countries you follow |
 | **Two Cities** | Local news from your cities, side by side (Bengaluru and Ranchi by default) |
 | **Paddock Notes** | Formula 1 stories plus the pit wall: next race, countdown and circuit map, weekend session times, last race podium, your team and drivers, championship tables |
 | **Sports** | Football and tennis, when you follow them |
 | **The Ledger** | Markets and economy news — mostly India, some global |
-| **Market Pulse** | 16 live indices across India, US, Europe and Asia with a mood gauge per region, commodities in rupees, BTC/ETH in USDT, a tap-to-open chart for each, and IPO watch (mainboard IPOs with dates, size and GMP) |
+| **Market Pulse** | 16 live indices across India, US, Europe and Asia with a mood gauge per region (India: Tickertape's Market Mood Index, US: CNN Fear & Greed), gold and silver at IBJA's rate, other commodities in rupees, BTC/ETH in USDT, a tap-to-open chart for each, and IPO watch (mainboard IPOs with dates, size and GMP) |
 | **The Circuit Board** | Technology |
 | **Sky Report** | Weather that follows the clock (moon and stars after sunset), rain chances through the day, air quality, and your other cities |
 | **The Grapevine** | Editor's picks from the day's wires, Reddit, and a puzzle desk |
@@ -51,6 +51,10 @@ reader preferences (browser)   ─┘                     (Gemini)              
 - **Live data is fetched client-side** where it changes quickly: markets every
   minute (`/api/markets`), weather from Open-Meteo, F1 standings in stages
   (`/api/f1`).
+
+- **Every build reports on itself.** Each feed's result, stage timings, the
+  corpus by pool, full-text and link-decoding counts, and anything degraded:
+  a summary on `/api/health`, the full report at `/api/health?report=1`.
 
 `ARCHITECTURE.md` has the full design notes and a table of what is fetched
 where, when, and where it is stored.
@@ -129,9 +133,13 @@ which feeds were dropped and why. Default sections and their prompts live in
 
 ## Data sources
 
-RSS feeds from the publishers listed in `feeds.ts`, Google News search feeds
-(city and travel news), Yahoo Finance (indices, commodities and charts), Binance
-(crypto), NSE (IPO list, subscription and issue details), investorgain.com (IPO
+RSS feeds from the publishers listed in `feeds.ts` (including RBI, TRAI and the
+personal-finance desks), Google News search feeds (city, travel, SEBI, PIB, tax
+and GST news) and Google News top and topic pages (a ranking signal: how many
+outlets carry a story and where it leads), Yahoo Finance (indices, commodities and charts), Binance
+(crypto), Tickertape and CNN (market mood), IBJA (gold and silver rates), NSE
+(IPO list, subscription, issue details and trading holidays), the Federal
+Reserve's FOMC calendar, Google's India holidays calendar, investorgain.com (IPO
 GMP, unofficial), OpenF1
 (F1 schedule, results and standings), Open-Meteo (weather and air quality),
 OpenStreetMap Nominatim (travel-mode place names), Merriam-Webster (Word of the

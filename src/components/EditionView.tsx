@@ -54,6 +54,7 @@ import {
 import Masthead from "@/components/masthead/Masthead";
 import HeroStory from "@/components/story/HeroStory";
 import EditorsDesk from "@/components/widgets/EditorsDesk";
+import WeekAhead from "@/components/widgets/WeekAhead";
 import DatelineSection from "@/components/sections/DatelineSection";
 import TwoCitiesSection from "@/components/sections/TwoCitiesSection";
 import PaddockNotesSection from "@/components/sections/PaddockNotesSection";
@@ -970,6 +971,8 @@ export default function EditionView({
             </div>
           </div>
         )}
+        {/* Dated things coming up this week; today's paper only. */}
+        {!isArchive && <WeekAhead />}
         <div className="edition-body">
           {travelling && travel && (
             <div className="paper-section" style={{ ["--section-hue" as string]: "var(--hue-travel)" }}>

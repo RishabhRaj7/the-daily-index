@@ -1,4 +1,6 @@
 import type { Commodity, CryptoQuote, MarketIndex, MarketMood, MarketRegion } from "@/lib/types";
+import { getCnnFearGreed, getIbjaRates, getTickertapeMood, type IbjaRates, type PublishedMood } from "./published-markets";
+import { withLastGood } from "./last-good";
 
 // Yahoo Finance's spark endpoint requires no key, but does require a
 // browser-like User-Agent or it 429s — this is the same unofficial-but-
@@ -230,6 +232,41 @@ function buildMood(region: MarketRegion, indices: MarketIndex[], vix?: SparkSeri
   return { region, score, label: MOOD_LABELS(score), inputs };
 }
 
+/**
+ * A published index stands in for the formula where one exists (India:
+ * Tickertape MMI, US: CNN Fear & Greed). Its own earlier readings replace
+ * the formula's inputs; the volatility reading stays, since it's ours.
+ */
+function publishedMood(region: MarketRegion, published: PublishedMood, own: MarketMood): MarketMood {
+  const vix = own.inputs.find((i) => /VIX/.test(i.label));
+  return {
+    region,
+    score: Math.round(published.score),
+    label: published.label,
+    inputs: [...published.history.map((h) => ({ label: h.label, value: `${h.score.toFixed(1)}` })), ...(vix ? [vix] : [])],
+    source: published.source,
+  };
+}
+
+/** Gold and silver at IBJA's published rate, in place of the COMEX estimate. */
+function ibjaCommodity(base: Commodity, rates: IbjaRates): Commodity {
+  const gold = base.id === "gold";
+  const price = gold ? rates.gold : rates.silver;
+  const prev = gold ? rates.prevGold : rates.prevSilver;
+  const history = gold ? rates.goldHistory : rates.silverHistory;
+  const spark = history.slice(-7);
+  if (spark.at(-1) !== price) spark.push(price);
+  return {
+    ...base,
+    priceInr: price,
+    changePct: prev ? ((price - prev) / prev) * 100 : base.changePct,
+    sparkline: spark.length > 1 ? spark.slice(-7) : base.sparkline,
+    note: `IBJA ${gold ? "999 gold" : "999 silver"} rate, ${rates.date} ${rates.session} — what jewellers and banks quote, before GST`,
+    source: "IBJA",
+    asOf: rates.asOf,
+  };
+}
+
 export const MARKET_REGIONS: MarketRegion[] = ["India", "US", "Europe", "Asia"];
 
 // Crypto in USDT from Binance's public market-data mirror (no key; the
@@ -285,10 +322,22 @@ export interface LiveMarkets {
 }
 
 // Real numbers only — levels, changes and sparklines come straight from
-// Yahoo Finance; each "mood" is a transparent formula over those numbers.
-// Partial is fine: one missing symbol never blanks the panel.
+// Yahoo Finance; India's and the US's moods are their published indices,
+// Europe's and Asia's a transparent formula over the region's numbers; gold
+// and silver are IBJA's rates. Partial is fine: one missing symbol never
+// blanks the panel, and anything missing falls back to its last good
+// reading, marked stale (lib/live/last-good.ts).
 export async function getLiveMarkets(revalidate = 900): Promise<LiveMarkets | null> {
+  return withLastGood(await readLiveMarkets(revalidate));
+}
+
+async function readLiveMarkets(revalidate: number): Promise<LiveMarkets | null> {
   const cryptoPromise = fetchCrypto(Math.min(revalidate, 60));
+  const publishedPromise = Promise.all([
+    getTickertapeMood(Math.max(revalidate, 600)),
+    getCnnFearGreed(Math.max(revalidate, 600)),
+    getIbjaRates(1800),
+  ]);
   const data = await fetchSpark(
     [
       ...SYMBOLS.map((s) => s.symbol),
@@ -303,17 +352,24 @@ export async function getLiveMarkets(revalidate = 900): Promise<LiveMarkets | nu
   );
   if (indices.length === 0) return null;
 
+  const [tickertape, cnn, ibja] = await publishedPromise;
+  const published: Partial<Record<MarketRegion, PublishedMood | null>> = { India: tickertape, US: cnn };
   const moods = MARKET_REGIONS.flatMap((region) => {
     const inRegion = indices.filter((i) => i.market === region);
     const vix = VOLATILITY[region];
-    return inRegion.length > 0 ? [buildMood(region, inRegion, vix ? data[vix] : undefined)] : [];
+    if (inRegion.length === 0) return [];
+    const own = buildMood(region, inRegion, vix ? data[vix] : undefined);
+    const pub = published[region];
+    return [pub ? publishedMood(region, pub, own) : own];
   });
 
   const fx = data[USD_INR];
   const commodities = [
     ...COMMODITIES.map((spec) => toCommodity(spec, data[spec.symbol], fx)),
     usdInr(fx),
-  ].filter((c): c is Commodity => c !== null);
+  ]
+    .filter((c): c is Commodity => c !== null)
+    .map((c) => (ibja && (c.id === "gold" || c.id === "silver") ? ibjaCommodity(c, ibja) : c));
 
   return { indices, mood: moods[0], moods, commodities, crypto: await cryptoPromise };
 }

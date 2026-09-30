@@ -1,5 +1,6 @@
 import type { MarketIndex } from "@/lib/types";
 import SparklineChart from "./SparklineChart";
+import StaleTag from "./StaleTag";
 
 function Pct({ label, value }: { label: string; value: number | null }) {
   return (
@@ -71,6 +72,7 @@ export default function MarketIndexCard({
       <div className="flex gap-5">
         <Pct label="7D" value={index.change7d} />
         <Pct label="1M" value={index.change1m} />
+        {index.stale && <span className="ml-auto self-end"><StaleTag asOf={index.asOf} /></span>}
       </div>
       {index.narrative && <p className="font-body text-xs text-ink-soft leading-relaxed line-clamp-3">{index.narrative}</p>}
     </li>

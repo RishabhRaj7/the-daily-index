@@ -186,6 +186,12 @@ export interface CorpusArticle {
   postedAgo: string;
   /** Parsed age in hours when derivable from postedAgo; else null. */
   ageHours: number | null;
+  /** Google News signal (lib/live/signals.ts), when the story is on its
+   *  pages: how many outlets carry it, its place on India's top-stories
+   *  page, and an event id shared by every version of the same story. */
+  coverage?: number;
+  lead?: number;
+  event?: string;
 }
 
 /** What /api/digest returns and the display layer consumes. */

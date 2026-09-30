@@ -19,7 +19,11 @@
 import { createHash } from "node:crypto";
 import { aiEnabled, generateJson, Type, type Schema } from "@/lib/server/gemini";
 import { dedupeWires } from "./rss";
-import { getWorldIndiaWire, getMarketsWire } from "./news";
+import { getWorldIndiaWire, getIndiaWire, getMarketsWire, getMoneyWire } from "./news";
+import { getSignalStories, matchSignal, missingLeads, signalIndex } from "./signals";
+import { isGoogleNewsUrl, resolveGoogleLinks } from "./google-links";
+import { finishReport, recordExtra, runWithCollector, startCollector, timed, type BuildReport } from "./build-report";
+import { copyIssues, fixCopy } from "./copy-check";
 import { getF1News } from "./f1-news";
 import { getFootballNews } from "./football-news";
 import { getTennisNews } from "./tennis-news";
@@ -104,9 +108,12 @@ export async function collectCorpus(prefs: DigestPreferences): Promise<CorpusArt
   const cities = [
     ...new Set(prefs.sections.flatMap((s) => (s.type === "grouped" && isCitySection(s) ? s.groups.map((g) => g.trim()) : []))),
   ].filter(Boolean);
-  const [world, markets, f1, football, tennis, tech, ...cityWires] = await Promise.all([
+  const [signals, world, india, markets, money, f1, football, tennis, tech, ...cityWires] = await Promise.all([
+    getSignalStories(),
     getWorldIndiaWire(24),
+    getIndiaWire(20),
     getMarketsWire(28),
+    getMoneyWire(18),
     getF1News(20),
     getFootballNews(20),
     getTennisNews(20),
@@ -116,7 +123,9 @@ export async function collectCorpus(prefs: DigestPreferences): Promise<CorpusArt
 
   const pooled = [
     ...tagPool(world, "World"),
+    ...tagPool(india, "India"),
     ...tagPool(markets, "Markets"),
+    ...tagPool(money, "Money"),
     ...tagPool(f1, "F1"),
     ...tagPool(football, "Football"),
     ...tagPool(tennis, "Tennis"),
@@ -138,7 +147,7 @@ export async function collectCorpus(prefs: DigestPreferences): Promise<CorpusArt
   const excluded = prefs.global.excludeKeywords.map((k) => k.toLowerCase().trim()).filter(Boolean);
   const maxAge = prefs.global.maxAgeHours;
 
-  return dedupeWires(unique)
+  const articles = dedupeWires(unique)
     .map((b) => {
       const pool = poolByUrl.get(b.url) ?? "World";
       return {
@@ -157,9 +166,45 @@ export async function collectCorpus(prefs: DigestPreferences): Promise<CorpusArt
       if (isLiveBlog(a.title, a.url)) return false;
       const hay = `${a.title} ${a.text}`.toLowerCase();
       return !excluded.some((k) => hay.includes(k));
-    })
-    .map((a, i) => ({ ...a, i }));
+    });
+
+  // Google News signal: tag each article with how widely its story is
+  // covered and where it leads, and give every version of one story the
+  // same event id.
+  const index = signalIndex(signals);
+  const matched = new Set<string>();
+  const tagged: Array<Omit<CorpusArticle, "i">> = articles.map((a) => {
+    const story = matchSignal(a.title, signals, index);
+    if (!story) return a;
+    matched.add(story.id);
+    return { ...a, coverage: story.outlets.length, ...(story.lead ? { lead: story.lead } : {}), event: story.id };
+  });
+
+  // A story leading the country's news that none of our feeds carried joins
+  // the corpus through its Google link (decoded to the publisher once it is
+  // picked). Its snippet is the other outlets' headlines for it.
+  const added = missingLeads(signals, matched, MAX_SIGNAL_ADDS)
+    .filter((s) => maxAge === undefined || s.ageHours === null || s.ageHours <= maxAge)
+    .filter((s) => !excluded.some((k) => s.title.toLowerCase().includes(k)))
+    .map((s): Omit<CorpusArticle, "i"> => ({
+      title: s.title,
+      text: s.titles.length > 1 ? `Also reported by ${s.outlets.slice(1, 5).join(", ")}.` : "",
+      url: s.url,
+      source: s.domain || s.outlet,
+      pool: s.pool,
+      postedAgo: s.ageHours === null ? "" : s.ageHours < 1 ? "just now" : `${s.ageHours}h ago`,
+      ageHours: s.ageHours,
+      coverage: s.outlets.length,
+      ...(s.lead ? { lead: s.lead } : {}),
+      event: s.id,
+    }));
+  recordExtra({ signals: { clusters: signals.length, matched: matched.size, added: added.length } });
+
+  return [...tagged, ...added].map((a, i) => ({ ...a, i }));
 }
+
+/** Leading stories added from Google News when our feeds missed them. */
+const MAX_SIGNAL_ADDS = 8;
 
 // ---- validation / rehydration ------------------------------------------------
 
@@ -476,17 +521,29 @@ function rehydrateRivals(
   return out;
 }
 
-/** Fetch each shortlisted page; keep it only when it matches its headline. */
-async function fullTextFor(articles: CorpusArticle[]): Promise<Map<number, string>> {
-  const texts = await mapWithConcurrency(articles, 8, (a) =>
-    fetchArticleText(a.url, WRITING_TEXT_CHARS * 2),
-  );
+/**
+ * Fetch each shortlisted page; keep it only when it matches its headline.
+ * Google News links are fetched at their decoded publisher URL; one that
+ * didn't decode is skipped (its page is Google's, not the story).
+ */
+async function fullTextFor(articles: CorpusArticle[], links: Map<string, string>): Promise<Map<number, string>> {
+  const texts = await mapWithConcurrency(articles, 8, (a) => {
+    const url = links.get(a.url) ?? a.url;
+    return isGoogleNewsUrl(url) ? Promise.resolve(null) : fetchArticleText(url, WRITING_TEXT_CHARS * 2);
+  });
   const out = new Map<number, string>();
   articles.forEach((a, n) => {
     const fetched = texts[n];
     if (fetched && fetchedTextMatches(a.title, fetched)) out.set(a.i, fetched);
   });
+  recordExtra({ fullText: { attempted: articles.length, fetched: out.size } });
   return out;
+}
+
+/** Swap every printed Google News link for its publisher URL, where known. */
+function applyLinks(lists: Array<Array<{ url: string }>>, links: Map<string, string>): void {
+  if (links.size === 0) return;
+  for (const list of lists) for (const a of list) a.url = links.get(a.url) ?? a.url;
 }
 
 async function runWriting(
@@ -526,7 +583,103 @@ async function runWriting(
     }
     out.set(item.article.i, written);
   }
+  return repairCopy(out, byIndex);
+}
+
+const COPY_FIELDS = ["summary", "why", "gist"] as const;
+
+const REPAIR_SCHEMA: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    items: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          i: { type: Type.INTEGER },
+          summary: { type: Type.STRING, nullable: true },
+          why: { type: Type.STRING, nullable: true },
+          gist: { type: Type.STRING, nullable: true },
+        },
+        required: ["i"],
+      },
+    },
+  },
+  required: ["items"],
+};
+
+/**
+ * Copy that still carries an AI tell (copy-check.ts) goes back to the model
+ * once, with the problems named; a rewrite is kept only when it has fewer
+ * tells and stays on the story. Whatever is left gets the mechanical fixes.
+ * The repair never blocks the edition: on any failure the copy stands.
+ */
+async function repairCopy(out: Map<number, Written>, byIndex: Map<number, WritingItem>): Promise<Map<number, Written>> {
+  const flagged = [...out].flatMap(([i, w]) => {
+    const problems = COPY_FIELDS.flatMap((f) => copyIssues(w[f]).map((p) => `${f}: ${p}`));
+    return problems.length > 0 ? [{ i, w, problems }] : [];
+  });
+  const before = flagged.reduce((n, f) => n + f.problems.length, 0);
+  let repaired = 0;
+
+  if (flagged.length > 0) {
+    const blocks = flagged
+      .map(({ i, w, problems }) => {
+        const fields = COPY_FIELDS.filter((f) => w[f]).map((f) => `<${f}>${escapeXmlText(w[f]!)}</${f}>`).join("\n");
+        return `<item i="${i}">
+<headline>${escapeXmlText(byIndex.get(i)?.article.title ?? "")}</headline>
+${fields}
+<problems>${problems.join("; ")}</problems>
+</item>`;
+      })
+      .join("\n");
+    try {
+      const text = await generateJson(
+        `These news items were written for a newspaper, but some sentences read as machine-written. Rewrite only the fields named in <problems>, fixing exactly those problems: no em dashes (use a comma, colon or full stop), none of the listed words (pick a plain, specific alternative), no ", highlighting..." style tails, no "not just X, but Y", no "experts say". Keep every fact, figure and name exactly as written, keep the length about the same, add nothing new. Return JSON "items" with "i" and only the rewritten fields.
+
+${blocks}`,
+        { schema: REPAIR_SCHEMA, temperature: 0.2, timeoutMs: 30_000, label: "copy repair" },
+      );
+      const parsed = JSON.parse(text) as { items?: Array<Record<string, unknown>> };
+      for (const entry of parsed.items ?? []) {
+        const i = toIndex(entry.i);
+        const w = out.get(i);
+        const item = byIndex.get(i);
+        if (!w || !item) continue;
+        for (const f of COPY_FIELDS) {
+          const next = typeof entry[f] === "string" ? humanise(entry[f] as string) : "";
+          if (!next || !w[f]) continue;
+          const fewer = copyIssues(next).length < copyIssues(w[f]).length;
+          const onTopic = f !== "summary" || looksOnTopic(item.article.title, next);
+          if (fewer && onTopic && next.length >= w[f]!.length * 0.6) {
+            repaired += copyIssues(w[f]).length - copyIssues(next).length;
+            w[f] = next;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[digest] copy repair skipped:", err);
+    }
+  }
+
+  let fixed = 0;
+  for (const w of out.values()) {
+    for (const f of COPY_FIELDS) {
+      const v = w[f];
+      if (!v) continue;
+      const clean = fixCopy(v);
+      if (clean !== v) {
+        fixed += Math.max(0, copyIssues(v).length - copyIssues(clean).length);
+        w[f] = clean;
+      }
+    }
+  }
+  recordExtra({ copy: { issues: before, repaired, fixed } });
   return out;
+}
+
+function escapeXmlText(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 /**
@@ -577,7 +730,7 @@ async function aiDigest(
   corpus: CorpusArticle[],
   cache?: WritingCache,
 ): Promise<Pick<DigestResult, "sections" | "atAGlance" | "rivals">> {
-  const selection = await runSelection(prefs, corpus);
+  const selection = await timed("selection", () => runSelection(prefs, corpus));
 
   const usedUrls = new Set<string>();
   const sections: Record<string, DigestArticle[]> = {};
@@ -674,7 +827,12 @@ async function aiDigest(
       (sectionByUrl.has(a.url) && !written.get(a.i)?.summary) ||
       (glanceUrls.has(a.url) && !written.get(a.i)?.gist),
   );
-  const fullText = await fullTextFor(pending);
+  // Printed Google News links are decoded now: the publisher URL is both
+  // what the reader should get and what full text needs.
+  const links = await timed("links", () =>
+    resolveGoogleLinks(shortlist.map((a) => a.url).filter(isGoogleNewsUrl)),
+  );
+  const fullText = await timed("fullText", () => fullTextFor(pending, links));
   const items: WritingItem[] = pending.map((article) => ({
     article,
     text: fullText.get(article.i) ?? article.text,
@@ -685,7 +843,7 @@ async function aiDigest(
 
   try {
     if (items.length > 0) {
-      const fresh = await runWriting(prefs, items);
+      const fresh = await timed("writing", () => runWriting(prefs, items));
       const toStore = new Map<string, string>();
       for (const [i, out] of fresh) {
         const article = corpus[i];
@@ -722,6 +880,7 @@ async function aiDigest(
     const gist = idx === undefined ? undefined : written.get(idx)?.gist;
     if (gist) g.summary = gist;
   }
+  applyLinks([...Object.values(sections), atAGlance], links);
 
   const { [RIVALS_SECTION.id]: rivalStories = [], ...paperSections } = sections;
   return { sections: paperSections, atAGlance, rivals: rivalStories };
@@ -782,8 +941,8 @@ function backfillFor(
 const POOL_HINTS: Record<string, string[]> = {
   f1: ["F1"],
   sports: ["F1", "Football", "Tennis"],
-  markets: ["Markets", "World"],
-  world: ["World", "Markets"],
+  markets: ["Markets", "Money", "World"],
+  world: ["World", "India", "Markets"],
   tech: ["Tech"],
 };
 
@@ -949,31 +1108,54 @@ function heuristicAtAGlance(
 
 // ---- public entry point --------------------------------------------------------
 
+/** What a printed paper is made of: stories, publishers, Google wrappers left. */
+function printedStats(result: Pick<DigestResult, "sections" | "atAGlance" | "rivals">): NonNullable<BuildReport["printed"]> {
+  const all = [...Object.values(result.sections).flat(), ...(result.rivals ?? []), ...(result.atAGlance ?? [])];
+  const unique = new Map(all.map((a) => [a.url, a]));
+  const domains = new Set([...unique.values()].map((a) => a.source));
+  const viaGoogle = [...unique.keys()].filter(isGoogleNewsUrl).length;
+  return { stories: unique.size, domains: domains.size, viaGoogle };
+}
+
 export async function generateDigest(
   prefs: DigestPreferences,
   opts: { writingCache?: WritingCache } = {},
-): Promise<DigestResult> {
-  const corpus = await collectCorpus(prefs);
-  const generatedAt = new Date().toISOString();
+): Promise<DigestResult & { report: BuildReport }> {
+  const collector = startCollector();
+  const startedAt = Date.now();
+  return runWithCollector(collector, async () => {
+    const corpus = await timed("collect", () => collectCorpus(prefs));
+    const generatedAt = new Date().toISOString();
+    const pools: Record<string, number> = {};
+    for (const a of corpus) pools[a.pool] = (pools[a.pool] ?? 0) + 1;
 
-  const heuristic = (): DigestResult => {
-    const sections = heuristicDigest(prefs, corpus);
-    return {
-      sections,
-      atAGlance: heuristicAtAGlance(prefs, sections, corpus),
-      generatedAt,
-      engine: "heuristic",
-      corpusSize: corpus.length,
+    const finish = (result: DigestResult): DigestResult & { report: BuildReport } => {
+      recordExtra({ printed: printedStats(result), ...(result.engine === "ai" ? { model: process.env.GEMINI_MODEL || "default" } : {}) });
+      return { ...result, report: finishReport(collector, { startedAt, engine: result.engine, pools, corpus: corpus.length }) };
     };
-  };
 
-  if (!aiEnabled() || corpus.length === 0) return heuristic();
+    const heuristic = async (): Promise<DigestResult> => {
+      const sections = heuristicDigest(prefs, corpus);
+      const atAGlance = heuristicAtAGlance(prefs, sections, corpus);
+      const links = await resolveGoogleLinks(
+        [...Object.values(sections).flat(), ...atAGlance].map((a) => a.url).filter(isGoogleNewsUrl),
+      );
+      applyLinks([...Object.values(sections), atAGlance], links);
+      return { sections, atAGlance, generatedAt, engine: "heuristic", corpusSize: corpus.length };
+    };
 
-  try {
-    const { sections, atAGlance, rivals } = await aiDigest(prefs, corpus, opts.writingCache);
-    return { sections, atAGlance, rivals, generatedAt, engine: "ai", corpusSize: corpus.length };
-  } catch (err) {
-    console.error("[digest] AI selection failed, falling back to heuristic:", err);
-    return heuristic();
-  }
+    if (!aiEnabled() || corpus.length === 0) {
+      recordExtra({ fallback: corpus.length === 0 ? "empty corpus" : "AI not configured" });
+      return finish(await heuristic());
+    }
+
+    try {
+      const { sections, atAGlance, rivals } = await aiDigest(prefs, corpus, opts.writingCache);
+      return finish({ sections, atAGlance, rivals, generatedAt, engine: "ai", corpusSize: corpus.length });
+    } catch (err) {
+      console.error("[digest] AI selection failed, falling back to heuristic:", err);
+      recordExtra({ fallback: err instanceof Error ? err.message.slice(0, 160) : "AI selection failed" });
+      return finish(await heuristic());
+    }
+  });
 }
