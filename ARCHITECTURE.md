@@ -599,6 +599,8 @@ Taken from a read of The House of 1400 and kylo-news (Sept 30 2026), keeping onl
 
   The next policy dates beyond the week show as "Later". The route is cached for 30 minutes at the edge.
 
+- **The Nation** (`the-nation` slot, `NationSection.tsx`): India's national news in its own section, after Dateline. Dateline is world-only now: its default groups drop India, and its note keeps an India story only when it's about India abroad. The default `india` section (topic, 5 stories) reads from the India pool and the Google News leads. Preferences v3 (`upgradeV2ToV3`) adds the section once to every saved copy. A World section still on the old default loses its India group, while one the reader edited is left alone. `loadPersonalization` inserts `the-nation` after `dateline` in saved section orders.
+
 | Data | Fetched where | When | Stored |
 |---|---|---|---|
 | Google News signal pages | server, inside each edition build | per build (30 min fetch cache) | not stored; matches recorded in the build report |

@@ -37,6 +37,7 @@
   --hue-grapevine: #d100a8;
   --hue-digest: #5200ff;
   --hue-cities: #0891b2;
+  --hue-nation: #e8590c;
   --hue-travel: #e0457b;
   --hue-night: #5b6cff;
 
@@ -80,6 +81,7 @@ html[data-edition="evening"] {
   --hue-grapevine: #ff4fd8;
   --hue-digest: #8c5cff;
   --hue-cities: #3cd3f5;
+  --hue-nation: #ff8f4d;
   --hue-travel: #ff7aa8;
   --hue-night: #b8c4ff;
 }

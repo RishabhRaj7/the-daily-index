@@ -182,13 +182,14 @@ export async function collectCorpus(prefs: DigestPreferences): Promise<CorpusArt
 
   // A story leading the country's news that none of our feeds carried joins
   // the corpus through its Google link (decoded to the publisher once it is
-  // picked). Its snippet is the other outlets' headlines for it.
+  // picked, which is also where its text comes from). Until then it is a
+  // headline with its reach (`coverage`, `lead`).
   const added = missingLeads(signals, matched, MAX_SIGNAL_ADDS)
     .filter((s) => maxAge === undefined || s.ageHours === null || s.ageHours <= maxAge)
     .filter((s) => !excluded.some((k) => s.title.toLowerCase().includes(k)))
     .map((s): Omit<CorpusArticle, "i"> => ({
       title: s.title,
-      text: s.titles.length > 1 ? `Also reported by ${s.outlets.slice(1, 5).join(", ")}.` : "",
+      text: "",
       url: s.url,
       source: s.domain || s.outlet,
       pool: s.pool,
@@ -942,7 +943,8 @@ const POOL_HINTS: Record<string, string[]> = {
   f1: ["F1"],
   sports: ["F1", "Football", "Tennis"],
   markets: ["Markets", "Money", "World"],
-  world: ["World", "India", "Markets"],
+  world: ["World", "Markets"],
+  india: ["India"],
   tech: ["Tech"],
 };
 

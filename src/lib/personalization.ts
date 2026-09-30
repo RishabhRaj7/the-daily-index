@@ -38,9 +38,13 @@ export function loadPersonalization(): Personalization {
     const paddockIndex = savedOrder.indexOf("paddock-notes");
     const insertAt = paddockIndex >= 0 ? paddockIndex + 1 : savedOrder.length;
     savedOrder.splice(insertAt, 0, "sports");
-    // Two Cities arrived later: it goes straight after the world news.
+    // The Nation arrived later: it goes straight after the world news.
+    if (!savedOrder.includes("the-nation")) {
+      savedOrder.splice(savedOrder.indexOf("dateline") + 1, 0, "the-nation");
+    }
+    // Two Cities arrived later: it goes straight after the country's news.
     if (!savedOrder.includes("two-cities")) {
-      savedOrder.splice(savedOrder.indexOf("dateline") + 1, 0, "two-cities");
+      savedOrder.splice(savedOrder.indexOf("the-nation") + 1, 0, "two-cities");
     }
     merged.sectionOrder = [
       ...savedOrder,

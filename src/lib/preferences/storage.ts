@@ -64,6 +64,33 @@ function upgradeV1ToV2(raw: Record<string, unknown>): Record<string, unknown> {
   return { ...raw, sections, version: 2 };
 }
 
+// v2 → v3: India's national news moved out of World into its own section,
+// The Nation. Each saved copy gets the default India section once. A World
+// section still on the old default loses its India group and gets the new
+// note; one the reader edited is left as they made it.
+const OLD_WORLD_GROUPS = ["United States", "China", "United Kingdom", "India", "Japan"];
+const OLD_WORLD_PROMPT = "Favor geopolitics and economic policy over local/domestic stories.";
+function upgradeV2ToV3(raw: Record<string, unknown>): Record<string, unknown> {
+  const sections = Array.isArray(raw.sections) ? raw.sections.map((s) => ({ ...(s as Record<string, unknown>) })) : [];
+  const nation = DEFAULT_DIGEST_PREFERENCES.sections.find((s) => s.slot === "the-nation");
+  const world = DEFAULT_DIGEST_PREFERENCES.sections.find((s) => s.slot === "dateline");
+  if (nation && !sections.some((s) => s.slot === "the-nation")) {
+    const ids = new Set(sections.map((s) => s.id));
+    let id = nation.id;
+    while (ids.has(id)) id = `${id}-2`;
+    const worldAt = sections.find((s) => s.slot === "dateline");
+    // Same order as World: the stable sort then prints it right after World.
+    const order = typeof worldAt?.order === "number" ? worldAt.order : nation.order;
+    sections.push({ ...structuredClone(nation), id, order });
+  }
+  const saved = sections.find((s) => s.slot === "dateline" && s.type === "grouped");
+  if (saved && world?.type === "grouped" && JSON.stringify(saved.groups) === JSON.stringify(OLD_WORLD_GROUPS)) {
+    saved.groups = [...world.groups];
+    if (saved.prompt === OLD_WORLD_PROMPT) saved.prompt = world.prompt;
+  }
+  return { ...raw, sections, version: 3 };
+}
+
 // The length presets grew (35/60/100 → 50/90/140). Saved preferences that
 // picked an old preset move to its new size, so the setting stays selected.
 const LEGACY_LENGTHS: Record<number, number> = { 35: 50, 60: 90, 100: 140 };
@@ -189,6 +216,8 @@ export function migratePreferences(raw: unknown): DigestPreferences {
   switch (version) {
     case PREFERENCES_VERSION:
       return normalizePreferences(raw);
+    case 2:
+      return migratePreferences(upgradeV2ToV3(raw as Record<string, unknown>));
     case 1:
       return migratePreferences(upgradeV1ToV2(raw as Record<string, unknown>));
     default:

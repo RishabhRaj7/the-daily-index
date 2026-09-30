@@ -3,12 +3,21 @@ import type { SectionKey, SectionMeta } from "./types";
 export const SECTION_META: Record<SectionKey, SectionMeta> = {
   dateline: {
     key: "dateline",
-    label: "Dateline — World & India",
-    kicker: "World & India",
+    label: "Dateline — World",
+    kicker: "World",
     slug: "dateline",
     name: "Dateline",
     short: "World",
     hue: "var(--hue-world)",
+  },
+  "the-nation": {
+    key: "the-nation",
+    label: "The Nation — India",
+    kicker: "India",
+    slug: "the-nation",
+    name: "The Nation",
+    short: "India",
+    hue: "var(--hue-nation)",
   },
   "two-cities": {
     key: "two-cities",
@@ -84,11 +93,12 @@ export const SECTION_META: Record<SectionKey, SectionMeta> = {
   },
 };
 
-// The day in the order you'd read it: the world, then home, then your
+// The day in the order you'd read it: the world, the country, then home, then your
 // sport, then money (stories, then the numbers), then tech, the sky, and
 // the extras.
 export const SECTION_ORDER: SectionKey[] = [
   "dateline",
+  "the-nation",
   "two-cities",
   "paddock-notes",
   "sports",

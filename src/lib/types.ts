@@ -1,5 +1,6 @@
 export type SectionKey =
   | "dateline"
+  | "the-nation"
   | "two-cities"
   | "paddock-notes"
   | "sports"
@@ -448,6 +449,8 @@ export interface Edition {
   issue: number;
   sections: {
     dateline: Story[];
+    /** India's national news; filled only by the digest. */
+    nation?: Story[];
     /** The reader's cities; filled only by the digest. */
     twoCities?: Story[];
     paddockNotes: Story[];

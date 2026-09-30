@@ -72,6 +72,7 @@ export function withProjection(
   return {
     ...sections,
     dateline: slotStories.dateline ?? sections.dateline,
+    nation: slotStories["the-nation"] ?? sections.nation ?? [],
     twoCities: slotStories["two-cities"] ?? sections.twoCities ?? [],
     circuitBoard: slotStories["circuit-board"] ?? sections.circuitBoard,
     ledger: slotStories.ledger ?? sections.ledger,

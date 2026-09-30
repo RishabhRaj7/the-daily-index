@@ -14,7 +14,8 @@ Vercel.
 |---|---|
 | **Front page** | The day's lead story, *At a Glance* (six must-read one-liners), the Editor's Desk note, On This Day, Word of the Day, and **The Week Ahead**: RBI and Fed decisions, market holidays, public holidays, IPO dates and the F1 weekend, in IST |
 | **Postcard** | Travel mode: weather and local news for wherever you are (opt-in, one tap) |
-| **Dateline** | World and India, grouped by the countries you follow |
+| **Dateline** | World news, grouped by the countries you follow |
+| **The Nation** | India's own news: government and policy, courts, economy, infrastructure, security and major incidents, led by what the whole country is reading |
 | **Two Cities** | Local news from your cities, side by side (Bengaluru and Ranchi by default) |
 | **Paddock Notes** | Formula 1 stories plus the pit wall: next race, countdown and circuit map, weekend session times, last race podium, your team and drivers, championship tables |
 | **Sports** | Football and tennis, when you follow them |

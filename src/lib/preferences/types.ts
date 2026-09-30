@@ -8,7 +8,7 @@
  * migration case in `migratePreferences()` (storage.ts) so old stored copies
  * are upgraded instead of silently discarded.
  */
-export const PREFERENCES_VERSION = 2;
+export const PREFERENCES_VERSION = 3;
 
 /**
  * Display slots of the paper's existing news sections. A digest section whose
@@ -18,7 +18,8 @@ export const PREFERENCES_VERSION = 2;
  * without a slot render as standalone sections of their own.
  */
 export type NewsSlot =
-  | "dateline"        // World & India
+  | "dateline"        // World
+  | "the-nation"      // India's national news
   | "two-cities"      // The reader's cities
   | "sports"          // Optional football and tennis topic
   | "paddock-notes"   // Sports (F1 / football / tennis)
@@ -27,6 +28,7 @@ export type NewsSlot =
 
 export const NEWS_SLOTS: NewsSlot[] = [
   "dateline",
+  "the-nation",
   "two-cities",
   "sports",
   "paddock-notes",
