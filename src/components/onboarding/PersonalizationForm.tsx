@@ -3,7 +3,8 @@
 import { useState } from "react";
 import type { F1RosterEntry, Personalization } from "@/lib/types";
 import { F1_TEAM_COLORS } from "@/lib/personalization";
-import { SECTION_META, SECTION_ORDER } from "@/lib/sections";
+import { SECTION_ORDER } from "@/lib/sections";
+import PageOrderList from "./PageOrderList";
 
 type Sport = "f1" | "football" | "tennis";
 export type FormPart = "basics" | "sports" | "grapevine" | "order";
@@ -549,58 +550,12 @@ export default function PersonalizationForm({
         title="Page order"
         effect="What prints, and in what order — top of the list prints first."
       >
-        <ol className="divide-y hairline border-y hairline">
-          {value.sectionOrder.map((key, idx) => {
-            const active = !value.hiddenSections.includes(key);
-            const position = value.sectionOrder.slice(0, idx + 1).filter((k) => !value.hiddenSections.includes(k)).length;
-            return (
-              <li key={key} className="flex items-center gap-3 py-2">
-                <span
-                  className={`font-mono text-xs w-5 tabular-nums ${active ? "" : "text-ink-soft/50"}`}
-                >
-                  {active ? `${position}.` : "–"}
-                </span>
-                <span
-                  className={`font-headline text-[15px] flex-1 ${active ? "font-semibold" : "text-ink-soft italic"}`}
-                >
-                  {SECTION_META[key].kicker}
-                </span>
-                {active && (
-                  <span className="flex gap-1">
-                    <button
-                      type="button"
-                      aria-label={`Move ${SECTION_META[key].kicker} up`}
-                      disabled={idx === 0}
-                      onClick={() => moveSection(key, -1)}
-                      className="font-mono text-xs px-1.5 py-0.5 border hairline rounded-full disabled:opacity-30 hover:bg-card-bg"
-                    >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`Move ${SECTION_META[key].kicker} down`}
-                      disabled={idx === value.sectionOrder.length - 1}
-                      onClick={() => moveSection(key, 1)}
-                      className="font-mono text-xs px-1.5 py-0.5 border hairline rounded-full disabled:opacity-30 hover:bg-card-bg"
-                    >
-                      ↓
-                    </button>
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => toggleSection(key)}
-                  aria-pressed={active}
-                  className={`font-label text-[10px] px-2.5 py-1 border hairline rounded-full transition-colors ${
-                    active ? "bg-accent text-accent-ink border-accent" : "hover:bg-card-bg"
-                  }`}
-                >
-                  {active ? "Shown" : "Hidden"}
-                </button>
-              </li>
-            );
-          })}
-        </ol>
+        <PageOrderList
+          order={value.sectionOrder}
+          hidden={value.hiddenSections}
+          onMove={moveSection}
+          onToggle={toggleSection}
+        />
       </Chapter>
       )}
     </div>
