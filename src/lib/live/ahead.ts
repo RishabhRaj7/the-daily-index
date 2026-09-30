@@ -26,7 +26,7 @@ const DAYS = 7;
 // Schedule of the Monetary Policy Committee for 2026-27" (as reported by
 // CNBC-TV18 and Upstox). Add next year's when RBI publishes it (usually
 // late March).
-const RBI_DECISIONS = ["2026-04-08", "2026-06-05", "2026-08-05", "2026-10-07", "2026-12-04", "2027-02-05"];
+export const RBI_DECISIONS = ["2026-04-08", "2026-06-05", "2026-08-05", "2026-10-07", "2026-12-04", "2027-02-05"];
 
 const istDate = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 const istTime = (d: Date) => d.toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
@@ -89,7 +89,7 @@ export function parseFomc(html: string, year: number): AheadEvent[] {
   return out;
 }
 
-async function fomc(today: string): Promise<AheadEvent[]> {
+export async function fomc(today: string): Promise<AheadEvent[]> {
   const html = await text("https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm");
   if (!html) return [];
   const year = Number(today.slice(0, 4));

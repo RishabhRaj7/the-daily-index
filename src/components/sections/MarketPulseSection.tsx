@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
-import type { Commodity, CryptoQuote, MarketIndex, MarketMood, MarketRegion, Story } from "@/lib/types";
+import type { Commodity, CryptoQuote, MarketIndex, MarketMood, MarketRegion, OddsMarket, Story } from "@/lib/types";
 import SectionHeader from "@/components/story/SectionHeader";
 import StoryArticle from "@/components/story/StoryArticle";
 import MarketIndexCard from "@/components/widgets/MarketIndexCard";
@@ -9,6 +9,7 @@ import MoodGauge from "@/components/widgets/MoodGauge";
 import SparklineChart from "@/components/widgets/SparklineChart";
 import MarketChartSheet, { type ChartTarget } from "@/components/widgets/MarketChartSheet";
 import IpoWatch from "@/components/widgets/IpoWatch";
+import RatesRow from "@/components/widgets/RatesRow";
 import StaleTag from "@/components/widgets/StaleTag";
 import { moodZone } from "@/lib/mood-zones";
 import { regionState, reopenLabel, type HolidayMap, type SessionState } from "@/lib/market-hours";
@@ -164,6 +165,7 @@ export default function MarketPulseSection({
   commodities = [],
   crypto = [],
   holidays = {},
+  oddsMarkets = [],
   updatedAt = null,
 }: {
   stories: Story[];
@@ -174,6 +176,8 @@ export default function MarketPulseSection({
   crypto?: CryptoQuote[];
   /** Exchange holidays, for open / reopens-at. */
   holidays?: HolidayMap;
+  /** Prediction markets, for what traders expect of the next rate decision. */
+  oddsMarkets?: OddsMarket[];
   /** When the live numbers last arrived; null until the first refresh. */
   updatedAt?: string | null;
 }) {
@@ -228,6 +232,8 @@ export default function MarketPulseSection({
               />
             ))}
           </div>
+
+          <RatesRow markets={oddsMarkets} />
 
           <ul key={active} role="tabpanel" aria-label={`${active} markets`} className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-5">
             {activeMood && (

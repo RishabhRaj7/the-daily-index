@@ -93,6 +93,32 @@ export default function MarketChartSheet({ target, onClose }: { target: ChartTar
   const shown = hover ?? (bars.length ? bars[bars.length - 1] : null);
   const up = (stats?.change ?? 0) >= 0;
 
+  // The year behind it, whatever range is showing: where it sits between its
+  // 52-week low and high, and against its 50- and 200-day averages.
+  const [year, setYear] = useState<{ key: string; bars: PriceBar[] } | null>(null);
+  const yearKey = `${target.kind}:${target.id}`;
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/chart?kind=${target.kind}&id=${target.id}&range=1Y`)
+      .then((r) => (r.ok ? (r.json() as Promise<ChartData>) : null))
+      .then((d) => !cancelled && d && setYear({ key: yearKey, bars: d.bars }))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [target.kind, target.id, yearKey]);
+  const longView = useMemo(() => {
+    const yb = year?.key === yearKey ? year.bars : [];
+    if (yb.length < 60) return null;
+    const closes = yb.map((b) => b.c);
+    // Today's level when the range on show has it, else the last close.
+    const last = bars.length ? bars[bars.length - 1].c : closes[closes.length - 1];
+    const hi = Math.max(...yb.map((b) => b.h));
+    const lo = Math.min(...yb.map((b) => b.l));
+    const avg = (n: number) => (closes.length >= n ? closes.slice(-n).reduce((a, b) => a + b, 0) / n : null);
+    return { last, hi, lo, dma50: avg(50), dma200: avg(200) };
+  }, [year, yearKey, bars]);
+
   return (
     <Sheet title={target.name} kicker={target.kicker} onClose={onClose} width={880}>
       {/* Readout: the price under the pointer, else the latest. */}
@@ -197,6 +223,45 @@ export default function MarketChartSheet({ target, onClose }: { target: ChartTar
             </div>
           ))}
         </dl>
+      )}
+      {longView && (
+        <div className="mt-6 pt-4 border-t hairline">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="font-label text-[9px] text-ink-soft">52 weeks</span>
+            <span className="font-mono text-[11px] text-ink-soft">
+              {((longView.last / longView.hi - 1) * 100).toFixed(1)}% from the high
+            </span>
+          </div>
+          <div className="relative h-1.5 rounded-full bg-[color:var(--rule)] mt-2">
+            <span
+              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full border-2 border-[color:var(--paper)]"
+              style={{
+                left: `${Math.min(100, Math.max(0, ((longView.last - longView.lo) / Math.max(1e-9, longView.hi - longView.lo)) * 100))}%`,
+                background: "var(--ink)",
+              }}
+              title={fmt(longView.last, prefix)}
+            />
+          </div>
+          <div className="flex justify-between font-mono text-[10.5px] text-ink-soft mt-1.5 tabular-nums">
+            <span>Low {fmt(longView.lo, prefix)}</span>
+            <span>High {fmt(longView.hi, prefix)}</span>
+          </div>
+          <dl className="grid grid-cols-2 gap-4 mt-3">
+            {([["50-day average", longView.dma50], ["200-day average", longView.dma200]] as const).map(([label, v]) =>
+              v == null ? null : (
+                <div key={label}>
+                  <dt className="font-label text-[9px] text-ink-soft">{label}</dt>
+                  <dd className="font-mono text-[14px] tabular-nums mt-0.5">
+                    {fmt(v, prefix)}{" "}
+                    <span className={longView.last >= v ? "text-up" : "text-down"}>
+                      ({longView.last >= v ? "above" : "below"} by {Math.abs((longView.last / v - 1) * 100).toFixed(1)}%)
+                    </span>
+                  </dd>
+                </div>
+              ),
+            )}
+          </dl>
+        </div>
       )}
       {data?.note && <p className="font-sans text-[12px] text-ink-soft mt-4">{data.note}</p>}
     </Sheet>

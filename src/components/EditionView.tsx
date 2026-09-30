@@ -949,6 +949,7 @@ export default function EditionView({
         commodities={edition.markets.commodities ?? []}
         crypto={edition.markets.crypto ?? []}
         holidays={(edition.markets.holidays ?? {}) as HolidayMap}
+        oddsMarkets={odds?.markets ?? []}
         updatedAt={marketsAt}
       />
     ),

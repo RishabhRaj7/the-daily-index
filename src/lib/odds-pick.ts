@@ -232,3 +232,20 @@ export function layoutOdds(picks: OddsPick[], hidden: SectionKey[] = []): OddsLa
   }
   return { poll, lines };
 }
+
+/**
+ * The market on the next policy decision, for Market Pulse's rates row:
+ * the Fed's meeting or the RBI's, due within a few days of the date given.
+ */
+export function policyMarket(markets: OddsMarket[], bank: "fed" | "rbi", decision: string | null): OddsMarket | undefined {
+  if (!decision) return undefined;
+  const due = Date.parse(`${decision}T12:00:00Z`);
+  const re = bank === "fed" ? /\b(fed|fomc|federal reserve)\b.*\b(decision|rates?)\b/i : /\b(rbi|reserve bank of india)\b.*\b(decision|rates?|repo)\b/i;
+  // One meeting's decision, not a year's path ("Fed decisions (Sep–Dec)",
+  // "How many cuts in 2026?").
+  const path = /\b(decisions|sep-dec|how many|by end of)\b/i;
+  return markets
+    .filter((m) => re.test(m.title) && !path.test(m.title))
+    .filter((m) => !m.closes || Math.abs(Date.parse(m.closes) - due) < 5 * 86_400_000)
+    .sort((a, b) => b.vol24 - a.vol24)[0];
+}

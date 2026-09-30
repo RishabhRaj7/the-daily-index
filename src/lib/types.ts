@@ -69,6 +69,9 @@ export interface MarketIndex {
   change1m: number | null;
   sparkline: number[];
   narrative: string;
+  /** The average size of a day's move over the past month, in %: today's
+   *  move against it says whether today was unusual. */
+  usualMove?: number | null;
   /** Live figures fall back to the last good reading, marked stale with
    *  its time, before they are ever left out (lib/live/last-good.ts). */
   stale?: boolean;
@@ -680,4 +683,17 @@ export interface WeatherAlert {
   message: string;
   /** IMD, CWC, a state authority… */
   source: string;
+}
+
+/** Market Pulse's rates row (lib/live/rates.ts). Any part may be missing. */
+export interface RatesPanel {
+  /** RBI policy repo rate, % ; next decision date (IST). */
+  repo?: { rate: number; next: string | null };
+  /** Fed funds target range, %; when it last changed; next decision (IST). */
+  fed?: { lower: number; upper: number; since: string; move: "cut" | "hike" | null; next: string | null };
+  /** US 10-year Treasury yield, % and its move today in points. */
+  us10y?: { yield: number; change: number | null };
+  /** Net FII and DII buying in the cash market, ₹ crore. */
+  flows?: { date: string; fii: number; dii: number; month: { fii: number; dii: number; days: number } | null };
+  at: string;
 }

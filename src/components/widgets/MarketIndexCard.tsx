@@ -34,6 +34,9 @@ export default function MarketIndexCard({
   live?: boolean;
 }) {
   const positive = index.changePct >= 0;
+  // Unusual: twice the month's typical daily move, and at least 1%.
+  const unusual =
+    typeof index.usualMove === "number" && index.usualMove > 0 && Math.abs(index.changePct) >= Math.max(1, 2 * index.usualMove);
   return (
     <li
       className={`module group h-full flex flex-col gap-3 transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-[color:var(--section-hue)] ${onOpen ? "cursor-pointer" : ""}`}
@@ -72,6 +75,15 @@ export default function MarketIndexCard({
       <div className="flex gap-5">
         <Pct label="7D" value={index.change7d} />
         <Pct label="1M" value={index.change1m} />
+        {unusual && (
+          <span
+            className="ml-auto self-end font-mono text-[10px] rounded-full border px-2 py-0.5"
+            style={{ borderColor: positive ? "var(--up)" : "var(--down)", color: positive ? "var(--up)" : "var(--down)" }}
+            title={`A usual day this past month moved ${index.usualMove!.toFixed(2)}%`}
+          >
+            {(Math.abs(index.changePct) / index.usualMove!).toFixed(1)}× a usual day
+          </span>
+        )}
         {index.stale && <span className="ml-auto self-end"><StaleTag asOf={index.asOf} /></span>}
       </div>
       {index.narrative && <p className="font-body text-xs text-ink-soft leading-relaxed line-clamp-3">{index.narrative}</p>}

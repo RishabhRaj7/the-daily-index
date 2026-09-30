@@ -121,6 +121,9 @@ function toIndex(spec: Spec, series: SparkSeries | undefined): MarketIndex | nul
   const change1m = close1mAgo != null ? ((level - close1mAgo) / close1mAgo) * 100 : null;
 
   const sparkline = validCloses.slice(-7);
+  // A typical day: the mean size of the month's daily moves before today.
+  const moves = validCloses.slice(0, -1).flatMap((c, i, arr) => (i === 0 ? [] : [Math.abs((c - arr[i - 1]) / arr[i - 1]) * 100]));
+  const usualMove = moves.length >= 10 ? Math.round((moves.reduce((a, b) => a + b, 0) / moves.length) * 100) / 100 : null;
   const direction = changePct >= 0 ? "up" : "down";
   const narrative = `${spec.name} is trading at ${level.toLocaleString("en-US", {
     maximumFractionDigits: 1,
@@ -135,6 +138,7 @@ function toIndex(spec: Spec, series: SparkSeries | undefined): MarketIndex | nul
     changePct,
     change7d,
     change1m,
+    usualMove,
     sparkline: sparkline.length > 1 ? sparkline : [level, level],
     narrative,
   };
@@ -239,6 +243,25 @@ function buildMood(region: MarketRegion, indices: MarketIndex[], vix?: SparkSeri
  * Tickertape MMI, US: CNN Fear & Greed). Its own earlier readings replace
  * the formula's inputs; the volatility reading stays, since it's ours.
  */
+/** How many of the Nifty 50 rose and fell today (NSE's own index list). */
+async function niftyBreadth(revalidate: number): Promise<{ up: number; down: number } | null> {
+  try {
+    const res = await fetch("https://www.nseindia.com/api/allIndices", {
+      headers: { "User-Agent": BROWSER_UA, Accept: "application/json", Referer: "https://www.nseindia.com/" },
+      next: { revalidate },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { data?: Array<{ index?: string; advances?: string; declines?: string }> };
+    const nifty = body.data?.find((d) => d.index === "NIFTY 50");
+    const up = Number(nifty?.advances);
+    const down = Number(nifty?.declines);
+    return Number.isFinite(up) && Number.isFinite(down) && up + down > 0 ? { up, down } : null;
+  } catch {
+    return null;
+  }
+}
+
 function publishedMood(region: MarketRegion, published: PublishedMood, own: MarketMood): MarketMood {
   const vix = own.inputs.find((i) => /VIX/.test(i.label));
   return {
@@ -345,6 +368,7 @@ async function readLiveMarkets(revalidate: number): Promise<LiveMarkets | null> 
     getTickertapeMood(Math.max(revalidate, 600)),
     getCnnFearGreed(Math.max(revalidate, 600)),
     getIbjaRates(1800),
+    niftyBreadth(Math.min(revalidate, 300)),
   ]);
   const data = await fetchSpark(
     [
@@ -360,7 +384,7 @@ async function readLiveMarkets(revalidate: number): Promise<LiveMarkets | null> 
   );
   if (indices.length === 0) return null;
 
-  const [tickertape, cnn, ibja] = await publishedPromise;
+  const [tickertape, cnn, ibja, breadth] = await publishedPromise;
   const published: Partial<Record<MarketRegion, PublishedMood | null>> = { India: tickertape, US: cnn };
   const moods = MARKET_REGIONS.flatMap((region) => {
     const inRegion = indices.filter((i) => i.market === region);
@@ -368,7 +392,10 @@ async function readLiveMarkets(revalidate: number): Promise<LiveMarkets | null> 
     if (inRegion.length === 0) return [];
     const own = buildMood(region, inRegion, vix ? data[vix] : undefined);
     const pub = published[region];
-    return [pub ? publishedMood(region, pub, own) : own];
+    const mood = pub ? publishedMood(region, pub, own) : own;
+    // India: how broad the day was, from the whole Nifty 50.
+    if (region === "India" && breadth) mood.inputs = [...mood.inputs, { label: "Nifty 50 breadth", value: `${breadth.up} up · ${breadth.down} down` }];
+    return [mood];
   });
 
   const fx = data[USD_INR];
