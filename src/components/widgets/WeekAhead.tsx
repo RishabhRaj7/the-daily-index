@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import type { AheadEvent, WeekAhead as WeekAheadData } from "@/lib/types";
+import { loadPersonalization } from "@/lib/personalization";
 
 // The Week Ahead: seven days across the page under the front page, each
 // day a column of what's dated in it — policy decisions, market closures,
-// public holidays, IPO dates and the F1 weekend — all in IST. On a phone
+// public holidays, IPO dates, the F1 weekend and your Valorant teams'
+// matches — all in IST. On a phone
 // the days scroll sideways. Beyond the week, the next policy dates wait at
 // the end. Nothing is printed until the dates arrive, and a day with
 // nothing on it stays quiet.
@@ -16,6 +18,7 @@ const KIND: Record<AheadEvent["kind"], { label: string; hue: string }> = {
   holiday: { label: "Holiday", hue: "var(--hue-cities)" },
   ipo: { label: "IPO", hue: "var(--hue-markets)" },
   f1: { label: "F1", hue: "var(--hue-f1)" },
+  esports: { label: "Valorant", hue: "var(--hue-clutch)" },
 };
 
 const DAY = (iso: string) => new Date(`${iso}T12:00:00Z`);
@@ -56,7 +59,8 @@ export default function WeekAhead() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/ahead", { signal: controller.signal })
+    const teams = loadPersonalization().valorantTeams.join(",");
+    fetch(`/api/ahead${teams ? `?vt=${encodeURIComponent(teams)}` : ""}`, { signal: controller.signal })
       .then((r) => (r.ok ? (r.json() as Promise<WeekAheadData>) : null))
       .then((w) => w && setWeek(w))
       .catch(() => {});

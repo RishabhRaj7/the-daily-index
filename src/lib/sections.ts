@@ -46,6 +46,15 @@ export const SECTION_META: Record<SectionKey, SectionMeta> = {
     short: "Sport",
     hue: "var(--hue-sport)",
   },
+  clutch: {
+    key: "clutch",
+    label: "Clutch — Valorant",
+    kicker: "Valorant",
+    slug: "clutch",
+    name: "Clutch",
+    short: "Valorant",
+    hue: "var(--hue-clutch)",
+  },
   "sky-report": {
     key: "sky-report",
     label: "Sky Report — Weather",
@@ -102,6 +111,7 @@ export const SECTION_ORDER: SectionKey[] = [
   "two-cities",
   "paddock-notes",
   "sports",
+  "clutch",
   "ledger",
   "market-pulse",
   "circuit-board",

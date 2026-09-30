@@ -4,6 +4,7 @@ export type SectionKey =
   | "two-cities"
   | "paddock-notes"
   | "sports"
+  | "clutch"
   | "sky-report"
   | "circuit-board"
   | "ledger"
@@ -486,6 +487,8 @@ export interface Edition {
   };
   trending: TrendingTopic[];
   grapevine?: GrapevineData;
+  /** Clutch's data at press time; the page keeps it fresh. */
+  valorant?: ValorantData | null;
   onThisDay: OnThisDayEntry[];
   wordOfDay: WordOfDay;
 }
@@ -503,6 +506,8 @@ export interface Personalization {
   hateWatchF1: string;                // rival team/driver to track negative news for
   hateWatchFootball: string;          // rival club/country/player
   hateWatchTennis: string;            // rival player
+  /** Valorant teams followed in Clutch, by Riot team code ("PRX"). */
+  valorantTeams: string[];
   topics: string[];
   subreddits: string[];            // up to 5; empty = use globally trending Reddit posts
   /** Every section, in print order (hidden ones keep their place). */
@@ -527,7 +532,7 @@ export interface AheadEvent {
   /** IST time, HH:MM, when the event has one. */
   time?: string;
   label: string;
-  kind: "policy" | "markets" | "holiday" | "ipo" | "f1";
+  kind: "policy" | "markets" | "holiday" | "ipo" | "f1" | "esports";
   url?: string;
 }
 
@@ -538,4 +543,86 @@ export interface WeekAhead {
   /** The next policy decisions beyond the week. */
   later: AheadEvent[];
   at: string;
+}
+
+// ---- Clutch: Valorant (lib/live/valorant.ts) ----------------------------------------
+
+export interface ValTeam {
+  /** Riot's team code, e.g. "PRX" — what the reader's follow list stores. */
+  code: string;
+  name: string;
+  image: string | null;
+  /** VCT league region: Americas, EMEA, Pacific, China. */
+  region?: string;
+}
+
+export interface ValSide {
+  code: string;
+  name: string;
+  image: string | null;
+  /** Maps won; null before the match. */
+  wins: number | null;
+  outcome?: "win" | "loss";
+  /** The team's record in this stage, "2–0". */
+  record?: string;
+}
+
+export interface ValMatch {
+  id: string;
+  start: string;
+  state: "unstarted" | "inProgress" | "completed";
+  /** Event name, "Champions Shanghai". */
+  event: string;
+  eventKey: string;
+  /** "Groups", "Playoffs", "Finals"… */
+  stage: string;
+  bestOf: number;
+  teams: [ValSide, ValSide];
+  /** Polymarket's match-winner prices, in percent. */
+  odds?: { a: number; b: number; volume: number; url: string };
+}
+
+export interface ValWinnerOdds {
+  title: string;
+  url: string;
+  volume: number;
+  /** Every team still priced, favourite first. */
+  field: Array<{ name: string; prob: number }>;
+}
+
+export interface ValEvent {
+  key: string;
+  name: string;
+  league: string;
+  region: string;
+  international: boolean;
+  logo: string | null;
+  /** First and last scheduled match. */
+  start: string;
+  end: string;
+  /** The stage being played now, or next. */
+  stage: string;
+  finished: boolean;
+  odds?: ValWinnerOdds;
+}
+
+export interface ValNews {
+  title: string;
+  url: string;
+  summary: string;
+  publishedAt: string | null;
+}
+
+export interface ValorantData {
+  /** "event": an international is on; "league": the VCT leagues are; "off": neither. */
+  phase: "event" | "league" | "off";
+  events: ValEvent[];
+  /** The event the section leads with. */
+  featured: ValEvent | null;
+  nextEvent: ValEvent | null;
+  lastEvent: ValEvent | null;
+  matches: ValMatch[];
+  teams: ValTeam[];
+  news: ValNews[];
+  fetchedAt: string;
 }

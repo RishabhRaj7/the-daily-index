@@ -9,6 +9,7 @@ import { getTechNews } from "@/lib/live/tech-news";
 import { getWorldIndiaWire, getMarketsWire } from "@/lib/live/news";
 import { getRedditTrending } from "@/lib/live/reddit";
 import { getLiveMarkets } from "@/lib/live/indices";
+import { getValorant } from "@/lib/live/valorant";
 import { buildSectionsSync } from "@/lib/live/wire-to-story";
 import { getOnThisDay } from "@/lib/live/onthistday";
 import { getWordOfDay } from "@/lib/live/wordofday";
@@ -136,6 +137,7 @@ export default async function Home() {
     liveMarkets,
     onThisDay,
     wordOfDay,
+    valorant,
   ] = await Promise.all([
     getF1Schedule(),
     getF1Roster(),
@@ -178,6 +180,12 @@ export default async function Home() {
     getLiveMarkets(),
     getOnThisDay(),
     getWordOfDay(),
+    // Clutch prints straight away when Riot answers quickly; otherwise the
+    // page fetches it after load.
+    Promise.race([
+      getValorant().catch(() => null),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)),
+    ]),
   ]);
 
   const { result: redditResult, user: redditUser, subs: effectiveSubreddits } = redditBundle;
@@ -292,6 +300,7 @@ export default async function Home() {
     },
     trending: redditResult.topics,
     grapevine,
+    valorant,
     onThisDay,
     wordOfDay,
     sections: {

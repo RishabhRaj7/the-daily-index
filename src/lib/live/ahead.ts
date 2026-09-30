@@ -1,3 +1,4 @@
+import { getValorant } from "./valorant";
 import type { AheadEvent, WeekAhead } from "@/lib/types";
 import { getIpoBoard } from "./ipos";
 import { getF1Schedule } from "./f1";
@@ -194,10 +195,45 @@ function groupIpos(events: AheadEvent[]): AheadEvent[] {
 }
 
 /** Seven days from today (IST), grouped by day, plus the next policy dates beyond. */
-export async function getWeekAhead(now = new Date()): Promise<WeekAhead> {
+/** Clutch: the followed teams' matches, and the final of a running
+ *  international (the one day worth knowing even without a team in it). */
+async function valorant(teams: string[]): Promise<AheadEvent[]> {
+  const data = await getValorant().catch(() => null);
+  if (!data) return [];
+  const follow = new Set(teams.map((t) => t.toUpperCase()));
+  const out: AheadEvent[] = [];
+  for (const m of data.matches) {
+    if (m.state === "completed") continue;
+    const [a, b] = m.teams;
+    const mine = follow.has(a.code) || follow.has(b.code);
+    const final = data.featured?.international && m.eventKey === data.featured.key && /final/i.test(m.stage) && m === data.matches.filter((x) => x.eventKey === m.eventKey).at(-1);
+    if (!mine && !final) continue;
+    const d = new Date(m.start);
+    const vs = a.code === "TBD" && b.code === "TBD" ? "" : ` ${a.code} v ${b.code}`;
+    out.push({
+      date: istDate(d),
+      time: istTime(d),
+      label: final && !mine
+        ? `${m.event} final${vs}`
+        : `${m.event.replace(/ · /g, " ")}:${vs}${m.odds ? (follow.has(b.code) && !follow.has(a.code) ? ` (${b.code} ${m.odds.b}%)` : ` (${a.code} ${m.odds.a}%)`) : ""}`,
+      kind: "esports",
+    });
+  }
+  return out;
+}
+
+export async function getWeekAhead(now = new Date(), opts: { valorantTeams?: string[] } = {}): Promise<WeekAhead> {
   const today = istDate(now);
   const last = addDays(today, DAYS - 1);
-  const lists = await Promise.all([Promise.resolve(rbi()), fomc(today), nseHolidays(), publicHolidays(), ipos(), f1()]);
+  const lists = await Promise.all([
+    Promise.resolve(rbi()),
+    fomc(today),
+    nseHolidays(),
+    publicHolidays(),
+    ipos(),
+    f1(),
+    valorant(opts.valorantTeams ?? []),
+  ]);
   const all = lists.flat();
 
   // One line per thing: a public holiday that shuts the market reads once,
@@ -215,7 +251,7 @@ export async function getWeekAhead(now = new Date()): Promise<WeekAhead> {
     .sort((a, b) => a.date.localeCompare(b.date) || (a.time ?? "00:00").localeCompare(b.time ?? "00:00")));
 
   const later = all
-    .filter((e) => e.kind === "policy" && e.date > last && e.date <= addDays(today, 45))
+    .filter((e) => (e.kind === "policy" || (e.kind === "esports" && / final/.test(e.label))) && e.date > last && e.date <= addDays(today, 45))
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 2);
 

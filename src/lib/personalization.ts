@@ -16,6 +16,7 @@ export const DEFAULT_PERSONALIZATION: Personalization = {
   hateWatchF1: "",
   hateWatchFootball: "",
   hateWatchTennis: "",
+  valorantTeams: ["PRX"],
   topics: [],
   subreddits: [],
   sectionOrder: SECTION_ORDER,
@@ -46,6 +47,11 @@ export function loadPersonalization(): Personalization {
     if (!savedOrder.includes("two-cities")) {
       savedOrder.splice(savedOrder.indexOf("the-nation") + 1, 0, "two-cities");
     }
+    // Clutch arrived later: it goes straight after the other sport.
+    if (!savedOrder.includes("clutch")) {
+      savedOrder.splice(savedOrder.indexOf("sports") + 1, 0, "clutch");
+    }
+    merged.valorantTeams = (Array.isArray(merged.valorantTeams) ? merged.valorantTeams : []).filter((c) => typeof c === "string");
     merged.sectionOrder = [
       ...savedOrder,
       ...SECTION_ORDER.filter((key) => !savedOrder.includes(key)),

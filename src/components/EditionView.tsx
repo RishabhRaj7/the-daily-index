@@ -64,6 +64,7 @@ import SkyReportSection from "@/components/sections/SkyReportSection";
 import CircuitBoardSection from "@/components/sections/CircuitBoardSection";
 import LedgerSection from "@/components/sections/LedgerSection";
 import MarketPulseSection from "@/components/sections/MarketPulseSection";
+import ClutchSection from "@/components/sections/ClutchSection";
 import GrapevineSection from "@/components/sections/GrapevineSection";
 import DigestSectionView from "@/components/digest/DigestSectionView";
 import {
@@ -793,6 +794,7 @@ export default function EditionView({
     sports:
       (personalization.sports.includes("football") && footballStories.length > 0) ||
       (personalization.sports.includes("tennis") && tennisStories.length > 0),
+    clutch: !isArchive,
     "sky-report": true,
     "market-pulse": true,
     "circuit-board": edition.sections.circuitBoard.length > 0,
@@ -843,6 +845,7 @@ export default function EditionView({
         favoriteTennisPlayer={personalization.favoriteTennisPlayer}
       />
     ),
+    clutch: () => <ClutchSection initial={edition.valorant ?? null} follows={personalization.valorantTeams} />,
     "sky-report": () => (
       <SkyReportSection
         weather={weather}
