@@ -40,6 +40,8 @@ export interface OddsPick {
   why: string;
   follow?: OddsFollow;
   headline?: string;
+  /** The day's move that counted: 0 on a loose market, a date ladder or a quiet day's trade. */
+  move: number;
 }
 
 export const SUBJECT_LABEL: Record<OddsSubject, string> = {
@@ -186,7 +188,7 @@ export function scoreOdds(markets: OddsMarket[], profile: OddsProfile, now = Dat
           : soon
             ? `Settles ${new Date(closes).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}`
             : `$${compactMoney(m.vol24)} traded today`;
-    picks.push({ market: m, score, why, follow, headline });
+    picks.push({ market: m, score, why, follow, headline, move });
   }
   return picks.sort((a, b) => b.score - a.score);
 }
@@ -223,7 +225,7 @@ export function layoutOdds(picks: OddsPick[], hidden: SectionKey[] = []): OddsLa
     const key = SUBJECT_SECTION[p.market.subject];
     if (!key || lines[key] || used.has(p.market.id) || hidden.includes(key)) continue;
     if (poll.some((q) => alike(q.market, p.market))) continue;
-    const strong = !!p.follow || !!p.headline || Math.abs(p.market.lead.move ?? 0) >= 8;
+    const strong = !!p.follow || !!p.headline || Math.abs(p.move) >= 8;
     if (!strong) continue;
     lines[key] = p;
     used.add(p.market.id);

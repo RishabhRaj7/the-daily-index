@@ -41,6 +41,8 @@ export interface BuildReport {
   fullText?: { attempted: number; fetched: number };
   googleLinks?: { attempted: number; resolved: number; cached: number; failed: number; limited: boolean };
   copy?: { issues: number; repaired: number; fixed: number };
+  /** Leading stories printed In Brief because no section had them. */
+  briefs?: number;
   /** Printed stories, distinct publisher domains among them, and how many
    *  still link through news.google.com. */
   printed?: { stories: number; domains: number; viaGoogle: number };

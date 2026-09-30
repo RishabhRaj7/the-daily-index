@@ -196,6 +196,20 @@ export interface CorpusArticle {
   event?: string;
 }
 
+/** One In Brief line: a big story a section didn't have room for. */
+export interface BriefItem {
+  title: string;
+  /** One line of what happened; absent when it couldn't be written. */
+  gist?: string;
+  source: string;
+  url: string;
+  publishedAt: string;
+  /** How many outlets carry it (Google News' coverage list). */
+  outlets: number;
+  /** Its place on India's top-stories page, when it's there. */
+  lead?: number;
+}
+
 /** What /api/digest returns and the display layer consumes. */
 export interface DigestResult {
   /** Keyed by digest-section id. Sections with nothing qualifying are []. */
@@ -209,6 +223,12 @@ export interface DigestResult {
   atAGlance?: AtAGlanceItem[];
   /** One story per rival who had a genuinely bad day; `group` is the rival. */
   rivals?: DigestArticle[];
+  /**
+   * In Brief: stories leading the country's news (Google's top page, or 3+
+   * outlets) that no section printed, filed under the section they belong
+   * to, a line each. Optional: older digests have none.
+   */
+  briefs?: Partial<Record<NewsSlot, BriefItem[]>>;
   generatedAt: string;
   /** "ai" when the model produced it, "heuristic" for the offline fallback. */
   engine: "ai" | "heuristic";

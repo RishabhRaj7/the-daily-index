@@ -86,9 +86,9 @@ export interface EditionRecord {
  * Bumped when the way an edition is assembled changes (2: every section
  * carries a spare story for the front-page lead). An edition from older
  * code is served as it is but rebuilt in the background, like a stale one.
- * (4: India and Money pools, Google News signal, decoded links.)
+ * (4: India and Money pools, Google News signal, decoded links. 5: In Brief.)
  */
-const BUILD_VERSION = 4;
+const BUILD_VERSION = 5;
 
 export type EditionState =
   | { state: "ready"; date: string; hash: string; edition: EditionRecord; refreshing: boolean; note?: string }

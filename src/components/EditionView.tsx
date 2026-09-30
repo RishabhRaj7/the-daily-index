@@ -67,6 +67,7 @@ import MarketPulseSection from "@/components/sections/MarketPulseSection";
 import ClutchSection from "@/components/sections/ClutchSection";
 import StrawPollSection from "@/components/sections/StrawPollSection";
 import OddsLine from "@/components/widgets/OddsLine";
+import InBrief from "@/components/story/InBrief";
 import { layoutOdds, scoreOdds, type OddsFollow } from "@/lib/odds-pick";
 import type { OddsUniverse } from "@/lib/types";
 import GrapevineSection from "@/components/sections/GrapevineSection";
@@ -831,6 +832,20 @@ export default function EditionView({
     return layoutOdds(picks, personalization.hiddenSections);
   }, [odds, edition.sections, footballStories, tennisStories, personalization, oddsFollows]);
 
+  // In Brief: the leading stories each section had no room for (from the
+  // digest; a story already on the page anywhere is left out).
+  const BRIEF_SLOT: Partial<Record<SectionKey, NewsSlot>> = {
+    dateline: "dateline",
+    "the-nation": "the-nation",
+    ledger: "ledger",
+    "circuit-board": "circuit-board",
+  };
+  const onPage = new Set(Object.values(edition.sections).flatMap((list) => (list ?? []).map((st) => st.sourceUrl)));
+  const briefsFor = (key: SectionKey) => {
+    const slot = BRIEF_SLOT[key];
+    return (slot ? (appliedDigest?.briefs?.[slot] ?? []) : []).filter((b) => !onPage.has(b.url));
+  };
+
   const sectionHasContent: Record<SectionKey, boolean> = {
     dateline: true,
     // Filled only by the digest: hidden until the editor has files for it.
@@ -1048,6 +1063,7 @@ export default function EditionView({
           {order.map((key) => (
             <div key={key} className="paper-section" style={{ ["--section-hue" as string]: SECTION_META[key].hue }}>
               {sectionRenderers[key]()}
+              {briefsFor(key).length > 0 && <InBrief items={briefsFor(key)} />}
               {oddsLayout.lines[key] && <OddsLine pick={oddsLayout.lines[key]!} />}
             </div>
           ))}

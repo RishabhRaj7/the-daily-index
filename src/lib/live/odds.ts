@@ -34,11 +34,14 @@ const REVALIDATE = 900;
 const PM = "https://gamma-api.polymarket.com";
 const KALSHI = "https://api.elections.kalshi.com/trade-api/v2";
 
+/** revalidate 0: not through Next's data cache (Polymarket's event pages
+ *  run to several megabytes, past its 2 MB limit); the cleaned result is
+ *  kept instead (see getOddsUniverse). */
 async function json<T>(url: string, revalidate = REVALIDATE, timeout = 9000): Promise<T | null> {
   try {
     const res = await fetch(url, {
       headers: { "User-Agent": UA, Accept: "application/json" },
-      next: { revalidate },
+      ...(revalidate > 0 ? { next: { revalidate } } : { cache: "no-store" as const }),
       signal: AbortSignal.timeout(timeout),
     });
     if (res.status === 429) throw new Error("429");
@@ -271,6 +274,7 @@ async function polymarketByTags(): Promise<OddsMarket[]> {
     PM_TAGS.map(async ([tag, subject]) => {
       const events = await json<PmEvent[]>(
         `${PM}/events?tag_slug=${tag}&active=true&closed=false&order=volume24hr&ascending=false&limit=30`,
+        0,
       ).catch(() => null);
       return (events ?? []).map((e) => fromPolymarket(e, subject));
     }),
@@ -283,6 +287,7 @@ async function polymarketSearch(names: string[]): Promise<OddsMarket[]> {
     names.slice(0, 8).map(async (q) => {
       const res = await json<{ events?: PmEvent[] }>(
         `${PM}/public-search?q=${encodeURIComponent(q)}&events_status=active&limit_per_type=10`,
+        0,
       ).catch(() => null);
       return (res?.events ?? []).map((e) => fromPolymarket(e));
     }),
@@ -320,7 +325,7 @@ async function kalshiSeries(): Promise<string[]> {
   const saved = await store.get<{ at: string; tickers: string[] }>(SERIES_KEY).catch(() => null);
   if (saved && Date.now() - Date.parse(saved.at) < 7 * 86_400_000 && saved.tickers.length > 0) return saved.tickers;
   const lists = await inBatches(["Sports", "Economics", "Financials", "Politics", "World", "Science and Technology", "Elections"], 2, (c) =>
-    kalshiJson<{ series?: KSeries[] }>(`${KALSHI}/series?category=${encodeURIComponent(c)}&include_volume=true`, 86_400),
+    kalshiJson<{ series?: KSeries[] }>(`${KALSHI}/series?category=${encodeURIComponent(c)}&include_volume=true`, 0),
   );
   const all = lists.flatMap((l) => l?.series ?? []);
   if (all.length === 0) return saved?.tickers ?? SERIES_FALLBACK;
@@ -401,7 +406,7 @@ function fromKalshi(e: KEvent): OddsMarket | null {
 async function kalshi(): Promise<OddsMarket[]> {
   const series = await kalshiSeries();
   const pages = await inBatches(series, 3, (s) =>
-    kalshiJson<{ events?: KEvent[] }>(`${KALSHI}/events?series_ticker=${s}&status=open&with_nested_markets=true&limit=6`),
+    kalshiJson<{ events?: KEvent[] }>(`${KALSHI}/events?series_ticker=${s}&status=open&with_nested_markets=true&limit=6`, 0),
   );
   return pages
     .flatMap((p) => p?.events ?? [])
@@ -494,21 +499,82 @@ function sameQuestion(a: OddsMarket, b: OddsMarket): boolean {
   return shared / Math.min(A.size, B.size) >= 0.7 && sameLead;
 }
 
-export async function getOddsUniverse(follows: string[] = []): Promise<OddsUniverse> {
+// ---- the reading, kept and refreshed ------------------------------------------------------
+//
+// The cleaned markets (a few hundred KB at most, against megabytes of raw
+// pages) are kept in the store: the shared part (tags and Kalshi) under one
+// key, each followed name's search under its own. A reading younger than
+// FRESH is served as it is; an older one (up to STALE) is served at once
+// while a new one is read after the response, one at a time; with nothing
+// kept, the visitor waits for the first read.
+
+const FRESH_MS = 15 * 60_000;
+const STALE_MS = 12 * 3_600_000;
+const BASE_KEY = "odds:base:v1";
+const searchKey = (q: string) => `odds:q:v1:${q.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40)}`;
+
+interface Kept {
+  at: string;
+  markets: OddsMarket[];
+  sources?: OddsUniverse["sources"];
+}
+
+async function readBase(): Promise<Kept> {
+  const [byTag, ks] = await Promise.all([polymarketByTags().catch(() => [] as OddsMarket[]), kalshi().catch(() => [] as OddsMarket[])]);
+  return {
+    at: new Date().toISOString(),
+    markets: [...byTag, ...ks],
+    sources: [
+      { name: "Polymarket", ok: byTag.length > 0, count: byTag.length },
+      { name: "Kalshi", ok: ks.length > 0, count: ks.length },
+    ],
+  };
+}
+
+async function kept(key: string, read: () => Promise<Kept>, later: (task: () => Promise<void>) => void): Promise<Kept | null> {
+  const store = getStore();
+  const have = await store.get<Kept>(key).catch(() => null);
+  const age = have ? Date.now() - Date.parse(have.at) : Infinity;
+  const save = (k: Kept) => store.set(key, k, { ttlSeconds: Math.ceil(STALE_MS / 1000) }).catch(() => {});
+  if (have && age < FRESH_MS) return have;
+  if (have && age < STALE_MS) {
+    later(async () => {
+      if (!(await store.setIfAbsent(`${key}:lock`, 1, 120).catch(() => false))) return;
+      try {
+        const next = await read();
+        // A read that found nothing never replaces a good one.
+        if (next.markets.length > 0) await save(next);
+      } finally {
+        await store.del(`${key}:lock`).catch(() => {});
+      }
+    });
+    return have;
+  }
+  const next = await read();
+  if (next.markets.length > 0) await save(next);
+  return next.markets.length > 0 ? next : have;
+}
+
+export async function getOddsUniverse(
+  follows: string[] = [],
+  later: (task: () => Promise<void>) => void = (task) => void task().catch(() => {}),
+): Promise<OddsUniverse> {
   const started = Date.now();
-  const [byTag, searched, ks] = await Promise.all([
-    polymarketByTags().catch(() => [] as OddsMarket[]),
-    polymarketSearch(follows).catch(() => [] as OddsMarket[]),
-    kalshi().catch(() => [] as OddsMarket[]),
+  const [base, ...searches] = await Promise.all([
+    kept(BASE_KEY, readBase, later),
+    ...follows.slice(0, 8).map((q) =>
+      kept(searchKey(q), async () => ({ at: new Date().toISOString(), markets: await polymarketSearch([q]).catch(() => []) }), later),
+    ),
   ]);
-  const sources = [
-    { name: "Polymarket", ok: byTag.length > 0, count: byTag.length + searched.length },
-    { name: "Kalshi", ok: ks.length > 0, count: ks.length },
+  const searched = searches.flatMap((k) => k?.markets ?? []);
+  const sources = base?.sources ?? [
+    { name: "Polymarket", ok: false, count: 0 },
+    { name: "Kalshi", ok: false, count: 0 },
   ];
 
   // One card per question: the busier site leads, the other rides along.
   const seen = new Set<string>();
-  const all = [...byTag, ...searched, ...ks]
+  const all = [...(base?.markets ?? []), ...searched]
     .filter((m) => !seen.has(m.id) && seen.add(m.id))
     .filter((m) => !decided(m) && !EXCLUDE.test(`${m.title} ${m.tags.join(" ")}`))
     .sort((a, b) => b.vol24 - a.vol24);
@@ -522,5 +588,5 @@ export async function getOddsUniverse(follows: string[] = []): Promise<OddsUnive
     }
     else markets.push(m);
   }
-  return { markets, sources, at: new Date().toISOString(), tookMs: Date.now() - started };
+  return { markets, sources, at: base?.at ?? new Date().toISOString(), tookMs: Date.now() - started };
 }
