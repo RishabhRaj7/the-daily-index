@@ -91,6 +91,15 @@ export const SECTION_META: Record<SectionKey, SectionMeta> = {
     short: "Markets",
     hue: "var(--hue-markets)",
   },
+  "straw-poll": {
+    key: "straw-poll",
+    label: "Straw Poll — Prediction markets",
+    kicker: "Prediction markets",
+    slug: "straw-poll",
+    name: "Straw Poll",
+    short: "Odds",
+    hue: "var(--hue-poll)",
+  },
   grapevine: {
     key: "grapevine",
     label: "The Grapevine — You Should See This",
@@ -115,6 +124,7 @@ export const SECTION_ORDER: SectionKey[] = [
   "ledger",
   "market-pulse",
   "circuit-board",
+  "straw-poll",
   "sky-report",
   "grapevine",
 ];

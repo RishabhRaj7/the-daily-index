@@ -41,6 +41,7 @@
   --hue-travel: #e0457b;
   --hue-night: #5b6cff;
   --hue-clutch: #4d8f0a;
+  --hue-poll: #a67c00;
 
   /* Fear ⇄ greed zones, red through grey to green. */
   --mood-xfear: #d4002a;
@@ -93,6 +94,7 @@ html[data-edition="evening"] {
   --hue-travel: #ff7aa8;
   --hue-night: #b8c4ff;
   --hue-clutch: #b6f23a;
+  --hue-poll: #f5c542;
 
   --mood-xfear: #ff4d6a;
   --mood-fear: #ff9a4d;

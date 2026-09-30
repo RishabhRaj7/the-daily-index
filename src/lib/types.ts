@@ -9,6 +9,7 @@ export type SectionKey =
   | "circuit-board"
   | "ledger"
   | "market-pulse"
+  | "straw-poll"
   | "grapevine";
 
 export interface SectionMeta {
@@ -625,4 +626,44 @@ export interface ValorantData {
   teams: ValTeam[];
   news: ValNews[];
   fetchedAt: string;
+}
+
+// ---- Straw Poll: prediction-market odds (lib/live/odds.ts, lib/odds-pick.ts) ------------
+
+export type OddsSubject = "f1" | "football" | "tennis" | "valorant" | "money" | "tech" | "india" | "world";
+
+export interface OddsMarket {
+  /** pm:<event slug> or ks:<event ticker>. */
+  id: string;
+  source: "Polymarket" | "Kalshi";
+  title: string;
+  url: string;
+  subject: OddsSubject;
+  /** Up to four, favourite first (a date ladder: the furthest deadline first). */
+  outcomes: Array<{ name: string; prob: number; prev?: number }>;
+  /** The favourite, its move today and over a week, in points. */
+  lead: { name: string; prob: number; move: number | null; week: number | null };
+  binary: boolean;
+  ladder: boolean;
+  /** Dollars traded today and in all. */
+  vol24: number;
+  vol: number;
+  /** The favourite's bid–ask gap in points: small means traders agree. */
+  spread: number | null;
+  /** When the question is due to be settled. */
+  closes: string | null;
+  /** Polymarket CLOB token of the favourite, for its price history. */
+  token?: string;
+  tags: string[];
+  /** How it's decided, from the market's own rules. */
+  rules: string;
+  /** The same question on the other site. */
+  also?: Array<{ source: string; prob: number; name: string; url: string }>;
+}
+
+export interface OddsUniverse {
+  markets: OddsMarket[];
+  sources: Array<{ name: string; ok: boolean; count: number }>;
+  at: string;
+  tookMs: number;
 }

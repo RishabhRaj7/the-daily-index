@@ -51,6 +51,11 @@ export function loadPersonalization(): Personalization {
     if (!savedOrder.includes("clutch")) {
       savedOrder.splice(savedOrder.indexOf("sports") + 1, 0, "clutch");
     }
+    // Straw Poll arrived later: it goes after the tech pages.
+    if (!savedOrder.includes("straw-poll")) {
+      const at = savedOrder.indexOf("circuit-board");
+      savedOrder.splice(at >= 0 ? at + 1 : savedOrder.length, 0, "straw-poll");
+    }
     merged.valorantTeams = (Array.isArray(merged.valorantTeams) ? merged.valorantTeams : []).filter((c) => typeof c === "string");
     merged.sectionOrder = [
       ...savedOrder,

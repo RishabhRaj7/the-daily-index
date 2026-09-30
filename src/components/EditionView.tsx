@@ -65,6 +65,10 @@ import CircuitBoardSection from "@/components/sections/CircuitBoardSection";
 import LedgerSection from "@/components/sections/LedgerSection";
 import MarketPulseSection from "@/components/sections/MarketPulseSection";
 import ClutchSection from "@/components/sections/ClutchSection";
+import StrawPollSection from "@/components/sections/StrawPollSection";
+import OddsLine from "@/components/widgets/OddsLine";
+import { layoutOdds, scoreOdds, type OddsFollow } from "@/lib/odds-pick";
+import type { OddsUniverse } from "@/lib/types";
 import GrapevineSection from "@/components/sections/GrapevineSection";
 import DigestSectionView from "@/components/digest/DigestSectionView";
 import {
@@ -784,6 +788,49 @@ export default function EditionView({
 
   const paddockSports: Array<"f1"> = ["f1"];
 
+  // --- Straw Poll: the reader's own odds (lib/odds-pick.ts) ------------------
+  const oddsFollows = useMemo<OddsFollow[]>(() => {
+    const standings = edition.f1?.standings ?? [];
+    const driverName = (id: string) =>
+      standings.find((s) => s.code.toLowerCase() === id.toLowerCase() || s.driverId === id)?.name ?? (id.length > 3 ? id.replace(/_/g, " ") : "");
+    const valTeams = edition.valorant?.teams ?? [];
+    const list: OddsFollow[] = [
+      ...personalization.favoriteF1Drivers.map((id) => ({ name: driverName(id), subject: "f1" as const })),
+      { name: personalization.favoriteF1Team, subject: "f1" },
+      { name: personalization.favoriteFootballClub, subject: "football" },
+      { name: personalization.favoriteFootballPlayer, subject: "football" },
+      { name: personalization.favoriteFootballNationalTeam, subject: "football" },
+      { name: personalization.favoriteTennisPlayer, subject: "tennis" },
+      ...personalization.valorantTeams.map((code) => ({ name: valTeams.find((t) => t.code === code)?.name ?? "", subject: "valorant" as const })),
+      { name: personalization.hateWatchF1, subject: "f1", rival: true },
+      { name: personalization.hateWatchFootball, subject: "football", rival: true },
+      { name: personalization.hateWatchTennis, subject: "tennis", rival: true },
+    ];
+    return list.filter((f) => f.name.trim().length >= 3);
+  }, [personalization, edition.f1?.standings, edition.valorant?.teams]);
+  const oddsQuery = oddsFollows.filter((f) => !f.rival).map((f) => f.name).slice(0, 8).join("|");
+  const [odds, setOdds] = useState<OddsUniverse | null>(null);
+  useEffect(() => {
+    if (isArchive) return;
+    const controller = new AbortController();
+    fetch(`/api/odds${oddsQuery ? `?f=${encodeURIComponent(oddsQuery)}` : ""}`, { signal: controller.signal })
+      .then((r) => (r.ok ? (r.json() as Promise<OddsUniverse>) : null))
+      .then((u) => u && setOdds(u))
+      .catch(() => {});
+    return () => controller.abort();
+  }, [isArchive, oddsQuery]);
+  const oddsLayout = useMemo(() => {
+    if (!odds) return { poll: [], lines: {} } as ReturnType<typeof layoutOdds>;
+    const headlines = [
+      ...Object.values(edition.sections).flatMap((list) => (list ?? []).map((s) => s.headline)),
+      ...footballStories.map((s) => s.headline),
+      ...tennisStories.map((s) => s.headline),
+    ];
+    const sports = [...personalization.sports, ...(personalization.valorantTeams.length ? (["valorant"] as const) : [])];
+    const picks = scoreOdds(odds.markets, { follows: oddsFollows, sports, subjects: ["money", "world", "india", "tech"], headlines });
+    return layoutOdds(picks, personalization.hiddenSections);
+  }, [odds, edition.sections, footballStories, tennisStories, personalization, oddsFollows]);
+
   const sectionHasContent: Record<SectionKey, boolean> = {
     dateline: true,
     // Filled only by the digest: hidden until the editor has files for it.
@@ -795,6 +842,7 @@ export default function EditionView({
       (personalization.sports.includes("football") && footballStories.length > 0) ||
       (personalization.sports.includes("tennis") && tennisStories.length > 0),
     clutch: !isArchive,
+    "straw-poll": !isArchive && oddsLayout.poll.length > 0,
     "sky-report": true,
     "market-pulse": true,
     "circuit-board": edition.sections.circuitBoard.length > 0,
@@ -845,6 +893,7 @@ export default function EditionView({
         favoriteTennisPlayer={personalization.favoriteTennisPlayer}
       />
     ),
+    "straw-poll": () => <StrawPollSection poll={oddsLayout.poll} readAt={odds?.at ?? null} />,
     clutch: () => <ClutchSection initial={edition.valorant ?? null} follows={personalization.valorantTeams} />,
     "sky-report": () => (
       <SkyReportSection
@@ -999,6 +1048,7 @@ export default function EditionView({
           {order.map((key) => (
             <div key={key} className="paper-section" style={{ ["--section-hue" as string]: SECTION_META[key].hue }}>
               {sectionRenderers[key]()}
+              {oddsLayout.lines[key] && <OddsLine pick={oddsLayout.lines[key]!} />}
             </div>
           ))}
           {/* Preference sections with no existing paper slot of their
