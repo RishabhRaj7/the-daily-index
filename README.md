@@ -25,7 +25,7 @@ Vercel.
 | **The Circuit Board** | Technology |
 | **Straw Poll** | Prediction-market odds from Polymarket and Kalshi, chosen for you: the day's biggest moves with the news that lines up with them, where the money is, your watchlist, a track record; plus three or four questions at the foot of each section and a line under a story when a market is about it. Every market opens with every contender's chart (1D to all time) and why it moved |
 | **Sky Report** | Severe-weather alerts near you (NDMA), weather that follows the clock (moon and stars after sunset), rain chances through the day, air quality, and your other cities |
-| **The Grapevine** | The Search Bar (what India, the US, the UK, Japan, Brazil and Germany are searching right now, from Google Trends), editor's picks from the day's wires, Reddit, a puzzle desk, and the film odds |
+| **The Grapevine** | The Search Bar (what India, the US and the UK are searching right now, from Google Trends), editor's picks from the day's wires, Reddit, a puzzle desk, and the film odds |
 
 Also: an archive of past editions as a calendar, a share sheet that turns any
 story into an image, light/dark editions, a particle-animated masthead, and a

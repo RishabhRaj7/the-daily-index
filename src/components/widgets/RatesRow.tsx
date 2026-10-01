@@ -17,8 +17,13 @@ const TZ = "Asia/Kolkata";
 const day = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: TZ });
 const crore = (n: number) => `${n >= 0 ? "+" : "−"}₹${Math.abs(Math.round(n)).toLocaleString("en-IN")} cr`;
 
-/** "Traders: 84% hike 1-25bps", opening the market itself. */
-function Expect({ m }: { m?: OddsMarket }) {
+/**
+ * The prediction market's view of the next decision, set apart from the
+ * published figures: a dashed box with an ODDS tag in Straw Poll's colour,
+ * so it never reads as data ("ODDS · 84% hike 1-25bps on 7 Oct"). A tap
+ * opens the market.
+ */
+function Expect({ m, on }: { m?: OddsMarket; on: string | null }) {
   const [open, setOpen] = useState(false);
   if (!m) return null;
   const name = m.lead.name === "Yes" ? "yes" : m.lead.name.replace(/^Fed maintains rate$/i, "No change").toLowerCase();
@@ -27,22 +32,32 @@ function Expect({ m }: { m?: OddsMarket }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="block font-mono text-[10px] mt-0.5 text-left hover:underline decoration-dotted underline-offset-2"
-        style={{ color: "var(--hue-poll)" }}
-        title={`What traders expect: ${m.title} · ${m.source}`}
+        className="mt-2 w-full text-left rounded-md border border-dashed px-1.5 py-1 flex items-baseline gap-1.5 min-w-0 hover:bg-card-bg"
+        style={{ borderColor: "color-mix(in srgb, var(--hue-poll) 60%, transparent)" }}
+        title={`A forecast, not data: what traders on ${m.source} expect. ${m.title}`}
       >
-        Traders: {Math.round(m.lead.prob)}% {name}
-        {m.vol < 50_000 ? " · thin market" : ""}
+        <span className="font-label text-[7.5px] rounded px-1 py-[1px] shrink-0" style={{ background: "var(--hue-poll)", color: "var(--paper)" }}>
+          Odds
+        </span>
+        <span className="font-mono text-[10px] truncate" style={{ color: "var(--hue-poll)" }}>
+          {Math.round(m.lead.prob)}% {name}
+          {on ? ` on ${day(on)}` : ""}
+          {m.vol < 50_000 ? " · thin" : ""}
+        </span>
       </button>
       {open && <OddsSheet market={m} why="The next decision" onClose={() => setOpen(false)} />}
     </>
   );
 }
 
-function Cell({ label, value, children }: { label: string; value: React.ReactNode; children?: React.ReactNode }) {
+/** A published figure: the number, where it comes from, and its context. */
+function Cell({ label, source, value, children }: { label: string; source: string; value: React.ReactNode; children?: React.ReactNode }) {
   return (
     <div className="min-w-0 pr-3 py-3 lg:px-4 lg:first:pl-0 lg:border-l hairline lg:first:border-l-0">
-      <div className="font-label text-[9px] text-ink-soft">{label}</div>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="font-label text-[9px] text-ink-soft truncate">{label}</span>
+        <span className="font-mono text-[8.5px] text-ink-faint shrink-0">{source}</span>
+      </div>
       <div className="font-display font-bold text-[1.35rem] leading-none tabular-nums mt-1">{value}</div>
       <div className="font-mono text-[10px] text-ink-soft mt-1 leading-snug">{children}</div>
     </div>
@@ -202,7 +217,7 @@ function FlowCell({ flows }: { flows: NonNullable<RatesPanel["flows"]> }) {
       <button type="button" onClick={() => setOpen(true)} className="w-full text-left group">
         <span className="flex items-baseline justify-between gap-2">
           <span className="font-label text-[9px] text-ink-soft">Who&rsquo;s buying · {day(flows.date)}</span>
-          <span className="font-mono text-[9px] text-ink-faint group-hover:text-ink">more ›</span>
+          <span className="font-mono text-[8.5px] text-ink-faint group-hover:text-ink">NSE · more ›</span>
         </span>
         <span className="grid gap-1.5 mt-1.5">
           <FlowLine who="FII" d={flows.fii} max={max} />
@@ -240,20 +255,20 @@ export default function RatesRow({ markets = [] }: { markets?: OddsMarket[] }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 border-y hairline mt-5" data-reveal>
       {repo && (
-        <Cell label="RBI repo rate" value={`${repo.rate.toFixed(2)}%`}>
+        <Cell label="RBI repo rate" source="RBI" value={`${repo.rate.toFixed(2)}%`}>
           {repo.next ? `Next decision ${day(repo.next)}` : "Next decision not announced"}
-          <Expect m={policyMarket(markets, "rbi", repo.next)} />
+          <Expect m={policyMarket(markets, "rbi", repo.next)} on={repo.next} />
         </Cell>
       )}
       {fed && (
-        <Cell label="Fed funds target" value={`${fed.lower.toFixed(2)}–${fed.upper.toFixed(2)}%`}>
+        <Cell label="Fed funds target" source="FRED" value={`${fed.lower.toFixed(2)}–${fed.upper.toFixed(2)}%`}>
           {fed.move ? `${fed.move === "cut" ? "Cut" : "Raised"} ${day(fed.since)}` : `Held since ${day(fed.since)}`}
           {fed.next ? ` · next ${day(fed.next)}` : ""}
-          <Expect m={policyMarket(markets, "fed", fed.next)} />
+          <Expect m={policyMarket(markets, "fed", fed.next)} on={fed.next} />
         </Cell>
       )}
       {us10y && (
-        <Cell label="US 10-year yield" value={`${us10y.yield.toFixed(2)}%`}>
+        <Cell label="US 10-year yield" source="Yahoo" value={`${us10y.yield.toFixed(2)}%`}>
           {us10y.change != null && Math.abs(us10y.change) >= 0.01 ? (
             <span className={us10y.change > 0 ? "text-down" : "text-up"}>
               {us10y.change > 0 ? "▲" : "▼"} {Math.abs(us10y.change).toFixed(2)} pts today
@@ -265,6 +280,15 @@ export default function RatesRow({ markets = [] }: { markets?: OddsMarket[] }) {
         </Cell>
       )}
       {flows && <FlowCell flows={flows} />}
+      <p className="col-span-2 lg:col-span-4 font-mono text-[9.5px] text-ink-faint pb-2 -mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span>Big numbers: the latest published figures, source top right.</span>
+        <span className="inline-flex items-center gap-1">
+          <span className="font-label text-[7.5px] rounded px-1 py-[1px]" style={{ background: "var(--hue-poll)", color: "var(--paper)" }}>
+            Odds
+          </span>
+          in a dashed box: what prediction-market traders expect next, a forecast, not a fact.
+        </span>
+      </p>
     </div>
   );
 }

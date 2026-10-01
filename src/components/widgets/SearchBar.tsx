@@ -4,15 +4,18 @@ import { useEffect, useMemo, useState } from "react";
 import type { TrendCountry, TrendItem } from "@/lib/live/trends";
 import LiveBadge from "./LiveBadge";
 
-// The Search Bar: what each country is typing into Google right now
-// (Google Trends' live feed), a tab per country. Each search shows roughly
+// The Search Bar: what India, the US and the UK are typing into Google
+// right now (Google Trends' live feed), a tab per country, the top five
+// with a way to see twenty. Each search shows roughly
 // how many searched, how long it's been climbing, and the story behind it;
 // one that's also in today's paper says so. "Across borders" picks out the
 // searches trending in more than one country at once. Refreshed every ten
 // minutes while the page is open.
 
 const REFRESH_MS = 10 * 60_000;
-const SHORT: Record<string, string> = { IN: "India", US: "US", GB: "UK", JP: "Japan", BR: "Brazil", DE: "Germany" };
+const SHORT: Record<string, string> = { IN: "India", US: "US", GB: "UK" };
+const FEW = 5;
+const MANY = 20;
 
 const norm = (s: string) =>
   s
@@ -46,13 +49,16 @@ function Row({ t, i, max, inPaper, now }: { t: TrendItem; i: number; max: number
             {t.term}
           </a>
           <span className="font-mono text-[10px] text-ink-soft shrink-0 tabular-nums" title="Roughly how many searched">
-            {t.volume >= 1e6 ? `${+(t.volume / 1e6).toFixed(1)}M+` : t.volume >= 1e3 ? `${Math.round(t.volume / 1e3)}K+` : t.traffic}
+            {t.traffic}
             {t.started ? ` · ${since(t.started, now)}` : ""}
           </span>
         </span>
         <span className="block h-1 mt-1 rounded-full bg-[color:var(--rule)] overflow-hidden">
           <span className="block h-full rounded-full" style={{ width: `${width}%`, background: "var(--section-hue)", opacity: 0.75 }} />
         </span>
+        {!story && t.related.length > 0 && (
+          <span className="block font-mono text-[10.5px] text-ink-soft mt-1 truncate">also searched: {t.related.join(" · ")}</span>
+        )}
         {story && (
           <a href={story.url} target="_blank" rel="noopener noreferrer" className="block font-sans text-[12px] text-ink-soft mt-1 truncate hover:text-ink">
             {inPaper && (
@@ -71,6 +77,7 @@ function Row({ t, i, max, inPaper, now }: { t: TrendItem; i: number; max: number
 export default function SearchBar({ headlines = [], home = "IN" }: { headlines?: string[]; home?: string }) {
   const [countries, setCountries] = useState<TrendCountry[] | null>(null);
   const [geo, setGeo] = useState(home);
+  const [all, setAll] = useState(false);
   const [at, setAt] = useState<number>(0);
   useEffect(() => {
     let live = true;
@@ -112,7 +119,8 @@ export default function SearchBar({ headlines = [], home = "IN" }: { headlines?:
 
   if (!countries || countries.length === 0) return null;
   const country = countries.find((c) => c.geo === geo) ?? countries[0];
-  const items = country.items.slice(0, 10);
+  const items = country.items.slice(0, all ? MANY : FEW);
+  const half = Math.ceil(items.length / 2);
   const max = Math.max(...items.map((t) => t.volume), 1);
   const inPaper = (t: TrendItem) => {
     const k = norm(t.term);
@@ -128,7 +136,7 @@ export default function SearchBar({ headlines = [], home = "IN" }: { headlines?:
             <LiveBadge />
           </div>
           <p className="font-body italic text-xs text-ink-soft mt-0.5">
-            What each country is typing into Google right now
+            What India, the US and the UK are typing into Google right now
             {at ? ` · ${new Date(at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })} IST` : ""}
           </p>
         </div>
@@ -148,17 +156,29 @@ export default function SearchBar({ headlines = [], home = "IN" }: { headlines?:
           ))}
         </div>
       </div>
-      <div className={`grid gap-x-10 ${across.length ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_16rem]" : "md:grid-cols-2"}`}>
-        <ol className="divide-y hairline">
-          {items.slice(0, 5).map((t, i) => (
-            <Row key={t.term} t={t} i={i} max={max} inPaper={inPaper(t)} now={at} />
-          ))}
-        </ol>
-        <ol className="divide-y hairline md:border-t-0 border-t hairline">
-          {items.slice(5, 10).map((t, i) => (
-            <Row key={t.term} t={t} i={i + 5} max={max} inPaper={inPaper(t)} now={at} />
-          ))}
-        </ol>
+      <div className={`grid gap-x-10 ${across.length ? "lg:grid-cols-[minmax(0,1fr)_16rem]" : ""}`}>
+        <div>
+          {/* Five in one column; twenty in two. */}
+          <div className={`grid gap-x-10 ${all ? "md:grid-cols-2" : ""}`}>
+            <ol className="divide-y hairline">
+              {(all ? items.slice(0, half) : items).map((t, i) => (
+                <Row key={t.term} t={t} i={i} max={max} inPaper={inPaper(t)} now={at} />
+              ))}
+            </ol>
+            {all && (
+              <ol className="divide-y hairline md:border-t-0 border-t hairline">
+                {items.slice(half).map((t, i) => (
+                  <Row key={t.term} t={t} i={i + half} max={max} inPaper={inPaper(t)} now={at} />
+                ))}
+              </ol>
+            )}
+          </div>
+          {country.items.length > FEW && (
+            <button type="button" onClick={() => setAll((v) => !v)} className="font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-2">
+              {all ? "Show the top five ↑" : `Show the top ${Math.min(MANY, country.items.length)} ↓`}
+            </button>
+          )}
+        </div>
         {across.length > 0 && (
           <aside className="mt-4 lg:mt-2.5">
             <div className="font-label text-[9px] text-ink-soft mb-2">Across borders</div>

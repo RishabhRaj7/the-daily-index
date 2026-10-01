@@ -161,7 +161,7 @@ function IpoSheet({ ipo, onClose }: { ipo: IpoEntry; onClose: () => void }) {
     [d.gmpHistory],
   );
   const lp = d.listingPerformance;
-  const mood = ipoMood(d, todayIso(), total);
+  const mood = d.stage === "open" ? ipoMood(d, todayIso(), total) : null;
 
   const headline: Array<[string, string]> = [
     ["Issue size", size(d.sizeCr) || "—"],
@@ -421,7 +421,8 @@ export default function IpoWatch() {
                 <span className="block font-mono text-[11px] text-ink-soft mt-1">
                   {size(ipo.sizeCr) || "size tbc"}
                   {(() => {
-                    const mood = ipo.stage === "open" || ipo.stage === "closed" ? ipoMood(ipo, todayIso()) : null;
+                    // The mood is for an issue still taking bids.
+                    const mood = ipo.stage === "open" ? ipoMood(ipo, todayIso()) : null;
                     if (mood)
                       return (
                         <>
