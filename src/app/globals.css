@@ -42,6 +42,10 @@
   --hue-night: #5b6cff;
   --hue-clutch: #4d8f0a;
   --hue-poll: #a67c00;
+  /* Straw Poll chart lines after the leader (which wears its section colour). */
+  --series-2: #2f6bff;
+  --series-3: #d0466b;
+  --series-4: #8a8a94;
 
   /* Fear ⇄ greed zones, red through grey to green. */
   --mood-xfear: #d4002a;
@@ -95,6 +99,9 @@ html[data-edition="evening"] {
   --hue-night: #b8c4ff;
   --hue-clutch: #b6f23a;
   --hue-poll: #f5c542;
+  --series-2: #7aa2ff;
+  --series-3: #ff7a9a;
+  --series-4: #a3a3ad;
 
   --mood-xfear: #ff4d6a;
   --mood-fear: #ff9a4d;

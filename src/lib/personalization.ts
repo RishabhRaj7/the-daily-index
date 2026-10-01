@@ -17,6 +17,19 @@ export const DEFAULT_PERSONALIZATION: Personalization = {
   hateWatchFootball: "",
   hateWatchTennis: "",
   valorantTeams: ["PRX"],
+  // The questions the reader picked out on Polymarket and Kalshi.
+  oddsWatch: [
+    "Which party will win the Senate in 2026",
+    "F1 Drivers Champion",
+    "What price will Bitcoin hit in 2026",
+    "Will the U.S. invade Iran before 2027",
+    "Fed decision",
+    "Which company has the best AI model end of 2026",
+    "Gemini 4.0 released by",
+    "Highest grossing movie in 2026",
+    "Oscars Best Picture Winner",
+  ],
+  oddsPins: [],
   topics: [],
   subreddits: [],
   sectionOrder: SECTION_ORDER,
@@ -57,6 +70,8 @@ export function loadPersonalization(): Personalization {
       savedOrder.splice(at >= 0 ? at + 1 : savedOrder.length, 0, "straw-poll");
     }
     merged.valorantTeams = (Array.isArray(merged.valorantTeams) ? merged.valorantTeams : []).filter((c) => typeof c === "string");
+    merged.oddsWatch = (Array.isArray(merged.oddsWatch) ? merged.oddsWatch : DEFAULT_PERSONALIZATION.oddsWatch!).filter((q) => typeof q === "string");
+    merged.oddsPins = (Array.isArray(merged.oddsPins) ? merged.oddsPins : []).filter((p) => p && typeof p.id === "string");
     merged.sectionOrder = [
       ...savedOrder,
       ...SECTION_ORDER.filter((key) => !savedOrder.includes(key)),

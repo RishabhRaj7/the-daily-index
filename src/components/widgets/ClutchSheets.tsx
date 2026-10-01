@@ -527,6 +527,15 @@ function TeamView({ team, data, go }: { team: ValTeam; data: ValorantData; go: (
 
 // ---- two teams --------------------------------------------------------------------------
 
+function Side({ t, align, go }: { t: { code: string; name: string; image: string | null }; align: "left" | "right"; go: (v: ClutchView) => void }) {
+  return (
+    <button type="button" onClick={() => go({ kind: "team", code: t.code })} className={`flex flex-col ${align === "left" ? "items-start text-left" : "items-end text-right"} gap-2 min-w-0 group`}>
+      <Logo src={t.image} name={t.code} size={56} />
+      <span className="font-display font-bold text-[1.25rem] leading-tight group-hover:underline decoration-dotted underline-offset-4">{t.name}</span>
+    </button>
+  );
+}
+
 function MatchView({ a, b, id, data, go }: { a: string; b: string; id?: string; data: ValorantData; go: (v: ClutchView) => void }) {
   const ha = useHistory(a);
   const hb = useHistory(b);
@@ -545,17 +554,10 @@ function MatchView({ a, b, id, data, go }: { a: string; b: string; id?: string; 
   const done = match?.state === "completed";
   const oddsA = match?.odds ? (match.teams[0].code === a ? match.odds.a : match.odds.b) : null;
 
-  const Side = ({ t, align }: { t: typeof A; align: "left" | "right" }) => (
-    <button type="button" onClick={() => go({ kind: "team", code: t.code })} className={`flex flex-col ${align === "left" ? "items-start text-left" : "items-end text-right"} gap-2 min-w-0 group`}>
-      <Logo src={t.image} name={t.code} size={56} />
-      <span className="font-display font-bold text-[1.25rem] leading-tight group-hover:underline decoration-dotted underline-offset-4">{t.name}</span>
-    </button>
-  );
-
   return (
     <div>
       <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4">
-        <Side t={A} align="left" />
+        <Side t={A} align="left" go={go} />
         <div className="text-center">
           {match && (done || match.state === "inProgress") ? (
             <div className="font-display font-extrabold text-[2.6rem] leading-none tabular-nums">
@@ -575,7 +577,7 @@ function MatchView({ a, b, id, data, go }: { a: string; b: string; id?: string; 
             </div>
           )}
         </div>
-        <Side t={B} align="right" />
+        <Side t={B} align="right" go={go} />
       </div>
 
       {oddsA != null && !done && (

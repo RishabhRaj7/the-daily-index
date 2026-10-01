@@ -514,6 +514,12 @@ export interface Personalization {
   hateWatchTennis: string;            // rival player
   /** Valorant teams followed in Clutch, by Riot team code ("PRX"). */
   valorantTeams: string[];
+  /** Questions the reader keeps an eye on in Straw Poll, as searches
+   *  ("Which party will win the Senate in 2026"): whatever market answers
+   *  one today, even as the dates roll on. */
+  oddsWatch?: string[];
+  /** Markets starred from a sheet, by id (pm:<slug>, ks:<ticker>). */
+  oddsPins?: Array<{ id: string; title: string }>;
   topics: string[];
   subreddits: string[];            // up to 5; empty = use globally trending Reddit posts
   /** Every section, in print order (hidden ones keep their place). */
@@ -639,7 +645,7 @@ export interface ValorantData {
 
 // ---- Straw Poll: prediction-market odds (lib/live/odds.ts, lib/odds-pick.ts) ------------
 
-export type OddsSubject = "f1" | "football" | "tennis" | "valorant" | "money" | "tech" | "india" | "world";
+export type OddsSubject = "f1" | "football" | "tennis" | "valorant" | "money" | "tech" | "india" | "world" | "culture";
 
 export interface OddsMarket {
   /** pm:<event slug> or ks:<event ticker>. */
@@ -648,12 +654,19 @@ export interface OddsMarket {
   title: string;
   url: string;
   subject: OddsSubject;
-  /** Up to four, favourite first (a date ladder: the furthest deadline first). */
-  outcomes: Array<{ name: string; prob: number; prev?: number }>;
+  /** Up to four, favourite first (a date ladder: the furthest deadline
+   *  first; a price ladder: every level, highest first). Each carries what
+   *  its own price history is read by: Polymarket's CLOB token, Kalshi's
+   *  market ticker. */
+  outcomes: Array<{ name: string; prob: number; prev?: number; token?: string; ticker?: string }>;
   /** The favourite, its move today and over a week, in points. */
   lead: { name: string; prob: number; move: number | null; week: number | null };
   binary: boolean;
   ladder: boolean;
+  /** A price ladder ("What price will Bitcoin hit in 2026?": ↑ $150k, ↓ $60k…). */
+  hit?: boolean;
+  /** Kalshi's series, for its price history. */
+  series?: string;
   /** Dollars traded today and in all. */
   vol24: number;
   vol: number;
@@ -676,7 +689,19 @@ export interface OddsUniverse {
   at: string;
   tookMs: number;
   /** How often the favourite a week out won, over the past month (once 10+ settled). */
-  record?: { called: number; total: number } | null;
+  record?: OddsRecordSummary | null;
+  /** Which markets each watched search found: query → market ids. */
+  watched?: Record<string, string[]>;
+}
+
+/** Straw Poll's track record: the favourite a week before each question settled, against what happened. */
+export interface OddsRecordSummary {
+  called: number;
+  total: number;
+  /** By how sure the favourite was: under 70%, 70–90%, 90%+. */
+  buckets: Array<{ label: string; called: number; total: number }>;
+  /** The latest verdicts, newest first. */
+  recent: Array<{ title: string; favourite: string; chance: number; winner: string; called: boolean; settled: string }>;
 }
 
 /** A severe-weather alert near one of the reader's places (lib/live/alerts.ts). */

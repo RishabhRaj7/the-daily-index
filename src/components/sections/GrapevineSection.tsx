@@ -4,8 +4,10 @@ import type { EditorsPick, GrapevineData, TrendingTopic } from "@/lib/types";
 import SectionHeader from "@/components/story/SectionHeader";
 import LiveBadge from "@/components/widgets/LiveBadge";
 import PuzzleDesk from "@/components/widgets/PuzzleDesk";
+import SearchBar from "@/components/widgets/SearchBar";
 
-// The Grapevine: two newspaper columns, separated by a hairline, no cards.
+// The Grapevine: the Search Bar (what each country is searching right now,
+// Google Trends), then two newspaper columns, separated by a hairline, no cards.
 //   Left  — "You Should See This": real stories lifted from today's own wire
 //           pool, weighted toward the reader's interests. Nothing invented.
 //   Right — "Overheard on Reddit": top posts from the reader's subreddits via
@@ -99,8 +101,11 @@ export default function GrapevineSection({
   subreddits = [],
   redditUser = null,
   dateKey,
+  headlines = [],
 }: {
   data: GrapevineData;
+  /** Today's headlines, so a trending search that's in the paper says so. */
+  headlines?: string[];
   subreddits?: string[];
   redditUser?: string | null;
   /** Edition date (YYYY-MM-DD); seeds the daily puzzle so it's stable on reload. */
@@ -131,6 +136,8 @@ export default function GrapevineSection({
       <p className="font-headline italic text-lg text-ink-soft -mt-2 mb-10 max-w-[60ch]">
         What a well-read friend would forward you this morning. Every item links to a real story from today&rsquo;s wire.
       </p>
+
+      <SearchBar headlines={headlines} />
 
       <div className="grid md:grid-cols-2 gap-y-12">
         <div className="md:pr-10 md:border-r hairline">

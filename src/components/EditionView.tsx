@@ -67,9 +67,10 @@ import LedgerSection from "@/components/sections/LedgerSection";
 import MarketPulseSection from "@/components/sections/MarketPulseSection";
 import ClutchSection from "@/components/sections/ClutchSection";
 import StrawPollSection from "@/components/sections/StrawPollSection";
-import OddsLine from "@/components/widgets/OddsLine";
+import { OddsStrip } from "@/components/odds/OddsCard";
+import { SparksContext, useSparks } from "@/components/odds/odds-context";
 import InBrief from "@/components/story/InBrief";
-import { layoutOdds, scoreOdds, storyOdds, type OddsFollow, type OddsPick } from "@/lib/odds-pick";
+import { layoutOdds, scoreOdds, storyOdds, type OddsFollow, type OddsLayout, type OddsPick } from "@/lib/odds-pick";
 import { StoryOddsContext } from "@/components/story/StoryOdds";
 import type { OddsUniverse } from "@/lib/types";
 import GrapevineSection from "@/components/sections/GrapevineSection";
@@ -827,19 +828,40 @@ export default function EditionView({
     ];
     return list.filter((f) => f.name.trim().length >= 3);
   }, [personalization, edition.f1?.standings, edition.valorant?.teams]);
-  const oddsQuery = oddsFollows.filter((f) => !f.rival).map((f) => f.name).slice(0, 8).join("|");
+  // The reader's watchlist (searches) and stars (ids) are read alongside.
+  const oddsWatch = (personalization.oddsWatch ?? []).slice(0, 12);
+  const oddsPins = (personalization.oddsPins ?? []).map((p) => p.id).slice(0, 12);
+  const oddsQuery = [
+    oddsFollows.filter((f) => !f.rival).map((f) => f.name).slice(0, 8).join("|"),
+    oddsWatch.join("|"),
+    oddsPins.join(","),
+  ];
+  const oddsUrl = `/api/odds?${new URLSearchParams({
+    ...(oddsQuery[0] ? { f: oddsQuery[0] } : {}),
+    ...(oddsQuery[1] ? { w: oddsQuery[1] } : {}),
+    ...(oddsQuery[2] ? { p: oddsQuery[2] } : {}),
+  })}`;
   const [odds, setOdds] = useState<OddsUniverse | null>(null);
   useEffect(() => {
     if (isArchive) return;
     const controller = new AbortController();
-    fetch(`/api/odds${oddsQuery ? `?f=${encodeURIComponent(oddsQuery)}` : ""}`, { signal: controller.signal })
+    fetch(oddsUrl, { signal: controller.signal })
       .then((r) => (r.ok ? (r.json() as Promise<OddsUniverse>) : null))
       .then((u) => u && setOdds(u))
       .catch(() => {});
     return () => controller.abort();
-  }, [isArchive, oddsQuery]);
+  }, [isArchive, oddsUrl]);
+  const pageHeadlines = useMemo(
+    () => [
+      ...Object.values(edition.sections).flatMap((list) => (list ?? []).map((s) => s.headline)),
+      ...f1Stories.map((s) => s.headline),
+      ...footballStories.map((s) => s.headline),
+      ...tennisStories.map((s) => s.headline),
+    ],
+    [edition.sections, f1Stories, footballStories, tennisStories],
+  );
   const oddsLayout = useMemo(() => {
-    if (!odds) return { poll: [], lines: {}, stories: new Map() } as ReturnType<typeof layoutOdds> & { stories: Map<string, OddsPick> };
+    if (!odds) return { poll: { lead: null, movers: [], busiest: [] }, sections: {}, stories: new Map() } as OddsLayout & { stories: Map<string, OddsPick> };
     const headlines = [
       ...Object.values(edition.sections).flatMap((list) => (list ?? []).map((s) => s.headline)),
       ...f1Stories.map((s) => s.headline),
@@ -847,13 +869,19 @@ export default function EditionView({
       ...tennisStories.map((s) => s.headline),
     ];
     const sports = [...personalization.sports, ...(personalization.valorantTeams.length ? (["valorant"] as const) : [])];
-    const picks = scoreOdds(odds.markets, { follows: oddsFollows, sports, subjects: ["money", "world", "india", "tech"], headlines });
+    const watched = new Set([...Object.values(odds.watched ?? {}).flat(), ...(personalization.oddsPins ?? []).map((p) => p.id)]);
+    const picks = scoreOdds(odds.markets, { follows: oddsFollows, sports, subjects: ["money", "world", "india", "tech", "culture"], headlines, watched });
     // Markets about a story print under it; the rest go to Straw Poll and the section feet.
     const stories = storyOdds(picks);
     const under = new Set([...stories.values()].map((p) => p.market.id));
     // Each market prints once on the page.
     return { ...layoutOdds(picks.filter((p) => !under.has(p.market.id)), personalization.hiddenSections, under), stories };
   }, [odds, edition.sections, f1Stories, footballStories, tennisStories, personalization, oddsFollows]);
+  // A week's line for every market on the page, in one request.
+  const sparks = useSparks([
+    ...[oddsLayout.poll.lead, ...oddsLayout.poll.movers, ...oddsLayout.poll.busiest].filter((p): p is OddsPick => !!p).map((p) => p.market),
+    ...Object.values(oddsLayout.sections).flatMap((list) => (list ?? []).map((p) => p.market)),
+  ]);
 
   // In Brief: the leading stories each section had no room for (from the
   // digest; a story already on the page anywhere is left out).
@@ -880,7 +908,7 @@ export default function EditionView({
       (personalization.sports.includes("football") && footballStories.length > 0) ||
       (personalization.sports.includes("tennis") && tennisStories.length > 0),
     clutch: !isArchive,
-    "straw-poll": !isArchive && oddsLayout.poll.length > 0,
+    "straw-poll": !isArchive && !!oddsLayout.poll.lead,
     "sky-report": true,
     "market-pulse": true,
     "circuit-board": edition.sections.circuitBoard.length > 0,
@@ -965,6 +993,7 @@ export default function EditionView({
         subreddits={feedSubreddits ?? personalization.subreddits}
         redditUser={redditUser}
         dateKey={edition.isoDate}
+        headlines={pageHeadlines}
       />
     ),
   };
@@ -1027,6 +1056,7 @@ export default function EditionView({
 
   return (
     <main className="flex-1">
+      <SparksContext.Provider value={sparks}>
       <StoryOddsContext.Provider value={oddsLayout.stories}>
       {prep !== "revealed" && (
         <EditionPrepOverlay
@@ -1090,7 +1120,7 @@ export default function EditionView({
             <div key={key} className="paper-section" style={{ ["--section-hue" as string]: SECTION_META[key].hue }}>
               {sectionRenderers[key]()}
               {briefsFor(key).length > 0 && <InBrief items={briefsFor(key)} />}
-              {oddsLayout.lines[key] && <OddsLine pick={oddsLayout.lines[key]!} />}
+              {oddsLayout.sections[key] && <OddsStrip picks={oddsLayout.sections[key]!} label={key === "grapevine" ? "Film and the awards" : "What traders expect"} />}
             </div>
           ))}
           {/* Preference sections with no existing paper slot of their
@@ -1125,6 +1155,7 @@ export default function EditionView({
         </div>
       </footer>
       </StoryOddsContext.Provider>
+      </SparksContext.Provider>
     </main>
   );
 }

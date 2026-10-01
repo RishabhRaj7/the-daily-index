@@ -5,16 +5,24 @@ import type { OddsMarket, OddsSubject, SectionKey } from "@/lib/types";
 // in the browser) against the shared list /api/odds returns.
 //
 // A market earns a place only if it is
-//   1. about the reader: it names something they follow (or a rival), or it
-//      sits in a subject they read;
+//   1. about the reader: on their watchlist or starred, names something
+//      they follow (or a rival), or sits in a subject they read;
 //   2. backed by real money: $100k traded in all (lower floors where the
-//      markets are small: F1, India, Valorant; $5k for a follow);
-//   3. worth a look today: it names a follow, matches a story in today's
-//      edition, moved 5+ points on a tight market, settles within a week,
-//      or is among the day's busiest ($500k today).
-// Then the page takes at most five for Straw Poll (two per subject, one
-// for money, never two questions about the same thing) and one line per
-// section, never the same market twice. A quiet day prints less; nothing is padded.
+//      markets are small: F1, India, Valorant; $5k for a follow or a watch);
+//   3. worth a look: watched, followed, in today's news, moved on a tight
+//      market, settling within a week, among the day's busiest, or one of
+//      the big standing questions ($1M+ traded).
+// Elections abroad need the money of a big one ($2M+) unless they're news.
+// AI & tech and the world weigh most, then sport, then money and film.
+//
+// Where it prints:
+//   Straw Poll      the day's action: the biggest mover as the lead, the
+//                   next movers, and what's busiest
+//   section strips  three or four standing questions at the foot of each
+//                   section (World, Tech, F1, Sport, Money, Grapevine);
+//                   the reader's watchlist first
+//   under a story   one line when a market is about that story
+// A market prints once on the page. Nothing is padded on a quiet day.
 
 export interface OddsFollow {
   /** Name as the markets would print it ("Max Verstappen", "Real Madrid"). */
@@ -28,18 +36,21 @@ export interface OddsProfile {
   /** Sports the reader follows: markets in others never print. */
   sports: Array<"f1" | "football" | "tennis" | "valorant">;
   /** Non-sport subjects the reader reads. */
-  subjects: Array<"money" | "world" | "india" | "tech">;
+  subjects: Array<"money" | "world" | "india" | "tech" | "culture">;
   /** Today's headlines, to tie a market to the news. */
   headlines: string[];
+  /** Markets on the reader's watchlist or starred, by id. */
+  watched?: Set<string>;
 }
 
 export interface OddsPick {
   market: OddsMarket;
   score: number;
-  /** One short reason it's here: "You follow Verstappen", "▲ 9 pts today". */
+  /** One short reason it's here: "On your watchlist", "▲ 9 pts today". */
   why: string;
   follow?: OddsFollow;
   headline?: string;
+  watched?: boolean;
   /** The day's move that counted: 0 on a loose market, a date ladder or a quiet day's trade. */
   move: number;
 }
@@ -53,23 +64,49 @@ export const SUBJECT_LABEL: Record<OddsSubject, string> = {
   tech: "AI & tech",
   india: "India",
   world: "World",
+  culture: "Film",
 };
 
-/** The section a subject's one line prints in. Valorant's odds live in Clutch. */
+/** The section a subject's odds print in. Valorant's live in Clutch; India's only in Straw Poll. */
 export const SUBJECT_SECTION: Partial<Record<OddsSubject, SectionKey>> = {
   f1: "paddock-notes",
   football: "sports",
   tennis: "sports",
   money: "ledger",
   tech: "circuit-board",
-  india: "the-nation",
   world: "dateline",
+  culture: "grapevine",
+};
+
+/** How many a section's strip holds: more where the reader's interest is. */
+export const SECTION_QUOTA: Partial<Record<SectionKey, number>> = {
+  "circuit-board": 4,
+  dateline: 4,
+  "paddock-notes": 3,
+  sports: 3,
+  ledger: 3,
+  grapevine: 3,
+};
+
+/** The reader's order of interest: tech and the world, then sport, then money and film. */
+const WEIGHT: Record<OddsSubject, number> = {
+  tech: 1.3,
+  world: 1.2,
+  f1: 1.05,
+  valorant: 1,
+  football: 1,
+  tennis: 1,
+  money: 0.85,
+  culture: 0.85,
+  india: 0.75,
 };
 
 const FLOOR: Partial<Record<OddsSubject, number>> = { f1: 20_000, india: 5_000, valorant: 5_000, tennis: 50_000 };
 const DEFAULT_FLOOR = 100_000;
 const FOLLOW_FLOOR = 5_000;
 const BUSY_TODAY = 500_000;
+const STANDING = 1_000_000;
+const BIG_ELECTION = 2_000_000;
 const WEEK = 7 * 86_400_000;
 
 const STOP = new Set(
@@ -91,7 +128,9 @@ const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 function followOf(m: OddsMarket, follows: OddsFollow[]): OddsFollow | undefined {
   const text = ` ${m.title} ${m.outcomes.map((o) => o.name).join(" ")} `.toLowerCase();
   return follows.find((f) => {
-    if (f.subject !== m.subject && !(f.subject === "football" && m.subject === "world")) return false;
+    // A national side reaches into world markets only for football ones (a World Cup), not its country's election.
+    const footballAbroad = f.subject === "football" && m.subject === "world" && /\b(world cup|fifa|copa|euro 20|nations league|qualif)/i.test(m.title);
+    if (f.subject !== m.subject && !footballAbroad) return false;
     const name = f.name.toLowerCase().trim();
     if (name.length < 3) return false;
     // A full name, or a driver's / player's surname on its own.
@@ -116,7 +155,7 @@ const names = (t: string) =>
 /** A headline about the same thing: at least one name in common and one
  *  more word ("Antonelli" + "championship"), generic words not counting. */
 function headlineOf(m: OddsMarket, headlines: string[]): string | undefined {
-  const text = `${m.title} ${m.lead.name === "Yes" ? "" : m.lead.name}`;
+  const text = `${m.title} ${m.lead.name === "Yes" || m.hit ? "" : m.lead.name}`;
   const mine = new Set(words(text).filter((w) => !GENERIC.has(w)));
   const myNames = names(text);
   if (myNames.size === 0) return undefined;
@@ -127,7 +166,7 @@ function headlineOf(m: OddsMarket, headlines: string[]): string | undefined {
 }
 
 /** Two questions about the same thing ("Fed Decision in October?", "Fed decisions (Sep–Dec)"). */
-function alike(a: OddsMarket, b: OddsMarket): boolean {
+export function alike(a: OddsMarket, b: OddsMarket): boolean {
   const stems = (m: OddsMarket) =>
     new Set(
       m.title
@@ -143,6 +182,8 @@ function alike(a: OddsMarket, b: OddsMarket): boolean {
 
 // Side questions that say little about what people think will happen.
 const TRIVIA = /\b(\d(st|nd|rd|th) place|meet with|who will .* meet|visit|attend|how many|number of|most (kills|goals|points)|say|mention)\b/i;
+const ELECTION = /\b(election|elections|president|presidential|prime minister|parliament|chancellor|mayor|seats)\b/i;
+const US_NATIONAL = /\b(us|u\.s\.|united states|senate|house|congress|trump|2028)\b/i;
 
 const pts = (n: number) => `${n > 0 ? "▲" : "▼"} ${Math.abs(Math.round(n))} pts today`;
 const isMatch = (m: OddsMarket) => /\bvs?\.?\s/i.test(m.title);
@@ -151,46 +192,55 @@ const rolling = (m: OddsMarket) => /\b(this week|week of|today|tonight)\b/i.test
 export function scoreOdds(markets: OddsMarket[], profile: OddsProfile, now = Date.now()): OddsPick[] {
   const sportOk = (s: OddsSubject) =>
     s === "f1" || s === "football" || s === "tennis" || s === "valorant" ? profile.sports.includes(s) : profile.subjects.includes(s as never);
+  const watchedIds = profile.watched ?? new Set<string>();
 
   const picks: OddsPick[] = [];
   for (const m of markets) {
+    const watched = watchedIds.has(m.id);
     const follow = followOf(m, profile.follows);
-    if (!follow && !sportOk(m.subject)) continue;
-    if (!follow && (isMatch(m) || rolling(m))) continue; // single matches and weekly charts: only for a follow
-    if (!follow && TRIVIA.test(m.title)) continue;
-    const floor = follow ? FOLLOW_FLOOR : (FLOOR[m.subject] ?? DEFAULT_FLOOR);
+    if (!watched && !follow && !sportOk(m.subject)) continue;
+    if (!watched && !follow && (isMatch(m) || rolling(m))) continue; // single matches and weekly charts: only for a follow
+    if (!watched && !follow && TRIVIA.test(m.title)) continue;
+    const floor = watched || follow ? FOLLOW_FLOOR : (FLOOR[m.subject] ?? DEFAULT_FLOOR);
     if (Math.max(m.vol, m.vol24) < floor) continue;
 
     const headline = headlineOf(m, profile.headlines);
+    // An election abroad earns a place by its size or by being news.
+    if (!watched && !follow && !headline && m.subject === "world" && ELECTION.test(m.title) && !US_NATIONAL.test(m.title) && m.vol < BIG_ELECTION) continue;
     // A move counts only where traders agree on the price (a tight spread).
-    const move = m.lead.move != null && (m.spread == null || m.spread <= 4) && !m.ladder && m.vol24 >= 25_000 ? m.lead.move : 0;
+    const move = m.lead.move != null && (m.spread == null || m.spread <= 4) && !m.ladder && !m.hit && m.vol24 >= 25_000 ? m.lead.move : 0;
     const closes = m.closes ? Date.parse(m.closes) : NaN;
     const soon = Number.isFinite(closes) && closes > now && closes - now < WEEK;
     const busy = m.vol24 >= BUSY_TODAY;
-    const worth = !!follow || !!headline || Math.abs(move) >= 5 || soon || busy;
+    const standing = m.vol >= STANDING && !rolling(m);
+    const worth = watched || !!follow || !!headline || Math.abs(move) >= 5 || soon || busy || standing;
     if (!worth) continue;
 
     let score = Math.log10(Math.max(m.vol24, 1)) * 4 + Math.log10(Math.max(m.vol, 1)) * 2;
+    if (watched) score += 60;
     if (follow) score += follow.rival ? 25 : 45;
     if (headline) score += 30;
     if (Math.abs(move) >= 4) score += Math.min(Math.abs(move), 25) * 2;
     if (m.lead.week != null && Math.abs(m.lead.week) >= 10) score += 6;
     if (soon) score += 10;
-    // Money is wanted, but only now and then.
-    if (m.subject === "money" && Math.abs(move) < 8 && !follow) score -= 12;
+    score *= WEIGHT[m.subject];
 
-    const why = follow
-      ? follow.rival
-        ? `Your rival: ${follow.name}`
-        : `You follow ${follow.name}`
-      : headline
-        ? "In today's news"
-        : Math.abs(move) >= 5
-          ? pts(move)
-          : soon
-            ? `Settles ${new Date(closes).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}`
-            : `$${compactMoney(m.vol24)} traded today`;
-    picks.push({ market: m, score, why, follow, headline, move });
+    const why = watched
+      ? "On your watchlist"
+      : follow
+        ? follow.rival
+          ? `Your rival: ${follow.name}`
+          : `You follow ${follow.name}`
+        : headline
+          ? "In today's news"
+          : Math.abs(move) >= 5
+            ? pts(move)
+            : soon
+              ? `Settles ${new Date(closes).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}`
+              : busy
+                ? `$${compactMoney(m.vol24)} traded today`
+                : `$${compactMoney(m.vol)} riding on it`;
+    picks.push({ market: m, score, why, follow, headline, watched, move });
   }
   return picks.sort((a, b) => b.score - a.score);
 }
@@ -200,10 +250,10 @@ export function compactMoney(n: number): string {
 }
 
 export interface OddsLayout {
-  /** Straw Poll: a lead and up to four more. */
-  poll: OddsPick[];
-  /** One line at the foot of a section, when it has a market of its own. */
-  lines: Partial<Record<SectionKey, OddsPick>>;
+  /** Straw Poll: the day's biggest mover, the next movers, and the busiest. */
+  poll: { lead: OddsPick | null; movers: OddsPick[]; busiest: OddsPick[] };
+  /** Three or four standing questions at the foot of each section. */
+  sections: Partial<Record<SectionKey, OddsPick[]>>;
 }
 
 /**
@@ -222,33 +272,58 @@ export function storyOdds(picks: OddsPick[], limit = 3): Map<string, OddsPick> {
 }
 
 export function layoutOdds(picks: OddsPick[], hidden: SectionKey[] = [], underStories: Set<string> = new Set()): OddsLayout {
-  const poll: OddsPick[] = [];
-  const per = new Map<OddsSubject, number>();
-  for (const p of picks) {
-    if (poll.length >= 5) break;
-    const s = p.market.subject;
-    if (s === "valorant") continue; // Clutch carries its own odds
-    const n = per.get(s) ?? 0;
-    if (n >= (s === "money" ? 1 : 2)) continue;
-    if (poll.some((q) => alike(q.market, p.market))) continue;
-    per.set(s, n + 1);
-    poll.push(p);
-  }
-  // Each section's best market not already in Straw Poll — but only one that
-  // clearly earns the space (a follow, today's news, or a real move).
-  const used = new Set(poll.map((p) => p.market.id));
-  const lines: OddsLayout["lines"] = {};
-  for (const p of picks) {
-    const key = SUBJECT_SECTION[p.market.subject];
-    // A market already printed under its story doesn't repeat at the foot.
-    if (!key || lines[key] || used.has(p.market.id) || underStories.has(p.market.id) || hidden.includes(key)) continue;
-    if (poll.some((q) => alike(q.market, p.market))) continue;
-    const strong = !!p.follow || !!p.headline || Math.abs(p.move) >= 8;
-    if (!strong) continue;
-    lines[key] = p;
+  const used = new Set<string>(underStories);
+  const placed: OddsMarket[] = [];
+  const free = (p: OddsPick) => !used.has(p.market.id) && !placed.some((m) => alike(m, p.market));
+  const take = (p: OddsPick) => {
     used.add(p.market.id);
+    placed.push(p.market);
+    return p;
+  };
+  const eligible = picks.filter((p) => p.market.subject !== "valorant"); // Clutch carries its own
+
+  // Sections first, so each keeps its standing questions (watchlist first).
+  const sections: OddsLayout["sections"] = {};
+  for (const [key, quota] of Object.entries(SECTION_QUOTA) as Array<[SectionKey, number]>) {
+    if (hidden.includes(key)) continue;
+    const mine = eligible
+      .filter((p) => SUBJECT_SECTION[p.market.subject] === key)
+      .sort((a, b) => Number(!!b.watched) - Number(!!a.watched) || b.score - a.score);
+    const list: OddsPick[] = [];
+    for (const p of mine) {
+      if (list.length >= quota) break;
+      if (!free(p)) continue;
+      list.push(take(p));
+    }
+    if (list.length) sections[key] = list;
   }
-  return { poll, lines };
+
+  // Straw Poll: the day's action among what's left, from any subject.
+  const moving = eligible
+    .filter((p) => Math.abs(p.move) >= 4)
+    .sort((a, b) => Math.abs(b.move) * WEIGHT[b.market.subject] - Math.abs(a.move) * WEIGHT[a.market.subject]);
+  // No big move today: the week's biggest swing on a tight market, so the
+  // lead chart has a story to tell; failing that, the strongest question.
+  const weekly = eligible
+    .filter((p) => !p.market.ladder && !p.market.hit && Math.abs(p.market.lead.week ?? 0) >= 6 && (p.market.spread == null || p.market.spread <= 4) && p.market.vol24 >= 25_000)
+    .sort((a, b) => Math.abs(b.market.lead.week ?? 0) * WEIGHT[b.market.subject] - Math.abs(a.market.lead.week ?? 0) * WEIGHT[a.market.subject]);
+  const lead = moving.find(free) ?? weekly.find(free) ?? eligible.find(free) ?? null;
+  if (lead) take(lead);
+  const movers: OddsPick[] = [];
+  for (const p of moving) {
+    if (movers.length >= 4) break;
+    if (free(p)) movers.push(take(p));
+  }
+  // Where the money is: one per subject and one election at most, so four
+  // presidential races can't fill the row.
+  const busiest: OddsPick[] = [];
+  for (const p of [...eligible].sort((a, b) => b.market.vol24 * WEIGHT[b.market.subject] - a.market.vol24 * WEIGHT[a.market.subject])) {
+    if (busiest.length >= 4) break;
+    if (p.market.vol24 < 50_000 || !free(p)) continue;
+    if (busiest.some((q) => q.market.subject === p.market.subject && !(p.market.subject === "world" && !ELECTION.test(p.market.title) && ELECTION.test(q.market.title)))) continue;
+    busiest.push(take(p));
+  }
+  return { poll: { lead, movers, busiest }, sections };
 }
 
 /**
@@ -266,4 +341,29 @@ export function policyMarket(markets: OddsMarket[], bank: "fed" | "rbi", decisio
     .filter((m) => re.test(m.title) && !path.test(m.title))
     .filter((m) => !m.closes || Math.abs(Date.parse(m.closes) - due) < 5 * 86_400_000)
     .sort((a, b) => b.vol24 - a.vol24)[0];
+}
+
+/** A price ladder's level in dollars: "↑ $150k" → 150000. */
+export function ladderLevel(name: string): number {
+  const n = Number(name.replace(/[^\d.]/g, ""));
+  return n * (/T$/.test(name) ? 1e12 : /B$/.test(name) ? 1e9 : /M$/.test(name) ? 1e6 : /k$/i.test(name) ? 1e3 : 1);
+}
+
+/**
+ * A price ladder read as one line: the highest level up traders give even
+ * odds or better, and the likeliest fall ("62% it reaches $130k · 24% it
+ * falls to $80k").
+ */
+export function ladderLine(m: OddsMarket): string | null {
+  if (!m.hit) return null;
+  const ups = m.outcomes.filter((o) => o.name.startsWith("↑")).map((o) => ({ ...o, v: ladderLevel(o.name) })).sort((a, b) => a.v - b.v);
+  const downs = m.outcomes.filter((o) => o.name.startsWith("↓")).map((o) => ({ ...o, v: ladderLevel(o.name) })).sort((a, b) => b.v - a.v);
+  const fmt = (v: number) =>
+    `$${v >= 1e12 ? `${+(v / 1e12).toFixed(2)}T` : v >= 1e9 ? `${+(v / 1e9).toFixed(1)}B` : v >= 1e6 ? `${+(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${Math.round(v / 1e3)}k` : v}`;
+  const up = [...ups].reverse().find((o) => o.prob >= 50) ?? ups[0];
+  const down = downs.find((o) => o.prob >= 15) ?? downs[0];
+  const parts = [];
+  if (up) parts.push(`${Math.round(up.prob)}% it reaches ${fmt(up.v)}`);
+  if (down) parts.push(`${Math.round(down.prob)}% it falls to ${fmt(down.v)}`);
+  return parts.length ? parts.join(" · ") : null;
 }

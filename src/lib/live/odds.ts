@@ -1,5 +1,6 @@
 import type { OddsMarket, OddsSubject, OddsUniverse } from "@/lib/types";
 import { getStore } from "@/lib/server/store";
+import { saysWomens } from "./womens-sport";
 
 // Straw Poll: what the prediction markets think, read for this reader only.
 //
@@ -23,8 +24,15 @@ import { getStore } from "@/lib/server/store";
 //
 // Noise rules, from andaaza's hard-won list: all-but-settled questions
 // (98.5%+, or 95%+ once past their due date), side bets (maps, props,
-// handicaps), price ladders ("↑ $120"), and what the reader said no to —
-// US state and local politics, crypto, awards and culture.
+// handicaps), short-dated price bets ("Bitcoin above $X on Friday"), and
+// what the reader said no to: US state and local politics, women's sport,
+// other sports and esports. A year's price ladder ("What price will
+// Bitcoin hit in 2026?") is kept and drawn as a ladder; film and the
+// Oscars are the culture desk's.
+//
+// The reader's watchlist (questions they picked out on the exchanges,
+// kept as searches so "Fed decision" finds next month's once this one
+// settles) and starred markets are read alongside, each kept like a follow.
 //
 // The page decides what to print (lib/odds-pick.ts): this returns every
 // candidate, classified and cleaned.
@@ -93,12 +101,19 @@ const EXCLUDE = new RegExp(
   [
     "\\bgovernor\\b", "\\bmayor", "\\bstate (senate|house|assembly)", "\\bprimary\\b", "\\bprimaries\\b", "\\bnominee\\b", "\\bnomination\\b",
     "\\bapproval rating", "\\bapproval\\b.*\\btrump", "\\bwill .* say\\b", "\\bsay .* during\\b", "\\btweets?\\b", "\\bposts?\\b.*\\btimes\\b", "\\bmention",
-    "\\bbitcoin\\b", "\\bbtc\\b", "\\bethereum\\b", "\\bsolana\\b", "\\bxrp\\b", "\\bcrypto", "\\bmemecoin", "\\bdoge",
-    "\\bnobel\\b", "\\boscars?\\b", "\\bgrammys?\\b", "\\bemmys?\\b", "person of the year", "\\beurovision\\b", "\\bbox office\\b", "\\balbum\\b", "\\bbillboard\\b", "\\bspotify\\b",
+    "\\bmemecoin", "\\bdoge", "\\bpump\\.fun\\b", "\\bsatoshi\\b",
+    // Awards beyond film (the reader asked for the Oscars and the box office only).
+    "\\bnobel\\b", "\\bemmys?\\b", "\\bgolden globes?\\b",
+    "person of the year", "\\beurovision\\b", "\\balbum\\b", "\\bbillboard\\b", "\\bspotify\\b", "\\bgrammys?\\b",
+    // A film's opening weekend and other one-week culture bets.
+    "\\bopening weekend\\b", "\\brotten tomatoes\\b",
     "\\bhurricane\\b", "\\btemperature\\b", "\\bweather\\b", "\\bearthquake\\b",
     "\\bdota\\b", "\\bcounter-strike\\b", "\\bcs2\\b", "\\bleague of legends\\b", "\\blol:", "\\boverwatch\\b", "\\brocket league\\b",
     "\\bnfl\\b", "\\bnba\\b", "\\bmlb\\b", "\\bnhl\\b", "\\bwnba\\b", "\\bncaa", "\\bufc\\b", "\\bboxing\\b", "\\bgolf\\b", "\\bpga\\b",
     "\\bup or down\\b", "\\bhighest temperature\\b",
+    // Crypto by the day or week; the year's ladder stays.
+    "\\b(bitcoin|ethereum|solana|xrp|btc|eth)\\b.*\\b(on|today|tomorrow|this week|daily|hourly|by (jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* \\d)",
+    "\\b(bitcoin|ethereum|solana|xrp)\\b.*\\b(above|below|price) .* (on|at) ",
     // State bills and races are state politics, whatever the subject.
     `\\b(${US_STATES}) (enacts?|passes|bans|legali[sz]es|governor|senate|house|legislature)\\b`,
   ].join("|"),
@@ -106,17 +121,20 @@ const EXCLUDE = new RegExp(
 );
 
 // Price ladders and props are not questions a reader follows.
-const LADDER = /^[↑↓]|^[<>≥≤]|^\$?[\d,.]+\s*[kmb%]?\+?$|^(over|under|above|below|between)\b|\bor (more|higher|lower|less)\b/i;
+const LADDER = /^[<>≥≤]|^\$?[\d,.]+\s*[kmb%]?\+?$|^(over|under|above|below|between)\b|\bor (more|higher|lower|less)\b/i;
+/** "↑ $150,000", "↓ 60k": one level of a price ladder. */
+const HIT = /^([↑↓])\s*\$?([\d,.]+)\s*([kmbt])?$/i;
 const PROP = /\b(map \d|set \d|game \d|first blood|most kills|total (maps|kills|overtimes|goals|points)|exact score|correct score|handicap|o\/u|over\/under|to score|anytime|fastest lap|pole|podium|top \d finish|winning margin|halftime|both teams)\b/i;
 
 // ---- subjects ----------------------------------------------------------------------------
 
 const SUBJECT_RULES: Array<[OddsSubject, RegExp]> = [
   ["valorant", /\bvalorant\b|\bvct\b/i],
+  ["culture", /\b(oscars?|academy awards?|best picture|best actor|best actress|box office|grossing|movie|film|emmys?|golden globes?|cannes)\b/i],
   ["f1", /\b(f1|formula 1|formula one|grand prix|drivers'? champion|constructors'? champion)\b/i],
   ["tennis", /\b(atp|wimbledon|us open|french open|roland garros|australian open|djokovic|alcaraz|sinner|zverev|medvedev|men's singles)\b/i],
   ["football", /\b(premier league|la liga|laliga|champions league|europa league|ballon d'or|serie a|bundesliga|ligue 1|uefa|fifa|world cup|el cl[aá]sico|real madrid|barcelona|arsenal|liverpool|manchester|chelsea|bayern|psg)\b/i],
-  ["money", /\b(fed|federal reserve|fomc|interest rates?|rate (cut|hike)|rbi|repo rate|inflation|cpi|recession|gdp|oil|crude|brent|wti|gold|silver|rupee|usd\/inr|nifty|sensex|s&p|nasdaq|dow jones|largest company|market cap|ipo|earnings|tariffs?|stock market)\b/i],
+  ["money", /\b(fed|federal reserve|fomc|interest rates?|rate (cut|hike)|rbi|repo rate|inflation|cpi|recession|gdp|oil|crude|brent|wti|gold|silver|rupee|usd\/inr|nifty|sensex|s&p|nasdaq|dow jones|largest company|market cap|ipo|earnings|tariffs?|stock market|bitcoin|ethereum|crypto)\b/i],
   ["tech", /\b(ai|a\.i\.|openai|anthropic|gemini|chatgpt|gpt-?\d|claude|grok|llm|deepseek|nvidia|apple|google|alphabet|microsoft|meta|tesla|spacex|starship|iphone|model)\b/i],
   ["india", /\b(india|indian|modi|bjp|lok sabha|rajya sabha|bihar|kerala|tamil nadu|west bengal|kolkata|delhi|mumbai|pakistan)\b/i],
   ["world", /./],
@@ -126,6 +144,7 @@ function subjectOf(text: string, tagHint?: OddsSubject): OddsSubject {
   if (tagHint && tagHint !== "world") {
     // A tag names the subject, unless the words say it is India's.
     if (tagHint === "money" || tagHint === "tech") return /\b(rbi|nifty|sensex|rupee)\b/i.test(text) ? "money" : tagHint;
+    // A war's oil price is the world's story; Polymarket files it under economy.
     return tagHint;
   }
   return SUBJECT_RULES.find(([, re]) => re.test(text))?.[0] ?? "world";
@@ -144,6 +163,10 @@ const PM_TAGS: Array<[string, OddsSubject]> = [
   ["ipos", "money"],
   ["india", "india"],
   ["geopolitics", "world"],
+  ["iran", "world"],
+  ["midterms", "world"],
+  ["movies", "culture"],
+  ["oscars", "culture"],
   ["global-elections", "world"],
   ["middle-east", "world"],
   ["ukraine", "world"],
@@ -178,10 +201,17 @@ interface PmEvent {
   markets?: PmMarket[];
 }
 
+/** 150000 → "150k", 1500000 → "1.5M". */
+function compactLevel(n: number): string {
+  return n >= 1e12 ? `${+(n / 1e12).toFixed(2)}T` : n >= 1e9 ? `${+(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `${+(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${+(n / 1e3).toFixed(1)}k` : String(n);
+}
+
 const MONTH_ITEM = /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.? \d{1,2}(, \d{4})?$/i;
 
 function fromPolymarket(e: PmEvent, hint?: OddsSubject): OddsMarket | null {
   if (!e?.slug || / - more markets$/i.test(e.title)) return null;
+  // Women's tennis and the ITF tour file under wta-/itf- slugs; the rest say so.
+  if (/^(wta|itf)-/.test(e.slug) || saysWomens(e.title)) return null;
   let mk = (e.markets ?? []).filter((m) => m.active !== false && m.closed !== true);
   // A match or race: only its result market.
   if (mk.some((m) => m.sportsMarketType === "moneyline")) mk = mk.filter((m) => m.sportsMarketType === "moneyline");
@@ -196,9 +226,38 @@ function fromPolymarket(e: PmEvent, hint?: OddsSubject): OddsMarket | null {
     return s != null ? s * 100 : a != null && b != null ? (a - b) * 100 : null;
   };
 
-  let rows: Array<{ name: string; prob: number; d1: number | null; w1: number | null; sp: number | null; token?: string; at?: number }>;
+  let rows: Array<{ name: string; prob: number; d1: number | null; w1: number | null; sp: number | null; token?: string; at?: number; level?: number }>;
   let ladder = false;
-  if (mk.length === 1) {
+  let hit = false;
+  const levels = mk.map((m) => (m.groupItemTitle ?? "").trim().match(HIT));
+  if (mk.length >= 3 && levels.every(Boolean)) {
+    // A price ladder: every level the price might touch, highest first.
+    hit = true;
+    const mult = { k: 1e3, m: 1e6, b: 1e9, t: 1e12 } as Record<string, number>;
+    rows = mk
+      .map((m, i) => {
+        const [, dir, n, unit] = levels[i]!;
+        const level = Number(n.replace(/,/g, "")) * (unit ? mult[unit.toLowerCase()] : 1);
+        return {
+          name: `${dir} $${compactLevel(level)}`,
+          level: dir === "↑" ? level : -level,
+          prob: Number(arr(m.outcomePrices)[0]) * 100,
+          d1: num(m.oneDayPriceChange),
+          w1: num(m.oneWeekPriceChange),
+          sp: spread(m),
+          token: arr(m.clobTokenIds)[0],
+        };
+      })
+      .filter((r) => Number.isFinite(r.prob) && r.prob >= 1 && r.prob <= 99)
+      .sort((a, b) => Math.abs(b.level) - Math.abs(a.level));
+    // The five levels nearest even money on each side (the far ones say
+    // little), highest first: the ups from the top down, then the downs
+    // from the nearest to the farthest.
+    const nearest = (list: typeof rows) => [...list].sort((a, b) => Math.abs(a.prob - 50) - Math.abs(b.prob - 50)).slice(0, 5);
+    const byLevel = (a: (typeof rows)[number], b: (typeof rows)[number]) => (b.level ?? 0) - (a.level ?? 0);
+    rows = [...nearest(rows.filter((r) => (r.level ?? 0) > 0)).sort(byLevel), ...nearest(rows.filter((r) => (r.level ?? 0) < 0)).sort(byLevel)];
+    if (rows.length < 2) return null;
+  } else if (mk.length === 1) {
     const m = mk[0];
     const names = arr(m.outcomes);
     const p = arr(m.outcomePrices).map(Number);
@@ -229,7 +288,7 @@ function fromPolymarket(e: PmEvent, hint?: OddsSubject): OddsMarket | null {
         sp: spread(m),
         token: arr(m.clobTokenIds)[0],
       }))
-      .filter((r) => r.at > Date.now() && !seen.has(r.at) && seen.add(r.at))
+      .filter((r) => r.at > Date.now() && r.prob >= 1 && !seen.has(r.at) && seen.add(r.at))
       .sort((a, b) => a.at - b.at)
       .slice(0, 4);
     if (rows.length > 1) rows = [rows[rows.length - 1], ...rows.slice(0, -1)];
@@ -244,10 +303,11 @@ function fromPolymarket(e: PmEvent, hint?: OddsSubject): OddsMarket | null {
     }));
   }
   rows = rows.filter((o) => Number.isFinite(o.prob) && !/^(other|team [a-z]|tbd)$/i.test(o.name));
-  if (!ladder) rows.sort((a, b) => b.prob - a.prob);
+  if (!ladder && !hit) rows.sort((a, b) => b.prob - a.prob);
   if (rows.length === 0 || rows.some((o) => LADDER.test(o.name))) return null;
 
-  const f = rows[0];
+  // A ladder's "favourite" is its closest call: the level nearest even money.
+  const f = hit ? [...rows].sort((a, b) => Math.abs(a.prob - 50) - Math.abs(b.prob - 50))[0] : rows[0];
   const text = `${e.title} ${(e.tags ?? []).map((t) => t.label).join(" ")}`;
   return {
     id: `pm:${e.slug}`,
@@ -255,10 +315,16 @@ function fromPolymarket(e: PmEvent, hint?: OddsSubject): OddsMarket | null {
     title: e.title,
     url: `https://polymarket.com/event/${e.slug}`,
     subject: subjectOf(text, hint),
-    outcomes: rows.slice(0, 4).map((o) => ({ name: o.name, prob: r1(o.prob), ...(o.d1 != null && !ladder ? { prev: r1(o.prob - o.d1 * 100) } : {}) })),
+    outcomes: rows.slice(0, hit ? 10 : 4).map((o) => ({
+      name: o.name,
+      prob: r1(o.prob),
+      ...(o.d1 != null && !ladder ? { prev: r1(o.prob - o.d1 * 100) } : {}),
+      ...(o.token ? { token: o.token } : {}),
+    })),
     lead: { name: f.name, prob: r1(f.prob), move: f.d1 != null ? r1(f.d1 * 100) : null, week: f.w1 != null ? r1(f.w1 * 100) : null },
-    binary: rows.length === 1 || f.name === "Yes",
+    binary: !hit && (rows.length === 1 || f.name === "Yes"),
     ladder,
+    ...(hit ? { hit: true } : {}),
     vol24: Math.round(Number(e.volume24hr) || 0),
     vol: Math.round(Number(e.volume) || 0),
     spread: f.sp != null ? r1(f.sp) : null,
@@ -293,6 +359,24 @@ async function polymarketSearch(names: string[]): Promise<OddsMarket[]> {
     }),
   );
   return pages.flat().filter((m): m is OddsMarket => m !== null);
+}
+
+/** Starred markets, read by their own id. */
+async function byIds(ids: string[]): Promise<OddsMarket[]> {
+  const out = await Promise.all(
+    ids.slice(0, 12).map(async (id) => {
+      if (id.startsWith("pm:")) {
+        const events = await json<PmEvent[]>(`${PM}/events?slug=${encodeURIComponent(id.slice(3))}`, 0).catch(() => null);
+        return events?.[0] ? fromPolymarket(events[0]) : null;
+      }
+      if (id.startsWith("ks:")) {
+        const body = await kalshiJson<{ event?: KEvent; markets?: KMarket[] }>(`${KALSHI}/events/${encodeURIComponent(id.slice(3))}`, 0);
+        return body?.event ? fromKalshi({ ...body.event, markets: body.markets ?? body.event.markets }) : null;
+      }
+      return null;
+    }),
+  );
+  return out.filter((m): m is OddsMarket => m !== null);
 }
 
 // ---- Kalshi ------------------------------------------------------------------------------------
@@ -350,6 +434,7 @@ async function kalshiSeries(): Promise<string[]> {
 }
 
 function fromKalshi(e: KEvent): OddsMarket | null {
+  if (/WTA|WOMEN|NWSL|WSL/i.test(e.series_ticker) || saysWomens(e.title)) return null;
   const mk = (e.markets ?? []).filter((m) => !m.status || m.status === "active" || m.status === "open");
   const price = (m: KMarket) => {
     const l = num(m.last_price_dollars);
@@ -364,6 +449,7 @@ function fromKalshi(e: KEvent): OddsMarket | null {
       const b = num(m.yes_bid_dollars);
       return {
         name: m.yes_sub_title || m.title || "",
+        ticker: m.ticker,
         prob: price(m),
         prev: prev && prev > 0 ? prev * 100 : null,
         v: Number(m.volume_24h_fp ?? 0),
@@ -390,10 +476,11 @@ function fromKalshi(e: KEvent): OddsMarket | null {
     title,
     url: `https://kalshi.com/markets/${e.series_ticker.toLowerCase()}`,
     subject: subjectOf(`${title} ${e.category ?? ""}`),
-    outcomes: rows.slice(0, 4).map((o) => ({ name: o.name, prob: r1(o.prob), ...(o.prev != null ? { prev: r1(o.prev) } : {}) })),
+    outcomes: rows.slice(0, 4).map((o) => ({ name: o.name, prob: r1(o.prob), ...(o.prev != null ? { prev: r1(o.prev) } : {}), ticker: o.ticker })),
     lead: { name: f.name, prob: r1(f.prob), move: f.prev != null ? r1(f.prob - f.prev) : null, week: null },
     binary: rows.length === 1 || f.name === "Yes",
     ladder: false,
+    series: e.series_ticker,
     vol24: Math.round(vol24),
     vol: Math.round(vol),
     spread: f.sp != null ? r1(f.sp) : null,
@@ -510,8 +597,8 @@ function sameQuestion(a: OddsMarket, b: OddsMarket): boolean {
 
 const FRESH_MS = 15 * 60_000;
 const STALE_MS = 12 * 3_600_000;
-const BASE_KEY = "odds:base:v1";
-const searchKey = (q: string) => `odds:q:v1:${q.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40)}`;
+const BASE_KEY = "odds:base:v2";
+const searchKey = (q: string) => `odds:q:v2:${q.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40)}`;
 
 interface Kept {
   at: string;
@@ -580,15 +667,52 @@ async function kept(key: string, read: () => Promise<Kept>, later: (task: () => 
 export async function getOddsUniverse(
   follows: string[] = [],
   later: (task: () => Promise<void>) => void = (task) => void task().catch(() => {}),
+  watch: string[] = [],
+  pins: string[] = [],
 ): Promise<OddsUniverse> {
   const started = Date.now();
-  const [base, ...searches] = await Promise.all([
+  const search = (q: string) =>
+    kept(searchKey(q), async () => ({ at: new Date().toISOString(), markets: await polymarketSearch([q]).catch(() => []) }), later);
+  const [base, pinned, ...searches] = await Promise.all([
     kept(BASE_KEY, readBase, later),
-    ...follows.slice(0, 8).map((q) =>
-      kept(searchKey(q), async () => ({ at: new Date().toISOString(), markets: await polymarketSearch([q]).catch(() => []) }), later),
-    ),
+    pins.length ? kept(`odds:pins:v1:${pins.slice().sort().join(",").slice(0, 300)}`, async () => ({ at: new Date().toISOString(), markets: await byIds(pins) }), later) : null,
+    ...follows.slice(0, 8).map(search),
+    ...watch.slice(0, 12).map(search),
   ]);
-  const searched = searches.flatMap((k) => k?.markets ?? []);
+  const followHits = searches.slice(0, Math.min(follows.length, 8));
+  const watchHits = searches.slice(Math.min(follows.length, 8));
+  // A watched search keeps only what answers it: its own words in the title.
+  // The question's telling words ("senate", "iran", "2026") must all be
+  // in the title; the soft ones ("win", "price", "company") may be missing.
+  // Of what answers, the closest wording wins, then the soonest to settle
+  // ("Fed decision" → this month's meeting, not December's).
+  const SOFT = /^(win|wins|winner|released?|price|party|company|decision|hit|reach|model|top|has|have|best)$/;
+  const tokens = (t: string) =>
+    t
+      .toLowerCase()
+      .replace(/u\.s\./g, "us")
+      .replace(/[^a-z0-9. ]/g, " ")
+      .split(/\s+/)
+      .map((w) => w.replace(/\.$/, ""))
+      .filter((w) => w.length >= 2 && !/^(will|the|which|what|who|when|by|in|of|on|an|a|be|is|before|after|end)$/.test(w));
+  const fits = (q: string, m: OddsMarket) => {
+    const title = tokens(m.title);
+    const has = (w: string) => title.some((t) => t === w || (w.length >= 4 && (t.startsWith(w) || w.startsWith(t) && t.length >= 4)));
+    return tokens(q).every((w) => SOFT.test(w) || has(w));
+  };
+  const watched: Record<string, string[]> = {};
+  watch.slice(0, 12).forEach((q, i) => {
+    const want = tokens(q).length;
+    const best = (watchHits[i]?.markets ?? [])
+      .filter((m) => fits(q, m) && !decided(m))
+      .sort(
+        (a, b) =>
+          Math.abs(tokens(a.title).length - want) - Math.abs(tokens(b.title).length - want) ||
+          (Date.parse(a.closes ?? "9999") || Infinity) - (Date.parse(b.closes ?? "9999") || Infinity),
+      )[0];
+    if (best) watched[q] = [best.id];
+  });
+  const searched = [...followHits, ...watchHits].flatMap((k) => k?.markets ?? []).concat(pinned?.markets ?? []);
   const sources = base?.sources ?? [
     { name: "Polymarket", ok: false, count: 0 },
     { name: "Kalshi", ok: false, count: 0 },
@@ -598,7 +722,7 @@ export async function getOddsUniverse(
   const seen = new Set<string>();
   const all = [...(base?.markets ?? []), ...searched]
     .filter((m) => !seen.has(m.id) && seen.add(m.id))
-    .filter((m) => !decided(m) && !EXCLUDE.test(`${m.title} ${m.tags.join(" ")}`))
+    .filter((m) => !decided(m) && (!EXCLUDE.test(`${m.title} ${m.tags.join(" ")}`) || pins.includes(m.id)))
     .sort((a, b) => b.vol24 - a.vol24);
   const markets: OddsMarket[] = [];
   for (const m of all) {
@@ -610,5 +734,9 @@ export async function getOddsUniverse(
     }
     else markets.push(m);
   }
-  return { markets, sources, at: base?.at ?? new Date().toISOString(), tookMs: Date.now() - started };
+  // A watched market merged into its twin on the other site is found by the twin.
+  for (const [q, ids] of Object.entries(watched)) {
+    watched[q] = ids.map((id) => (markets.some((m) => m.id === id) ? id : (markets.find((m) => m.also?.some((a) => all.find((x) => x.id === id)?.url === a.url))?.id ?? id)));
+  }
+  return { markets, sources, at: base?.at ?? new Date().toISOString(), tookMs: Date.now() - started, watched };
 }

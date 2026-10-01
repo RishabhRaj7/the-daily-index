@@ -1,4 +1,5 @@
 import type { ValorantData, ValEvent, ValMatch, ValNews, ValSide, ValTeam, ValWinnerOdds } from "@/lib/types";
+import { getStore } from "@/lib/server/store";
 
 // Clutch: Valorant's major competitions, for the teams the reader follows.
 //
@@ -126,17 +127,32 @@ const sameTeam = (a: string, b: string) => {
   return !!x && !!y && (x === y || x.includes(y) || y.includes(x));
 };
 
+// The search answers with ~4 MB (every market's full text), past the data
+// cache's 2 MB, so the few fields used are kept in the store for five minutes.
+const PM_KEY = "val:pm:v1";
+
 async function polymarketValorant(): Promise<PmEvent[]> {
+  const store = getStore();
+  const kept = await store.get<{ at: number; events: PmEvent[] }>(PM_KEY).catch(() => null);
+  if (kept && Date.now() - kept.at < 5 * 60_000) return kept.events;
   try {
     const res = await fetch("https://gamma-api.polymarket.com/public-search?q=valorant&events_status=active&limit_per_type=40", {
       headers: { "User-Agent": UA, Accept: "application/json" },
-      next: { revalidate: 300 },
+      cache: "no-store",
       signal: AbortSignal.timeout(8000),
     });
-    if (!res.ok) return [];
-    return ((await res.json()) as { events?: PmEvent[] }).events ?? [];
+    if (!res.ok) return kept?.events ?? [];
+    const events = (((await res.json()) as { events?: PmEvent[] }).events ?? []).map((e) => ({
+      title: e.title,
+      slug: e.slug,
+      startTime: e.startTime,
+      volume: e.volume,
+      markets: (e.markets ?? []).map(({ groupItemTitle, outcomes, outcomePrices, sportsMarketType, closed }) => ({ groupItemTitle, outcomes, outcomePrices, sportsMarketType, closed })),
+    }));
+    await store.set(PM_KEY, { at: Date.now(), events }, { ttlSeconds: 3600 }).catch(() => {});
+    return events;
   } catch {
-    return [];
+    return kept?.events ?? [];
   }
 }
 
