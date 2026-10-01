@@ -205,7 +205,7 @@ html.theme-transition *::after {
   padding-right: 0.5rem;
   padding-top: 0.25rem;
   font-weight: 800;
-  color: var(--accent);
+  color: var(--section-hue, var(--accent));
 }
 
 .pull-quote {
@@ -386,6 +386,9 @@ article[id] { scroll-margin-top: 5rem; }
 .paper-section {
   position: relative;
   padding: 4.5rem 0 1rem;
+  /* Inside a section, the accent is the section's own colour: drop caps,
+     "for you" tags and links match its header, not the masthead's. */
+  --accent: var(--section-hue);
 }
 @media (min-width: 768px) {
   .paper-section { padding-top: 6.5rem; }

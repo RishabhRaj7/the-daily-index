@@ -25,7 +25,9 @@ import { EDITION_COOKIE } from "@/lib/edition-client";
 import { readEdition, readStoredPrefs } from "@/lib/server/editions";
 import type { DigestPreferences, DigestResult } from "@/lib/preferences/types";
 
-// Vol 1, No. 1 = 28 Jan 2026.
+// Vol 1, No. 1 = 28 Jan 2026. Like a printed paper, the number counts
+// every day since the first issue, and a new volume starts on each
+// anniversary (Vol 2 from 28 Jan 2027), not on 1 January.
 const ISSUE_BASE = new Date("2026-01-28");
 
 // Dates follow the edition's time zone (IST by default), not the server's
@@ -34,7 +36,8 @@ function editionMeta() {
   const isoDate = editionDate();
   const date = editionDateLabel();
   const issue = Math.floor((Date.parse(isoDate) - ISSUE_BASE.getTime()) / 86_400_000) + 1;
-  const volume = Number(isoDate.slice(0, 4)) - 2025;
+  const year = Number(isoDate.slice(0, 4));
+  const volume = year - 2025 - (isoDate.slice(5) < ISSUE_BASE.toISOString().slice(5, 10) ? 1 : 0);
   return { date, isoDate, volume, issue };
 }
 

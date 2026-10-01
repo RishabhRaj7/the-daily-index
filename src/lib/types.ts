@@ -153,6 +153,8 @@ export interface MarketMood {
   source?: { name: string; url: string; asOf: string };
   stale?: boolean;
   asOf?: string;
+  /** How broad the day was: the index's members that rose and fell (Nifty 50). */
+  breadth?: { index: string; up: number; down: number; total: number };
 }
 
 /** A commodity priced in rupees (converted from its dollar benchmark). */
@@ -687,6 +689,9 @@ export interface WeatherAlert {
   source: string;
 }
 
+/** One day's cash-market trade by one kind of investor, ₹ crore. */
+export interface FlowDay { buy: number; sell: number; net: number }
+
 /** Market Pulse's rates row (lib/live/rates.ts). Any part may be missing. */
 export interface RatesPanel {
   /** RBI policy repo rate, % ; next decision date (IST). */
@@ -695,7 +700,15 @@ export interface RatesPanel {
   fed?: { lower: number; upper: number; since: string; move: "cut" | "hike" | null; next: string | null };
   /** US 10-year Treasury yield, % and its move today in points. */
   us10y?: { yield: number; change: number | null };
-  /** Net FII and DII buying in the cash market, ₹ crore. */
-  flows?: { date: string; fii: number; dii: number; month: { fii: number; dii: number; days: number } | null };
+  /** FII and DII buying and selling in the cash market, ₹ crore. */
+  flows?: {
+    date: string;
+    fii: FlowDay;
+    dii: FlowDay;
+    /** The month so far, from the days the paper has kept. */
+    month: { fii: number; dii: number; days: number } | null;
+    /** Each kept trading day this month, oldest first: net ₹ crore. */
+    days: Array<{ date: string; fii: number; dii: number }>;
+  };
   at: string;
 }

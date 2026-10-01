@@ -45,6 +45,35 @@ function Movers({ indices }: { indices: MarketIndex[] }) {
   );
 }
 
+/** How broad the day was: one tick per member of the index, risers first. */
+function Breadth({ b }: { b: NonNullable<MarketMood["breadth"]> }) {
+  const flat = Math.max(0, b.total - b.up - b.down);
+  const ticks = [
+    ...Array.from({ length: b.up }, () => "var(--up)"),
+    ...Array.from({ length: flat }, () => "var(--ink-faint)"),
+    ...Array.from({ length: b.down }, () => "var(--down)"),
+  ];
+  const verdict = b.up >= b.total * 0.7 ? "a broad rise" : b.down >= b.total * 0.7 ? "a broad fall" : b.up > b.down ? "more up than down" : b.down > b.up ? "more down than up" : "evenly split";
+  return (
+    <div className="mt-5" title={`${b.up} of the ${b.index}'s ${b.total} shares rose, ${b.down} fell`}>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="font-label text-[9px] text-ink-soft">{b.index} breadth</span>
+        <span className="font-mono text-[10px] text-ink-soft">{verdict}</span>
+      </div>
+      <div className="flex gap-[2px] mt-2 h-3.5" aria-hidden="true">
+        {ticks.map((c, i) => (
+          <span key={i} className="flex-1 rounded-[1px]" style={{ background: c }} />
+        ))}
+      </div>
+      <div className="flex justify-between font-mono text-[10px] mt-1">
+        <span className="text-up">{b.up} rose</span>
+        {flat > 0 && <span className="text-ink-faint">{flat} flat</span>}
+        <span className="text-down">{b.down} fell</span>
+      </div>
+    </div>
+  );
+}
+
 // Fear ⇄ greed as a half dial. The needle sweeps up from "fear" to today's
 // reading when the gauge scrolls in. The arc is split at the publisher's own
 // zone cut-offs, and the zone the reading sits in is lit in its colour (red
@@ -98,6 +127,7 @@ export default function MoodGauge({
         <span>Neutral</span>
         <span>Greed</span>
       </div>
+      {mood.breadth && <Breadth b={mood.breadth} />}
       {indices.length > 0 && <Movers indices={indices} />}
       <dl className="mt-auto pt-5 space-y-2 border-t hairline">
         {mood.inputs.map((i) => (

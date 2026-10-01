@@ -5,6 +5,7 @@ import type { IpoDetail, IpoEntry, IpoStage, PriceBar } from "@/lib/types";
 import Sheet from "@/components/extras/Sheet";
 import PriceChart from "./PriceChart";
 import { sortIpos } from "@/lib/ipo-order";
+import { ipoDriver, ipoMood, type IpoMood } from "@/lib/ipo-mood";
 
 // IPO watch: every live mainboard IPO as one slim row — name and size, a
 // three-stop track (opens → closes → lists) filled up to today, and the GMP
@@ -120,6 +121,20 @@ function Track({ ipo }: { ipo: IpoEntry }) {
   );
 }
 
+/** The bidding's mood: a word in its colour and a small thermometer. */
+function MoodChip({ mood }: { mood: IpoMood }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 align-middle" title={mood.line}>
+      <span className="relative inline-block w-8 h-1.5 rounded-full bg-[color:var(--rule)] overflow-hidden">
+        <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.max(8, mood.heat * 100)}%`, background: mood.color }} />
+      </span>
+      <span className="font-semibold" style={{ color: mood.label === "Warm" ? undefined : mood.color }}>
+        {mood.label}
+      </span>
+    </span>
+  );
+}
+
 // ---- the detail sheet ----------------------------------------------------------
 
 function IpoSheet({ ipo, onClose }: { ipo: IpoEntry; onClose: () => void }) {
@@ -146,6 +161,7 @@ function IpoSheet({ ipo, onClose }: { ipo: IpoEntry; onClose: () => void }) {
     [d.gmpHistory],
   );
   const lp = d.listingPerformance;
+  const mood = ipoMood(d, todayIso(), total);
 
   const headline: Array<[string, string]> = [
     ["Issue size", size(d.sizeCr) || "—"],
@@ -224,6 +240,20 @@ function IpoSheet({ ipo, onClose }: { ipo: IpoEntry; onClose: () => void }) {
               {d.stage === "upcoming" ? "Bidding hasn’t started yet." : "NSE hasn’t published category figures."}
             </p>
           ) : (
+            <>
+            {mood && (
+              <div className="rounded-xl border hairline p-3 mb-4" style={{ borderColor: `color-mix(in srgb, ${mood.color} 55%, transparent)` }}>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-display font-bold text-[1.25rem] leading-none" style={{ color: mood.label === "Warm" ? undefined : mood.color }}>
+                    {mood.label}
+                  </span>
+                  {mood.when && <span className="font-mono text-[10px] text-ink-soft">{mood.when}</span>}
+                </div>
+                <p className="font-sans text-[12.5px] text-ink-soft mt-1.5 leading-snug">
+                  {mood.line} {ipoDriver(d.subscriptionByCategory)}
+                </p>
+              </div>
+            )}
             <ul className="space-y-2.5">
               {d.subscriptionByCategory.map((s) => (
                 <li key={s.category} className="grid grid-cols-[6.5rem_minmax(0,1fr)_3.8rem] items-center gap-2 text-[12px]">
@@ -241,6 +271,7 @@ function IpoSheet({ ipo, onClose }: { ipo: IpoEntry; onClose: () => void }) {
                 </li>
               ))}
             </ul>
+            </>
           )}
         </section>
 
@@ -389,7 +420,17 @@ export default function IpoWatch() {
                 </span>
                 <span className="block font-mono text-[11px] text-ink-soft mt-1">
                   {size(ipo.sizeCr) || "size tbc"}
-                  {ipo.subscription && ipo.stage !== "upcoming" ? ` · ${ipo.subscription} subscribed` : ""}
+                  {(() => {
+                    const mood = ipo.stage === "open" || ipo.stage === "closed" ? ipoMood(ipo, todayIso()) : null;
+                    if (mood)
+                      return (
+                        <>
+                          {" · "}
+                          {ipo.subscription} subscribed{mood.when && ipo.stage === "open" ? ` (${mood.when.toLowerCase()})` : ""} · <MoodChip mood={mood} />
+                        </>
+                      );
+                    return ipo.subscription && ipo.stage !== "upcoming" ? ` · ${ipo.subscription} subscribed` : "";
+                  })()}
                 </span>
               </span>
               <span className="col-span-2 row-start-2 md:col-span-1 md:row-start-1 md:col-start-2">

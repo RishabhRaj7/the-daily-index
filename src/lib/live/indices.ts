@@ -394,7 +394,7 @@ async function readLiveMarkets(revalidate: number): Promise<LiveMarkets | null> 
     const pub = published[region];
     const mood = pub ? publishedMood(region, pub, own) : own;
     // India: how broad the day was, from the whole Nifty 50.
-    if (region === "India" && breadth) mood.inputs = [...mood.inputs, { label: "Nifty 50 breadth", value: `${breadth.up} up · ${breadth.down} down` }];
+    if (region === "India" && breadth) mood.breadth = { index: "Nifty 50", up: breadth.up, down: breadth.down, total: 50 };
     return [mood];
   });
 

@@ -3,7 +3,9 @@ import type { TennisRanking } from "@/lib/types";
 export async function getTennisRankings(): Promise<TennisRanking[]> {
   try {
     const res = await fetch(
-      "https://site.api.espn.com/apis/site/v2/sports/tennis/rankings",
+      // The men's tour (ESPN moved rankings under /atp and /wta; the old
+      // combined path now 404s).
+      "https://site.api.espn.com/apis/site/v2/sports/tennis/atp/rankings",
       { next: { revalidate: 3600 } },
     );
     if (!res.ok) return [];

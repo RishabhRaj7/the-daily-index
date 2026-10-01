@@ -1,4 +1,4 @@
-import type { RatesPanel } from "@/lib/types";
+import type { FlowDay, RatesPanel } from "@/lib/types";
 import { getStore } from "@/lib/server/store";
 import { fomc, RBI_DECISIONS } from "./ahead";
 
@@ -90,33 +90,46 @@ async function flows(): Promise<RatesPanel["flows"]> {
     Accept: "application/json",
     Referer: "https://www.nseindia.com/reports/fii-dii",
   });
-  let rows: Array<{ category?: string; date?: string; netValue?: string }>;
+  let rows: Array<{ category?: string; date?: string; buyValue?: string; sellValue?: string; netValue?: string }>;
   try {
     rows = JSON.parse(body ?? "[]");
     if (!Array.isArray(rows)) return undefined;
   } catch {
     return undefined;
   }
-  const fii = rows.find((r) => /fii|fpi/i.test(r.category ?? ""));
-  const dii = rows.find((r) => /dii/i.test(r.category ?? ""));
-  const m = (fii?.date ?? dii?.date ?? "").match(/^(\d{2})-([A-Za-z]{3})-(\d{4})$/);
-  if (!fii || !dii || !m) return undefined;
+  const fiiRow = rows.find((r) => /fii|fpi/i.test(r.category ?? ""));
+  const diiRow = rows.find((r) => /dii/i.test(r.category ?? ""));
+  const m = (fiiRow?.date ?? diiRow?.date ?? "").match(/^(\d{2})-([A-Za-z]{3})-(\d{4})$/);
+  if (!fiiRow || !diiRow || !m) return undefined;
   const date = `${m[3]}-${MONTH[m[2] as keyof typeof MONTH]}-${m[1]}`;
-  const day = { fii: Number(fii.netValue), dii: Number(dii.netValue) };
-  if (!Number.isFinite(day.fii) || !Number.isFinite(day.dii)) return undefined;
+  const flow = (r: typeof fiiRow): FlowDay | null => {
+    const buy = Number(r.buyValue);
+    const sell = Number(r.sellValue);
+    const net = Number(r.netValue);
+    return Number.isFinite(net) ? { buy: Number.isFinite(buy) ? buy : 0, sell: Number.isFinite(sell) ? sell : 0, net } : null;
+  };
+  const fii = flow(fiiRow);
+  const dii = flow(diiRow);
+  if (!fii || !dii) return undefined;
 
   // Keep each trading day, then add up the month from what's kept.
   const store = getStore();
-  await store.set(`fiidii:v1:${date}`, day, { ttlSeconds: 45 * 86_400 }).catch(() => {});
+  await store.set(`fiidii:v1:${date}`, { fii: fii.net, dii: dii.net, fiiDay: fii, diiDay: dii }, { ttlSeconds: 45 * 86_400 }).catch(() => {});
   const month = date.slice(0, 7);
-  const keys = Array.from({ length: 31 }, (_, i) => `fiidii:v1:${month}-${String(i + 1).padStart(2, "0")}`);
-  const kept = await store.getMany<{ fii: number; dii: number }>(keys).catch(() => new Map<string, { fii: number; dii: number }>());
-  const days = [...kept.values()];
+  const dates = Array.from({ length: 31 }, (_, i) => `${month}-${String(i + 1).padStart(2, "0")}`);
+  const kept = await store
+    .getMany<{ fii: number; dii: number }>(dates.map((d) => `fiidii:v1:${d}`))
+    .catch(() => new Map<string, { fii: number; dii: number }>());
+  const days = dates.flatMap((d) => {
+    const k = kept.get(`fiidii:v1:${d}`);
+    return k ? [{ date: d, fii: k.fii, dii: k.dii }] : [];
+  });
   return {
     date,
-    fii: day.fii,
-    dii: day.dii,
+    fii,
+    dii,
     month: days.length >= 2 ? { fii: days.reduce((s, d) => s + d.fii, 0), dii: days.reduce((s, d) => s + d.dii, 0), days: days.length } : null,
+    days,
   };
 }
 
