@@ -19,13 +19,13 @@ Vercel.
 | **Two Cities** | Local news from your cities, side by side (Bengaluru and Ranchi by default) |
 | **Paddock Notes** | Formula 1 stories plus the pit wall: next race, countdown and circuit map, weekend session times, last race podium, your team and drivers, championship tables |
 | **Sports** | Football and tennis, when you follow them |
-| **Clutch** | Valorant: your teams (next match with the market's odds, last result, where they stand), the running VCT major and the scene's headlines; small, and smaller still in the off-season |
+| **Clutch** | Valorant: your teams (next match with the market's odds, last result, where they stand), the running VCT major and the scene's headlines; a tap opens the bracket and groups, a team's results since 2024, or two teams' head-to-head; small, and smaller still in the off-season |
 | **The Ledger** | Markets and economy news — mostly India, some global |
-| **Market Pulse** | 16 live indices across India, US, Europe and Asia with a mood gauge per region (India: Tickertape's Market Mood Index, US: CNN Fear & Greed), gold and silver at IBJA's rate, other commodities in rupees, BTC/ETH in USDT, a tap-to-open chart for each (with its 52-week range and 50/200-day averages), a rates row (RBI repo, Fed funds, US 10-year, FII/DII flows, and the odds on the next decision), when each market reopens, and IPO watch (mainboard IPOs with dates, size and GMP) |
+| **Market Pulse** | 16 live indices across India, US, Europe and Asia with a mood gauge per region (India: Tickertape's Market Mood Index, US: CNN Fear & Greed), gold and silver at IBJA's rate, other commodities in rupees, BTC/ETH in USDT, a tap-to-open chart for each (with its 52-week range and 50/200-day averages), a rates row (RBI repo, Fed funds, US 10-year, what FIIs and DIIs bought and sold, and the odds on the next decision), Nifty 50 breadth, when each market reopens, and IPO watch (mainboard IPOs with dates, size, GMP and the bidding's mood) |
 | **The Circuit Board** | Technology |
-| **Straw Poll** | Prediction-market odds from Polymarket and Kalshi, chosen for you: up to five, plus one line in a section or under a story when one earns it, a week's chart for each, and a track record |
+| **Straw Poll** | Prediction-market odds from Polymarket and Kalshi, chosen for you: the day's biggest moves with the news that lines up with them, where the money is, your watchlist, a track record; plus three or four questions at the foot of each section and a line under a story when a market is about it. Every market opens with every contender's chart (1D to all time) and why it moved |
 | **Sky Report** | Severe-weather alerts near you (NDMA), weather that follows the clock (moon and stars after sunset), rain chances through the day, air quality, and your other cities |
-| **The Grapevine** | Editor's picks from the day's wires, Reddit, and a puzzle desk |
+| **The Grapevine** | The Search Bar (what India, the US, the UK, Japan, Brazil and Germany are searching right now, from Google Trends), editor's picks from the day's wires, Reddit, a puzzle desk, and the film odds |
 
 Also: an archive of past editions as a calendar, a share sheet that turns any
 story into an image, light/dark editions, a particle-animated masthead, and a
