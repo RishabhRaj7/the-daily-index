@@ -10,6 +10,7 @@ export async function GET(req: Request) {
     .toUpperCase()
     .split(",")
     .filter((g) => TREND_COUNTRIES.some(([c]) => c === g));
+  // geo=IN,US,WORLD; WORLD is made from sixteen countries' lists.
   const countries = await getWorldTrends(asked.length ? asked : TREND_COUNTRIES.map(([g]) => g));
   return Response.json(
     { countries, at: new Date().toISOString() },

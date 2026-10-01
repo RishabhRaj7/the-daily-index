@@ -4,16 +4,17 @@ import { useEffect, useMemo, useState } from "react";
 import type { TrendCountry, TrendItem } from "@/lib/live/trends";
 import LiveBadge from "./LiveBadge";
 
-// The Search Bar: what India, the US and the UK are typing into Google
+// The Search Bar: what India, the US and the world are typing into Google
 // right now (Google Trends' live feed), a tab per country, the top five
 // with a way to see twenty. Each search shows roughly
 // how many searched, how long it's been climbing, and the story behind it;
-// one that's also in today's paper says so. "Across borders" picks out the
-// searches trending in more than one country at once. Refreshed every ten
+// one that's also in today's paper says so. "World" is the paper's own:
+// the searches trending in the most countries at once (lib/live/trends.ts). Refreshed every ten
 // minutes while the page is open.
 
 const REFRESH_MS = 10 * 60_000;
-const SHORT: Record<string, string> = { IN: "India", US: "US", GB: "UK" };
+const SHORT: Record<string, string> = { IN: "India", US: "US", WORLD: "World" };
+const COUNTRY: Record<string, string> = { US: "US", GB: "UK", IN: "India", CA: "Canada", AU: "Australia", IE: "Ireland", DE: "Germany", FR: "France", ES: "Spain", IT: "Italy", BR: "Brazil", MX: "Mexico", JP: "Japan", SG: "Singapore", PH: "Philippines", ZA: "South Africa" };
 const FEW = 5;
 const MANY = 20;
 
@@ -56,6 +57,11 @@ function Row({ t, i, max, inPaper, now }: { t: TrendItem; i: number; max: number
         <span className="block h-1 mt-1 rounded-full bg-[color:var(--rule)] overflow-hidden">
           <span className="block h-full rounded-full" style={{ width: `${width}%`, background: "var(--section-hue)", opacity: 0.75 }} />
         </span>
+        {t.countries && (
+          <span className="block font-mono text-[10px] mt-1 truncate" style={{ color: "var(--section-hue)" }}>
+            Trending in {t.countries.length} countries: {t.countries.map((g) => COUNTRY[g] ?? g).join(" · ")}
+          </span>
+        )}
         {!story && t.related.length > 0 && (
           <span className="block font-mono text-[10.5px] text-ink-soft mt-1 truncate">also searched: {t.related.join(" · ")}</span>
         )}
@@ -81,42 +87,32 @@ export default function SearchBar({ headlines = [], home = "IN" }: { headlines?:
   const [at, setAt] = useState<number>(0);
   useEffect(() => {
     let live = true;
-    const load = () => {
+    let retry: number | undefined;
+    const load = (again = 2) => {
       if (document.hidden) return;
       fetch("/api/trends")
         .then((r) => (r.ok ? (r.json() as Promise<{ countries: TrendCountry[]; at: string }>) : null))
         .then((d) => {
-          if (!live || !d) return;
+          if (!live) return;
+          if (!d?.countries.length) throw new Error("empty");
           setCountries(d.countries);
           setAt(Date.parse(d.at));
         })
-        .catch(() => {});
+        // A failed read tries again shortly (twice) rather than waiting ten minutes.
+        .catch(() => {
+          if (live && again > 0) retry = window.setTimeout(() => load(again - 1), 15_000);
+        });
     };
     load();
-    const id = window.setInterval(load, REFRESH_MS);
+    const id = window.setInterval(() => load(), REFRESH_MS);
     return () => {
       live = false;
+      window.clearTimeout(retry);
       window.clearInterval(id);
     };
   }, []);
 
   const paper = useMemo(() => headlines.map(norm).join(" | "), [headlines]);
-  // A search trending in two or more countries at once.
-  const across = useMemo(() => {
-    const seen = new Map<string, { term: string; geos: string[]; volume: number }>();
-    for (const c of countries ?? []) {
-      for (const t of c.items) {
-        const k = norm(t.term);
-        if (k.length < 3) continue;
-        const had = seen.get(k) ?? { term: t.term, geos: [], volume: 0 };
-        if (!had.geos.includes(c.geo)) had.geos.push(c.geo);
-        had.volume += t.volume;
-        seen.set(k, had);
-      }
-    }
-    return [...seen.values()].filter((x) => x.geos.length >= 2).sort((a, b) => b.geos.length - a.geos.length || b.volume - a.volume).slice(0, 6);
-  }, [countries]);
-
   if (!countries || countries.length === 0) return null;
   const country = countries.find((c) => c.geo === geo) ?? countries[0];
   const items = country.items.slice(0, all ? MANY : FEW);
@@ -136,7 +132,7 @@ export default function SearchBar({ headlines = [], home = "IN" }: { headlines?:
             <LiveBadge />
           </div>
           <p className="font-body italic text-xs text-ink-soft mt-0.5">
-            What India, the US and the UK are typing into Google right now
+            What India, the US and the world are typing into Google right now
             {at ? ` · ${new Date(at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })} IST` : ""}
           </p>
         </div>
@@ -156,7 +152,7 @@ export default function SearchBar({ headlines = [], home = "IN" }: { headlines?:
           ))}
         </div>
       </div>
-      <div className={`grid gap-x-10 ${across.length ? "lg:grid-cols-[minmax(0,1fr)_16rem]" : ""}`}>
+      <div>
         <div>
           {/* Five in one column; twenty in two. */}
           <div className={`grid gap-x-10 ${all ? "md:grid-cols-2" : ""}`}>
@@ -179,21 +175,6 @@ export default function SearchBar({ headlines = [], home = "IN" }: { headlines?:
             </button>
           )}
         </div>
-        {across.length > 0 && (
-          <aside className="mt-4 lg:mt-2.5">
-            <div className="font-label text-[9px] text-ink-soft mb-2">Across borders</div>
-            <ul className="space-y-2">
-              {across.map((x) => (
-                <li key={x.term} className="flex items-baseline justify-between gap-2">
-                  <button type="button" onClick={() => setGeo(x.geos[0])} className="font-sans font-semibold text-[13px] truncate text-left hover:underline decoration-dotted underline-offset-2">
-                    {x.term}
-                  </button>
-                  <span className="font-mono text-[10px] text-ink-soft shrink-0">{x.geos.map((g) => SHORT[g] ?? g).join(" · ")}</span>
-                </li>
-              ))}
-            </ul>
-          </aside>
-        )}
       </div>
     </div>
   );

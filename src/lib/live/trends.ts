@@ -1,7 +1,7 @@
 import { decodeEntities } from "./rss";
 
-// What people are searching for in India, the US and the UK, from Google
-// Trends' "Trending now", in Google's own order:
+// What people are searching for in India, the US and the world, from
+// Google Trends' "Trending now", in Google's own order:
 //
 //   the list    the call behind trends.google.com/trending (batchexecute,
 //               "i0OFE"): about a hundred searches a country, each with
@@ -11,6 +11,11 @@ import { decodeEntities } from "./rss";
 //   the story   the RSS carries Google's own news for its top ten; the rest
 //               get the day's top Google News result for the search.
 // Twenty a country at most; refreshed every ten minutes.
+//
+// Google has no worldwide "trending now", so the paper makes one: the
+// lists of sixteen countries on five continents, each search ranked by how
+// many of them it's trending in, then by the searches added up. A search
+// trending in one country only doesn't make it.
 
 export interface TrendItem {
   term: string;
@@ -23,6 +28,8 @@ export interface TrendItem {
   rise: number | null;
   /** Searches that go with it ("ind vs sl"). */
   related: string[];
+  /** World only: the countries it's trending in. */
+  countries?: string[];
   news: Array<{ title: string; url: string; source: string }>;
 }
 
@@ -35,8 +42,11 @@ export interface TrendCountry {
 export const TREND_COUNTRIES: Array<[string, string]> = [
   ["IN", "India"],
   ["US", "United States"],
-  ["GB", "United Kingdom"],
+  ["WORLD", "World"],
 ];
+
+/** The countries the world list is made from. */
+const WORLD_GEOS = ["US", "GB", "IN", "CA", "AU", "IE", "DE", "FR", "ES", "IT", "BR", "MX", "JP", "SG", "PH", "ZA"];
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 const MAX = 20;
@@ -140,8 +150,11 @@ async function story(term: string, geo: string): Promise<TrendItem["news"]> {
     if (!res.ok) return [];
     const item = (await res.text()).split("<item>")[1];
     if (!item) return [];
-    const source = tag(item, "source");
-    const title = tag(item, "title").replace(` - ${source}`, "");
+    // <source url="…">Outlet</source> carries attributes, unlike the other tags.
+    const source = decodeEntities(item.match(/<source[^>]*>([\s\S]*?)<\/source>/)?.[1]?.trim() ?? "");
+    // Google appends the outlet ("… - Mashable", sometimes with no separator).
+    let title = tag(item, "title").replace(` - ${source}`, "").trim();
+    if (source && title.endsWith(source)) title = title.slice(0, -source.length).replace(/[\s\-–|]+$/, "");
     const url = tag(item, "link");
     return title && url ? [{ title, url, source }] : [];
   } catch {
@@ -156,8 +169,50 @@ export async function getTrends(geo: string): Promise<TrendItem[]> {
   return Promise.all(list.map(async (t) => ({ ...t, news: fromFeed.get(norm(t.term)) ?? (await story(t.term, geo)) })));
 }
 
+/** "Argentina vs. Bolivia", "argentina - bolivia" → "argentina bolivia". */
+const key = (term: string) =>
+  term
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/\b(vs|v)\b\.?/g, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+
+async function worldTrends(): Promise<TrendItem[]> {
+  const lists = await Promise.all(WORLD_GEOS.map((g) => trendingNow(g).then((items) => ({ g, items }))));
+  const seen = new Map<string, { item: TrendItem; countries: string[]; volume: number }>();
+  for (const { g, items } of lists) {
+    for (const t of items) {
+      const k = key(t.term);
+      if (k.length < 3) continue;
+      const had = seen.get(k);
+      if (!had) seen.set(k, { item: t, countries: [g], volume: t.volume });
+      else if (!had.countries.includes(g)) {
+        had.countries.push(g);
+        had.volume += t.volume;
+        // Keep the wording of the country searching it most.
+        if (t.volume > had.item.volume) had.item = t;
+      }
+    }
+  }
+  const top = [...seen.values()]
+    .filter((x) => x.countries.length >= 2)
+    .sort((a, b) => b.countries.length - a.countries.length || b.volume - a.volume)
+    .slice(0, MAX);
+  return Promise.all(
+    top.map(async (x) => ({
+      ...x.item,
+      volume: x.volume,
+      traffic: traffic(x.volume),
+      countries: x.countries,
+      news: await story(x.item.term, "US"),
+    })),
+  );
+}
+
 export async function getWorldTrends(geos: string[]): Promise<TrendCountry[]> {
   const wanted = TREND_COUNTRIES.filter(([g]) => geos.includes(g));
-  const lists = await Promise.all(wanted.map(([g]) => getTrends(g)));
+  const lists = await Promise.all(wanted.map(([g]) => (g === "WORLD" ? worldTrends() : getTrends(g))));
   return wanted.map(([geo, name], i) => ({ geo, name, items: lists[i] })).filter((c) => c.items.length > 0);
 }
