@@ -5,6 +5,7 @@ import type { ValEvent, ValMatch, ValorantData, ValTeam } from "@/lib/types";
 import SectionHeader from "@/components/story/SectionHeader";
 import Sheet from "@/components/extras/Sheet";
 import { loadPersonalization, savePersonalization } from "@/lib/personalization";
+import ClutchSheet, { Logo, type ClutchView } from "@/components/widgets/ClutchSheets";
 
 // Clutch: Valorant, kept small. One band, three columns:
 //   your teams   next match (with the market's price), last result, where
@@ -13,6 +14,8 @@ import { loadPersonalization, savePersonalization } from "@/lib/personalization"
 //                the next few matches and the market's favourites
 //   the wire     three headlines from VLR, your teams first
 // Off-season the band shrinks to one line of dates beside the headlines.
+// A team opens its form and results since 2024; a match, the two teams'
+// head-to-head; the event, its bracket, groups and odds (ClutchSheets).
 // Times are IST, like the Week Ahead; "now" ticks by the minute from the
 // moment the data was read, so the server's HTML and the page agree.
 
@@ -41,35 +44,13 @@ function ago(iso: string | null, now: number): string {
   return `${Math.round(h / 24)}d`;
 }
 
-function Logo({ src, name, size = 22 }: { src: string | null; name: string; size?: number }) {
-  if (!src) {
-    return (
-      <span
-        className="grid place-items-center rounded-md bg-card-bg font-mono text-[9px] text-ink-soft shrink-0"
-        style={{ width: size, height: size }}
-        aria-hidden="true"
-      >
-        {name.slice(0, 2).toUpperCase()}
-      </span>
-    );
-  }
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt="" width={size} height={size} loading="lazy" className="object-contain shrink-0" style={{ width: size, height: size }} />;
-}
-
 /** Two teams' chances as one split bar, the followed side (or the first) in the section's colour. */
 function OddsBar({ m, focus }: { m: ValMatch; focus?: string }) {
   if (!m.odds) return null;
   const [a, b] = m.teams;
   const leftIsFocus = !focus || a.code === focus;
   return (
-    <a
-      href={m.odds.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      title={`Polymarket · $${Math.round(m.odds.volume).toLocaleString("en-US")} traded · opens Polymarket (needs VPN in India)`}
-      className="block mt-1.5 group"
-    >
+    <span title={`Polymarket · $${Math.round(m.odds.volume).toLocaleString("en-US")} traded`} className="block mt-1.5">
       <span className="flex justify-between font-mono text-[10px] tabular-nums">
         <span className={leftIsFocus ? "text-[color:var(--section-hue)] font-semibold" : "text-ink-soft"}>
           {a.code} {m.odds.a}%
@@ -84,7 +65,7 @@ function OddsBar({ m, focus }: { m: ValMatch; focus?: string }) {
           style={{ width: `${m.odds.a}%`, background: leftIsFocus ? "var(--section-hue)" : "var(--ink-faint)" }}
         />
       </span>
-    </a>
+    </span>
   );
 }
 
@@ -153,7 +134,7 @@ function TeamPicker({ teams, onClose }: { teams: ValTeam[]; onClose: () => void 
 
 // ---- your teams ---------------------------------------------------------------------
 
-function TeamCard({ team, data }: { team: ValTeam; data: ValorantData }) {
+function TeamCard({ team, data, open }: { team: ValTeam; data: ValorantData; open: (v: ClutchView) => void }) {
   const mine = data.matches.filter((m) => m.teams.some((t) => t.code === team.code));
   const next = mine.find((m) => m.state !== "completed");
   const last = [...mine].reverse().find((m) => m.state === "completed");
@@ -184,12 +165,17 @@ function TeamCard({ team, data }: { team: ValTeam; data: ValorantData }) {
   else if (lastInEvent && !featured!.finished) status = `Out of ${featured!.name}`;
   else if (last) status = "Season done";
 
+  // Through, but the next round isn't drawn: say when it starts.
+  const pending = !next && alive && nextRound && lastInEvent ? nextRound : undefined;
+
   return (
     <li className="py-3 first:pt-0 last:pb-0">
-      <div className="flex items-center gap-2.5">
+      <button type="button" onClick={() => open({ kind: "team", code: team.code })} className="w-full flex items-center gap-2.5 text-left group">
         <Logo src={team.image} name={team.code} size={26} />
         <div className="min-w-0 flex-1">
-          <div className="font-sans font-semibold text-[14px] leading-tight truncate">{team.name}</div>
+          <div className="font-sans font-semibold text-[14px] leading-tight truncate group-hover:text-[color:var(--section-hue)]">
+            {team.name} <span className="font-mono text-[10px] text-ink-faint font-normal">›</span>
+          </div>
           <div className="font-mono text-[10px] text-ink-soft truncate">{status}</div>
         </div>
         {chance && (
@@ -198,13 +184,25 @@ function TeamCard({ team, data }: { team: ValTeam; data: ValorantData }) {
             <div className="font-label text-[7px] text-ink-faint mt-0.5">to win it</div>
           </div>
         )}
-      </div>
+      </button>
+      {pending && (
+        <div className="mt-2 pl-[36px] font-sans text-[12.5px]">
+          <span className="text-ink-soft">Next </span>
+          {pending.stage}, from {when(pending.start)}
+          <span className="block font-mono text-[10px] text-ink-soft">Opponent set when the draw is made</span>
+        </div>
+      )}
       {next && (
-        <div className="mt-2 pl-[36px]">
+        <button
+          type="button"
+          disabled={them(next).code === "TBD"}
+          onClick={() => open({ kind: "match", a: team.code, b: them(next).code, id: next.id })}
+          className="block w-full text-left mt-2 pl-[36px] group/next"
+        >
           <div className="font-sans text-[12.5px] flex items-center gap-1.5 min-w-0">
             <span className="text-ink-soft shrink-0">Next</span>
             <Logo src={them(next).image} name={them(next).code} size={14} />
-            <span className="truncate">
+            <span className="truncate group-enabled/next:group-hover/next:underline decoration-dotted underline-offset-2">
               {them(next).code === "TBD" ? "opponent to be decided" : them(next).name}
             </span>
           </div>
@@ -212,15 +210,19 @@ function TeamCard({ team, data }: { team: ValTeam; data: ValorantData }) {
             {next.state === "inProgress" ? `Live · ${us(next).wins ?? 0}–${them(next).wins ?? 0}` : when(next.start)} · Bo{next.bestOf}
           </div>
           <OddsBar m={next} focus={team.code} />
-        </div>
+        </button>
       )}
       {last && (
-        <div className="mt-1.5 pl-[36px] font-mono text-[10.5px] text-ink-soft truncate">
+        <button
+          type="button"
+          onClick={() => open({ kind: "match", a: team.code, b: them(last).code, id: last.id })}
+          className="block w-full text-left mt-1.5 pl-[36px] font-mono text-[10.5px] text-ink-soft truncate hover:text-ink"
+        >
           <span className={us(last).outcome === "win" ? "text-up font-semibold" : us(last).outcome === "loss" ? "text-down font-semibold" : ""}>
             {us(last).outcome === "win" ? "W" : us(last).outcome === "loss" ? "L" : "–"} {us(last).wins ?? 0}–{them(last).wins ?? 0}
           </span>{" "}
           v {them(last).code} · {last.event.replace(/ · /g, " ")} · {date(last.start)}
-        </div>
+        </button>
       )}
     </li>
   );
@@ -228,7 +230,7 @@ function TeamCard({ team, data }: { team: ValTeam; data: ValorantData }) {
 
 // ---- the event --------------------------------------------------------------------------
 
-function EventPanel({ event, data, follows, now }: { event: ValEvent; data: ValorantData; follows: string[]; now: number }) {
+function EventPanel({ event, data, follows, now, open }: { event: ValEvent; data: ValorantData; follows: string[]; now: number; open: (v: ClutchView) => void }) {
   const start = Date.parse(event.start);
   const end = Date.parse(event.end);
   const progress = Math.round(Math.min(1, Math.max(0, (now - start) / Math.max(1, end - start))) * 100) / 100;
@@ -240,16 +242,17 @@ function EventPanel({ event, data, follows, now }: { event: ValEvent; data: Valo
   const field = event.odds?.field.slice(0, 4) ?? [];
 
   return (
-    <div className="min-w-0">
-      <div className="flex items-center gap-2">
+    <div className="min-w-0 flex flex-col h-full">
+      <button type="button" onClick={() => open({ kind: "event", key: event.key })} className="flex items-center gap-2 text-left group">
         <Logo src={event.logo} name={event.name} size={22} />
-        <div className="min-w-0">
-          <div className="font-display font-bold text-[1.25rem] leading-none truncate">{event.name}</div>
+        <div className="min-w-0 flex-1">
+          <div className="font-display font-bold text-[1.25rem] leading-none truncate group-hover:text-[color:var(--section-hue)]">{event.name}</div>
           <div className="font-mono text-[10px] text-ink-soft mt-1">
             {event.stage || "Scheduled"} · {date(event.start)}–{date(event.end)}
           </div>
         </div>
-      </div>
+        <span className="chip h-7 px-2.5 text-[10.5px] shrink-0">Bracket ›</span>
+      </button>
       <div className="relative h-1 rounded-full bg-[color:var(--rule)] mt-3" title={`${Math.round(progress * 100)}% of the way through`}>
         <div className="h-full rounded-full bar-grow" style={{ width: `${progress * 100}%`, background: "var(--section-hue)" }} />
       </div>
@@ -261,7 +264,12 @@ function EventPanel({ event, data, follows, now }: { event: ValEvent; data: Valo
           const mineB = follows.includes(b.code);
           const done = m.state === "completed";
           return (
-            <li key={m.id} className={`py-2 grid grid-cols-[4.4rem_minmax(0,1fr)_auto] items-center gap-2 text-[12px] ${i >= 2 ? "max-sm:hidden" : ""}`}>
+            <li key={m.id} className={i >= 2 ? "max-sm:hidden" : ""}>
+              <button
+                type="button"
+                onClick={() => open({ kind: "match", a: a.code, b: b.code, id: m.id })}
+                className="w-full text-left py-2 grid grid-cols-[4.4rem_minmax(0,1fr)_auto] items-center gap-2 text-[12px] hover:bg-card-bg rounded-md"
+              >
               <span className="font-mono text-[10px] text-ink-soft whitespace-nowrap">
                 {m.state === "inProgress" ? (
                   <span className="text-[color:var(--section-hue)] font-semibold">LIVE</span>
@@ -284,20 +292,21 @@ function EventPanel({ event, data, follows, now }: { event: ValEvent; data: Valo
                 {done || m.state === "inProgress" ? (
                   `${a.wins ?? 0}–${b.wins ?? 0}`
                 ) : m.odds ? (
-                  <a href={m.odds.url} target="_blank" rel="noopener noreferrer" className="text-ink-soft hover:text-ink" title="Polymarket (needs VPN in India)">
+                  <span className="text-ink-soft" title="Polymarket's price to win">
                     {m.odds.a}–{m.odds.b}%
-                  </a>
+                  </span>
                 ) : (
                   <span className="text-ink-faint">Bo{m.bestOf}</span>
                 )}
               </span>
+              </button>
             </li>
           );
         })}
       </ul>
 
       {field.length > 0 && event.odds && (
-        <p className="font-mono text-[10px] text-ink-soft mt-2 leading-relaxed">
+        <p className="font-mono text-[10px] text-ink-soft mt-auto pt-2 leading-relaxed">
           <a href={event.odds.url} target="_blank" rel="noopener noreferrer" className="hover:text-ink" title="Polymarket (needs VPN in India)">
             To win:
           </a>{" "}
@@ -348,6 +357,7 @@ function Wire({ data, teams, now }: { data: ValorantData; teams: ValTeam[]; now:
 export default function ClutchSection({ initial, follows }: { initial: ValorantData | null; follows: string[] }) {
   const [data, setData] = useState<ValorantData | null>(initial);
   const [picking, setPicking] = useState(false);
+  const [view, setView] = useState<ClutchView | null>(null);
 
   // Keep results and prices fresh while something is on; quietly otherwise.
   useEffect(() => {
@@ -373,7 +383,12 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
     .map((code) => data.teams.find((t) => t.code === code) ?? null)
     .filter((t): t is ValTeam => t !== null);
   const event = data.featured;
-  const picker = picking ? <TeamPicker teams={data.teams} onClose={() => setPicking(false)} /> : null;
+  const picker = (
+    <>
+      {picking && <TeamPicker teams={data.teams} onClose={() => setPicking(false)} />}
+      {view && <ClutchSheet key={JSON.stringify(view)} start={view} data={data} follows={follows} onClose={() => setView(null)} />}
+    </>
+  );
 
   const edit = (
     <button type="button" className="chip h-7 px-3 text-[11px]" onClick={() => setPicking(true)}>
@@ -410,7 +425,7 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
             {teams.length > 0 && (
               <ul className="mt-3 divide-y hairline">
                 {teams.map((t) => (
-                  <TeamCard key={t.code} team={t} data={data} />
+                  <TeamCard key={t.code} team={t} data={data} open={setView} />
                 ))}
               </ul>
             )}
@@ -436,8 +451,9 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
           )
         }
       />
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,0.95fr)] items-start">
-        <div className="module" data-reveal>
+      {/* Three cards of one height: the tallest sets the row. */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,0.95fr)] items-stretch">
+        <div className="module h-full" data-reveal>
           <div className="flex items-center justify-between gap-3 mb-3">
             <span className="font-label text-[10px] text-ink-soft">Your teams</span>
             {edit}
@@ -445,7 +461,7 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
           {teams.length > 0 ? (
             <ul className="divide-y hairline">
               {teams.map((t) => (
-                <TeamCard key={t.code} team={t} data={data} />
+                <TeamCard key={t.code} team={t} data={data} open={setView} />
               ))}
             </ul>
           ) : (
@@ -454,11 +470,11 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
             </button>
           )}
         </div>
-        <div className="module" data-reveal>
-          <EventPanel event={event} data={data} follows={follows} now={now} />
+        <div className="module h-full" data-reveal>
+          <EventPanel event={event} data={data} follows={follows} now={now} open={setView} />
         </div>
-        <div className="md:col-span-2 lg:col-span-1" data-reveal>
-          <div className="font-label text-[10px] text-ink-soft mb-2">From the scene</div>
+        <div className="module h-full md:col-span-2 lg:col-span-1" data-reveal>
+          <div className="font-label text-[10px] text-ink-soft mb-3">From the scene</div>
           <Wire data={data} teams={teams} now={now} />
         </div>
       </div>

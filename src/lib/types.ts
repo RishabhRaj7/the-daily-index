@@ -586,6 +586,10 @@ export interface ValMatch {
   teams: [ValSide, ValSide];
   /** Polymarket's match-winner prices, in percent. */
   odds?: { a: number; b: number; volume: number; url: string };
+  /** The group letter, when the organisers' match title gives one. */
+  group?: string;
+  /** Known only from Polymarket (Riot hasn't scheduled it yet). */
+  fromMarket?: boolean;
 }
 
 export interface ValWinnerOdds {

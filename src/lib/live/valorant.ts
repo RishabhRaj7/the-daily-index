@@ -25,7 +25,7 @@ const KEY = "0TvQnueqKa5mxJntVWt0w4LpLfEkrV1Ta8rQBb9Z"; // valorantesports.com's
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 const DAY = 86_400_000;
 
-const MAJORS = /^(Champions|VALORANT Masters|VCT Americas|VCT EMEA|VCT Pacific|VCT CN|Esports World Cup|VCT LOCK\/\/IN)$/i;
+export const MAJORS = /^(Champions|VALORANT Masters|VCT Americas|VCT EMEA|VCT Pacific|VCT CN|Esports World Cup|VCT LOCK\/\/IN)$/i;
 const INTERNATIONAL = /^(Champions|VALORANT Masters|Esports World Cup|VCT LOCK\/\/IN)$/i;
 const REGION: Record<string, string> = {
   "VCT Americas": "Americas",
@@ -34,9 +34,9 @@ const REGION: Record<string, string> = {
   "VCT CN": "China",
 };
 
-interface RiotLeague { id: string; slug: string; name: string; region: string; image: string }
-interface RiotTeam { name: string; code: string; image?: string; result?: { outcome?: string | null; gameWins?: number } | null; record?: { wins: number; losses: number } | null }
-interface RiotEvent {
+export interface RiotLeague { id: string; slug: string; name: string; region: string; image: string }
+export interface RiotTeam { name: string; code: string; image?: string; result?: { outcome?: string | null; gameWins?: number } | null; record?: { wins: number; losses: number } | null }
+export interface RiotEvent {
   startTime: string;
   state: "unstarted" | "inProgress" | "completed";
   type: string;
@@ -46,7 +46,7 @@ interface RiotEvent {
   match?: { id: string; teams: RiotTeam[]; strategy?: { count?: number } };
 }
 
-async function riot<T>(path: string, revalidate: number): Promise<T | null> {
+export async function riot<T>(path: string, revalidate: number): Promise<T | null> {
   try {
     const res = await fetch(`${API}/${path}${path.includes("?") ? "&" : "?"}hl=en-US&sport=val`, {
       headers: { "x-api-key": KEY, "User-Agent": UA },
@@ -60,32 +60,37 @@ async function riot<T>(path: string, revalidate: number): Promise<T | null> {
   }
 }
 
-const https = (url?: string | null) => (url ? url.replace(/^http:\/\//, "https://") : null);
+export const https = (url?: string | null) => (url ? url.replace(/^http:\/\//, "https://") : null);
 
 /** "Champions Shanghai", "VCT Pacific Stage 2 2026"… from the league and split. */
-function eventName(e: RiotEvent): string {
+export function eventName(e: RiotEvent): string {
   const split = e.tournament?.split?.name ?? "";
   const season = e.tournament?.season?.name ?? "";
   const year = season.match(/20\d\d/)?.[0] ?? "";
-  // Splits are sometimes readable ("Champions Paris"), sometimes slugs.
-  if (/[A-Z]/.test(split) && !/_/.test(split)) {
-    return new RegExp(`\\b${e.league.name.split(" ")[0]}\\b`, "i").test(split) ? split : `${e.league.name} · ${split}`;
-  }
+  const name = e.league.name === "VALORANT Masters" ? "Masters" : e.league.name === "VCT CN" ? "VCT China" : e.league.name;
+  // An international named for its city ("Champions Paris", "Masters
+  // Toronto") is the whole name; anything else keeps its league and year
+  // ("VCT Pacific Stage 2 2026"), since a league's splits repeat each year.
+  if (/^(champions|masters) [A-Z]/i.test(split) && !/_/.test(split)) return split;
+  if (/esports world cup/i.test(name)) return `Esports World Cup ${year}`.trim();
+  // Splits are sometimes readable ("Stage 2"), sometimes slugs ("pacific_split_2").
+  const own = new Set(name.toLowerCase().split(/\s+/).concat(e.league.region.toLowerCase(), "cn", "emea"));
   const pretty = split
     .replace(/_/g, " ")
     .replace(/\b(vct|valorant)\b/gi, "")
     .replace(/\b20\d\d\b/, "")
-    .trim()
+    .split(/\s+/)
+    .filter((w) => w && !own.has(w.toLowerCase()))
+    .join(" ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
-  const name = e.league.name === "VALORANT Masters" ? "Masters" : e.league.name === "VCT CN" ? "VCT China" : e.league.name;
-  return [name, pretty && !name.toLowerCase().includes(pretty.toLowerCase()) ? pretty : "", year].filter(Boolean).join(" ");
+  return [name, pretty, year].filter(Boolean).join(" ");
 }
 
-function eventKey(e: RiotEvent): string {
+export function eventKey(e: RiotEvent): string {
   return `${e.league.slug}:${e.tournament?.season?.name ?? ""}:${e.tournament?.split?.name ?? ""}`;
 }
 
-function side(t: RiotTeam): ValSide {
+export function side(t: RiotTeam): ValSide {
   return {
     code: t.code,
     name: t.name,
@@ -157,6 +162,47 @@ function matchOdds(m: ValMatch, pm: PmEvent[]): ValMatch["odds"] {
     };
   }
   return undefined;
+}
+
+/** "Valorant: TYLOO vs Team Liquid (BO3) - VCT Champions Group C" → "C", for the match of those two teams. */
+function groupOf(m: ValMatch, pm: PmEvent[]): string | undefined {
+  const [a, b] = m.teams;
+  const e = pm.find((x) => /^valorant:/i.test(x.title) && sameTeam(x.title, a.name) && sameTeam(x.title, b.name) && /\bgroup [a-d]\b/i.test(x.title));
+  return e?.title.match(/\bgroup ([a-d])\b/i)?.[1].toUpperCase();
+}
+
+/**
+ * Matches Polymarket has priced that Riot hasn't scheduled yet (Riot fills
+ * a playoff slot only once the draw is made): a followed team's next match
+ * can show up here first.
+ */
+function marketOnlyMatches(pm: PmEvent[], scheduled: ValMatch[], teams: ValTeam[], event: ValEvent | undefined): ValMatch[] {
+  const out: ValMatch[] = [];
+  for (const e of pm) {
+    const t = e.title.match(/^valorant:\s*(.+?)\s+vs\.?\s+(.+?)\s*\((bo\d)\)/i);
+    if (!t || !e.startTime || Date.parse(e.startTime) < Date.now() - 3 * 3_600_000) continue;
+    const ta = teams.find((x) => sameTeam(t[1], x.name));
+    const tb = teams.find((x) => sameTeam(t[2], x.name));
+    if (!ta || !tb) continue;
+    const known = scheduled.some(
+      (m) => m.teams.some((s) => s.code === ta.code) && m.teams.some((s) => s.code === tb.code) && Math.abs(Date.parse(m.start) - Date.parse(e.startTime!)) < 12 * 3_600_000,
+    );
+    if (known) continue;
+    const blank = (x: ValTeam): ValSide => ({ code: x.code, name: x.name, image: x.image, wins: null });
+    const m: ValMatch = {
+      id: `pm:${e.slug}`,
+      start: e.startTime,
+      state: "unstarted",
+      event: event?.name ?? "VCT",
+      eventKey: event?.key ?? "",
+      stage: e.title.match(/\b(playoffs|group [a-d]|final[s]?|upper|lower)[^)]*$/i)?.[0] ?? "",
+      bestOf: Number(t[3].slice(2)) || 3,
+      teams: [blank(ta), blank(tb)],
+      fromMarket: true,
+    };
+    out.push({ ...m, odds: matchOdds(m, pm) });
+  }
+  return out;
 }
 
 /** "VALORANT Champions 2026: Winner": the field's leaders. */
@@ -281,7 +327,8 @@ export async function getValorant(now = Date.now()): Promise<ValorantData | null
         bestOf: e.match!.strategy?.count ?? 3,
         teams: [side(e.match!.teams[0]), side(e.match!.teams[1])],
       };
-      return m.state === "completed" ? m : { ...m, odds: matchOdds(m, pm) };
+      const group = /group/i.test(m.stage) ? groupOf(m, pm) : undefined;
+      return { ...m, ...(m.state === "completed" ? {} : { odds: matchOdds(m, pm) }), ...(group ? { group } : {}) };
     })
     .sort((a, b) => a.start.localeCompare(b.start));
 
@@ -299,6 +346,9 @@ export async function getValorant(now = Date.now()): Promise<ValorantData | null
   }
 
   const featured = running.find((e) => e.international) ?? running[0] ?? null;
+  const teamList = [...teams.values()];
+  matches.push(...marketOnlyMatches(pm, matches, teamList, featured ?? undefined));
+  matches.sort((a, b) => a.start.localeCompare(b.start));
   return {
     phase,
     events: running,
@@ -306,7 +356,7 @@ export async function getValorant(now = Date.now()): Promise<ValorantData | null
     nextEvent: nextEvent ?? null,
     lastEvent: lastEvent ?? null,
     matches,
-    teams: [...teams.values()].sort((a, b) => (a.region ?? "~").localeCompare(b.region ?? "~") || a.name.localeCompare(b.name)),
+    teams: teamList.sort((a, b) => (a.region ?? "~").localeCompare(b.region ?? "~") || a.name.localeCompare(b.name)),
     news: news.slice(0, 20),
     fetchedAt: new Date(now).toISOString(),
   };
