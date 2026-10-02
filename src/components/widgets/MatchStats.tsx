@@ -29,7 +29,7 @@ const COLS: Array<{ key: keyof ValStatLine; label: string; title: string; fmt?: 
 
 const HOW: Record<string, string> = { elim: "Elimination", defuse: "Spike defused", boom: "Spike detonated", time: "Time ran out" };
 
-/** How a round ended, drawn as the broadcast does in the side's colour: a crossed ring for eliminations, a flame for the spike going off, pliers for a defuse, an hourglass for time. */
+/** How a round ended, drawn after the broadcast's marks in the side's colour: a crossed box for eliminations, a three-tongued flame for the spike going off, wire cutters for a defuse, an hourglass for time. */
 function HowIcon({ how, size = 14 }: { how: string | null; size?: number }) {
   const common = { width: size, height: size, viewBox: "0 0 12 12", "aria-hidden": true, className: "block" } as const;
   if (how === "boom")
@@ -37,29 +37,30 @@ function HowIcon({ how, size = 14 }: { how: string | null; size?: number }) {
       <svg {...common}>
         <path
           fill="currentColor"
-          d="M6.3 0.6c.4 1.8 2.9 3.1 2.9 6.1 0 2.6-1.6 4.7-3.6 4.7S2.4 9.6 2.4 7.4c0-1.6.8-2.6 1.6-3.3.1 1 .5 1.8 1.2 2.1C4.9 4.5 5.4 2.2 6.3.6zM6 7.4c-.9.7-1.3 1.4-1.3 2.1 0 .8.6 1.3 1.3 1.3s1.3-.5 1.3-1.3c0-.8-.5-1.4-1.3-2.1z"
+          d="M6 .6c1 1.9 2.7 2.6 2.5 4.9.8-.5 1.2-1.2 1.3-2C11 5.1 11.2 7.2 10.2 9 9.3 10.6 7.7 11.4 6 11.4S2.7 10.6 1.8 9C.8 7.2 1 5.1 2.2 3.5c.1.8.5 1.5 1.3 2C3.3 3.2 5 2.5 6 .6zm0 5.6c-.9 1-1.5 1.9-1.5 2.9 0 .9.7 1.5 1.5 1.5s1.5-.6 1.5-1.5c0-1-.6-1.9-1.5-2.9z"
           fillRule="evenodd"
         />
       </svg>
     );
   if (how === "defuse")
     return (
-      <svg {...common} fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4.6 1 5.4 5.2 2.6 11.2M7.4 1 6.6 5.2 9.4 11.2" />
-        <path d="M4.6 1c-.9.6-1 1.9-.4 2.8M7.4 1c.9.6 1 1.9.4 2.8" />
-        <circle cx="6" cy="5.4" r=".9" fill="currentColor" stroke="none" />
+      <svg {...common}>
+        <path fill="currentColor" d="M6 .3 8.1 5.4 6.9 6.2 6 3.3 5.1 6.2 3.9 5.4z" />
+        <path d="M5.2 6.2C3.6 7.4 2.6 8.8 2.9 11.3M6.8 6.2C8.4 7.4 9.4 8.8 9.1 11.3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        <circle cx="6" cy="5.9" r="1" fill="currentColor" />
       </svg>
     );
   if (how === "time")
     return (
       <svg {...common}>
-        <path fill="currentColor" d="M2.5 0.8h7v1.1h-.8C8.6 3.9 7.4 5.1 6.6 6c.8.9 2 2.1 2.1 4.1h.8v1.1h-7v-1.1h.8C3.4 8.1 4.6 6.9 5.4 6 4.6 5.1 3.4 3.9 3.3 1.9h-.8z" />
+        <path fill="currentColor" d="M2.2 1h7.6v1.2H9L6.7 6 9 9.8h.8V11H2.2V9.8H3L5.3 6 3 2.2h-.8z" />
       </svg>
     );
   return (
-    <svg {...common} fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
-      <circle cx="6" cy="6" r="4.6" />
-      <path d="M3.9 3.9l4.2 4.2M8.1 3.9 3.9 8.1" />
+    <svg {...common} fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round">
+      <rect x="1.4" y="1.4" width="9.2" height="9.2" rx="1.6" />
+      <circle cx="6" cy="6" r="2.4" />
+      <path d="M1.9 1.9l8.2 8.2M10.1 1.9 1.9 10.1" />
     </svg>
   );
 }
@@ -147,8 +148,8 @@ function Rounds({ rounds, teams }: { rounds: ValMatchStats["maps"][number]["roun
         className="w-[22px] h-[22px] rounded-[3px] grid place-items-center shrink-0 border"
         style={
           won
-            ? { color: hue, background: `color-mix(in srgb, ${hue} 16%, #1b1c22)`, borderColor: `color-mix(in srgb, ${hue} 55%, transparent)` }
-            : { background: "#1b1c22", borderColor: "#2e2f37" }
+            ? { color: hue, background: `color-mix(in srgb, ${hue} 14%, transparent)`, borderColor: `color-mix(in srgb, ${hue} 60%, transparent)` }
+            : { borderColor: "var(--rule)" }
         }
         title={won ? `Round ${i + 1}: ${teams[row]} won on ${r.side === "t" ? "attack" : "defence"}${r.how ? ` (${HOW[r.how]})` : ""}` : `Round ${i + 1}`}
       >
@@ -158,12 +159,12 @@ function Rounds({ rounds, teams }: { rounds: ValMatchStats["maps"][number]["roun
   };
   return (
     <div className="overflow-x-auto -mx-1 px-1">
-      <div className="inline-flex flex-col gap-[3px] rounded-lg bg-[#121318] p-2 pr-2.5">
+      <div className="inline-flex flex-col gap-[3px] py-1">
         <div className="flex items-center gap-[3px]">
           <span className="w-[3.2rem] shrink-0" />
           {rounds.flatMap((_, i) => [
             ...(gap(i) ? [<span key={`hg-${i}`} className="w-[6px] shrink-0" />] : []),
-            <span key={`n-${i}`} className="w-[22px] shrink-0 text-center font-mono text-[9.5px] text-[#9a9ba6] tabular-nums">
+            <span key={`n-${i}`} className="w-[22px] shrink-0 text-center font-mono text-[9.5px] text-ink-faint tabular-nums">
               {String(i + 1).padStart(2, "0")}
             </span>,
           ])}
@@ -172,7 +173,7 @@ function Rounds({ rounds, teams }: { rounds: ValMatchStats["maps"][number]["roun
           <div key={row} className="flex items-center gap-[3px]">
             <span className="flex items-center gap-1.5 w-[3.2rem] shrink-0 min-w-0">
               <span className="w-[3px] h-[18px] rounded-full shrink-0" style={{ background: startSide(row) === "t" ? ATTACK : DEFENCE }} />
-              <span className="font-sans font-semibold text-[11.5px] text-white truncate">{teams[row]}</span>
+              <span className="font-sans font-semibold text-[11.5px] text-ink truncate">{teams[row]}</span>
             </span>
             {rounds.flatMap((r, i) => [
               // A gap at the half and at each overtime.
@@ -336,7 +337,7 @@ export default function MatchStats({
             </span>
             {(["elim", "boom", "defuse", "time"] as const).map((h) => (
               <span key={h} className="inline-flex items-center gap-1">
-                <span className="grid place-items-center w-[15px] h-[15px] rounded-[3px] bg-[#1b1c22] text-[#c9cad3]">
+                <span className="grid place-items-center w-[15px] h-[15px] rounded-[3px] border border-[var(--rule)] text-ink-soft">
                   <HowIcon how={h} size={11} />
                 </span>
                 {h === "elim" ? "kills" : h === "boom" ? "spike" : h === "defuse" ? "defuse" : "time"}
