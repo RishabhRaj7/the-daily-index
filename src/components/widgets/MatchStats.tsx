@@ -7,7 +7,8 @@ import type { ValMatchStats, ValPlayerStats, ValStatLine } from "@/lib/types";
 // whole match), All / Attack / Defend, then each team's five with their
 // agents, rating, ACS, K/D/A, +/–, KAST, ADR, headshots and first kills;
 // the best in each column stands out. Each map also gets its rounds as a
-// strip (who won each, on which side, and how) and its VOD. Numbers from
+// strip as VLR draws it (red won on attack, green on defence, with how it
+// ended) and its VOD. Numbers from
 // VLR.gg; a live match refreshes every minute. Agent icons are the paper's
 // own copies (/public/val/agents).
 
@@ -28,38 +29,16 @@ const COLS: Array<{ key: keyof ValStatLine; label: string; title: string; fmt?: 
 
 const HOW: Record<string, string> = { elim: "Elimination", defuse: "Spike defused", boom: "Spike detonated", time: "Time ran out" };
 
-/** How a round ended, as a small white mark: crosshairs for an elimination, a starburst for the spike going off, a shield for a defuse, a clock for time. */
-function HowIcon({ how }: { how: string | null }) {
-  const common = { width: 10, height: 10, viewBox: "0 0 12 12", "aria-hidden": true as const };
-  if (how === "boom")
-    return (
-      <svg {...common}>
-        <path d="M6 0.6 7.2 3.6 10.4 2.4 8.9 5.4 11.6 7 8.5 7.6 9.2 10.9 6 9.1 2.8 10.9 3.5 7.6 0.4 7 3.1 5.4 1.6 2.4 4.8 3.6Z" fill="currentColor" />
-      </svg>
-    );
-  if (how === "defuse")
-    return (
-      <svg {...common}>
-        <path d="M6 1 10.5 2.8V6c0 2.6-1.9 4.3-4.5 5.1C3.4 10.3 1.5 8.6 1.5 6V2.8Z" fill="currentColor" />
-        <path d="M4 6.1 5.4 7.5 8.1 4.6" fill="none" stroke="var(--series-2)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    );
-  if (how === "elim" || how == null)
-    return (
-      <svg {...common}>
-        <circle cx="6" cy="6" r="3.6" fill="none" stroke="currentColor" strokeWidth="1.3" />
-        <path d="M6 0.8v2.6M6 8.6v2.6M0.8 6h2.6M8.6 6h2.6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-      </svg>
-    );
-  if (how === "time")
-    return (
-      <svg {...common}>
-        <circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" strokeWidth="1.4" />
-        <path d="M6 3.3V6l1.9 1.3" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      </svg>
-    );
-  return null;
+/** How a round ended: VLR's own marks (skull, spike, defuse kit, clock), kept on the site in /public/val/rounds. */
+function HowIcon({ how, size = 15 }: { how: string | null; size?: number }) {
+  const file = how === "boom" || how === "defuse" || how === "time" ? how : "elim";
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={`/val/rounds/${file}.webp`} alt="" width={size} height={size} className="block" style={{ opacity: 0.95 }} />;
 }
+
+// VLR's colours: a round won on attack in red, on defence in green.
+const ATTACK = "#e25d5a";
+const DEFENCE = "#24b298";
 
 function Agent({ slug }: { slug: string }) {
   const [ok, setOk] = useState(true);
@@ -130,12 +109,8 @@ function Rounds({ rounds, teams }: { rounds: ValMatchStats["maps"][number]["roun
   const cell = (r: (typeof rounds)[number], row: 0 | 1, i: number) => (
     <span
       key={`${row}-${i}`}
-      className="w-[16px] h-[16px] rounded-[3px] grid place-items-center shrink-0"
-      style={
-        r.winner === row
-          ? { background: row === 0 ? "var(--section-hue)" : "var(--series-2)", color: "var(--paper)" }
-          : { background: "color-mix(in srgb, var(--rule) 60%, transparent)" }
-      }
+      className="w-[20px] h-[22px] rounded-[3px] grid place-items-center shrink-0"
+      style={{ background: r.winner === row ? (r.side === "t" ? ATTACK : DEFENCE) : "color-mix(in srgb, var(--rule) 70%, transparent)" }}
       title={r.winner === row ? `Round ${i + 1}: ${teams[row]} won on ${r.side === "t" ? "attack" : "defence"}${r.how ? ` (${HOW[r.how]})` : ""}` : `Round ${i + 1}`}
     >
       {r.winner === row && <HowIcon how={r.how} />}
@@ -146,7 +121,7 @@ function Rounds({ rounds, teams }: { rounds: ValMatchStats["maps"][number]["roun
       <div className="inline-flex flex-col gap-[3px]">
         {([0, 1] as const).map((row) => (
           <div key={row} className="flex items-center gap-[3px]">
-            <span className="font-mono text-[10px] text-ink-soft truncate w-[2.8rem] shrink-0">{teams[row]}</span>
+            <span className="font-mono text-[10px] text-ink-soft truncate w-[2.6rem] shrink-0">{teams[row]}</span>
             {rounds.flatMap((r, i) => [
               // A gap at the half and at each overtime.
               ...(i === 12 || (i > 24 && i % 2 === 0) ? [<span key={`gap-${i}`} className="w-[5px] shrink-0" />] : []),
@@ -301,12 +276,18 @@ export default function MatchStats({
         )}
         {current.id !== "all" && current.rounds.length > 0 && (
           <span className="inline-flex items-center gap-2 text-ink-faint">
+            <span className="inline-flex items-center gap-1">
+              <span className="w-[10px] h-[10px] rounded-[2px]" style={{ background: ATTACK }} /> attack
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-[10px] h-[10px] rounded-[2px]" style={{ background: DEFENCE }} /> defence
+            </span>
             {(["elim", "boom", "defuse", "time"] as const).map((h) => (
               <span key={h} className="inline-flex items-center gap-1">
-                <span className="grid place-items-center w-[14px] h-[14px] rounded-[3px] bg-ink-faint text-paper">
-                  <HowIcon how={h} />
+                <span className="grid place-items-center w-[14px] h-[14px] rounded-[3px] bg-[#888]">
+                  <HowIcon how={h} size={11} />
                 </span>
-                {h === "elim" ? "eliminated" : h === "boom" ? "detonated" : h === "defuse" ? "defused" : "time"}
+                {h === "elim" ? "kills" : h === "boom" ? "spike" : h === "defuse" ? "defuse" : "time"}
               </span>
             ))}
           </span>
