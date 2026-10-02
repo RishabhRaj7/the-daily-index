@@ -19,6 +19,9 @@ interface ChartData {
   previousClose: number | null;
   hasVolume: boolean;
   note?: string;
+  /** The official rate the tile prints, when the chart's live line differs
+   *  from it (gold and silver: IBJA's rate and when it was published). */
+  reference?: { label: string; value: number; asOf: string };
 }
 
 export interface ChartTarget {
@@ -134,6 +137,17 @@ export default function MarketChartSheet({ target, onClose }: { target: ChartTar
                 ? `${data.unit} · ${range === "1D" ? "today" : `past ${range.toLowerCase()}`}`
                 : ""}
           </div>
+          {data?.reference && (
+            <div className="font-mono text-[11px] text-ink-soft mt-1">
+              {data.reference.label} {fmt(data.reference.value, prefix)} ·{" "}
+              {new Date(data.reference.asOf).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+              {data.bars.length > 0 && (
+                <span>
+                  {" "}· live {((data.bars.at(-1)!.c / data.reference.value - 1) * 100).toFixed(2).replace(/^(?!-)/, "+")}% since
+                </span>
+              )}
+            </div>
+          )}
         </div>
         {stats && (
           <span

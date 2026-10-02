@@ -5,6 +5,7 @@
 
 import type { PriceBar } from "@/lib/types";
 import { BINANCE, BROWSER_UA, COMMODITIES, CRYPTO_PAIRS, SYMBOLS, USD_INR } from "./indices";
+import { getIbjaRates } from "./published-markets";
 
 export type ChartRange = "1D" | "5D" | "1M" | "6M" | "1Y" | "5Y";
 export const CHART_RANGES: ChartRange[] = ["1D", "5D", "1M", "6M", "1Y", "5Y"];
@@ -37,6 +38,9 @@ export interface ChartData {
   previousClose: number | null;
   hasVolume: boolean;
   note?: string;
+  /** The official rate the tile prints, when the chart's live line differs
+   *  from it (gold and silver: IBJA's rate and when it was published). */
+  reference?: { label: string; value: number; asOf: string };
 }
 
 interface YahooResult {
@@ -104,7 +108,12 @@ export async function getChart(kind: ChartKind, id: string, range: ChartRange): 
       };
     }
     if (!spec) return null;
-    const [asset, fx] = await Promise.all([yahoo(spec.symbol, range), yahoo(USD_INR, range)]);
+    const bullion = spec.id === "gold" || spec.id === "silver";
+    const [asset, fx, ibja] = await Promise.all([
+      yahoo(spec.symbol, range),
+      yahoo(USD_INR, range),
+      bullion ? getIbjaRates(1800) : Promise.resolve(null),
+    ]);
     if (!asset) return null;
     const fxBars = fx ? toBars(fx) : [];
     const lastFx = fxBars.at(-1)?.c ?? null;
@@ -115,21 +124,50 @@ export async function getChart(kind: ChartKind, id: string, range: ChartRange): 
       while (j + 1 < fxBars.length && fxBars[j + 1].t <= t) j++;
       return fxBars[j] && fxBars[j].t <= t ? fxBars[j].c : (fxBars[0]?.c ?? lastFx);
     };
-    const bars = toBars(asset).map((b) => {
+    let bars = toBars(asset).map((b) => {
       const r = rateAt(b.t);
       return { t: b.t, o: spec.toInr(b.o, r), h: spec.toInr(b.h, r), l: spec.toInr(b.l, r), c: spec.toInr(b.c, r) };
     });
     const prev = asset.meta?.chartPreviousClose;
+    let previousClose = typeof prev === "number" ? spec.toInr(prev, fxBars[0]?.c ?? lastFx) : null;
+
+    // Gold and silver: the tile prints IBJA's rate, which sits above COMEX in
+    // rupees (duty, GST-free bar premium, the local market). IBJA has no
+    // intraday history, so the COMEX line is pegged to it: scaled so it
+    // reads IBJA's rate at the moment IBJA published it. The level then
+    // matches the tile; the movement since is COMEX's.
+    let note = spec.note;
+    let reference: ChartData["reference"];
+    if (bullion && ibja && bars.length > 0) {
+      const rate = spec.id === "gold" ? ibja.gold : ibja.silver;
+      const at = Date.parse(ibja.asOf) / 1000;
+      // COMEX in rupees when IBJA published: from this range when it covers
+      // that moment, else from the five-day series (a 1D chart on a day IBJA
+      // hasn't published yet starts after it).
+      let anchor = [...bars].reverse().find((b) => b.t <= at)?.c;
+      if (anchor == null && range !== "5D") {
+        const [a5, f5] = await Promise.all([yahoo(spec.symbol, "5D"), yahoo(USD_INR, "5D")]);
+        const bar = a5 ? [...toBars(a5)].reverse().find((b) => b.t <= at) : undefined;
+        const fxAt = f5 ? [...toBars(f5)].reverse().find((b) => b.t <= at)?.c : undefined;
+        if (bar && fxAt) anchor = spec.toInr(bar.c, fxAt);
+      }
+      const k = anchor ? rate / anchor : NaN;
+      if (Number.isFinite(k) && k > 0.8 && k < 1.3) {
+        bars = bars.map((b) => ({ t: b.t, o: b.o * k, h: b.h * k, l: b.l * k, c: b.c * k }));
+        if (previousClose != null) previousClose *= k;
+        const when = new Date(ibja.asOf).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" });
+        reference = { label: "IBJA rate (on the tile)", value: rate, asOf: ibja.asOf };
+        note = `Pegged to IBJA's 999 rate of ₹${rate.toLocaleString("en-IN")} (${when} IST, the price on the tile); moves since then follow COMEX ${spec.id} in rupees. Longer ranges carry today's premium back, so years ago read approximate.`;
+      }
+    }
     return {
       name: spec.name,
       unit: `₹ per ${spec.unit}`,
       bars,
-      previousClose: typeof prev === "number" ? spec.toInr(prev, fxBars[0]?.c ?? lastFx) : null,
+      previousClose,
       hasVolume: false,
-      // The tile prints IBJA's rate, which has no intraday history to chart.
-      note: spec.id === "gold" || spec.id === "silver"
-        ? `Chart: ${spec.note}. The price on the tile is IBJA's published rate.`
-        : spec.note,
+      note,
+      reference,
     };
   }
 

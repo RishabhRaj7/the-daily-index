@@ -218,7 +218,11 @@ export default function MarketPulseSection({
       />
       {indices.length > 0 ? (
         <>
-          <div role="tablist" aria-label="Markets by region" className="grid grid-cols-2 lg:grid-cols-4 gap-3" data-reveal>
+          {/* Rates and money flows first; the region moods sit right above the
+              indices they summarise. */}
+          <RatesRow markets={oddsMarkets} />
+
+          <div role="tablist" aria-label="Markets by region" className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-5" data-reveal>
             {regions.map((r) => (
               <RegionTab
                 key={r}
@@ -232,8 +236,6 @@ export default function MarketPulseSection({
               />
             ))}
           </div>
-
-          <RatesRow markets={oddsMarkets} />
 
           <ul key={active} role="tabpanel" aria-label={`${active} markets`} className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-5">
             {activeMood && (
