@@ -531,16 +531,15 @@ function TeamView({ team, data, go }: { team: ValTeam; data: ValorantData; go: (
 
 function Side({ t, align, go }: { t: { code: string; name: string; image: string | null }; align: "left" | "right"; go: (v: ClutchView) => void }) {
   return (
-    <button type="button" onClick={() => go({ kind: "team", code: t.code })} className={`flex flex-col ${align === "left" ? "items-start text-left" : "items-end text-right"} gap-2 min-w-0 group`}>
-      <Logo src={t.image} name={t.code} size={56} />
-      <span className="font-display font-bold text-[1.25rem] leading-tight group-hover:underline decoration-dotted underline-offset-4">{t.name}</span>
+    <button type="button" onClick={() => go({ kind: "team", code: t.code })} className={`flex items-center gap-2.5 min-w-0 group ${align === "right" ? "flex-row-reverse text-right" : "text-left"}`}>
+      <Logo src={t.image} name={t.code} size={38} />
+      <span className="font-display font-bold text-[1.1rem] leading-tight truncate group-hover:underline decoration-dotted underline-offset-4">{t.name}</span>
     </button>
   );
 }
 
 function MatchView({ a, b, id, data, follows, go }: { a: string; b: string; id?: string; data: ValorantData; follows: string[]; go: (v: ClutchView) => void }) {
   const ha = useHistory(a);
-  const hb = useHistory(b);
   const team = (code: string) => data.teams.find((t) => t.code === code);
   const live = data.matches.find((m) => m.id === id);
   const fromPast = ha?.find((m) => m.id === id);
@@ -562,7 +561,7 @@ function MatchView({ a, b, id, data, follows, go }: { a: string; b: string; id?:
         <Side t={A} align="left" go={go} />
         <div className="text-center">
           {match && (done || match.state === "inProgress") ? (
-            <div className="font-display font-extrabold text-[2.6rem] leading-none tabular-nums">
+            <div className="font-display font-extrabold text-[2.2rem] leading-none tabular-nums">
               {us(match, a).wins ?? 0}
               <span className="text-ink-faint mx-1">–</span>
               {us(match, b).wins ?? 0}
@@ -571,11 +570,9 @@ function MatchView({ a, b, id, data, follows, go }: { a: string; b: string; id?:
             <div className="font-display font-extrabold text-[2rem] leading-none text-ink-faint">vs</div>
           )}
           {match && (
-            <div className="font-mono text-[10px] text-ink-soft mt-2 leading-relaxed">
+            <div className="font-mono text-[10px] text-ink-soft mt-1 whitespace-nowrap">
               {match.state === "inProgress" ? <span className="text-[color:var(--section-hue)] font-semibold">LIVE · </span> : null}
-              {done ? date(match.start) : `${when(match.start)} IST`}
-              <br />
-              {match.event} · {match.stage} · Bo{match.bestOf}
+              {done ? date(match.start) : `${when(match.start)} IST`} · {match.stage} · Bo{match.bestOf}
             </div>
           )}
         </div>
@@ -583,7 +580,7 @@ function MatchView({ a, b, id, data, follows, go }: { a: string; b: string; id?:
       </div>
 
       {oddsA != null && !done && (
-        <div className="mt-5">
+        <div className="mt-4">
           <div className="flex justify-between font-mono text-[11px] tabular-nums">
             <span className="font-semibold">{oddsA}%</span>
             <span className="text-ink-soft">Polymarket, to win the match</span>
@@ -610,30 +607,35 @@ function MatchView({ a, b, id, data, follows, go }: { a: string; b: string; id?:
         />
       )}
 
-      <section className="mt-7">
-        <h3 className="font-label text-[10px] text-ink-soft mb-2">Head to head since 2024</h3>
+      <section className="mt-5 border-t hairline pt-3">
         {!ha ? (
-          <Skeleton rows={3} />
+          <div className="h-6 rounded bg-card-bg animate-pulse" />
         ) : meetings.length === 0 ? (
-          <p className="font-sans text-[13px] text-ink-soft">They haven&rsquo;t met in the majors since 2024.</p>
+          <p className="font-sans text-[12.5px] text-ink-soft">
+            <span className="font-label text-[9px] mr-2">Head to head</span>They haven&rsquo;t met in the majors since 2024.
+          </p>
         ) : (
-          <>
-            <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
-              <span className="font-display font-extrabold text-[2.2rem] leading-none tabular-nums">{aw}</span>
-              <span>
-                <span className="flex h-2.5 rounded-full overflow-hidden bg-[color:var(--rule)]">
+          <details className="group">
+            <summary className="list-none cursor-pointer grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] items-center gap-3">
+              <span className="font-label text-[9px] text-ink-soft">Head to head since 2024</span>
+              <span className="font-display font-extrabold text-[1.5rem] leading-none tabular-nums">{aw}</span>
+              <span className="min-w-0">
+                <span className="flex h-2 rounded-full overflow-hidden bg-[color:var(--rule)]">
                   <span style={{ width: `${(aw / meetings.length) * 100}%`, background: "var(--section-hue)" }} />
                   <span className="flex-1" style={{ background: "var(--ink-faint)" }} />
                 </span>
-                <span className="block text-center font-mono text-[10px] text-ink-soft mt-1.5">
+                <span className="block text-center font-mono text-[9.5px] text-ink-soft mt-1">
                   series won · maps {mapsA}–{mapsB}
                 </span>
               </span>
-              <span className="font-display font-extrabold text-[2.2rem] leading-none tabular-nums">{bw}</span>
-            </div>
-            <ul className="mt-4 divide-y hairline">
+              <span className="font-display font-extrabold text-[1.5rem] leading-none tabular-nums">{bw}</span>
+              <span className="font-mono text-[10px] text-ink-soft whitespace-nowrap">
+                {meetings.length} {meetings.length === 1 ? "meeting" : "meetings"} <span className="inline-block transition-transform group-open:rotate-180">▾</span>
+              </span>
+            </summary>
+            <ul className="mt-2 divide-y hairline">
               {meetings.map((m) => (
-                <li key={m.id} className="grid grid-cols-[4.6rem_minmax(0,1fr)_auto] items-center gap-2 py-2 text-[12.5px]">
+                <li key={m.id} className="grid grid-cols-[4.6rem_minmax(0,1fr)_auto] items-center gap-2 py-1.5 text-[12.5px]">
                   <span className="font-mono text-[10px] text-ink-soft">{date(m.start)}</span>
                   <span className="truncate text-ink-soft">
                     {m.event} · {m.stage}
@@ -646,24 +648,8 @@ function MatchView({ a, b, id, data, follows, go }: { a: string; b: string; id?:
                 </li>
               ))}
             </ul>
-          </>
+          </details>
         )}
-      </section>
-
-      <section className="mt-7 grid grid-cols-2 gap-4">
-        {[
-          [A, ha],
-          [B, hb],
-        ].map(([t, h]) => {
-          const tt = t as typeof A;
-          const list = h as ValMatch[] | null;
-          return (
-            <div key={tt.code}>
-              <h3 className="font-label text-[10px] text-ink-soft mb-2">{tt.code}, last five</h3>
-              {list ? <Form list={list} code={tt.code} n={5} /> : <span className="block h-5 w-28 rounded bg-card-bg animate-pulse" />}
-            </div>
-          );
-        })}
       </section>
     </div>
   );

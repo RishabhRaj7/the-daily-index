@@ -28,13 +28,39 @@ const COLS: Array<{ key: keyof ValStatLine; label: string; title: string; fmt?: 
 
 const HOW: Record<string, string> = { elim: "Elimination", defuse: "Spike defused", boom: "Spike detonated", time: "Time ran out" };
 
+/** How a round ended, as a small white mark: a starburst for the spike going off, a shield for a defuse, a clock for time. */
+function HowIcon({ how }: { how: string | null }) {
+  const common = { width: 10, height: 10, viewBox: "0 0 12 12", "aria-hidden": true as const };
+  if (how === "boom")
+    return (
+      <svg {...common}>
+        <path d="M6 0.6 7.2 3.6 10.4 2.4 8.9 5.4 11.6 7 8.5 7.6 9.2 10.9 6 9.1 2.8 10.9 3.5 7.6 0.4 7 3.1 5.4 1.6 2.4 4.8 3.6Z" fill="currentColor" />
+      </svg>
+    );
+  if (how === "defuse")
+    return (
+      <svg {...common}>
+        <path d="M6 1 10.5 2.8V6c0 2.6-1.9 4.3-4.5 5.1C3.4 10.3 1.5 8.6 1.5 6V2.8Z" fill="currentColor" />
+        <path d="M4 6.1 5.4 7.5 8.1 4.6" fill="none" stroke="var(--series-2)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  if (how === "time")
+    return (
+      <svg {...common}>
+        <circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" strokeWidth="1.4" />
+        <path d="M6 3.3V6l1.9 1.3" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      </svg>
+    );
+  return null;
+}
+
 function Agent({ slug }: { slug: string }) {
   const [ok, setOk] = useState(true);
   return ok ? (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={`/val/agents/${slug}.webp`} alt={slug} title={slug} width={22} height={22} className="rounded-[4px] bg-[#17171c] shrink-0" onError={() => setOk(false)} />
+    <img src={`/val/agents/${slug}.webp`} alt={slug} title={slug} width={20} height={20} className="rounded-[4px] bg-[#17171c] shrink-0" onError={() => setOk(false)} />
   ) : (
-    <span className="grid place-items-center w-[22px] h-[22px] rounded-[4px] bg-[#17171c] text-[8px] text-white uppercase shrink-0" title={slug}>
+    <span className="grid place-items-center w-[20px] h-[20px] rounded-[4px] bg-[#17171c] text-[8px] text-white uppercase shrink-0" title={slug}>
       {slug.slice(0, 2)}
     </span>
   );
@@ -47,11 +73,11 @@ function Table({ team, players, side, best, mine }: { team: string; players: Val
       <table className="w-full min-w-[640px] text-[12.5px] tabular-nums">
         <thead>
           <tr className="font-label text-[8.5px] text-ink-faint text-right">
-            <th className="text-left font-normal py-1.5 sticky left-0 bg-surface" style={mine ? { color: "var(--section-hue)" } : undefined}>
+            <th className="text-left font-normal py-1 sticky left-0 bg-surface" style={mine ? { color: "var(--section-hue)" } : undefined}>
               {team}
             </th>
             {COLS.map((c) => (
-              <th key={c.key} className="font-normal py-1.5 px-1.5" title={c.title}>
+              <th key={c.key} className="font-normal py-1 px-1.5" title={c.title}>
                 {c.label}
               </th>
             ))}
@@ -62,7 +88,7 @@ function Table({ team, players, side, best, mine }: { team: string; players: Val
             const l = lineOf(p);
             return (
               <tr key={p.name} className="border-t hairline text-right">
-                <td className="text-left py-1.5 pr-2 sticky left-0 bg-surface">
+                <td className="text-left py-1 pr-2 sticky left-0 bg-surface">
                   <span className="flex items-center gap-2 min-w-0">
                     <span className="flex gap-0.5">
                       {p.agents.slice(0, 2).map((a) => (
@@ -77,7 +103,7 @@ function Table({ team, players, side, best, mine }: { team: string; players: Val
                   const top = v != null && best.get(c.key) === v;
                   const tone = c.key === "kd" && v != null ? (v > 0 ? "text-up" : v < 0 ? "text-down" : "") : "";
                   return (
-                    <td key={c.key} className={`px-1.5 py-1.5 font-mono ${tone} ${top ? "font-bold" : ""}`} style={top && !tone ? { color: "var(--section-hue)" } : undefined}>
+                    <td key={c.key} className={`px-1.5 py-1 font-mono ${tone} ${top ? "font-bold" : ""}`} style={top && !tone ? { color: "var(--section-hue)" } : undefined}>
                       {v == null ? "–" : c.fmt ? c.fmt(v) : v}
                     </td>
                   );
@@ -97,7 +123,7 @@ function Rounds({ rounds, teams }: { rounds: ValMatchStats["maps"][number]["roun
   const cell = (r: (typeof rounds)[number], row: 0 | 1, i: number) => (
     <span
       key={`${row}-${i}`}
-      className="w-[14px] h-[14px] rounded-[3px] grid place-items-center text-[8px] font-bold"
+      className="w-[16px] h-[16px] rounded-[3px] grid place-items-center shrink-0"
       style={
         r.winner === row
           ? { background: row === 0 ? "var(--section-hue)" : "var(--series-2)", color: "var(--paper)" }
@@ -105,7 +131,7 @@ function Rounds({ rounds, teams }: { rounds: ValMatchStats["maps"][number]["roun
       }
       title={r.winner === row ? `Round ${i + 1}: ${teams[row]} won on ${r.side === "t" ? "attack" : "defence"}${r.how ? ` (${HOW[r.how]})` : ""}` : `Round ${i + 1}`}
     >
-      {r.winner === row ? (r.how === "defuse" ? "D" : r.how === "boom" ? "B" : r.how === "time" ? "T" : "") : ""}
+      {r.winner === row && <HowIcon how={r.how} />}
     </span>
   );
   return (
@@ -113,7 +139,7 @@ function Rounds({ rounds, teams }: { rounds: ValMatchStats["maps"][number]["roun
       <div className="inline-flex flex-col gap-[3px]">
         {([0, 1] as const).map((row) => (
           <div key={row} className="flex items-center gap-[3px]">
-            <span className="font-mono text-[10px] text-ink-soft truncate w-[3.2rem] shrink-0">{teams[row]}</span>
+            <span className="font-mono text-[10px] text-ink-soft truncate w-[2.8rem] shrink-0">{teams[row]}</span>
             {rounds.flatMap((r, i) => [
               // A gap at the half and at each overtime.
               ...(i === 12 || (i > 24 && i % 2 === 0) ? [<span key={`gap-${i}`} className="w-[5px] shrink-0" />] : []),
@@ -122,7 +148,6 @@ function Rounds({ rounds, teams }: { rounds: ValMatchStats["maps"][number]["roun
           </div>
         ))}
       </div>
-      <p className="font-mono text-[9.5px] text-ink-faint mt-1">D spike defused · B spike detonated · T time ran out · plain: elimination</p>
     </div>
   );
 }
@@ -205,7 +230,7 @@ export default function MatchStats({
   }
 
   return (
-    <section className="mt-6">
+    <section className="mt-4">
       <div className="flex flex-wrap items-center gap-2">
         {data.live && (
           <span className="font-label text-[9px] inline-flex items-center gap-1 mr-1" style={{ color: "var(--section-hue)" }}>
@@ -258,36 +283,45 @@ export default function MatchStats({
         </span>
       </div>
 
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[10.5px] text-ink-soft">
+        {current.id !== "all" && current.pickedBy != null && <span>{data.teams[current.pickedBy]}&rsquo;s pick</span>}
+        {current.id !== "all" && current.pickedBy == null && <span>Decider</span>}
+        {current.id !== "all" && current.duration && <span>{current.duration}</span>}
+        {vod && (
+          <a href={vod.url} target="_blank" rel="noopener noreferrer" className="hover:text-ink underline decoration-dotted underline-offset-2">
+            Watch map {mapNo} ↗
+          </a>
+        )}
+        {current.id !== "all" && current.rounds.length > 0 && (
+          <span className="inline-flex items-center gap-2 text-ink-faint">
+            {(["boom", "defuse", "time"] as const).map((h) => (
+              <span key={h} className="inline-flex items-center gap-1">
+                <span className="grid place-items-center w-[14px] h-[14px] rounded-[3px] bg-ink-faint text-paper">
+                  <HowIcon how={h} />
+                </span>
+                {h === "boom" ? "detonated" : h === "defuse" ? "defused" : "time"}
+              </span>
+            ))}
+          </span>
+        )}
+        <span className="ml-auto text-ink-faint">
+          Stats:{" "}
+          <a href={data.url} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted hover:text-ink">
+            VLR.gg ↗
+          </a>
+        </span>
+      </div>
       {current.id !== "all" && (
-        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[10.5px] text-ink-soft">
-          {current.pickedBy != null && <span>{data.teams[current.pickedBy]}&rsquo;s pick</span>}
-          {current.pickedBy == null && <span>Decider</span>}
-          {current.duration && <span>{current.duration}</span>}
-          {vod && (
-            <a href={vod.url} target="_blank" rel="noopener noreferrer" className="hover:text-ink underline decoration-dotted underline-offset-2">
-              Watch map {mapNo} ↗
-            </a>
-          )}
-        </div>
-      )}
-      {current.id !== "all" && (
-        <div className="mt-3">
+        <div className="mt-2">
           <Rounds rounds={current.rounds} teams={codes} />
         </div>
       )}
 
-      <div className="mt-4 space-y-4">
+      <div className="mt-3 space-y-3">
         {[0, 1].map((t) => (
           <Table key={t} team={data.teams[t]} players={current.teams[t]} side={side} best={best} mine={follows.includes(codes[t])} />
         ))}
       </div>
-      <p className="font-mono text-[10px] text-ink-faint mt-3">
-        Stats from{" "}
-        <a href={data.url} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted hover:text-ink">
-          VLR.gg ↗
-        </a>
-        . R is VLR&rsquo;s Rating 2.0; the best in each column is highlighted. Hover a heading for what it means.
-      </p>
     </section>
   );
 }
