@@ -741,3 +741,57 @@ export interface RatesPanel {
   };
   at: string;
 }
+
+// ---- Clutch: a match's numbers (lib/live/vlr.ts) ----------------------------------------
+
+/** One player's line: rating, ACS, K/D/A, KAST %, ADR, HS %, first kills and deaths. */
+export interface ValStatLine {
+  r: number | null;
+  acs: number | null;
+  k: number | null;
+  d: number | null;
+  a: number | null;
+  kd: number | null;
+  kast: number | null;
+  adr: number | null;
+  hs: number | null;
+  fk: number | null;
+  fd: number | null;
+  fkd: number | null;
+}
+
+export interface ValPlayerStats {
+  name: string;
+  team: string;
+  /** Agent slugs ("kayo"), as in /public/val/agents. */
+  agents: string[];
+  all: ValStatLine;
+  /** Attack and defence halves; missing on some older pages. */
+  t: ValStatLine | null;
+  ct: ValStatLine | null;
+}
+
+export interface ValMapStats {
+  /** "all" for the whole match. */
+  id: string;
+  name: string;
+  /** Rounds won, in the match's team order. */
+  score: [number | null, number | null];
+  /** Which team picked the map. */
+  pickedBy: 0 | 1 | null;
+  duration: string | null;
+  /** Each round: who won it, on which side, and how. */
+  rounds: Array<{ winner: 0 | 1; side: "t" | "ct"; how: "elim" | "defuse" | "boom" | "time" | null }>;
+  teams: [ValPlayerStats[], ValPlayerStats[]];
+}
+
+export interface ValMatchStats {
+  /** The VLR.gg page the numbers come from. */
+  url: string;
+  live: boolean;
+  teams: [string, string];
+  maps: ValMapStats[];
+  /** Riot's VODs, by map number (1-based). */
+  vods: Array<{ map: number; url: string }>;
+  fetchedAt: string;
+}

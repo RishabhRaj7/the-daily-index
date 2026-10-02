@@ -4,14 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 import type { ValEvent, ValMatch, ValorantData, ValTeam } from "@/lib/types";
 import Sheet from "@/components/extras/Sheet";
 import { groupStage, playoffs, type Bracket, type GroupTable, type Slot } from "@/lib/val-bracket";
+import MatchStats from "./MatchStats";
 
 // Clutch's pop-ups, one sheet that steps between three views (with a way
 // back):
 //   event   the bracket drawn as a tree (upper, lower, grand final), the
 //           groups or Swiss table, and the market's favourites
 //   team    form, what's next, and every result since 2024 by event
-//   match   two teams side by side: this match, their head-to-head since
-//           2024 and each one's recent form
+//   match   two teams side by side: this match's scoreboard map by map
+//           (live while it's on; MatchStats), their head-to-head since 2024
+//           and each one's recent form
 // Results come from Riot's schedule, kept by the paper (/api/valorant/team).
 
 export type ClutchView = { kind: "event"; key: string } | { kind: "team"; code: string } | { kind: "match"; a: string; b: string; id?: string };
@@ -536,7 +538,7 @@ function Side({ t, align, go }: { t: { code: string; name: string; image: string
   );
 }
 
-function MatchView({ a, b, id, data, go }: { a: string; b: string; id?: string; data: ValorantData; go: (v: ClutchView) => void }) {
+function MatchView({ a, b, id, data, follows, go }: { a: string; b: string; id?: string; data: ValorantData; follows: string[]; go: (v: ClutchView) => void }) {
   const ha = useHistory(a);
   const hb = useHistory(b);
   const team = (code: string) => data.teams.find((t) => t.code === code);
@@ -592,6 +594,20 @@ function MatchView({ a, b, id, data, go }: { a: string; b: string; id?: string; 
             <span className="flex-1" style={{ background: "var(--ink-faint)" }} />
           </div>
         </div>
+      )}
+
+      {/* The scoreboard, once the match has started. */}
+      {match && match.state !== "unstarted" && !match.fromMarket && (
+        <MatchStats
+          key={`${match.id}-${match.state}`}
+          id={match.id}
+          a={A.name}
+          b={B.name}
+          codes={[a, b]}
+          start={match.start}
+          live={match.state === "inProgress"}
+          follows={follows}
+        />
       )}
 
       <section className="mt-7">
@@ -686,13 +702,13 @@ export default function ClutchSheet({ start, data, follows, onClose }: { start: 
   );
 
   return (
-    <Sheet title={title} kicker={kicker} onClose={onClose} width={view.kind === "event" ? 1080 : 720} hue="var(--hue-clutch)">
+    <Sheet title={title} kicker={kicker} onClose={onClose} width={view.kind === "event" ? 1080 : view.kind === "match" ? 900 : 720} hue="var(--hue-clutch)">
       {view.kind === "event" && event && <EventView key={event.key} event={event} data={data} follows={follows} go={go} />}
       {view.kind === "team" && team && <TeamView key={team.code} team={team} data={data} go={go} />}
       {view.kind === "team" && !team && (
         <TeamView key={view.code} team={{ code: view.code, name: view.code, image: null }} data={data} go={go} />
       )}
-      {view.kind === "match" && <MatchView key={`${view.a}-${view.b}-${view.id}`} a={view.a} b={view.b} id={view.id} data={data} go={go} />}
+      {view.kind === "match" && <MatchView key={`${view.a}-${view.b}-${view.id}`} a={view.a} b={view.b} id={view.id} data={data} follows={follows} go={go} />}
     </Sheet>
   );
 }

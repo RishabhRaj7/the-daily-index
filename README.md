@@ -19,7 +19,7 @@ Vercel.
 | **Two Cities** | Local news from your cities, side by side (Bengaluru and Ranchi by default) |
 | **Paddock Notes** | Formula 1 stories plus the pit wall: next race, countdown and circuit map, weekend session times, last race podium, your team and drivers, championship tables |
 | **Sports** | Football and tennis, when you follow them |
-| **Clutch** | Valorant: your teams (next match with the market's odds, last result, where they stand), the running VCT major and the scene's headlines; a tap opens the bracket and groups, a team's results since 2024, or two teams' head-to-head; small, and smaller still in the off-season |
+| **Clutch** | Valorant: your teams (next match with the market's odds, last result, where they stand), the running VCT major and the scene's headlines; a tap opens the bracket and groups, a team's results since 2024, or a match's scoreboard (per map, live while it's on) with the two teams' head-to-head; small, and smaller still in the off-season |
 | **The Ledger** | Markets and economy news — mostly India, some global |
 | **Market Pulse** | 16 live indices across India, US, Europe and Asia with a mood gauge per region (India: Tickertape's Market Mood Index, US: CNN Fear & Greed), gold and silver at IBJA's rate, other commodities in rupees, BTC/ETH in USDT, a tap-to-open chart for each (with its 52-week range and 50/200-day averages), a rates row (RBI repo, Fed funds, US 10-year, what FIIs and DIIs bought and sold, and the odds on the next decision), Nifty 50 breadth, when each market reopens, and IPO watch (mainboard IPOs with dates, size, GMP and the bidding's mood) |
 | **The Circuit Board** | Technology |
