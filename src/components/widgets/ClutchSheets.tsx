@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { ValEvent, ValMatch, ValorantData, ValTeam } from "@/lib/types";
 import Sheet from "@/components/extras/Sheet";
 import { groupStage, playoffs, type Bracket, type GroupTable, type Slot } from "@/lib/val-bracket";
@@ -707,13 +707,16 @@ export default function ClutchSheet({ start, data, follows, onClose }: { start: 
   );
 
   return (
-    <Sheet title={title} kicker={kicker} onClose={onClose} width={view.kind === "event" ? 1080 : view.kind === "match" ? 900 : 720} hue="var(--hue-clutch)">
-      {view.kind === "event" && event && <EventView key={event.key} event={event} data={data} follows={follows} go={go} />}
-      {view.kind === "team" && team && <TeamView key={team.code} team={team} data={data} go={go} />}
-      {view.kind === "team" && !team && (
-        <TeamView key={view.code} team={{ code: view.code, name: view.code, image: null }} data={data} go={go} />
-      )}
-      {view.kind === "match" && <MatchView key={`${view.a}-${view.b}-${view.id}`} a={view.a} b={view.b} id={view.id} data={data} follows={follows} go={go} />}
+    <Sheet title={title} kicker={kicker} onClose={onClose} width={view.kind === "event" ? 1080 : view.kind === "match" ? 900 : 720} hue="var(--val-teal)">
+      {/* One red and one teal through the whole sheet, the pair the rounds strip draws in. */}
+      <div style={{ "--up": "var(--val-teal)", "--down": "var(--val-red)" } as CSSProperties}>
+        {view.kind === "event" && event && <EventView key={event.key} event={event} data={data} follows={follows} go={go} />}
+        {view.kind === "team" && team && <TeamView key={team.code} team={team} data={data} go={go} />}
+        {view.kind === "team" && !team && (
+          <TeamView key={view.code} team={{ code: view.code, name: view.code, image: null }} data={data} go={go} />
+        )}
+        {view.kind === "match" && <MatchView key={`${view.a}-${view.b}-${view.id}`} a={view.a} b={view.b} id={view.id} data={data} follows={follows} go={go} />}
+      </div>
     </Sheet>
   );
 }

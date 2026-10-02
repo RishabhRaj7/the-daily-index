@@ -66,8 +66,8 @@ function HowIcon({ how, size = 14 }: { how: string | null; size?: number }) {
 }
 
 // The broadcast's colours: a round won on attack in red, on defence in teal.
-const ATTACK = "#ff4655";
-const DEFENCE = "#3edbb5";
+const ATTACK = "var(--val-red)";
+const DEFENCE = "var(--val-teal)";
 
 function Agent({ slug }: { slug: string }) {
   const [ok, setOk] = useState(true);
@@ -159,7 +159,7 @@ function Rounds({ rounds, teams }: { rounds: ValMatchStats["maps"][number]["roun
   };
   return (
     <div className="overflow-x-auto -mx-1 px-1">
-      <div className="inline-flex flex-col gap-[3px] py-1">
+      <div className="flex flex-col w-fit mx-auto gap-[3px] py-1">
         <div className="flex items-center gap-[3px]">
           <span className="w-[3.2rem] shrink-0" />
           {rounds.flatMap((_, i) => [

@@ -46,6 +46,9 @@
   --series-2: #2f6bff;
   --series-3: #d0466b;
   --series-4: #8a8a94;
+  /* Valorant's broadcast pair, used all through the Clutch sheet: teal for won (and defence), red for lost (and attack). */
+  --val-teal: #0e9f7e;
+  --val-red: #e8364a;
 
   /* Fear ⇄ greed zones, red through grey to green. */
   --mood-xfear: #d4002a;
@@ -102,6 +105,8 @@ html[data-edition="evening"] {
   --series-2: #7aa2ff;
   --series-3: #ff7a9a;
   --series-4: #a3a3ad;
+  --val-teal: #3edbb5;
+  --val-red: #ff4655;
 
   --mood-xfear: #ff4d6a;
   --mood-fear: #ff9a4d;
