@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { F1GridResult, F1LiveResult, F1Race, F1LastRace, F1Phase, F1SessionResult, F1SessionTop } from "@/lib/types";
 import { CIRCUIT_FACTS } from "@/lib/config/circuit-facts";
 import { teamColor } from "@/lib/personalization";
@@ -64,6 +64,9 @@ const SESSION_LABEL: Record<string, string> = {
   "Sprint Shootout": "Sprint quali",
   Sprint: "Sprint",
 };
+
+// One timing row's height (py-1.5 around 12px text, plus its rule).
+const ROW_H = 30;
 
 // Pulsing hairline rows, styled like the table they stand in for.
 function TimingRowsSkeleton({ rows = 5 }: { rows?: number }) {
@@ -187,7 +190,24 @@ export default function StartingGrid({
         : lastRace?.results ?? [];
   const showPodium = racePhase === "last-race" && resultRows.length >= 3;
   const tableRows = showPodium ? resultRows.filter((r) => (r.position ?? 99) > 3) : resultRows;
-  const visibleRows = showAll ? tableRows : tableRows.slice(0, showPodium ? 4 : 5);
+  // Folded, the table shows as many rows as fit the height its row of the
+  // page gives it (set by Your paddock beside it), never fewer than the base.
+  const baseRows = showPodium ? 4 : 5;
+  const listRef = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState(baseRows);
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el || showAll) return;
+    const measure = () => {
+      const rowH = el.querySelector("tr")?.getBoundingClientRect().height || ROW_H;
+      setFit(Math.max(baseRows, Math.floor(el.clientHeight / rowH)));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [showAll, baseRows, tableRows.length]);
+  const visibleRows = showAll ? tableRows : tableRows.slice(0, fit);
   const timingTitle = racePhase === "race"
     ? liveResults.length > 0 ? "Live race" : "Starting grid"
     : racePhase === "qualifying"
@@ -324,7 +344,7 @@ export default function StartingGrid({
           refresh here by design: the single control lives in the pit-wall
           header, so the two can never race each other. */}
       {timingHere && (resultRows.length > 0 || sessionStatus !== "ready") && (
-        <div className="module self-stretch" data-reveal>
+        <div className="module self-stretch flex flex-col" data-reveal>
           <div className="flex items-baseline justify-between gap-2">
             <span className="font-label text-[10px] text-ink-soft">
               {sessionStatus === "ready" ? timingTitle : "Timing screens"}
@@ -381,7 +401,14 @@ export default function StartingGrid({
           {resultRows.length > 0 && (
             <>
               {showPodium && <Podium rows={resultRows} />}
-              <table className="w-full text-xs mt-2">
+              {/* Folded, the table sits out of the flow so the card's height
+                  comes from its neighbour; the rows then fill what it gives. */}
+              <div
+                ref={listRef}
+                className={showAll ? "mt-2" : "relative flex-1 mt-2"}
+                style={showAll ? undefined : { minHeight: Math.min(baseRows, tableRows.length) * ROW_H }}
+              >
+              <table className={`w-full text-xs ${showAll ? "" : "absolute inset-x-0 top-0"}`}>
                 <tbody>
                   {visibleRows.map((r) => (
                     <tr key={`${r.position ?? "dnf"}-${r.code}`} className="border-t hairline first:border-t-0">
@@ -398,11 +425,12 @@ export default function StartingGrid({
                   ))}
                 </tbody>
               </table>
-              {resultRows.length > 5 && (
+              </div>
+              {tableRows.length > fit && (
                 <button
                   type="button"
                   onClick={() => setShowAll((value) => !value)}
-                  className="font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-3"
+                  className="self-start font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-3"
                 >
                   {showAll ? "Show fewer" : `Show all ${resultRows.length} drivers`}
                 </button>
