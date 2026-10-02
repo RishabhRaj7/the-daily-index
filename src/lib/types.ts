@@ -527,6 +527,8 @@ export interface Personalization {
   sports: ("f1" | "football" | "tennis")[];
   favoriteF1Team: string;
   favoriteF1Drivers: string[];        // up to 2 driverIds
+  /** Set once the paddock defaults have been applied to a saved paper. */
+  paddockSeeded?: boolean;
   favoriteFootballPlayer: string;
   favoriteFootballClub: string;
   favoriteFootballNationalTeam: string;

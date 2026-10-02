@@ -7,8 +7,10 @@ export const DEFAULT_PERSONALIZATION: Personalization = {
   onboarded: false,
   homeCity: "Bengaluru",
   sports: ["f1"],
-  favoriteF1Team: "",
-  favoriteF1Drivers: [],
+  // The reader's paddock: Mercedes, Russell and Verstappen.
+  favoriteF1Team: "Mercedes",
+  favoriteF1Drivers: ["rus", "ver"],
+  paddockSeeded: true,
   favoriteFootballPlayer: "",
   favoriteFootballClub: "",
   favoriteFootballNationalTeam: "",
@@ -68,6 +70,12 @@ export function loadPersonalization(): Personalization {
     if (!savedOrder.includes("straw-poll")) {
       const at = savedOrder.indexOf("circuit-board");
       savedOrder.splice(at >= 0 ? at + 1 : savedOrder.length, 0, "straw-poll");
+    }
+    // A paper saved before the reader named their paddock (2 Oct 2026) takes
+    // it once; after that, whatever they change in the picker stands.
+    if (!parsed.paddockSeeded) {
+      merged.favoriteF1Team = DEFAULT_PERSONALIZATION.favoriteF1Team;
+      merged.favoriteF1Drivers = DEFAULT_PERSONALIZATION.favoriteF1Drivers;
     }
     merged.valorantTeams = (Array.isArray(merged.valorantTeams) ? merged.valorantTeams : []).filter((c) => typeof c === "string");
     merged.oddsWatch = (Array.isArray(merged.oddsWatch) ? merged.oddsWatch : DEFAULT_PERSONALIZATION.oddsWatch!).filter((q) => typeof q === "string");
