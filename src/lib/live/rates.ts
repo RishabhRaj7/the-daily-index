@@ -7,8 +7,9 @@ import { fomc, RBI_DECISIONS } from "./ahead";
 // money went. Each part stands alone; one that fails is left out.
 //
 //   RBI repo      the RBI's own home page ("Policy Repo Rate : 5.25%")
-//   Fed funds     FRED's target range (DFEDTARL/DFEDTARU), keyless CSV,
-//                 which also dates the last change ("on hold since …")
+//   Fed funds     the New York Fed's daily EFFR record (target range and
+//                 when it last moved); FRED's series if that fails, and the
+//                 last range kept if both do
 //   US 10-year    Yahoo's ^TNX
 //   FII / DII     NSE's daily cash-market figures; each day is kept, so the
 //                 month's running total builds up from the days recorded
@@ -54,19 +55,57 @@ async function fredSeries(id: string): Promise<{ value: number; since: string; b
   return { value: last.v, since, before: i >= 0 ? rows[i].v : null };
 }
 
+/** The target range and when it last moved, from the New York Fed's daily
+ *  EFFR record (keyless, fast; each day carries the range in force). */
+async function nyFed(): Promise<{ lower: number; upper: number; since: string; before: number | null } | null> {
+  const end = istDate(new Date());
+  const start = istDate(new Date(Date.now() - 400 * 86_400_000));
+  const body = await text(`https://markets.newyorkfed.org/api/rates/unsecured/effr/search.json?startDate=${start}&endDate=${end}`, 21_600);
+  try {
+    const rows = ((JSON.parse(body ?? "{}") as { refRates?: Array<{ effectiveDate: string; targetRateFrom: number; targetRateTo: number }> }).refRates ?? [])
+      .filter((r) => Number.isFinite(r.targetRateFrom) && Number.isFinite(r.targetRateTo))
+      .sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
+    if (rows.length === 0) return null;
+    const now = rows[0];
+    let since = now.effectiveDate;
+    let before: number | null = null;
+    for (const r of rows) {
+      if (r.targetRateTo !== now.targetRateTo || r.targetRateFrom !== now.targetRateFrom) {
+        before = r.targetRateTo;
+        break;
+      }
+      since = r.effectiveDate;
+    }
+    return { lower: now.targetRateFrom, upper: now.targetRateTo, since, before };
+  } catch {
+    return null;
+  }
+}
+
+/** FRED's target series, as a second source (it is often slow to answer). */
+async function fred(): Promise<{ lower: number; upper: number; since: string; before: number | null } | null> {
+  const [lo, hi] = await Promise.all([fredSeries("DFEDTARL"), fredSeries("DFEDTARU")]);
+  if (!lo || !hi) return null;
+  // The range last moved when either end did.
+  return { lower: lo.value, upper: hi.value, since: lo.since > hi.since ? lo.since : hi.since, before: hi.before };
+}
+
+const FED_KEY = "rates:fed:v1";
+
 async function fed(): Promise<RatesPanel["fed"]> {
-  const [lo, hi, meetings] = await Promise.all([
-    fredSeries("DFEDTARL"),
-    fredSeries("DFEDTARU"),
+  const [range, meetings] = await Promise.all([
+    nyFed().then((r) => r ?? fred()),
     fomc(istDate(new Date())).catch(() => []),
   ]);
-  if (!lo || !hi) return undefined;
+  const store = getStore();
+  // Both sources down: the last range read (it changes eight times a year at most).
+  const got = range ?? (await store.get<NonNullable<Awaited<ReturnType<typeof nyFed>>>>(FED_KEY).catch(() => null));
+  if (!got) return undefined;
+  if (range) await store.set(FED_KEY, range, { ttlSeconds: 60 * 86_400 }).catch(() => {});
   const today = istDate(new Date());
   const next = meetings.map((m) => m.date).filter((d) => d >= today).sort()[0] ?? null;
-  // The range last moved when either end did.
-  const since = lo.since > hi.since ? lo.since : hi.since;
-  const move = hi.before == null ? null : hi.value < hi.before ? "cut" : hi.value > hi.before ? "hike" : null;
-  return { lower: lo.value, upper: hi.value, since, move, next };
+  const move = got.before == null ? null : got.upper < got.before ? "cut" : got.upper > got.before ? "hike" : null;
+  return { lower: got.lower, upper: got.upper, since: got.since, move, next };
 }
 
 async function us10y(): Promise<RatesPanel["us10y"]> {
