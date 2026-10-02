@@ -38,7 +38,11 @@ export default function PriceChart({
   trend,
   onHover,
   format,
+  reference = null,
 }: {
+  /** A second price to mark (the tile's official rate): a dotted line with
+   *  its own axis tag, and a dot where it was set when that's on the chart. */
+  reference?: { price: number; label: string; t?: number } | null;
   bars: PriceBar[];
   mode?: Mode;
   previousClose?: number | null;
@@ -132,6 +136,27 @@ export default function PriceChart({
           title: "prev",
         });
       }
+      if (reference) {
+        const mark = token(el, "--hue-poll", "#f5c542");
+        series.createPriceLine({
+          price: reference.price,
+          color: mark,
+          lineWidth: 2,
+          lineStyle: lc.LineStyle.Dotted,
+          axisLabelVisible: true,
+          axisLabelColor: mark,
+          axisLabelTextColor: "#111",
+          title: reference.label,
+        });
+        const at = reference.t;
+        if (at != null && at >= bars[0].t && at <= bars[bars.length - 1].t) {
+          // The bar the rate was set on (the last one at or before it).
+          const bar = [...bars].reverse().find((b) => b.t <= at) ?? bars[0];
+          lc.createSeriesMarkers(series, [
+            { time: time(bar.t), position: "aboveBar", color: mark, shape: "circle", text: reference.label },
+          ]);
+        }
+      }
       if (showVolume && bars.some((b) => b.v)) {
         const vol = chart.addSeries(lc.HistogramSeries, { priceScaleId: "vol", priceFormat: { type: "volume" }, lastValueVisible: false, priceLineVisible: false });
         vol.priceScale().applyOptions({ scaleMargins: { top: 0.84, bottom: 0 } });
@@ -158,7 +183,7 @@ export default function PriceChart({
       disposed = true;
       cleanup();
     };
-  }, [bars, mode, previousClose, showVolume, intraday, hue, trend, format]);
+  }, [bars, mode, previousClose, showVolume, intraday, hue, trend, format, reference]);
 
   return <div ref={ref} style={{ height }} className="w-full" />;
 }

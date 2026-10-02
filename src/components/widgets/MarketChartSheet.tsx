@@ -12,6 +12,16 @@ import PriceChart from "./PriceChart";
 type Range = "1D" | "5D" | "1M" | "6M" | "1Y" | "5Y";
 const RANGES: Range[] = ["1D", "5D", "1M", "6M", "1Y", "5Y"];
 
+// A 1D chart on a closed day shows the last session: say which.
+function sessionLabel(bars: PriceBar[]): string {
+  const last = bars.at(-1);
+  if (!last) return "today";
+  const d = new Date(last.t * 1000);
+  return d.toDateString() === new Date().toDateString()
+    ? "today"
+    : `last session, ${d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}`;
+}
+
 interface ChartData {
   name: string;
   unit: string;
@@ -94,6 +104,12 @@ export default function MarketChartSheet({ target, onClose }: { target: ChartTar
   }, [bars, data, range]);
 
   const shown = hover ?? (bars.length ? bars[bars.length - 1] : null);
+  // The tile's official rate, drawn on the chart as a dotted line.
+  const refData = data?.reference;
+  const chartRef = useMemo(
+    () => (refData ? { price: refData.value, label: "IBJA", t: Math.floor(Date.parse(refData.asOf) / 1000) } : null),
+    [refData],
+  );
   const up = (stats?.change ?? 0) >= 0;
 
   // The year behind it, whatever range is showing: where it sits between its
@@ -127,6 +143,9 @@ export default function MarketChartSheet({ target, onClose }: { target: ChartTar
       {/* Readout: the price under the pointer, else the latest. */}
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
         <div>
+          {data?.reference && (
+            <div className="font-label text-[9px] text-ink-soft mb-1">{hover ? "On the chart" : "Live estimate"}</div>
+          )}
           <div className="font-display font-extrabold text-[clamp(2.2rem,6vw,3.2rem)] leading-none tabular-nums">
             {shown ? fmt(shown.c, prefix) : "—"}
           </div>
@@ -134,21 +153,23 @@ export default function MarketChartSheet({ target, onClose }: { target: ChartTar
             {hover
               ? `${when(hover.t, range)} · O ${fmt(hover.o, prefix)} H ${fmt(hover.h, prefix)} L ${fmt(hover.l, prefix)}`
               : data
-                ? `${data.unit} · ${range === "1D" ? "today" : `past ${range.toLowerCase()}`}`
+                ? `${data.unit} · ${range === "1D" ? sessionLabel(bars) : `past ${range.toLowerCase()}`}`
                 : ""}
           </div>
-          {data?.reference && (
-            <div className="font-mono text-[11px] text-ink-soft mt-1">
-              {data.reference.label} {fmt(data.reference.value, prefix)} ·{" "}
-              {new Date(data.reference.asOf).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
-              {data.bars.length > 0 && (
-                <span>
-                  {" "}· live {((data.bars.at(-1)!.c / data.reference.value - 1) * 100).toFixed(2).replace(/^(?!-)/, "+")}% since
-                </span>
-              )}
-            </div>
-          )}
         </div>
+        {data?.reference && (
+          <div className="rounded-lg border border-dashed px-3 py-2 mr-auto" style={{ borderColor: "var(--hue-poll)" }}>
+            <div className="flex items-center gap-1.5 font-label text-[9px] text-ink-soft">
+              <span className="w-4 border-t-2 border-dotted" style={{ borderColor: "var(--hue-poll)" }} />
+              {data.reference.label}
+            </div>
+            <div className="font-display font-bold text-[1.5rem] leading-none tabular-nums mt-1">{fmt(data.reference.value, prefix)}</div>
+            <div className="font-mono text-[10.5px] text-ink-soft mt-1">
+              {new Date(data.reference.asOf).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+              {bars.length > 0 && <> · live {((bars[bars.length - 1].c / data.reference.value - 1) * 100).toFixed(2).replace(/^(?!-)/, "+")}% since</>}
+            </div>
+          </div>
+        )}
         {stats && (
           <span
             className={`rounded-full px-3 py-1 font-mono text-[13px] font-semibold ${up ? "bg-up" : "bg-down"}`}
@@ -216,6 +237,7 @@ export default function MarketChartSheet({ target, onClose }: { target: ChartTar
             onHover={onHover}
             format={format}
             trend={up ? "up" : "down"}
+            reference={chartRef}
           />
         )}
       </div>

@@ -44,20 +44,56 @@ export interface ChartData {
 }
 
 interface YahooResult {
-  meta?: { chartPreviousClose?: number; previousClose?: number };
+  meta?: { chartPreviousClose?: number; previousClose?: number; gmtoffset?: number };
   timestamp?: number[];
   indicators?: { quote?: Array<Record<"open" | "high" | "low" | "close" | "volume", (number | null)[]>> };
 }
 
-async function yahoo(symbol: string, range: ChartRange): Promise<YahooResult | null> {
-  const r = YAHOO[range];
+async function yahooRaw(symbol: string, range: string, interval: string, revalidate: number): Promise<YahooResult | null> {
   const res = await fetch(
-    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${r.range}&interval=${r.interval}`,
-    { headers: { "User-Agent": BROWSER_UA }, next: { revalidate: r.revalidate } },
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}`,
+    { headers: { "User-Agent": BROWSER_UA }, next: { revalidate } },
   );
   if (!res.ok) return null;
   const data = await res.json();
   return data?.chart?.result?.[0] ?? null;
+}
+
+async function yahoo(symbol: string, range: ChartRange): Promise<YahooResult | null> {
+  const r = YAHOO[range];
+  const result = await yahooRaw(symbol, r.range, r.interval, r.revalidate);
+  if (range !== "1D" || (result && toBars(result).length > 0)) return result;
+  // A closed day (a holiday, a weekend) has no bars for "1d": show the last
+  // session instead, from five days of five-minute bars, against the close
+  // before it.
+  const week = await yahooRaw(symbol, "5d", "5m", 300);
+  const ts = week?.timestamp ?? [];
+  const q = week?.indicators?.quote?.[0];
+  if (!week || !q || ts.length === 0) return result;
+  const offset = week.meta?.gmtoffset ?? 0;
+  const day = (t: number) => Math.floor((t + offset) / 86400);
+  // The last day with a real bar (a closed day can carry an empty stub).
+  const lastReal = [...ts.keys()].reverse().find((i) => typeof q.close?.[i] === "number");
+  if (lastReal == null) return result;
+  const lastDay = day(ts[lastReal]);
+  const from = ts.findIndex((t) => day(t) === lastDay);
+  const prior = q.close?.slice(0, from).filter((c): c is number => typeof c === "number").at(-1);
+  const pick = <T,>(arr: T[] | undefined) => arr?.slice(from);
+  return {
+    meta: { ...week.meta, chartPreviousClose: prior ?? week.meta?.chartPreviousClose },
+    timestamp: ts.slice(from),
+    indicators: {
+      quote: [
+        {
+          open: pick(q.open) ?? [],
+          high: pick(q.high) ?? [],
+          low: pick(q.low) ?? [],
+          close: pick(q.close) ?? [],
+          volume: pick(q.volume) ?? [],
+        },
+      ],
+    },
+  };
 }
 
 function toBars(result: YahooResult): PriceBar[] {
@@ -156,7 +192,7 @@ export async function getChart(kind: ChartKind, id: string, range: ChartRange): 
         bars = bars.map((b) => ({ t: b.t, o: b.o * k, h: b.h * k, l: b.l * k, c: b.c * k }));
         if (previousClose != null) previousClose *= k;
         const when = new Date(ibja.asOf).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" });
-        reference = { label: "IBJA rate (on the tile)", value: rate, asOf: ibja.asOf };
+        reference = { label: "IBJA rate · the price on the card", value: rate, asOf: ibja.asOf };
         note = `Pegged to IBJA's 999 rate of ₹${rate.toLocaleString("en-IN")} (${when} IST, the price on the tile); moves since then follow COMEX ${spec.id} in rupees. Longer ranges carry today's premium back, so years ago read approximate.`;
       }
     }
