@@ -540,6 +540,9 @@ function Side({ t, align, go }: { t: { code: string; name: string; image: string
 
 function MatchView({ a, b, id, data, follows, go }: { a: string; b: string; id?: string; data: ValorantData; follows: string[]; go: (v: ClutchView) => void }) {
   const ha = useHistory(a);
+  const hb = useHistory(b);
+  // The past, folded away: the two teams' meetings, or either team's last five.
+  const [past, setPast] = useState<"h2h" | "a" | "b" | null>(null);
   const team = (code: string) => data.teams.find((t) => t.code === code);
   const live = data.matches.find((m) => m.id === id);
   const fromPast = ha?.find((m) => m.id === id);
@@ -608,34 +611,37 @@ function MatchView({ a, b, id, data, follows, go }: { a: string; b: string; id?:
       )}
 
       <section className="mt-5 border-t hairline pt-3">
-        {!ha ? (
-          <div className="h-6 rounded bg-card-bg animate-pulse" />
-        ) : meetings.length === 0 ? (
-          <p className="font-sans text-[12.5px] text-ink-soft">
-            <span className="font-label text-[9px] mr-2">Head to head</span>They haven&rsquo;t met in the majors since 2024.
-          </p>
-        ) : (
-          <details className="group">
-            <summary className="list-none cursor-pointer grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] items-center gap-3">
-              <span className="font-label text-[9px] text-ink-soft">Head to head since 2024</span>
-              <span className="font-display font-extrabold text-[1.5rem] leading-none tabular-nums">{aw}</span>
-              <span className="min-w-0">
-                <span className="flex h-2 rounded-full overflow-hidden bg-[color:var(--rule)]">
-                  <span style={{ width: `${(aw / meetings.length) * 100}%`, background: "var(--section-hue)" }} />
-                  <span className="flex-1" style={{ background: "var(--ink-faint)" }} />
-                </span>
-                <span className="block text-center font-mono text-[9.5px] text-ink-soft mt-1">
-                  series won · maps {mapsA}–{mapsB}
-                </span>
-              </span>
-              <span className="font-display font-extrabold text-[1.5rem] leading-none tabular-nums">{bw}</span>
-              <span className="font-mono text-[10px] text-ink-soft whitespace-nowrap">
-                {meetings.length} {meetings.length === 1 ? "meeting" : "meetings"} <span className="inline-block transition-transform group-open:rotate-180">▾</span>
-              </span>
-            </summary>
-            <ul className="mt-2 divide-y hairline">
-              {meetings.map((m) => (
-                <li key={m.id} className="grid grid-cols-[4.6rem_minmax(0,1fr)_auto] items-center gap-2 py-1.5 text-[12.5px]">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-label text-[9px] text-ink-soft mr-1">Past results</span>
+          {(
+            [
+              ["h2h", ha ? (meetings.length ? `Head to head ${aw}–${bw}` : "Never met") : "Head to head"],
+              ["a", `${a}, last five`],
+              ["b", `${b}, last five`],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setPast((v) => (v === k ? null : k))}
+              aria-expanded={past === k}
+              disabled={k === "h2h" && !!ha && meetings.length === 0}
+              className="chip h-7 px-3 text-[11.5px] gap-1.5 disabled:opacity-50"
+              style={past === k ? { background: "var(--ink)", color: "var(--paper)", borderColor: "var(--ink)" } : undefined}
+            >
+              {label}
+              {k !== "h2h" && (k === "a" ? ha : hb) && <Form list={(k === "a" ? ha : hb)!} code={k === "a" ? a : b} n={5} />}
+              <span className={`inline-block transition-transform ${past === k ? "rotate-180" : ""}`}>▾</span>
+            </button>
+          ))}
+          {ha && meetings.length > 0 && <span className="ml-auto font-mono text-[10px] text-ink-faint">since 2024 · maps {mapsA}–{mapsB}</span>}
+        </div>
+
+        {past === "h2h" && (
+          <ul className="mt-2 divide-y hairline">
+            {meetings.map((m) => (
+              <li key={m.id}>
+                <button type="button" onClick={() => go({ kind: "match", a, b, id: m.id })} className="w-full grid grid-cols-[4.6rem_minmax(0,1fr)_auto] items-center gap-2 py-1.5 text-[12.5px] text-left hover:bg-card-bg rounded-md">
                   <span className="font-mono text-[10px] text-ink-soft">{date(m.start)}</span>
                   <span className="truncate text-ink-soft">
                     {m.event} · {m.stage}
@@ -645,11 +651,24 @@ function MatchView({ a, b, id, data, follows, go }: { a: string; b: string; id?:
                     <span className="text-ink-faint"> – </span>
                     <span className={won(m, b) ? "font-semibold" : "text-ink-faint"}>{us(m, b).wins ?? 0} {b}</span>
                   </span>
-                </li>
-              ))}
-            </ul>
-          </details>
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
+        {(past === "a" || past === "b") &&
+          (() => {
+            const code = past === "a" ? a : b;
+            const list = past === "a" ? ha : hb;
+            if (!list) return <div className="h-24 mt-2 rounded-lg bg-card-bg animate-pulse" />;
+            return (
+              <ul className="mt-2 divide-y hairline">
+                {list.slice(0, 5).map((m) => (
+                  <MatchRow key={m.id} m={m} code={code} onOpen={(x) => go({ kind: "match", a: code, b: them(x, code).code, id: x.id })} />
+                ))}
+              </ul>
+            );
+          })()}
       </section>
     </div>
   );

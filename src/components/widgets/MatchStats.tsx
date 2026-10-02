@@ -28,7 +28,7 @@ const COLS: Array<{ key: keyof ValStatLine; label: string; title: string; fmt?: 
 
 const HOW: Record<string, string> = { elim: "Elimination", defuse: "Spike defused", boom: "Spike detonated", time: "Time ran out" };
 
-/** How a round ended, as a small white mark: a starburst for the spike going off, a shield for a defuse, a clock for time. */
+/** How a round ended, as a small white mark: crosshairs for an elimination, a starburst for the spike going off, a shield for a defuse, a clock for time. */
 function HowIcon({ how }: { how: string | null }) {
   const common = { width: 10, height: 10, viewBox: "0 0 12 12", "aria-hidden": true as const };
   if (how === "boom")
@@ -42,6 +42,13 @@ function HowIcon({ how }: { how: string | null }) {
       <svg {...common}>
         <path d="M6 1 10.5 2.8V6c0 2.6-1.9 4.3-4.5 5.1C3.4 10.3 1.5 8.6 1.5 6V2.8Z" fill="currentColor" />
         <path d="M4 6.1 5.4 7.5 8.1 4.6" fill="none" stroke="var(--series-2)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  if (how === "elim" || how == null)
+    return (
+      <svg {...common}>
+        <circle cx="6" cy="6" r="3.6" fill="none" stroke="currentColor" strokeWidth="1.3" />
+        <path d="M6 0.8v2.6M6 8.6v2.6M0.8 6h2.6M8.6 6h2.6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
       </svg>
     );
   if (how === "time")
@@ -70,7 +77,7 @@ function Table({ team, players, side, best, mine }: { team: string; players: Val
   const lineOf = (p: ValPlayerStats) => (side === "all" ? p.all : p[side]);
   return (
     <div className="overflow-x-auto -mx-1 px-1">
-      <table className="w-full min-w-[640px] text-[12.5px] tabular-nums">
+      <table className="w-full min-w-[640px] font-sans text-[12.5px] tabular-nums">
         <thead>
           <tr className="font-label text-[8.5px] text-ink-faint text-right">
             <th className="text-left font-normal py-1 sticky left-0 bg-surface" style={mine ? { color: "var(--section-hue)" } : undefined}>
@@ -95,7 +102,7 @@ function Table({ team, players, side, best, mine }: { team: string; players: Val
                         <Agent key={a} slug={a} />
                       ))}
                     </span>
-                    <span className="font-semibold truncate">{p.name}</span>
+                    <span className="font-sans font-medium text-[13px] tracking-[0.01em] truncate">{p.name}</span>
                   </span>
                 </td>
                 {COLS.map((c) => {
@@ -294,12 +301,12 @@ export default function MatchStats({
         )}
         {current.id !== "all" && current.rounds.length > 0 && (
           <span className="inline-flex items-center gap-2 text-ink-faint">
-            {(["boom", "defuse", "time"] as const).map((h) => (
+            {(["elim", "boom", "defuse", "time"] as const).map((h) => (
               <span key={h} className="inline-flex items-center gap-1">
                 <span className="grid place-items-center w-[14px] h-[14px] rounded-[3px] bg-ink-faint text-paper">
                   <HowIcon how={h} />
                 </span>
-                {h === "boom" ? "detonated" : h === "defuse" ? "defused" : "time"}
+                {h === "elim" ? "eliminated" : h === "boom" ? "detonated" : h === "defuse" ? "defused" : "time"}
               </span>
             ))}
           </span>
