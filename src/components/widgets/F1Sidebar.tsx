@@ -7,6 +7,7 @@ import type {
   F1LastRace,
   F1LiveResult,
   F1Race,
+  F1Phase,
   F1RosterEntry,
   F1Standing,
 } from "@/lib/types";
@@ -91,7 +92,7 @@ const IS_EMPTY: Record<PartName, (data: unknown) => boolean> = {
   // A finished season legitimately has no grid; lastRace alone is enough.
   results: (d) => {
     const r = d as F1ResultsData;
-    return !r || (!r.lastRace && r.qualifyingGrid.length === 0 && r.liveResults.length === 0);
+    return !r || (!r.lastRace && !r.session && r.qualifyingGrid.length === 0 && r.liveResults.length === 0);
   },
 };
 
@@ -235,7 +236,7 @@ export default function F1Sidebar({
   qualifyingGrid?: F1GridResult[];
   liveResults?: F1LiveResult[];
   currentRace?: F1Race | null;
-  racePhase?: "last-race" | "qualifying" | "race";
+  racePhase?: F1Phase;
   accentColor?: string;
   favoriteF1Team?: string;
   favoriteDriverIds?: string[];
@@ -492,6 +493,10 @@ export default function F1Sidebar({
           liveResults={results.data?.liveResults ?? []}
           currentRace={results.data?.currentRace ?? null}
           racePhase={results.data?.racePhase ?? "last-race"}
+          session={results.data?.session ?? null}
+          weekendName={results.data?.weekendName ?? null}
+          gridSetAt={results.data?.gridSetAt ?? null}
+          tops={results.data?.tops ?? {}}
           accentColor={accentColor}
           sessionStatus={results.status}
           sessionStale={results.stale}
@@ -531,6 +536,10 @@ export default function F1Sidebar({
           liveResults={results.data?.liveResults ?? []}
           currentRace={results.data?.currentRace ?? null}
           racePhase={results.data?.racePhase ?? "last-race"}
+          session={results.data?.session ?? null}
+          weekendName={results.data?.weekendName ?? null}
+          gridSetAt={results.data?.gridSetAt ?? null}
+          tops={results.data?.tops ?? {}}
           accentColor={accentColor}
           sessionStatus={results.status}
           sessionStale={results.stale}

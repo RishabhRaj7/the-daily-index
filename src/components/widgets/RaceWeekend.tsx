@@ -1,12 +1,13 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import type { F1Session } from "@/lib/types";
+import type { F1Session, F1SessionTop } from "@/lib/types";
+import { teamColor } from "@/lib/personalization";
 
 // The next race weekend, session by session, in the reader's own time:
 // practice, sprint qualifying / sprint on sprint weekends, qualifying and
-// the race. Finished sessions dim, a running one is marked live, and the
-// next one carries a countdown.
+// the race. Finished sessions dim and name their quickest driver, a running
+// one is marked live, and the next one carries a countdown.
 
 function subscribe(cb: () => void) {
   const id = window.setInterval(cb, 30_000);
@@ -31,7 +32,7 @@ function until(ms: number): string {
   return `in ${m}m`;
 }
 
-export default function RaceWeekend({ sessions }: { sessions: F1Session[] }) {
+export default function RaceWeekend({ sessions, tops = {} }: { sessions: F1Session[]; tops?: Record<string, F1SessionTop> }) {
   const at = useSyncExternalStore(subscribe, now, () => null);
   if (sessions.length === 0) return null;
 
@@ -70,23 +71,30 @@ export default function RaceWeekend({ sessions }: { sessions: F1Session[] }) {
                 const done = at !== null && at >= end;
                 const next = i === nextIdx && !live;
                 const main = /^(qualifying|race|sprint)$/i.test(s.name);
+                const top = done ? tops[s.name] : undefined;
                 return (
                   <li
                     key={s.name + s.start}
                     className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2 py-1.5 ${
                       next || live ? "bg-card-bg" : ""
-                    } ${done ? "opacity-45" : ""}`}
+                    } ${done && !top ? "opacity-45" : ""}`}
                     style={next || live ? { boxShadow: "inset 3px 0 0 var(--section-hue, var(--accent))" } : undefined}
                   >
-                    <span className={`truncate text-[13px] ${main ? "font-semibold" : ""}`}>
+                    <span className={`truncate text-[13px] ${main ? "font-semibold" : ""} ${top ? "text-ink-soft" : ""}`}>
                       {SHORT[s.name] ?? s.name}
                       {live && <span className="ml-2 font-mono text-[10px] text-down">● live</span>}
                       {next && at !== null && (
                         <span className="ml-2 font-mono text-[10px] text-ink-soft">{until(start - at)}</span>
                       )}
-                      {done && <span className="ml-2 font-mono text-[10px]">✓</span>}
+                      {top && (
+                        <span className="ml-2 inline-flex items-center gap-1 align-middle text-[11px] text-ink-soft" title={`${top.driver} quickest, ${top.time}`}>
+                          <span className="w-[3px] h-3 rounded-full" style={{ background: teamColor(top.team) }} />
+                          <span className="font-sans font-semibold text-ink">{top.code}</span>
+                          <span className="font-mono text-[10.5px]">{top.time}</span>
+                        </span>
+                      )}
                     </span>
-                    <span className="font-mono text-[12px] tabular-nums">
+                    <span className={`font-mono text-[12px] tabular-nums ${top ? "text-ink-faint" : ""}`}>
                       {new Date(s.start).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
                     </span>
                   </li>

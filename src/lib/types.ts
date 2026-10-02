@@ -232,6 +232,28 @@ export interface F1GridResult {
   time: string;
 }
 
+/** Where the race weekend is: practice under way (latest practice times),
+ *  qualifying done (the grid), a race running, or the race settled (result). */
+export type F1Phase = "last-race" | "practice" | "qualifying" | "race";
+
+/** One finished session of the weekend: its times, fastest first. */
+export interface F1SessionResult {
+  /** "Practice 2", "Sprint Qualifying", "Sprint". */
+  name: string;
+  /** The Grand Prix it belongs to. */
+  race: string;
+  end: string;
+  rows: F1GridResult[];
+}
+
+/** The quickest driver of a finished session, for the weekend list. */
+export interface F1SessionTop {
+  code: string;
+  driver: string;
+  team: string;
+  time: string;
+}
+
 export interface F1LiveResult {
   position: number;
   driver: string;
@@ -477,7 +499,7 @@ export interface Edition {
     qualifyingGrid: F1GridResult[];
     liveResults: F1LiveResult[];
     currentRace: F1Race | null;
-    racePhase: "last-race" | "qualifying" | "race";
+    racePhase: F1Phase;
   } | null; // null when the F1 standings API is unreachable
   markets: {
     indices: MarketIndex[];

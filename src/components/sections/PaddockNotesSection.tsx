@@ -1,6 +1,7 @@
 import type {
   Story,
   F1Race,
+  F1Phase,
   F1Standing,
   F1LastRace,
   F1GridResult,
@@ -73,7 +74,7 @@ export default function PaddockNotesSection({
   qualifyingGrid?: F1GridResult[];
   liveResults?: F1LiveResult[];
   currentRace?: F1Race | null;
-  racePhase?: "last-race" | "qualifying" | "race";
+  racePhase?: F1Phase;
   accentColor?: string;
   favoriteF1Team?: string;
   favoriteDriverIds?: string[];

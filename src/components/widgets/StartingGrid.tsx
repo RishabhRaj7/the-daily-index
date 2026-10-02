@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { F1GridResult, F1LiveResult, F1Race, F1LastRace } from "@/lib/types";
+import type { F1GridResult, F1LiveResult, F1Race, F1LastRace, F1Phase, F1SessionResult, F1SessionTop } from "@/lib/types";
 import { CIRCUIT_FACTS } from "@/lib/config/circuit-facts";
 import { teamColor } from "@/lib/personalization";
 import RaceWeekend from "./RaceWeekend";
@@ -55,6 +55,15 @@ function Countdown({ target }: { target: string }) {
     </div>
   );
 }
+
+const SESSION_LABEL: Record<string, string> = {
+  "Practice 1": "FP1",
+  "Practice 2": "FP2",
+  "Practice 3": "FP3",
+  "Sprint Qualifying": "Sprint quali",
+  "Sprint Shootout": "Sprint quali",
+  Sprint: "Sprint",
+};
 
 // Pulsing hairline rows, styled like the table they stand in for.
 function TimingRowsSkeleton({ rows = 5 }: { rows?: number }) {
@@ -132,7 +141,15 @@ export default function StartingGrid({
   sessionStale = false,
   onRetrySession,
   part = "desk",
+  session = null,
+  weekendName = null,
+  gridSetAt = null,
+  tops = {},
 }: {
+  session?: F1SessionResult | null;
+  weekendName?: string | null;
+  gridSetAt?: string | null;
+  tops?: Record<string, F1SessionTop>;
   part?: "desk" | "archive";
   nextRace: F1Race;
   upcoming: F1Race[];
@@ -140,7 +157,7 @@ export default function StartingGrid({
   qualifyingGrid?: F1GridResult[];
   liveResults?: F1LiveResult[];
   currentRace?: F1Race | null;
-  racePhase?: "last-race" | "qualifying" | "race";
+  racePhase?: F1Phase;
   accentColor?: string;
   /** Status of the calendar part feeding the "Coming up" card. */
   calendarStatus?: "loading" | "ready" | "failed";
@@ -165,16 +182,42 @@ export default function StartingGrid({
     ? liveResults.length > 0 ? liveResults : qualifyingGrid
     : racePhase === "qualifying"
       ? qualifyingGrid
-      : lastRace?.results ?? [];
+      : racePhase === "practice"
+        ? session?.rows ?? []
+        : lastRace?.results ?? [];
   const showPodium = racePhase === "last-race" && resultRows.length >= 3;
   const tableRows = showPodium ? resultRows.filter((r) => (r.position ?? 99) > 3) : resultRows;
   const visibleRows = showAll ? tableRows : tableRows.slice(0, showPodium ? 4 : 5);
   const timingTitle = racePhase === "race"
     ? liveResults.length > 0 ? "Live race" : "Starting grid"
     : racePhase === "qualifying"
-      ? "Race grid"
-      : "Last race";
-  const timingRace = racePhase === "last-race" ? (lastRace?.name ?? "") : displayedRace.name;
+      ? "Starting grid"
+      : racePhase === "practice"
+        ? `${SESSION_LABEL[session?.name ?? ""] ?? session?.name ?? "Practice"} times`
+        : "Race result";
+  const timingRace =
+    racePhase === "last-race"
+      ? (lastRace?.name ?? "").replace(/ — Race$/, "")
+      : racePhase === "practice"
+        ? (session?.race ?? displayedRace.name)
+        : (weekendName ?? displayedRace.name);
+  // One line under the title on what the table is.
+  const day = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  const timingNote =
+    racePhase === "practice" && session
+      ? session.name === "Sprint" ? `Sprint result · ${day(session.end)}` : `Best laps · ${day(session.end)} · grid set in qualifying`
+      : racePhase === "qualifying"
+        ? `Set in qualifying${gridSetAt ? ` · ${day(gridSetAt)}` : ""} · the result follows the race`
+        : racePhase === "last-race" && lastRace
+          ? `Classified · ${day(lastRace.date)}`
+          : null;
+  // Where the weekend is: practice, then the grid, then the result.
+  const steps = [
+    { key: "practice", label: "Practice" },
+    { key: "qualifying", label: "Grid" },
+    { key: "last-race", label: "Result" },
+  ] as const;
+  const stepAt = steps.findIndex((s) => s.key === (racePhase === "race" ? "qualifying" : racePhase));
   const lightsOut = new Date(nextRace.date);
   // The timing card sits on the desk only while a race is running.
   const timingHere = live ? part === "desk" : part === "archive";
@@ -234,7 +277,7 @@ export default function StartingGrid({
       </div>
 
       {/* 2. The weekend, session by session. */}
-      {!live && nextRace.sessions && nextRace.sessions.length > 0 && <RaceWeekend sessions={nextRace.sessions} />}
+      {!live && nextRace.sessions && nextRace.sessions.length > 0 && <RaceWeekend sessions={nextRace.sessions} tops={tops} />}
       </>
       )}
 
@@ -292,6 +335,25 @@ export default function StartingGrid({
           </div>
           {sessionStatus === "ready" && timingRace && (
             <div className="font-headline text-[15px] leading-tight mt-1">{timingRace}</div>
+          )}
+          {sessionStatus === "ready" && (
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mt-1.5">
+              {timingNote && <span className="font-mono text-[10.5px] text-ink-soft">{timingNote}</span>}
+              <ol className="flex items-center gap-1 font-label text-[9px]" aria-label="Weekend progress">
+                {steps.map((s, i) => (
+                  <li key={s.key} className="flex items-center gap-1">
+                    {i > 0 && <span className={`w-3 h-px ${i <= stepAt ? "bg-ink-soft" : "bg-[var(--rule)]"}`} />}
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 ${i === stepAt ? "" : i < stepAt ? "text-ink-soft" : "text-ink-faint"}`}
+                      style={i === stepAt ? { background: "var(--section-hue)", color: "var(--paper)" } : undefined}
+                      aria-current={i === stepAt ? "step" : undefined}
+                    >
+                      {s.label}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
           )}
 
           {sessionStatus === "loading" && resultRows.length === 0 && (

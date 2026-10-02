@@ -8,6 +8,9 @@ import type {
   F1ConstructorStanding,
   F1GridResult,
   F1LiveResult,
+  F1Phase,
+  F1SessionResult,
+  F1SessionTop,
 } from "@/lib/types";
 // Staged slices of LiveF1Data — each maps to one block of the F1 sidebar and
 // is fetched independently so the section can render progressively:
@@ -49,7 +52,15 @@ export interface F1ResultsData {
   qualifyingGrid: F1GridResult[];
   liveResults: F1LiveResult[];
   currentRace: F1Race | null;
-  racePhase: "last-race" | "qualifying" | "race";
+  racePhase: F1Phase;
+  /** During practice (and sprint sessions), the latest finished session. */
+  session?: F1SessionResult | null;
+  /** The Grand Prix this weekend's grid or session belongs to. */
+  weekendName?: string | null;
+  /** When qualifying set the grid. */
+  gridSetAt?: string | null;
+  /** Each finished session of the weekend → its quickest driver. */
+  tops?: Record<string, F1SessionTop>;
 }
 
 /** Composite used for SSR of the fast part (map + calendar). */
@@ -74,7 +85,10 @@ export type F1PartResult<T> = F1PartSuccess<T> | F1PartFailure;
 
 const OPENF1_API = "https://api.openf1.org/v1";
 const JOLPICA_API = "https://api.jolpi.ca/ergast/f1";
-const RESULT_DELAY_MS = 90 * 60 * 1000;
+// A race counts as finished (and its result settled) this long after the
+// session's scheduled end; qualifying and practice a little sooner.
+const SETTLE_MS = 20 * 60 * 1000;
+const SESSION_SETTLE_MS = 10 * 60 * 1000;
 
 // Jolpica (Ergast) constructor names → the OpenF1 team names the rest of the
 // sidebar (team colours, badges, the static roster) is keyed on. Confirmed
@@ -147,6 +161,16 @@ interface OpenF1Driver {
   last_name: string;
   name_acronym: string;
   team_name: string;
+}
+
+interface OpenF1WeekendResult {
+  driver_number: number;
+  position: number | null;
+  duration?: number | (number | null)[] | null;
+  gap_to_leader: number | string | (number | string | null)[] | null;
+  dnf: boolean;
+  dns: boolean;
+  dsq: boolean;
 }
 
 interface OpenF1Result {
@@ -414,18 +438,21 @@ function getMeetingImage(meetingKey: number): Promise<string | undefined> {
   });
 }
 
-/** Every session of one race weekend, in running order. */
-function getMeetingSessions(meetingKey: number): Promise<F1Session[]> {
+/** Every session of one race weekend, raw, in running order. */
+function getMeetingRaw(meetingKey: number): Promise<OpenF1Session[]> {
   return memoized(
     `meeting-sessions:${meetingKey}`,
-    async () => {
-      const sessions = await openF1<OpenF1Session[]>(`sessions?meeting_key=${meetingKey}`, 21600);
-      return (sessions ?? [])
-        .sort((a, b) => a.date_start.localeCompare(b.date_start))
-        .map((s) => ({ name: s.session_name, start: s.date_start, end: s.date_end }));
-    },
+    async () =>
+      ((await openF1<OpenF1Session[]>(`sessions?meeting_key=${meetingKey}`, 21600)) ?? []).sort((a, b) =>
+        a.date_start.localeCompare(b.date_start),
+      ),
     (list) => list.length > 0,
   );
+}
+
+/** Every session of one race weekend, in running order. */
+async function getMeetingSessions(meetingKey: number): Promise<F1Session[]> {
+  return (await getMeetingRaw(meetingKey)).map((s) => ({ name: s.session_name, start: s.date_start, end: s.date_end }));
 }
 
 // Time-sensitive derivation from the (cached) season sessions — computed on
@@ -449,13 +476,13 @@ function analyzeSeason(sorted: OpenF1Session[]) {
 }
 
 // The race whose result is shown as "last race": the most recent Race
-// session that started at least RESULT_DELAY_MS ago, so provisional
-// classifications have settled. Taken from the season's Race sessions — the
-// old `session_key=latest` pointed at whatever ran last, which on a race
+// session that ended at least SETTLE_MS ago, so provisional classifications
+// have settled. Taken from the season's Race sessions — the old
+// `session_key=latest` pointed at whatever ran last, which on a race
 // weekend's Friday printed practice times as the "last race".
 function resultSession(sorted: OpenF1Session[]): OpenF1Session | undefined {
-  const cutoff = Date.now() - RESULT_DELAY_MS;
-  return [...sorted].reverse().find((s) => new Date(s.date_start).getTime() <= cutoff);
+  const cutoff = Date.now() - SETTLE_MS;
+  return [...sorted].reverse().find((s) => new Date(s.date_end).getTime() <= cutoff);
 }
 
 function getSessionResult(sessionKey: number): Promise<OpenF1Result[]> {
@@ -488,6 +515,51 @@ function labelRaceResults(
   };
 }
 
+// A finished practice, sprint or qualifying session's classification. Kept
+// briefly (10 min) since timing can be amended just after the flag.
+function getWeekendResult(sessionKey: number): Promise<OpenF1WeekendResult[]> {
+  return memoized(
+    `wk-result:${sessionKey}`,
+    async () => (await openF1<OpenF1WeekendResult[]>(`session_result?session_key=${sessionKey}`, 600)) ?? [],
+    (rows) => rows.length > 0,
+  );
+}
+
+function lapTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = (seconds - m * 60).toFixed(3).padStart(6, "0");
+  return m > 0 ? `${m}:${s}` : `${s}s`;
+}
+
+// A session's best lap: practice gives one number, qualifying one per part
+// (Q1, Q2, Q3), of which the last one set counts.
+function bestLap(d: OpenF1WeekendResult["duration"]): number | null {
+  if (Array.isArray(d)) return [...d].reverse().find((x): x is number => typeof x === "number") ?? null;
+  return typeof d === "number" ? d : null;
+}
+
+function weekendRows(rows: OpenF1WeekendResult[], drivers: Map<number, OpenF1Driver>, race: boolean): F1GridResult[] {
+  return [...rows]
+    .filter((r) => r.position != null)
+    .sort((a, b) => a.position! - b.position!)
+    .map((r) => {
+      const lap = bestLap(r.duration);
+      const gap = Array.isArray(r.gap_to_leader) ? [...r.gap_to_leader].reverse().find((x) => x != null) : r.gap_to_leader;
+      const time =
+        r.dsq ? "DSQ" : r.dns ? "DNS" : r.dnf ? "DNF"
+        : r.position === 1
+          ? lap != null ? (race ? formatDuration(lap) : lapTime(lap)) : "—"
+          : typeof gap === "number" ? `+${gap.toFixed(3)}${race ? "s" : ""}` : typeof gap === "string" ? gap : lap != null ? lapTime(lap) : "—";
+      return {
+        position: r.position!,
+        driver: driverLabel(drivers.get(r.driver_number), r.driver_number),
+        code: drivers.get(r.driver_number)?.name_acronym ?? "",
+        team: drivers.get(r.driver_number)?.team_name ?? "",
+        time,
+      };
+    });
+}
+
 // Memoized, empty answers included: before qualifying OpenF1 has no grid
 // (it answers 404), and asking again on every render would spend the
 // request budget on a guaranteed miss.
@@ -507,7 +579,7 @@ async function fetchStartingGrid(sessionKey: number, drivers: Map<number, OpenF1
     driver: driverLabel(drivers.get(row.driver_number), row.driver_number),
     code: drivers.get(row.driver_number)?.name_acronym ?? "",
     team: drivers.get(row.driver_number)?.team_name ?? "",
-    time: row.lap_duration ? `${row.lap_duration.toFixed(3)}s` : "—",
+    time: row.lap_duration ? lapTime(row.lap_duration) : "—",
   }));
 }
 
@@ -598,18 +670,53 @@ export async function getF1DriverStandings(): Promise<F1DriverStandingsData | nu
   };
 }
 
-/** 6. Latest race result + the next race's starting grid — the slow tail. */
+/** 6. The weekend's timing — the slow tail. Which table the reader gets
+ *     follows the weekend: the latest practice (or sprint) session from FP1
+ *     until qualifying, the starting grid from qualifying until the race is
+ *     settled, then the race result. Off weekends show the last result. */
 export async function getF1Results(): Promise<F1ResultsData | null> {
   const sessions = await getSeasonSessions();
   if (!sessions?.length) return null;
-  const { nextSession, lastSession } = analyzeSeason(sessions);
+  const { lastSession } = analyzeSeason(sessions);
+  const now = Date.now();
   const race = resultSession(sessions);
-  const [results, drivers] = await Promise.all([
+  // This weekend: the first race not yet settled (running or to come).
+  const weekendRace = sessions.find((s) => Date.parse(s.date_end) + SETTLE_MS > now);
+  const [results, drivers, weekend] = await Promise.all([
     race ? getSessionResult(race.session_key) : Promise.resolve([] as OpenF1Result[]),
     getDriverDetails(lastSession?.session_key),
+    weekendRace ? getMeetingRaw(weekendRace.meeting_key).catch(() => [] as OpenF1Session[]) : Promise.resolve([] as OpenF1Session[]),
   ]);
   const lastRace = race && results.length > 0 ? labelRaceResults(race, results, drivers) : null;
-  const qualifyingGrid = await fetchStartingGrid(nextSession.session_key, drivers);
+  const weekendName = weekendRace ? grandPrixName(weekendRace) : null;
+
+  // Sessions of this weekend that have finished (the race itself excluded:
+  // its result arrives as lastRace once settled).
+  const finished = weekend.filter((s) => s.session_name !== "Race" && Date.parse(s.date_end) + SESSION_SETTLE_MS <= now);
+  const quali = finished.find((s) => s.session_name === "Qualifying");
+
+  // The quickest in each finished session, for the weekend list.
+  const tops: Record<string, F1SessionTop> = {};
+  const byName = new Map<string, F1GridResult[]>();
+  await Promise.all(
+    finished.map(async (s) => {
+      const rows = weekendRows(await getWeekendResult(s.session_key).catch(() => []), drivers, s.session_name === "Sprint");
+      byName.set(s.session_name, rows);
+      if (rows[0]) tops[s.session_name] = { code: rows[0].code, driver: rows[0].driver, team: rows[0].team, time: rows[0].time };
+    }),
+  );
+
+  let qualifyingGrid: F1GridResult[] = [];
+  if (quali) {
+    qualifyingGrid = await fetchStartingGrid(quali.session_key, drivers);
+    // The official grid can lag the session (and differs only by penalties):
+    // until it lands, the qualifying order stands in.
+    if (qualifyingGrid.length === 0) qualifyingGrid = byName.get("Qualifying") ?? [];
+  }
+  const latest = !quali ? [...finished].reverse().find((s) => (byName.get(s.session_name)?.length ?? 0) > 0) : undefined;
+  const session: F1SessionResult | null =
+    latest && weekendName ? { name: latest.session_name, race: weekendName, end: latest.date_end, rows: byName.get(latest.session_name)! } : null;
+
   const liveResults =
     paidLiveProvider && lastSession
       ? await paidLiveProvider.getLiveResults(lastSession.session_key)
@@ -619,8 +726,11 @@ export async function getF1Results(): Promise<F1ResultsData | null> {
     qualifyingGrid,
     liveResults,
     currentRace: null,
-    racePhase:
-      liveResults.length > 0 ? "race" : qualifyingGrid.length > 0 ? "qualifying" : "last-race",
+    racePhase: liveResults.length > 0 ? "race" : qualifyingGrid.length > 0 ? "qualifying" : session ? "practice" : "last-race",
+    session,
+    weekendName,
+    gridSetAt: quali?.date_end ?? null,
+    tops,
   };
 }
 
