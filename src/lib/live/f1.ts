@@ -1,4 +1,5 @@
 import { F1_DRIVERS, F1_DRIVER_SEASON } from "@/lib/config/f1-drivers";
+import { getStore } from "@/lib/server/store";
 import type {
   F1Race,
   F1Session,
@@ -61,6 +62,8 @@ export interface F1ResultsData {
   gridSetAt?: string | null;
   /** Each finished session of the weekend → its quickest driver. */
   tops?: Record<string, F1SessionTop>;
+  /** Qualifying is over but its grid hasn't been released yet. */
+  gridPending?: boolean;
 }
 
 /** Composite used for SSR of the fast part (map + calendar). */
@@ -517,10 +520,21 @@ function labelRaceResults(
 
 // A finished practice, sprint or qualifying session's classification. Kept
 // briefly (10 min) since timing can be amended just after the flag.
+// The last good answer is kept in the store for a few days: OpenF1 locks
+// every endpoint while a later session is live, and the weekend list and
+// practice table must not empty out for the length of qualifying.
 function getWeekendResult(sessionKey: number): Promise<OpenF1WeekendResult[]> {
   return memoized(
     `wk-result:${sessionKey}`,
-    async () => (await openF1<OpenF1WeekendResult[]>(`session_result?session_key=${sessionKey}`, 600)) ?? [],
+    async () => {
+      const key = `f1:wk-result:v1:${sessionKey}`;
+      const rows = (await openF1<OpenF1WeekendResult[]>(`session_result?session_key=${sessionKey}`, 600)) ?? [];
+      if (rows.length > 0) {
+        await getStore().set(key, rows, { ttlSeconds: 4 * 86_400 }).catch(() => {});
+        return rows;
+      }
+      return (await getStore().get<OpenF1WeekendResult[]>(key).catch(() => null)) ?? [];
+    },
     (rows) => rows.length > 0,
   );
 }
@@ -560,15 +574,19 @@ function weekendRows(rows: OpenF1WeekendResult[], drivers: Map<number, OpenF1Dri
     });
 }
 
-// Memoized, empty answers included: before qualifying OpenF1 has no grid
-// (it answers 404), and asking again on every render would spend the
-// request budget on a guaranteed miss.
+// Only asked once qualifying has finished, and only a real grid is kept: just
+// after the flag OpenF1 can still answer nothing (it locks every endpoint
+// while a session is live, and an overrunning qualifying stays "live"), so an
+// empty answer is asked again on the next read rather than kept.
 function getStartingGrid(sessionKey: number) {
-  return memoized(`grid:${sessionKey}`, async () =>
-    (await openF1<{ driver_number: number; position: number; lap_duration: number | null }[]>(
-      `starting_grid?session_key=${sessionKey}`,
-      900,
-    )) ?? [],
+  return memoized(
+    `grid:${sessionKey}`,
+    async () =>
+      (await openF1<{ driver_number: number; position: number; lap_duration: number | null }[]>(
+        `starting_grid?session_key=${sessionKey}`,
+        120,
+      )) ?? [],
+    (rows) => rows.length > 0,
   );
 }
 
@@ -713,7 +731,14 @@ export async function getF1Results(): Promise<F1ResultsData | null> {
     // until it lands, the qualifying order stands in.
     if (qualifyingGrid.length === 0) qualifyingGrid = byName.get("Qualifying") ?? [];
   }
-  const latest = !quali ? [...finished].reverse().find((s) => (byName.get(s.session_name)?.length ?? 0) > 0) : undefined;
+  // Qualifying is over by the clock but nothing about it has been released
+  // (an overrun, or the feed still locked): the weekend stays on the grid
+  // step, with the latest practice standing in until the grid arrives.
+  const gridPending = Boolean(quali) && qualifyingGrid.length === 0;
+  const latest =
+    !quali || gridPending
+      ? [...finished].reverse().find((s) => s.session_name !== "Qualifying" && (byName.get(s.session_name)?.length ?? 0) > 0)
+      : undefined;
   const session: F1SessionResult | null =
     latest && weekendName ? { name: latest.session_name, race: weekendName, end: latest.date_end, rows: byName.get(latest.session_name)! } : null;
 
@@ -726,11 +751,13 @@ export async function getF1Results(): Promise<F1ResultsData | null> {
     qualifyingGrid,
     liveResults,
     currentRace: null,
-    racePhase: liveResults.length > 0 ? "race" : qualifyingGrid.length > 0 ? "qualifying" : session ? "practice" : "last-race",
+    racePhase:
+      liveResults.length > 0 ? "race" : qualifyingGrid.length > 0 || gridPending ? "qualifying" : session ? "practice" : "last-race",
     session,
     weekendName,
     gridSetAt: quali?.date_end ?? null,
     tops,
+    gridPending,
   };
 }
 

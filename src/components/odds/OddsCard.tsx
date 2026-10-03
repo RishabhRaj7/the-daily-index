@@ -40,7 +40,7 @@ export function FieldBar({ m, height = 6 }: { m: OddsMarket; height?: number }) 
   return (
     <span className="flex rounded-full overflow-hidden bg-[color:var(--rule)] gap-[2px]" style={{ height }}>
       {top.map((o, i) => (
-        <span key={o.name} className="h-full" style={{ width: `${(o.prob / total) * 100}%`, background: SERIES_COLORS[i], opacity: i === 0 ? 1 : 0.75 }} title={`${o.name} ${Math.round(o.prob)}%`} />
+        <span key={`${o.name}-${i}`} className="h-full" style={{ width: `${(o.prob / total) * 100}%`, background: SERIES_COLORS[i], opacity: i === 0 ? 1 : 0.75 }} title={`${o.name} ${Math.round(o.prob)}%`} />
       ))}
     </span>
   );
@@ -60,7 +60,7 @@ export function HitLadder({ m, rows = 6, size = "sm" }: { m: OddsMarket; rows?: 
         const up = o.name.startsWith("↑");
         const first = !up && (i === 0 || shown[i - 1].name.startsWith("↑"));
         return (
-          <span key={o.name} className="block">
+          <span key={`${o.name}-${i}`} className="block">
             {first && i > 0 && (
               <span className="flex items-center gap-2 my-1 font-label text-[8px] text-ink-faint">
                 <span className="flex-1 border-t border-dashed hairline" /> today <span className="flex-1 border-t border-dashed hairline" />
@@ -125,7 +125,7 @@ export default function OddsCard({ pick, compact = false }: { pick: OddsPick; co
               {runners.length > 0 && (
                 <span className="block font-mono text-[10px] text-ink-soft mt-1.5 truncate">
                   {runners.map((o, i) => (
-                    <span key={o.name}>
+                    <span key={`${o.name}-${i}`}>
                       {i > 0 && " · "}
                       <span style={{ color: SERIES_COLORS[i + 1] }}>●</span> {o.name} {Math.round(o.prob)}%
                     </span>

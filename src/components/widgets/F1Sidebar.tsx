@@ -92,7 +92,7 @@ const IS_EMPTY: Record<PartName, (data: unknown) => boolean> = {
   // A finished season legitimately has no grid; lastRace alone is enough.
   results: (d) => {
     const r = d as F1ResultsData;
-    return !r || (!r.lastRace && !r.session && r.qualifyingGrid.length === 0 && r.liveResults.length === 0);
+    return !r || (!r.lastRace && !r.session && !r.gridPending && r.qualifyingGrid.length === 0 && r.liveResults.length === 0);
   },
 };
 
@@ -497,6 +497,7 @@ export default function F1Sidebar({
           weekendName={results.data?.weekendName ?? null}
           gridSetAt={results.data?.gridSetAt ?? null}
           tops={results.data?.tops ?? {}}
+          gridPending={results.data?.gridPending ?? false}
           accentColor={accentColor}
           sessionStatus={results.status}
           sessionStale={results.stale}
@@ -540,6 +541,7 @@ export default function F1Sidebar({
           weekendName={results.data?.weekendName ?? null}
           gridSetAt={results.data?.gridSetAt ?? null}
           tops={results.data?.tops ?? {}}
+          gridPending={results.data?.gridPending ?? false}
           accentColor={accentColor}
           sessionStatus={results.status}
           sessionStale={results.stale}

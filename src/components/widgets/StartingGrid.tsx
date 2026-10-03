@@ -148,7 +148,9 @@ export default function StartingGrid({
   weekendName = null,
   gridSetAt = null,
   tops = {},
+  gridPending = false,
 }: {
+  gridPending?: boolean;
   session?: F1SessionResult | null;
   weekendName?: string | null;
   gridSetAt?: string | null;
@@ -184,7 +186,7 @@ export default function StartingGrid({
   const resultRows: Row[] = racePhase === "race"
     ? liveResults.length > 0 ? liveResults : qualifyingGrid
     : racePhase === "qualifying"
-      ? qualifyingGrid
+      ? qualifyingGrid.length > 0 ? qualifyingGrid : session?.rows ?? []
       : racePhase === "practice"
         ? session?.rows ?? []
         : lastRace?.results ?? [];
@@ -226,7 +228,9 @@ export default function StartingGrid({
   const timingNote =
     racePhase === "practice" && session
       ? session.name === "Sprint" ? `Sprint result · ${day(session.end)}` : `Best laps · ${day(session.end)} · grid set in qualifying`
-      : racePhase === "qualifying"
+      : racePhase === "qualifying" && gridPending
+        ? `Qualifying is over; the timing feed hasn't released the grid yet.${session ? ` ${SESSION_LABEL[session.name] ?? session.name} times until it does.` : ""}`
+        : racePhase === "qualifying"
         ? `Set in qualifying${gridSetAt ? ` · ${day(gridSetAt)}` : ""} · the result follows the race`
         : racePhase === "last-race" && lastRace
           ? `Classified · ${day(lastRace.date)}`
@@ -343,7 +347,7 @@ export default function StartingGrid({
       {/* 4. Timing — the slower "session" part streams in behind the rest. No
           refresh here by design: the single control lives in the pit-wall
           header, so the two can never race each other. */}
-      {timingHere && (resultRows.length > 0 || sessionStatus !== "ready") && (
+      {timingHere && (resultRows.length > 0 || sessionStatus !== "ready" || gridPending) && (
         <div className="module self-stretch flex flex-col" data-reveal>
           <div className="flex items-baseline justify-between gap-2">
             <span className="font-label text-[10px] text-ink-soft">

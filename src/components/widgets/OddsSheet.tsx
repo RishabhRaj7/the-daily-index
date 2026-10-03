@@ -215,7 +215,7 @@ export default function OddsSheet({ market: m, why, watched = false, onClose }: 
               {m.outcomes.map((o, i) => {
                 const d = o.prev != null ? o.prob - o.prev : null;
                 return (
-                  <li key={o.name} className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_4.5rem] sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_5.5rem] items-center gap-3">
+                  <li key={`${o.name}-${i}`} className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_4.5rem] sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_5.5rem] items-center gap-3">
                     <span className={`flex items-center gap-1.5 min-w-0 text-[14px] ${i === 0 ? "font-semibold" : "text-ink-soft"}`}>
                       <span className="w-2 h-2 rounded-full shrink-0" style={{ background: SERIES_COLORS[i] ?? "var(--ink-faint)" }} />
                       <span className="truncate">{o.name}</span>
