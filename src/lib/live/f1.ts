@@ -91,7 +91,9 @@ const JOLPICA_API = "https://api.jolpi.ca/ergast/f1";
 // A race counts as finished (and its result settled) this long after the
 // session's scheduled end; qualifying and practice a little sooner.
 const SETTLE_MS = 20 * 60 * 1000;
-const SESSION_SETTLE_MS = 10 * 60 * 1000;
+// Sessions often overrun (red flags) and OpenF1 locks its data until they
+// end, so a session counts as finished half an hour after its scheduled end.
+const SESSION_SETTLE_MS = 30 * 60 * 1000;
 
 // Jolpica (Ergast) constructor names → the OpenF1 team names the rest of the
 // sidebar (team colours, badges, the static roster) is keyed on. Confirmed
