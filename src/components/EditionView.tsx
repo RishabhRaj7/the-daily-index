@@ -54,7 +54,7 @@ import {
 } from "@/lib/summary-cache";
 import Masthead from "@/components/masthead/Masthead";
 import HeroStory from "@/components/story/HeroStory";
-import EditorsDesk from "@/components/widgets/EditorsDesk";
+import FrontStrip from "@/components/widgets/FrontStrip";
 import WeekAhead from "@/components/widgets/WeekAhead";
 import DatelineSection from "@/components/sections/DatelineSection";
 import TwoCitiesSection from "@/components/sections/TwoCitiesSection";
@@ -97,7 +97,6 @@ import {
 import EditionPrepOverlay from "@/components/chrome/EditionPrepOverlay";
 import TopBar, { type NavSection } from "@/components/chrome/TopBar";
 import Briefing from "@/components/story/Briefing";
-import { OnThisDayBox, WordOfDayBox } from "@/components/widgets/FillerBox";
 import { digestArticleToStory } from "@/lib/preferences/stories";
 import { SECTION_META } from "@/lib/sections";
 import { requestEdition, waitForEdition } from "@/lib/edition-client";
@@ -1075,38 +1074,30 @@ export default function EditionView({
         weather={(travelling && travelWeather) || weather || undefined}
       />
       <div className="max-w-[1240px] mx-auto px-4 sm:px-6">
-        {/* Front page, three columns with hairline rules between them:
-            the briefing | the lead | the Editor's Desk and the day's extras.
+        {/* Front page: the briefing beside the lead, then the day's extras
+            (editor's note, on this day, word of the day) in one slim strip.
             On a phone the briefing comes first: the whole day in a minute. */}
         {hero && (
-          <div className="grid gap-y-12 pt-10 md:pt-14 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,2.3fr)_minmax(0,1.05fr)]">
-            <div className="order-1 lg:pr-8 lg:border-r hairline">
-              <Briefing
-                brief={brief ?? (prepBlocking ? null : fallbackBrief)}
-                loading={summaryState === "loading"}
-                anchorFor={(url) => anchorByUrl.get(url) ?? null}
-              />
-              {edition.onThisDay.length > 0 && (
-                <div className="mt-10">
-                  <OnThisDayBox entries={edition.onThisDay.slice(0, 3)} />
-                </div>
-              )}
-            </div>
-            <div className="order-2 lg:px-9">
-              <HeroStory story={hero} />
-            </div>
-            <div className="order-3 lg:pl-8 lg:border-l hairline space-y-10">
-              {!isArchive && profile && editorsNote && (
-                <EditorsDesk
-                  note={editorsNote.text}
-                  noteSource={editorsNote.source}
-                  profile={profile}
-                  onThisDay={personalOtd}
+          <>
+            <div className="grid gap-y-12 pt-10 md:pt-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,2.6fr)]">
+              <div className="order-1 lg:pr-8 lg:border-r hairline">
+                <Briefing
+                  brief={brief ?? (prepBlocking ? null : fallbackBrief)}
+                  loading={summaryState === "loading"}
+                  anchorFor={(url) => anchorByUrl.get(url) ?? null}
                 />
-              )}
-              {edition.wordOfDay?.word && <WordOfDayBox word={edition.wordOfDay} />}
+              </div>
+              <div className="order-2 lg:pl-9">
+                <HeroStory story={hero} />
+              </div>
             </div>
-          </div>
+            <FrontStrip
+              note={!isArchive && editorsNote ? editorsNote.text : null}
+              then={personalOtd}
+              history={edition.onThisDay[0] ?? null}
+              word={edition.wordOfDay?.word ? edition.wordOfDay : null}
+            />
+          </>
         )}
         {/* Dated things coming up this week; today's paper only. */}
         {!isArchive && <WeekAhead />}

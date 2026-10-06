@@ -1,4 +1,5 @@
 import type { SectionKey, Story, WireBrief } from "@/lib/types";
+import { isSponsored } from "./sponsored";
 
 const BASE_SIGNIFICANCE = 55;
 
@@ -38,7 +39,9 @@ export function buildSectionsSync(
     personalize?: (brief: WireBrief) => string | null;
   }>,
 ): Array<{ stories: Story[]; rest: WireBrief[] }> {
-  return sections.map(({ briefs, section, count, personalize }) => {
+  return sections.map(({ briefs: all, section, count, personalize }) => {
+    // Adverts dressed as news never reach the page.
+    const briefs = all.filter((b) => !isSponsored(b.title, b.summary ?? "", b.url));
     const byRichness = [...briefs].sort(
       (a, b) => (b.summary?.length ?? 0) - (a.summary?.length ?? 0),
     );

@@ -17,6 +17,7 @@
 // fails → the selection stands with summaries condensed from the article.
 
 import { createHash } from "node:crypto";
+import { isSponsored } from "./sponsored";
 import { aiEnabled, generateJson, Type, type Schema } from "@/lib/server/gemini";
 import { dedupeWires } from "./rss";
 import { getWorldIndiaWire, getIndiaWire, getMarketsWire, getMoneyWire } from "./news";
@@ -166,6 +167,7 @@ export async function collectCorpus(prefs: DigestPreferences): Promise<CorpusArt
     .filter((a) => {
       if (a.ageHours !== null && a.ageHours > maxAge) return false;
       if (isLiveBlog(a.title, a.url)) return false;
+      if (isSponsored(a.title, a.text, a.url)) return false;
       const hay = `${a.title} ${a.text}`.toLowerCase();
       return !excluded.some((k) => hay.includes(k));
     });
@@ -966,6 +968,18 @@ async function aiDigest(
   // Every line is written from the article: a feed's snippet is often just
   // the headline again, and a gist from it can only repeat it.
   const fullText = await timed("fullText", () => fullTextFor(pending, links));
+  // An advert the snippet didn't give away shows itself in the article (or
+  // in a summary already written from it): it comes off every list.
+  const paid = new Set(
+    shortlist
+      .filter((a) => isSponsored("", `${fullText.get(a.i) ?? ""} ${written.get(a.i)?.summary ?? ""}`, links.get(a.url) ?? ""))
+      .map((a) => a.url),
+  );
+  if (paid.size > 0) {
+    for (const key of Object.keys(sections)) sections[key] = sections[key].filter((a) => !paid.has(a.url));
+    atAGlance.splice(0, atAGlance.length, ...atAGlance.filter((g) => !paid.has(g.url)));
+    for (const [slot, list] of missed) missed.set(slot, list.filter((a) => !paid.has(a.url)));
+  }
   const items: WritingItem[] = pending.map((article) => ({
     article,
     text: fullText.get(article.i) ?? article.text,
