@@ -255,13 +255,20 @@ function missedLeads(prefs: DigestPreferences, corpus: CorpusArticle[], printed:
   return out;
 }
 
-function toBriefs(missed: Map<NewsSlot, CorpusArticle[]>, gistOf: (a: CorpusArticle) => string | undefined): DigestResult["briefs"] {
+function toBriefs(
+  missed: Map<NewsSlot, CorpusArticle[]>,
+  gistOf: (a: CorpusArticle) => string | undefined,
+  titleOf: (a: CorpusArticle) => string | undefined = () => undefined,
+): DigestResult["briefs"] {
   const briefs: NonNullable<DigestResult["briefs"]> = {};
   for (const [slot, list] of missed) {
     briefs[slot] = list.map((a) => {
-      const gist = gistOf(a);
+      const title = titleOf(a) ?? mendTitle(a.title, a.text);
+      const raw = gistOf(a);
+      // A line under a headline that only says it again is left out.
+      const gist = raw && !echoes(title, raw) ? raw : undefined;
       return {
-        title: a.title,
+        title,
         ...(gist ? { gist } : {}),
         source: a.source,
         url: a.url,
@@ -273,6 +280,41 @@ function toBriefs(missed: Map<NewsSlot, CorpusArticle[]>, gistOf: (a: CorpusArti
   }
   recordExtra({ briefs: Object.values(briefs).reduce((n, l) => n + (l?.length ?? 0), 0) });
   return briefs;
+}
+
+const STOP = new Set("a an the of in on at to for and or by with from as is are was were be after over into its his her their this that new says said".split(" "));
+const words = (s: string) =>
+  new Set(
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 2 && !STOP.has(w))
+      .map((w) => w.replace(/(ing|ed|es|s)$/, "")),
+  );
+
+/** True when a line under a headline mostly repeats it: a third or more of
+ *  its words are the headline's own (a reworded headline, not news). */
+export function echoes(title: string, line: string): boolean {
+  const t = words(title);
+  const l = [...words(line)];
+  if (l.length === 0) return true;
+  return l.filter((w) => t.has(w)).length / l.length >= 0.35;
+}
+
+/** Some feeds cut a headline off mid-word ("…attends prayer mee"). When the
+ *  last word is only the start of a word in the text, the stub goes and an
+ *  ellipsis says so; the writing pass replaces it with a whole headline. */
+export function mendTitle(title: string, text = ""): string {
+  const t = title.trim();
+  if (t.length < 60 || /[.!?'"’”)\]…]$/.test(t)) return t;
+  const last = t.match(/([A-Za-z]+)$/)?.[1];
+  if (!last) return t;
+  const body = text.toLowerCase();
+  const lower = last.toLowerCase();
+  const whole = new RegExp(`\\b${lower}\\b`).test(body);
+  const prefix = new RegExp(`\\b${lower}[a-z]+`).test(body);
+  return !whole && prefix ? `${t.slice(0, -last.length).trimEnd()}…` : t;
 }
 
 /** Without the model: the feed's own first sentence, when it has one. */
@@ -513,6 +555,7 @@ const WRITING_SCHEMA: Schema = {
           summary: { type: Type.STRING, nullable: true },
           why: { type: Type.STRING, nullable: true },
           gist: { type: Type.STRING, nullable: true },
+          headline: { type: Type.STRING, nullable: true },
         },
         required: ["i"],
       },
@@ -632,7 +675,7 @@ async function runWriting(
     label: "writing",
   });
   const parsed = JSON.parse(text) as {
-    items?: Array<{ i?: unknown; summary?: unknown; why?: unknown; gist?: unknown }>;
+    items?: Array<{ i?: unknown; summary?: unknown; why?: unknown; gist?: unknown; headline?: unknown }>;
   };
   const byIndex = new Map(items.map((it) => [it.article.i, it]));
   const out = new Map<number, Written>();
@@ -654,7 +697,11 @@ async function runWriting(
     }
     if (item.needsGist && typeof entry.gist === "string") {
       const gist = entry.gist.trim();
-      if (gist.length >= 4 && gist.length <= 140) written.gist = gist;
+      if (gist.length >= 4 && gist.length <= 140 && !echoes(item.article.title, gist)) written.gist = gist;
+    }
+    if (item.needsGist && typeof entry.headline === "string") {
+      const headline = humanise(entry.headline).replace(/\.$/, "");
+      if (headline.length >= 12 && headline.length <= 160 && looksOnTopic(item.article.title, headline)) written.headline = headline;
     }
     out.set(item.article.i, written);
   }
@@ -767,6 +814,8 @@ interface Written {
   summary?: string;
   why?: string;
   gist?: string;
+  /** A whole headline, when the feed's was cut off. */
+  headline?: string;
 }
 
 export interface WritingCache {
@@ -796,7 +845,8 @@ function whyKey(prefs: DigestPreferences, article: CorpusArticle, section?: Dige
 function gistKey(prefs: DigestPreferences, article: CorpusArticle): string {
   return (
     "gist:" +
-    createHash("sha256").update([article.url, prefs.global.tone].join("|")).digest("hex").slice(0, 24)
+    // "v2": gists that must add to the headline, written from the article.
+    createHash("sha256").update(["v2", article.url, prefs.global.tone].join("|")).digest("hex").slice(0, 24)
   );
 }
 
@@ -880,12 +930,13 @@ async function aiDigest(
     summary: summaryKey(prefs, article, sectionByUrl.get(article.url)),
     why: whyKey(prefs, article, sectionByUrl.get(article.url)),
     gist: gistKey(prefs, article),
+    headline: "head:" + gistKey(prefs, article).slice(5),
   });
   const wanted = shortlist.flatMap((a) => {
     const k = keysFor(a);
     return [
       ...(sectionByUrl.has(a.url) ? [k.summary, k.why] : []),
-      ...(gistUrls.has(a.url) ? [k.gist] : []),
+      ...(gistUrls.has(a.url) ? [k.gist, k.headline] : []),
     ];
   });
   const cached = cache ? await cache.getMany(wanted).catch(() => new Map<string, string>()) : new Map<string, string>();
@@ -896,7 +947,8 @@ async function aiDigest(
     const summary = cached.get(k.summary);
     const why = cached.get(k.why);
     const gist = cached.get(k.gist);
-    if (summary || gist) written.set(a.i, { summary, why, gist });
+    const headline = cached.get(k.headline);
+    if (summary || gist) written.set(a.i, { summary, why, gist, headline });
   }
 
   // Only what is still missing goes to the model — and only those pages
@@ -911,10 +963,9 @@ async function aiDigest(
   const links = await timed("links", () =>
     resolveGoogleLinks(shortlist.map((a) => a.url).filter(isGoogleNewsUrl)),
   );
-  // An In Brief gist is one line: the feed's own text is enough for it.
-  const fullText = await timed("fullText", () =>
-    fullTextFor(pending.filter((a) => sectionByUrl.has(a.url) || glanceUrls.has(a.url)), links),
-  );
+  // Every line is written from the article: a feed's snippet is often just
+  // the headline again, and a gist from it can only repeat it.
+  const fullText = await timed("fullText", () => fullTextFor(pending, links));
   const items: WritingItem[] = pending.map((article) => ({
     article,
     text: fullText.get(article.i) ?? article.text,
@@ -934,6 +985,7 @@ async function aiDigest(
         if (out.summary) toStore.set(keysFor(article).summary, out.summary);
         if (out.why) toStore.set(keysFor(article).why, out.why);
         if (out.gist) toStore.set(keysFor(article).gist, out.gist);
+        if (out.headline) toStore.set(keysFor(article).headline, out.headline);
       }
       if (cache && toStore.size > 0) await cache.setMany(toStore).catch(() => {});
     }
@@ -962,7 +1014,11 @@ async function aiDigest(
     const gist = idx === undefined ? undefined : written.get(idx)?.gist;
     if (gist) g.summary = gist;
   }
-  const briefs = toBriefs(missed, (a) => written.get(a.i)?.gist ?? firstSentence(a.text));
+  const briefs = toBriefs(
+    missed,
+    (a) => written.get(a.i)?.gist ?? firstSentence(fullText.get(a.i) ?? a.text),
+    (a) => written.get(a.i)?.headline,
+  );
   applyLinks([...Object.values(sections), atAGlance, ...Object.values(briefs ?? {})], links);
 
   const { [RIVALS_SECTION.id]: rivalStories = [], ...paperSections } = sections;

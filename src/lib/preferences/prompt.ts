@@ -242,7 +242,8 @@ Why it matters — with every summary, also write "why":
 - Leave "why" empty when there's no honest answer. An empty line beats a vague one.
 
 Gists — write one for every article whose "needs" includes gist:
-- At most 12 words: a headline-style line that stands on its own, fact first, in the tone above. Don't copy the original headline.
+- At most 14 words, printed directly under the headline. It must add what the headline leaves out: the number, the name, the place, the outcome or what happens next. Never reword or repeat the headline. If the text adds nothing beyond the headline, leave "gist" empty.
+- If the headline is cut off (it ends mid-word or mid-phrase) or doesn't say what happened, also return "headline": a complete headline of at most 14 words from the text. Otherwise leave "headline" out.
 
-Return JSON: "items", one entry per article above, with "i" and whichever of "summary" (plus "why") and "gist" it needs.`;
+Return JSON: "items", one entry per article above, with "i" and whichever of "summary" (plus "why") and "gist" (plus "headline" when needed) it needs.`;
 }

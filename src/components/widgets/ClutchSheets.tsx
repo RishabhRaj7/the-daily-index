@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { ValEvent, ValMatch, ValorantData, ValTeam } from "@/lib/types";
 import Sheet from "@/components/extras/Sheet";
 import { groupStage, playoffs, type Bracket, type GroupTable, type Slot } from "@/lib/val-bracket";
@@ -153,13 +153,36 @@ function SlotCard({ s, follows, onOpen }: { s: Slot; follows: string[]; onOpen: 
   );
 }
 
-function BracketTree({ b, follows, onOpen }: { b: Bracket; follows: string[]; onOpen: (m: ValMatch) => void }) {
+/** The bracket at the width the sheet gives it: cards narrow (to 140px) so
+ *  the whole tree fits without a sideways scroll on a desktop sheet. */
+function BracketTree(props: { b: Bracket; follows: string[]; onOpen: (m: ValMatch) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [avail, setAvail] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setAvail(el.clientWidth - 8);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <div ref={ref} className="overflow-x-auto -mx-1 px-1 pb-2">
+      {avail > 0 && <Tree {...props} avail={avail} />}
+    </div>
+  );
+}
+
+function Tree({ b, follows, onOpen, avail }: { b: Bracket; follows: string[]; onOpen: (m: ValMatch) => void; avail: number }) {
+  const fit = (cols: number, gap: number) => Math.max(140, Math.min(CARD_W, Math.floor((avail - (cols - 1) * gap) / cols)));
   if (b.kind === "rounds") {
+    const cw = fit(b.upper.length + (b.final.length > 0 ? 1 : 0), 24);
     return (
-      <div className="overflow-x-auto -mx-1 px-1 pb-2">
+      <>
         <div className="flex gap-6 min-w-max">
           {b.upper.map((c) => (
-            <div key={c.title} style={{ width: CARD_W }}>
+            <div key={c.title} style={{ width: cw }}>
               <div className="font-label text-[9px] text-ink-soft mb-2">{c.title}</div>
               <div className="space-y-3">
                 {c.slots.map((s) => (
@@ -171,7 +194,7 @@ function BracketTree({ b, follows, onOpen }: { b: Bracket; follows: string[]; on
             </div>
           ))}
           {b.final.length > 0 && (
-            <div style={{ width: CARD_W }}>
+            <div style={{ width: cw }}>
               <div className="font-label text-[9px] text-ink-soft mb-2">Final</div>
               {b.final.map((s) => (
                 <div key={s.id} style={{ height: CARD_H }}>
@@ -181,7 +204,7 @@ function BracketTree({ b, follows, onOpen }: { b: Bracket; follows: string[]; on
             </div>
           )}
         </div>
-      </div>
+      </>
     );
   }
 
@@ -193,7 +216,8 @@ function BracketTree({ b, follows, onOpen }: { b: Bracket; follows: string[]; on
   const lowerTop = upperH + (lowerRows ? 26 : 0);
   const lowerH = lowerRows ? HEAD + lowerRows * ROW : 0;
   const finalCol = Math.max(b.upper.length, b.lower.length);
-  const x = (col: number) => col * (CARD_W + COL_GAP);
+  const cw = fit(finalCol + 1, COL_GAP);
+  const x = (col: number) => col * (cw + COL_GAP);
   const pos = new Map<string, { x: number; y: number; title?: string }>();
   const place = (cols: Bracket["upper"], top: number, rows: number) =>
     cols.forEach((c, ci) =>
@@ -208,7 +232,7 @@ function BracketTree({ b, follows, onOpen }: { b: Bracket; follows: string[]; on
   const uf = b.upper[b.upper.length - 1]?.slots[0];
   const ufY = uf ? pos.get(uf.id)!.y : HEAD;
   b.final.forEach((s, i) => pos.set(s.id, { x: x(finalCol), y: ufY + i * (CARD_H + 40) }));
-  const width = x(finalCol) + CARD_W;
+  const width = x(finalCol) + cw;
   const height = Math.max(lowerTop + lowerH, ufY + b.final.length * (CARD_H + 40));
 
   const all = [...b.upper, ...b.lower].flatMap((c) => c.slots).concat(b.final);
@@ -218,7 +242,7 @@ function BracketTree({ b, follows, onOpen }: { b: Bracket; follows: string[]; on
     const a = s.to ? pos.get(s.id) : undefined;
     const t = s.to ? pos.get(s.to) : undefined;
     if (!a || !t || t.x <= a.x) return [];
-    const x1 = a.x + CARD_W;
+    const x1 = a.x + cw;
     const turn = t.x - COL_GAP / 2;
     return [`M ${x1} ${a.y + CARD_H / 2} H ${turn} V ${t.y + CARD_H / 2} H ${t.x}`];
   });
@@ -229,7 +253,7 @@ function BracketTree({ b, follows, onOpen }: { b: Bracket; follows: string[]; on
   ];
 
   return (
-    <div className="overflow-x-auto -mx-1 px-1 pb-2">
+    <>
       <div className="relative" style={{ width, height }}>
         <svg className="absolute inset-0 pointer-events-none" width={width} height={height} aria-hidden="true">
           {lines.map((d, i) => (
@@ -237,7 +261,7 @@ function BracketTree({ b, follows, onOpen }: { b: Bracket; follows: string[]; on
           ))}
         </svg>
         {titles.map((h) => (
-          <div key={`${h.t}-${h.x}-${h.y}`} className="absolute font-label text-[9px] text-ink-soft" style={{ left: h.x, top: h.y, width: CARD_W }}>
+          <div key={`${h.t}-${h.x}-${h.y}`} className="absolute font-label text-[9px] text-ink-soft" style={{ left: h.x, top: h.y, width: cw }}>
             {h.t}
           </div>
         ))}
@@ -245,7 +269,7 @@ function BracketTree({ b, follows, onOpen }: { b: Bracket; follows: string[]; on
         {all.map((s) => {
           const p = pos.get(s.id)!;
           return (
-            <div key={s.id} className="absolute" style={{ left: p.x, top: p.y, width: CARD_W, height: CARD_H }}>
+            <div key={s.id} className="absolute" style={{ left: p.x, top: p.y, width: cw, height: CARD_H }}>
               <SlotCard s={s} follows={follows} onOpen={onOpen} />
               {s.match && (
                 <div className="absolute -bottom-[15px] left-0 font-mono text-[9px] text-ink-faint whitespace-nowrap">
@@ -262,7 +286,7 @@ function BracketTree({ b, follows, onOpen }: { b: Bracket; follows: string[]; on
           );
         })}
       </div>
-    </div>
+    </>
   );
 }
 

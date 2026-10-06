@@ -110,7 +110,7 @@ export default function ParticleWordmark({
         ref={canvasRef}
         onClick={cycle}
         aria-hidden="true"
-        className="absolute inset-0 w-full h-full cursor-crosshair touch-pan-y"
+        className="absolute inset-0 w-full h-full touch-pan-y"
       />
       <span className="sr-only">{label}</span>
     </div>
