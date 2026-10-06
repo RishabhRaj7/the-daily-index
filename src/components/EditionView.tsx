@@ -1073,7 +1073,7 @@ export default function EditionView({
         isArchive={isArchive}
         weather={(travelling && travelWeather) || weather || undefined}
       />
-      <div className="max-w-[1240px] mx-auto px-4 sm:px-6">
+      <div className="page-wrap px-4 sm:px-6">
         {/* Front page: the briefing beside the lead, then the day's extras
             (editor's note, on this day, word of the day) in one slim strip.
             On a phone the briefing comes first: the whole day in a minute. */}
@@ -1128,7 +1128,7 @@ export default function EditionView({
         </div>
       </div>
       <footer className="mt-24 border-t hairline">
-        <div className="max-w-[1240px] mx-auto px-4 sm:px-6 py-10 grid gap-8 md:grid-cols-[1fr_auto] items-end">
+        <div className="page-wrap px-4 sm:px-6 py-10 grid gap-8 md:grid-cols-[1fr_auto] items-end">
           <div>
             <p className="font-display font-extrabold text-[clamp(3rem,12vw,9rem)] leading-[0.8] text-transparent [-webkit-text-stroke:1px_var(--ink-faint)] select-none" aria-hidden="true">
               The Daily Index

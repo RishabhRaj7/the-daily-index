@@ -52,7 +52,7 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
   return (
     <>
     <TopBar sections={[]} isArchive alwaysShowLogo />
-    <main className="flex-1 max-w-[1240px] mx-auto px-4 sm:px-6 pt-10 pb-20 w-full">
+    <main className="flex-1 page-wrap px-4 sm:px-6 pt-10 pb-20 w-full">
       <nav className="flex items-center justify-between gap-4 font-sans text-[13px] font-semibold mb-8">
         <span className="flex flex-wrap gap-2">
           <Link href="/" className="chip chip-signal">

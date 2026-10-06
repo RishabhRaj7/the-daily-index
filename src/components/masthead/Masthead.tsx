@@ -32,7 +32,7 @@ export default function Masthead({
 
   return (
     <header id="masthead">
-      <div className="max-w-[1240px] mx-auto px-4 sm:px-6">
+      <div className="page-wrap px-4 sm:px-6">
         <div className="flex items-center justify-between gap-4 pt-5 pb-2 font-mono text-[11px] text-ink-soft">
           <span>
             VOL. {edition.volume} · NO. {edition.issue}

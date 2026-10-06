@@ -199,6 +199,14 @@ html.theme-transition *::after {
 
 .hairline { border-color: var(--rule); }
 
+/* The page's width: 1240px on a laptop, then most of a big screen (92% of
+   it from 1440px up), capped at 2560px so an ultrawide doesn't stretch
+   lines past reading. */
+.page-wrap { width: 100%; max-width: 1240px; margin-inline: auto; }
+@media (min-width: 1440px) {
+  .page-wrap { max-width: min(92vw, 2560px); }
+}
+
 /* A boxed item: a strong top rule, hairline bottom, no fill. */
 .paper-box {
   border-top: 2px solid var(--rule-strong);

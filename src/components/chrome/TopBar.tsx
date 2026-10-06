@@ -80,7 +80,7 @@ export default function TopBar({
 
   return (
     <div className="sticky top-0 z-40 glass border-b hairline">
-      <div className="max-w-[1240px] mx-auto px-4 sm:px-6 flex flex-wrap md:flex-nowrap items-center gap-x-4 md:h-14">
+      <div className="page-wrap px-4 sm:px-6 flex flex-wrap md:flex-nowrap items-center gap-x-4 md:h-14">
         <Link
           href="/"
           className="flex items-center gap-2 shrink-0 h-12 md:h-auto transition-all duration-500"

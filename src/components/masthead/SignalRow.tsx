@@ -136,7 +136,7 @@ export default function SignalRow({ edition, weather }: { edition: Edition; weat
   if (cards.length === 0) return null;
 
   return (
-    <div className="max-w-[1240px] mx-auto px-4 sm:px-6">
+    <div className="page-wrap px-4 sm:px-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">{cards}</div>
     </div>
   );
