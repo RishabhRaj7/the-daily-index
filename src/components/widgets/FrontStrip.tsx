@@ -3,7 +3,8 @@
 import type { IssueRecord, OnThisDayEntry, WordOfDay } from "@/lib/types";
 
 // Under the lead: the day's extras in one slim strip, three columns with
-// hairline rules between them — the editor's note, one moment from this
+// hairline rules between them (on an ultrawide, stacked in a column of their
+// own beside the lead) — the editor's note, one moment from this
 // day in history, and the word of the day. Each is short; none competes
 // with the news above.
 
@@ -65,7 +66,7 @@ export default function FrontStrip({
   return (
     <aside
       aria-label="The day's extras"
-      className="grid gap-y-6 md:grid-cols-3 mt-12 pt-6 border-t hairline md:[&>*]:px-6 md:[&>*:first-child]:pl-0 md:[&>*:last-child]:pr-0 md:[&>*+*]:border-l md:[&>*]:border-[color:var(--rule)]"
+      className="grid gap-y-6 md:grid-cols-3 pt-6 border-t hairline md:[&>*]:px-6 md:[&>*:first-child]:pl-0 md:[&>*:last-child]:pr-0 md:[&>*+*]:border-l md:[&>*]:border-[color:var(--rule)] uw:grid-cols-1 uw:pt-0 uw:border-t-0 uw:gap-y-0 uw:[&>*]:px-0 uw:[&>*+*]:border-l-0 uw:[&>*+*]:border-t uw:[&>*]:py-6 uw:[&>*:first-child]:pt-0"
       data-reveal
     >
       {cells}

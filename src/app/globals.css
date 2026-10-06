@@ -115,6 +115,8 @@ html[data-edition="evening"] {
   --mood-xgreed: #3cffd0;
 }
 
+@custom-variant uw (@media (min-width: 2800px) and (min-aspect-ratio: 2/1));
+
 @theme inline {
   --color-paper: var(--paper);
   --color-surface: var(--surface);
@@ -222,6 +224,31 @@ html.theme-transition *::after {
 @media (min-width: 3000px) and (min-height: 1150px) {
   .page-scale { zoom: 1.45; }
   .page-scale .page-wrap { max-width: 1680px; }
+}
+/* Ultrawide (21:9 and wider): not a bigger page but a spread. The design
+   width roughly doubles and sections sit two to a row (lib/spread.ts), each
+   column about as wide as the laptop page, so every section keeps the
+   layout it was designed at. The front page gains a third column for the
+   day's extras. Other screens let the row wrappers step aside. */
+@media (min-width: 2800px) and (min-aspect-ratio: 2/1) {
+  .page-scale { zoom: 1.3; }
+  .page-scale .page-wrap { max-width: 2480px; }
+  .page-scale .edition-body { display: block; }
+  .edition-body .spread-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 4.5rem;
+    align-items: start;
+  }
+  .edition-body .spread-col { display: block; min-width: 0; }
+  /* A section with no partner keeps one column's width, centred, rather
+     than stretching across both. */
+  .edition-body .spread-row.spread-solo,
+  .edition-body > .spread-solo {
+    display: block;
+    width: calc(50% - 2.25rem);
+    margin-inline: auto;
+  }
 }
 
 /* A boxed item: a strong top rule, hairline bottom, no fill. */
@@ -567,8 +594,11 @@ article[id] { scroll-margin-top: 5rem; }
 
 /* Section numbers come from a counter on the front page, so no component
    has to know its own position. */
-.edition-body { counter-reset: section; }
-.edition-body .paper-section { counter-increment: section; }
+/* Sections are numbered by their place in the reader's order (set inline
+   with counter-set), and flex order keeps that order wherever the ultrawide
+   spread's row and column wrappers put them in the markup. */
+.edition-body { counter-reset: section; display: flex; flex-direction: column; }
+.spread-row, .spread-col { display: contents; }
 .section-number::before { content: "§ " counter(section, decimal-leading-zero); }
 .headline-link { background-image: linear-gradient(var(--section-hue, var(--accent)), var(--section-hue, var(--accent))); }
 .group:hover .headline-link { background-size: 100% 2px; }

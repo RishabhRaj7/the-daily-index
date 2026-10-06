@@ -55,6 +55,7 @@ import {
 import Masthead from "@/components/masthead/Masthead";
 import HeroStory from "@/components/story/HeroStory";
 import FrontStrip from "@/components/widgets/FrontStrip";
+import { spreadRows } from "@/lib/spread";
 import WeekAhead from "@/components/widgets/WeekAhead";
 import DatelineSection from "@/components/sections/DatelineSection";
 import TwoCitiesSection from "@/components/sections/TwoCitiesSection";
@@ -1075,11 +1076,12 @@ export default function EditionView({
       />
       <div className="page-wrap px-4 sm:px-6">
         {/* Front page: the briefing beside the lead, then the day's extras
-            (editor's note, on this day, word of the day) in one slim strip.
+            (editor's note, on this day, word of the day) in one slim strip;
+            on an ultrawide the extras become a third column instead.
             On a phone the briefing comes first: the whole day in a minute. */}
         {hero && (
           <>
-            <div className="grid gap-y-12 pt-10 md:pt-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,2.6fr)]">
+            <div className="grid gap-y-12 pt-10 md:pt-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,2.6fr)] uw:grid-cols-[minmax(0,1fr)_minmax(0,2.6fr)_minmax(0,1fr)]">
               <div className="order-1 lg:pr-8 lg:border-r hairline">
                 <Briefing
                   brief={brief ?? (prepBlocking ? null : fallbackBrief)}
@@ -1087,40 +1089,68 @@ export default function EditionView({
                   anchorFor={(url) => anchorByUrl.get(url) ?? null}
                 />
               </div>
-              <div className="order-2 lg:pl-9 min-w-0">
+              <div className="order-2 lg:pl-9 uw:pr-9 min-w-0">
                 <HeroStory story={hero} />
               </div>
+              <div className="order-3 lg:col-span-2 uw:col-span-1 uw:pl-8 uw:border-l hairline min-w-0">
+                <FrontStrip
+                  note={!isArchive && editorsNote ? editorsNote.text : null}
+                  then={personalOtd}
+                  history={edition.onThisDay[0] ?? null}
+                  word={edition.wordOfDay?.word ? edition.wordOfDay : null}
+                />
+              </div>
             </div>
-            <FrontStrip
-              note={!isArchive && editorsNote ? editorsNote.text : null}
-              then={personalOtd}
-              history={edition.onThisDay[0] ?? null}
-              word={edition.wordOfDay?.word ? edition.wordOfDay : null}
-            />
           </>
         )}
         {/* Dated things coming up this week; today's paper only. */}
         {!isArchive && <WeekAhead />}
         <div className="edition-body">
           {travelling && travel && (
-            <div className="paper-section" style={{ ["--section-hue" as string]: "var(--hue-travel)" }}>
+            <div className="paper-section spread-solo" style={{ ["--section-hue" as string]: "var(--hue-travel)", order: -1, counterSet: "section 1" }}>
               <PostcardSection travel={travel} weather={travelWeather} />
             </div>
           )}
-          {order.map((key) => (
-            <div key={key} className="paper-section" style={{ ["--section-hue" as string]: SECTION_META[key].hue }}>
-              {sectionRenderers[key]()}
-              {briefsFor(key).length > 0 && <InBrief items={briefsFor(key)} />}
-              {oddsLayout.sections[key] && <OddsStrip picks={oddsLayout.sections[key]!} label={key === "grapevine" ? "Film and the awards" : "What traders expect"} />}
-            </div>
-          ))}
+          {/* Ultrawide: rows of two columns (lib/spread.ts). Elsewhere the row
+              and column wrappers step aside (display: contents) and each
+              section's flex order and number follow the reader's own order. */}
+          {spreadRows(order).map((row) => {
+            const section = (key: SectionKey) => {
+              const n = order.indexOf(key);
+              return (
+                <div
+                  key={key}
+                  className="paper-section"
+                  style={{
+                    ["--section-hue" as string]: SECTION_META[key].hue,
+                    order: n,
+                    counterSet: `section ${n + (travelling && travel ? 2 : 1)}`,
+                  }}
+                >
+                  {sectionRenderers[key]()}
+                  {briefsFor(key).length > 0 && <InBrief items={briefsFor(key)} />}
+                  {oddsLayout.sections[key] && <OddsStrip picks={oddsLayout.sections[key]!} label={key === "grapevine" ? "Film and the awards" : "What traders expect"} />}
+                </div>
+              );
+            };
+            return "solo" in row ? (
+              <div key={row.solo} className="spread-row spread-solo">
+                {section(row.solo)}
+              </div>
+            ) : (
+              <div key={[...row.left, ...row.right].join("+")} className="spread-row">
+                <div className="spread-col">{row.left.map(section)}</div>
+                <div className="spread-col">{row.right.map(section)}</div>
+              </div>
+            );
+          })}
           {/* Preference sections with no existing paper slot of their
               own — appended after the standing sections. */}
           {visibleStandalone.map(({ section, articles }) => (
             <div
               key={`digest-${section.id}`}
-              className="paper-section"
-              style={{ ["--section-hue" as string]: digestHue(section.label) }}
+              className="paper-section spread-solo"
+              style={{ ["--section-hue" as string]: digestHue(section.label), order: 1000 }}
             >
               <DigestSectionView section={section} articles={articles} />
             </div>
