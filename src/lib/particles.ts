@@ -78,6 +78,7 @@ export class ParticleField {
   private cleanup: Array<() => void> = [];
   private firstFormFired = false;
   private destroyed = false;
+  private frame = 0;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -292,32 +293,35 @@ export class ParticleField {
       this.running = false;
       return;
     }
-    const moving = this.step(now);
-    this.draw(now);
-    // Keep a slow shimmer going while the pointer is over the field or
-    // particles are still settling; otherwise idle at a low frame budget.
-    if (moving || this.pointer.active || this.mode === "swarm") {
-      this.raf = requestAnimationFrame(this.tick);
-    } else {
-      this.running = false;
-      this.fireFirstForm();
-      // Breathe: a gentle nudge every few seconds so the masthead never
-      // looks frozen, without burning frames in between.
-      window.setTimeout(() => {
-        if (!this.running && this.visible) {
-          this.breathe();
-          this.wake();
-        }
-      }, 3800);
+    const idle = !this.pointer.active && this.mode !== "swarm";
+    // Idle, every other frame is enough for a slow wave (half the work).
+    this.frame = (this.frame + 1) % 2;
+    if (!idle || this.frame === 0) {
+      if (idle && this.firstFormFired) this.ambient(now);
+      const moving = this.step(now);
+      this.draw(now);
+      if (!moving) this.fireFirstForm();
     }
+    // The field never stops while it's on screen: once the word has formed,
+    // a soft wave keeps rolling across it (paused off screen, and absent for
+    // readers who ask for reduced motion).
+    this.raf = requestAnimationFrame(this.tick);
   };
 
-  private breathe() {
-    // A soft wave travelling across the word.
-    const band = Math.random() * this.width;
+  /** A slow wave rolling left to right across the word: particles in its
+   *  band lift and ripple, lighting up as they move, then settle home. */
+  private ambient(now: number) {
+    const period = 6500;
+    const phase = (now % period) / period;
+    const band = 90;
+    const x = -band + phase * (this.width + band * 2);
     for (const p of this.particles) {
-      const d = Math.abs(p.hx - band);
-      if (d < 60) p.vy += (Math.random() - 0.5) * 1.6 * (1 - d / 60);
+      if (!p.bound) continue;
+      const d = p.hx - x;
+      if (d <= -band || d >= band) continue;
+      const w = Math.cos((d / band) * (Math.PI / 2));
+      p.vy += -w * 0.55 * Math.sin(now * 0.005 + p.hx * 0.035 + p.seed * 0.2);
+      p.vx += w * 0.22;
     }
   }
 
