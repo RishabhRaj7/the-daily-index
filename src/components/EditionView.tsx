@@ -1054,7 +1054,7 @@ export default function EditionView({
   const prepBlocking = prep === "boot" || prep === "cooking" || prep === "failed";
 
   return (
-    <main className="flex-1">
+    <main className="flex-1 page-scale">
       <SparksContext.Provider value={sparks}>
       <StoryOddsContext.Provider value={oddsLayout.stories}>
       {prep !== "revealed" && (

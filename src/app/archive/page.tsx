@@ -118,7 +118,7 @@ export default async function ArchivePage() {
   return (
     <>
       <TopBar sections={[]} isArchive alwaysShowLogo />
-      <main className="flex-1 page-wrap px-4 sm:px-6 pt-10 pb-28 w-full">
+      <main className="flex-1 page-scale page-wrap px-4 sm:px-6 pt-10 pb-28 w-full">
         <Link href="/" className="chip mb-10">
           <span aria-hidden="true">←</span> Back to today&rsquo;s edition
         </Link>

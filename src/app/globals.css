@@ -199,12 +199,29 @@ html.theme-transition *::after {
 
 .hairline { border-color: var(--rule); }
 
-/* The page's width: 1240px on a laptop, then most of a big screen (92% of
-   it from 1440px up), capped at 2560px so an ultrawide doesn't stretch
-   lines past reading. */
+/* The page's width. A big screen gets the same page, larger — never a
+   stretched one: `.page-scale` zooms the whole edition in steps (type,
+   cards, images and gaps together, so every proportion of the laptop design
+   holds), and the design width only widens a little with it. The steps read
+   the window's height too, so a wide but short window isn't blown up; an
+   ultrawide keeps margins rather than dragging lines and images across it.
+   Pop-up sheets render outside the page and keep their own size. */
 .page-wrap { width: 100%; max-width: 1240px; margin-inline: auto; }
-@media (min-width: 1440px) {
-  .page-wrap { max-width: min(92vw, 2560px); }
+@media (min-width: 1600px) and (min-height: 860px) {
+  .page-scale { zoom: 1.15; }
+  .page-scale .page-wrap { max-width: 1340px; }
+}
+@media (min-width: 1850px) and (min-height: 900px) {
+  .page-scale { zoom: 1.25; }
+  .page-scale .page-wrap { max-width: 1380px; }
+}
+@media (min-width: 2400px) and (min-height: 1150px) {
+  .page-scale { zoom: 1.4; }
+  .page-scale .page-wrap { max-width: 1500px; }
+}
+@media (min-width: 3000px) and (min-height: 1150px) {
+  .page-scale { zoom: 1.45; }
+  .page-scale .page-wrap { max-width: 1680px; }
 }
 
 /* A boxed item: a strong top rule, hairline bottom, no fill. */
