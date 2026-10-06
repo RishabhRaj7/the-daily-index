@@ -1087,7 +1087,7 @@ export default function EditionView({
                   anchorFor={(url) => anchorByUrl.get(url) ?? null}
                 />
               </div>
-              <div className="order-2 lg:pl-9">
+              <div className="order-2 lg:pl-9 min-w-0">
                 <HeroStory story={hero} />
               </div>
             </div>
