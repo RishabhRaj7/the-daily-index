@@ -237,8 +237,11 @@ function EventPanel({ event, data, follows, now, open }: { event: ValEvent; data
   const inEvent = data.matches.filter((m) => m.eventKey === event.key);
   const live = inEvent.filter((m) => m.state === "inProgress");
   const upcoming = inEvent.filter((m) => m.state === "unstarted" && m.teams.some((t) => t.code !== "TBD"));
-  const results = inEvent.filter((m) => m.state === "completed").slice(-2).reverse();
-  const rows = [...live, ...upcoming.slice(0, 4 - live.length), ...results].slice(0, 4);
+  // The last two results always stay (oldest first, so the newest sits just
+  // above what's next), then what's live and up to four still to come.
+  const results = inEvent.filter((m) => m.state === "completed").slice(-2);
+  const ahead = [...live, ...upcoming.slice(0, Math.max(0, 4 - live.length))];
+  const rows = [...results, ...ahead];
   const field = event.odds?.field.slice(0, 4) ?? [];
 
   return (
@@ -263,18 +266,22 @@ function EventPanel({ event, data, follows, now, open }: { event: ValEvent; data
           const mineA = follows.includes(a.code);
           const mineB = follows.includes(b.code);
           const done = m.state === "completed";
+          // On a phone: the latest result and the next two.
+          const hideOnPhone = done ? i < results.length - 1 : i - results.length >= 2;
+          // A hairline between what's played and what's next.
+          const turn = i === results.length && results.length > 0;
           return (
-            <li key={m.id} className={i >= 2 ? "max-sm:hidden" : ""}>
+            <li key={m.id} className={`${hideOnPhone ? "max-sm:hidden" : ""} ${turn ? "!border-t-[color:var(--ink-faint)]" : ""}`}>
               <button
                 type="button"
                 onClick={() => open({ kind: "match", a: a.code, b: b.code, id: m.id })}
-                className="w-full text-left py-2 grid grid-cols-[4.4rem_minmax(0,1fr)_auto] items-center gap-2 text-[12px] hover:bg-card-bg rounded-md"
+                className={`w-full text-left py-2 grid grid-cols-[4.4rem_minmax(0,1fr)_auto] items-center gap-2 text-[12px] hover:bg-card-bg rounded-md ${done ? "opacity-80" : ""}`}
               >
               <span className="font-mono text-[10px] text-ink-soft whitespace-nowrap">
                 {m.state === "inProgress" ? (
                   <span className="text-[color:var(--section-hue)] font-semibold">LIVE</span>
                 ) : done ? (
-                  "Result"
+                  `${weekday(m.start)} · FT`
                 ) : dayOf(m.start) === dayOf(now) ? (
                   time(m.start)
                 ) : (
