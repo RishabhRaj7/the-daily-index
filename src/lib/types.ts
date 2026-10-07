@@ -529,6 +529,8 @@ export interface Personalization {
   favoriteF1Drivers: string[];        // up to 2 driverIds
   /** Set once the paddock defaults have been applied to a saved paper. */
   paddockSeeded?: boolean;
+  /** Version of the default watchlist a saved paper has taken in. */
+  watchSeeded?: number;
   favoriteFootballPlayer: string;
   favoriteFootballClub: string;
   favoriteFootballNationalTeam: string;

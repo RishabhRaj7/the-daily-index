@@ -293,7 +293,9 @@ export function layoutOdds(picks: OddsPick[], hidden: SectionKey[] = [], underSt
     if (hidden.includes(key)) continue;
     const mine = eligible
       .filter((p) => SUBJECT_SECTION[p.market.subject] === key)
-      .sort((a, b) => Number(!!b.watched) - Number(!!a.watched) || b.score - a.score);
+      // Watched questions first, the biggest overall leading (the drivers'
+      // title before the constructors'); then the strongest of the rest.
+      .sort((a, b) => Number(!!b.watched) - Number(!!a.watched) || (a.watched && b.watched ? b.market.vol - a.market.vol : b.score - a.score));
     const list: OddsPick[] = [];
     for (const p of mine) {
       if (list.length >= quota) break;

@@ -512,6 +512,14 @@ function decided(m: OddsMarket): boolean {
   return p >= 95 && Number.isFinite(due) && due <= Date.now();
 }
 
+/** Over: a leader at 95%+ on a question past its due date. A question the
+ *  reader watches stays on the page until then, however one-sided (the
+ *  constructors' title at 99% is still their question). */
+function settled(m: OddsMarket): boolean {
+  const due = m.closes ? Date.parse(m.closes) : NaN;
+  return m.lead.prob >= 95 && Number.isFinite(due) && due <= Date.now();
+}
+
 const STOP = new Set("will the a an of in on by to be who what which is winner win end before after than more less over under yes no season champion".split(" "));
 const toks = (t: string) =>
   new Set(
@@ -704,7 +712,7 @@ export async function getOddsUniverse(
   watch.slice(0, 12).forEach((q, i) => {
     const want = tokens(q).length;
     const best = (watchHits[i]?.markets ?? [])
-      .filter((m) => fits(q, m) && !decided(m))
+      .filter((m) => fits(q, m) && !settled(m))
       .sort(
         (a, b) =>
           Math.abs(tokens(a.title).length - want) - Math.abs(tokens(b.title).length - want) ||
@@ -712,6 +720,7 @@ export async function getOddsUniverse(
       )[0];
     if (best) watched[q] = [best.id];
   });
+  const watchedIds = new Set(Object.values(watched).flat());
   const searched = [...followHits, ...watchHits].flatMap((k) => k?.markets ?? []).concat(pinned?.markets ?? []);
   const sources = base?.sources ?? [
     { name: "Polymarket", ok: false, count: 0 },
@@ -722,7 +731,7 @@ export async function getOddsUniverse(
   const seen = new Set<string>();
   const all = [...(base?.markets ?? []), ...searched]
     .filter((m) => !seen.has(m.id) && seen.add(m.id))
-    .filter((m) => !decided(m) && (!EXCLUDE.test(`${m.title} ${m.tags.join(" ")}`) || pins.includes(m.id)))
+    .filter((m) => (!decided(m) || watchedIds.has(m.id)) && (!EXCLUDE.test(`${m.title} ${m.tags.join(" ")}`) || pins.includes(m.id)))
     .sort((a, b) => b.vol24 - a.vol24);
   const markets: OddsMarket[] = [];
   for (const m of all) {

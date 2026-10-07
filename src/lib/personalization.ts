@@ -23,6 +23,7 @@ export const DEFAULT_PERSONALIZATION: Personalization = {
   oddsWatch: [
     "Which party will win the Senate in 2026",
     "F1 Drivers Champion",
+    "F1 Constructors Champion",
     "What price will Bitcoin hit in 2026",
     "Will the U.S. invade Iran before 2027",
     "Fed decision",
@@ -32,6 +33,7 @@ export const DEFAULT_PERSONALIZATION: Personalization = {
     "Oscars Best Picture Winner",
   ],
   oddsPins: [],
+  watchSeeded: 2,
   topics: [],
   subreddits: [],
   sectionOrder: SECTION_ORDER,
@@ -79,6 +81,13 @@ export function loadPersonalization(): Personalization {
     }
     merged.valorantTeams = (Array.isArray(merged.valorantTeams) ? merged.valorantTeams : []).filter((c) => typeof c === "string");
     merged.oddsWatch = (Array.isArray(merged.oddsWatch) ? merged.oddsWatch : DEFAULT_PERSONALIZATION.oddsWatch!).filter((q) => typeof q === "string");
+    // Questions added to the watchlist after a paper was saved (7 Oct 2026:
+    // the constructors' title beside the drivers') join it once, next to
+    // their neighbour; removing one later sticks.
+    if ((parsed.watchSeeded ?? 1) < 2 && !merged.oddsWatch.some((q) => /constructors/i.test(q))) {
+      const at = merged.oddsWatch.findIndex((q) => /drivers/i.test(q));
+      merged.oddsWatch.splice(at >= 0 ? at + 1 : merged.oddsWatch.length, 0, "F1 Constructors Champion");
+    }
     merged.oddsPins = (Array.isArray(merged.oddsPins) ? merged.oddsPins : []).filter((p) => p && typeof p.id === "string");
     merged.sectionOrder = [
       ...savedOrder,
