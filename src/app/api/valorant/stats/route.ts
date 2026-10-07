@@ -34,7 +34,9 @@ export async function GET(req: Request) {
   }
 
   const store = getStore();
-  const key = `vlr:stats:v1:${id}`;
+  // v2: v1 kept matches read while VLR's round markup went unrecognised
+  // (no rounds); those are read again.
+  const key = `vlr:stats:v2:${id}`;
   if (!live) {
     const kept = await store.get<ValMatchStats>(key).catch(() => null);
     if (kept) return Response.json(kept, { headers: { "Cache-Control": "public, max-age=3600, s-maxage=86400" } });
@@ -45,8 +47,10 @@ export async function GET(req: Request) {
     return Response.json({ error: "no stats yet", url: stats?.url ?? null }, { status: 404, headers: { "Cache-Control": "public, max-age=60, s-maxage=120" } });
   }
   const out: ValMatchStats = { ...stats, vods: v, fetchedAt: new Date().toISOString() };
-  // Finished on both sides: keep it for good.
-  if (!live && !stats.live) await store.set(key, out, { ttlSeconds: 365 * 86_400 }).catch(() => {});
+  // Finished on both sides: keep it for good, but only a complete read (every
+  // map with its rounds), so a VLR layout change can't be frozen in.
+  const complete = stats.maps.filter((m) => m.id !== "all").every((m) => m.rounds.length > 0);
+  if (!live && !stats.live && complete) await store.set(key, out, { ttlSeconds: 365 * 86_400 }).catch(() => {});
   return Response.json(out, {
     headers: { "Cache-Control": live || stats.live ? "public, max-age=30, s-maxage=45" : "public, max-age=3600, s-maxage=86400" },
   });

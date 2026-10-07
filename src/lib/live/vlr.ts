@@ -168,7 +168,8 @@ function game(block: string, id: string): Omit<ValMapStats, "teams"> & { tables:
   const picked = mapCell.match(/class="picked mod-(\d)/)?.[1];
   const duration = text(header.match(/class="map-duration[^"]*"[^>]*>([\s\S]*?)<\/div>/)?.[1]) || null;
   // One column per round (the score so far in its title), team one's square above team two's.
-  const rounds = block.split('<div class="vlr-rounds-row-col" title=').slice(1).flatMap((col) => {
+  // (Spacing tolerant: VLR has since added a trailing space to the class.)
+  const rounds = block.split(/<div class="vlr-rounds-row-col\s*"\s+title=/).slice(1).flatMap((col) => {
     const sq = [...col.matchAll(/<div class="rnd-sq([^"]*)">([\s\S]*?)<\/div>/g)].slice(0, 2);
     const w = sq.findIndex((s) => /mod-win/.test(s[1]));
     if (w < 0) return [];
