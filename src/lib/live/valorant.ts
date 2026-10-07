@@ -194,12 +194,29 @@ function groupOf(m: ValMatch, pm: PmEvent[]): string | undefined {
  */
 function marketOnlyMatches(pm: PmEvent[], scheduled: ValMatch[], teams: ValTeam[], event: ValEvent | undefined): ValMatch[] {
   const out: ValMatch[] = [];
+  if (!event) return out;
+  // Only this event's own matches: Polymarket also prices qualifiers, Game
+  // Changers and Challengers, whose team names can look like VCT teams'. The
+  // title must name the event ("… - VALORANT Champions Shanghai Playoffs")
+  // and both teams must already be playing in it.
+  const named = event.name
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length >= 5 && !/^\d+$/.test(w));
+  const field = new Set(
+    scheduled
+      .filter((m) => m.eventKey === event.key)
+      .flatMap((m) => m.teams.map((s) => s.code))
+      .filter((c) => c && c !== "TBD"),
+  );
   for (const e of pm) {
     const t = e.title.match(/^valorant:\s*(.+?)\s+vs\.?\s+(.+?)\s*\((bo\d)\)/i);
     if (!t || !e.startTime || Date.parse(e.startTime) < Date.now() - 3 * 3_600_000) continue;
+    const where = e.title.split(" - ").slice(1).join(" - ").toLowerCase();
+    if (/qualifier|game changers|challengers|academy|premier/.test(where) || !named.some((w) => where.includes(w))) continue;
     const ta = teams.find((x) => sameTeam(t[1], x.name));
     const tb = teams.find((x) => sameTeam(t[2], x.name));
-    if (!ta || !tb) continue;
+    if (!ta || !tb || !field.has(ta.code) || !field.has(tb.code)) continue;
     const known = scheduled.some(
       (m) => m.teams.some((s) => s.code === ta.code) && m.teams.some((s) => s.code === tb.code) && Math.abs(Date.parse(m.start) - Date.parse(e.startTime!)) < 12 * 3_600_000,
     );
