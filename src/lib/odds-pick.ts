@@ -177,7 +177,12 @@ export function alike(a: OddsMarket, b: OddsMarket): boolean {
         .map((w) => w.slice(0, 5)),
     );
   const x = stems(a);
-  return [...stems(b)].filter((w) => x.has(w)).length >= 2;
+  const y = stems(b);
+  // Two shared words, or all of a short title's: "F1 Drivers' Champion" has
+  // only "drivers" once the common words go, and is still the same question
+  // as Kalshi's "F1 Drivers Champion (2026)" (the constructors' title isn't).
+  const need = Math.min(2, x.size, y.size);
+  return need > 0 && [...y].filter((w) => x.has(w)).length >= need;
 }
 
 // Side questions that say little about what people think will happen.

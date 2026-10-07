@@ -85,7 +85,14 @@ function Table({ team, players, side, best, mine }: { team: string; players: Val
   const lineOf = (p: ValPlayerStats) => (side === "all" ? p.all : p[side]);
   return (
     <div className="overflow-x-auto -mx-1 px-1">
-      <table className="w-full min-w-[640px] font-sans text-[12.5px] tabular-nums">
+      {/* Fixed column widths, so both teams' tables line up column for column. */}
+      <table className="w-full min-w-[640px] table-fixed font-sans text-[12.5px] tabular-nums">
+        <colgroup>
+          <col style={{ width: "28%" }} />
+          {COLS.map((c) => (
+            <col key={c.key} style={{ width: `${72 / COLS.length}%` }} />
+          ))}
+        </colgroup>
         <thead>
           <tr className="font-label text-[8.5px] text-ink-faint text-right">
             <th className="text-left font-normal py-1 sticky left-0 bg-surface" style={mine ? { color: "var(--section-hue)" } : undefined}>
