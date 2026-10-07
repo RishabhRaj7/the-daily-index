@@ -360,6 +360,7 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
   const [view, setView] = useState<ClutchView | null>(null);
 
   // Keep results and prices fresh while something is on; quietly otherwise.
+  const liveNow = data?.matches.some((m) => m.state === "inProgress") ?? false;
   useEffect(() => {
     let cancelled = false;
     const load = () => {
@@ -370,12 +371,17 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
         .catch(() => {});
     };
     if (!initial) load();
-    const id = window.setInterval(load, data?.phase === "off" ? REFRESH_MS * 7 : REFRESH_MS);
+    // While a match is being played, every 45 seconds, so the final score
+    // lands soon after the last round; a returning tab catches up at once.
+    const id = window.setInterval(load, liveNow ? 45_000 : data?.phase === "off" ? REFRESH_MS * 7 : REFRESH_MS);
+    const back = () => !document.hidden && load();
+    document.addEventListener("visibilitychange", back);
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      document.removeEventListener("visibilitychange", back);
     };
-  }, [initial, data?.phase]);
+  }, [initial, data?.phase, liveNow]);
 
   const now = useSyncExternalStore(subscribeMinute, minuteNow, () => (data ? Date.parse(data.fetchedAt) : 0));
   if (!data) return null;

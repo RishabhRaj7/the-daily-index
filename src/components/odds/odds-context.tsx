@@ -10,6 +10,9 @@ import { loadPersonalization, savePersonalization, PERSONALIZATION_CHANGED_EVENT
 export const SparksContext = createContext<Map<string, number[]>>(new Map());
 export const useSpark = (id: string) => useContext(SparksContext).get(id);
 
+/** The next Grand Prix's winner market, for the pit wall (lib/odds-pick.ts raceMarket). */
+export const RaceOddsContext = createContext<OddsMarket | null>(null);
+
 /** What /api/odds/sparks needs to draw a market's favourite: id~token or id~ticker~series. */
 export function sparkRef(m: OddsMarket): string | null {
   const lead = m.outcomes.find((o) => o.name === m.lead.name) ?? m.outcomes[0];

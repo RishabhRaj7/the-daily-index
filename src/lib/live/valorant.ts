@@ -286,7 +286,7 @@ export async function getValorant(now = Date.now()): Promise<ValorantData | null
   // Each league's newest page: its latest event and anything scheduled.
   // During an event the schedule changes by the hour; results by the minute.
   const [pages, pm, news] = await Promise.all([
-    Promise.all(leagues.map((l) => riot<{ schedule: { events: RiotEvent[] } }>(`getSchedule?leagueId=${l.id}`, 300))),
+    Promise.all(leagues.map((l) => riot<{ schedule: { events: RiotEvent[] } }>(`getSchedule?leagueId=${l.id}`, 60))),
     polymarketValorant(),
     vlrNews(),
   ]);

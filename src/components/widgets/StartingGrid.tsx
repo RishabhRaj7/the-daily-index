@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { F1GridResult, F1LiveResult, F1Race, F1LastRace, F1Phase, F1SessionResult, F1SessionTop } from "@/lib/types";
 import { CIRCUIT_FACTS } from "@/lib/config/circuit-facts";
 import { teamColor } from "@/lib/personalization";
 import RaceWeekend from "./RaceWeekend";
+import OddsSheet from "./OddsSheet";
+import { RaceOddsContext } from "@/components/odds/odds-context";
+import { compactMoney } from "@/lib/odds-pick";
+import { F1_DRIVERS } from "@/lib/config/f1-drivers";
+import type { OddsMarket } from "@/lib/types";
 
 function formatCountdown(ms: number) {
   if (ms <= 0) return "Lights out";
@@ -53,6 +58,48 @@ function Countdown({ target }: { target: string }) {
         </div>
       ))}
     </div>
+  );
+}
+
+/** A driver's team, from the season's roster, by surname ("Andrea Kimi Antonelli" → Mercedes). */
+function teamOf(name: string): string {
+  const last = name.trim().split(/\s+/).pop()?.toLowerCase() ?? "";
+  return F1_DRIVERS.find((d) => d.lastName.toLowerCase() === last)?.teamName ?? "";
+}
+
+/** Who wins the next Grand Prix, by the traders' money: the leading drivers
+ *  with bars in team colours; a tap opens the whole market. */
+function RaceOdds({ market: m }: { market: OddsMarket }) {
+  const [open, setOpen] = useState(false);
+  const field = m.outcomes.slice(0, 5);
+  const max = Math.max(...field.map((o) => o.prob), 1);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className="module block w-full text-left group" data-reveal>
+        <div className="flex items-baseline justify-between gap-2 mb-2.5">
+          <span className="font-label text-[10px] text-ink-soft">Who wins Sunday · traders&rsquo; odds</span>
+          <span className="font-mono text-[10px] text-ink-faint group-hover:text-ink">chart ›</span>
+        </div>
+        <ul className="space-y-1.5">
+          {field.map((o) => {
+            const team = teamOf(o.name);
+            return (
+              <li key={o.name} className="grid grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)_2.6rem] items-center gap-2">
+                <span className="font-sans font-semibold text-[12.5px] truncate">{o.name}</span>
+                <span className="h-2 rounded-full bg-[color:var(--rule)] overflow-hidden">
+                  <span className="block h-full rounded-full" style={{ width: `${Math.max(2, (o.prob / max) * 100)}%`, background: team ? teamColor(team) : "var(--section-hue)" }} />
+                </span>
+                <span className="font-mono text-[12px] tabular-nums text-right">{Math.round(o.prob)}%</span>
+              </li>
+            );
+          })}
+        </ul>
+        <div className="font-mono text-[10px] text-ink-faint mt-2.5">
+          {m.source} · ${compactMoney(m.vol)} traded{m.also?.length ? ` · ${m.also.map((a) => `${a.source} ${Math.round(a.prob)}%`).join(" · ")}` : ""}
+        </div>
+      </button>
+      {open && <OddsSheet market={m} why="The next Grand Prix" onClose={() => setOpen(false)} />}
+    </>
   );
 }
 
@@ -180,6 +227,7 @@ export default function StartingGrid({
     return facts && facts.length > 0 ? facts[0] : null;
   }, [nextRace.circuit]);
   const [showAll, setShowAll] = useState(false);
+  const raceOdds = useContext(RaceOddsContext);
   const live = racePhase === "race" && currentRace !== null;
   const displayedRace = live && currentRace ? currentRace : nextRace;
 
@@ -302,6 +350,7 @@ export default function StartingGrid({
 
       {/* 2. The weekend, session by session. */}
       {!live && nextRace.sessions && nextRace.sessions.length > 0 && <RaceWeekend sessions={nextRace.sessions} tops={tops} />}
+      {!live && raceOdds && <RaceOdds market={raceOdds} />}
       </>
       )}
 

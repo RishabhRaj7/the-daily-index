@@ -350,6 +350,27 @@ export function policyMarket(markets: OddsMarket[], bank: "fed" | "rbi", decisio
     .sort((a, b) => b.vol24 - a.vol24)[0];
 }
 
+/**
+ * The winner market for the next Grand Prix, for the pit wall: an F1 race
+ * winner (not the sprint, a podium or a championship) naming the race's
+ * place or country ("Singapore Grand Prix: Driver Winner"), the busiest of
+ * Polymarket's and Kalshi's.
+ */
+export function raceMarket(markets: OddsMarket[], race: { name: string; country: string; circuit?: string } | null | undefined): OddsMarket | undefined {
+  if (!race) return undefined;
+  const stem = (s: string) => s.toLowerCase().replace(/[^a-z ]/g, " ").trim().slice(0, 5);
+  const keys = [race.name.replace(/\s*Grand Prix$/i, ""), race.country, race.circuit ?? ""]
+    .map(stem)
+    .filter((k) => k.length >= 4);
+  return markets
+    .filter((m) => m.subject === "f1" && /winner/i.test(m.title) && !/sprint|podium|constructor|champion|top \d/i.test(m.title))
+    .filter((m) => {
+      const t = m.title.toLowerCase();
+      return keys.some((k) => t.includes(k));
+    })
+    .sort((a, b) => b.vol - a.vol)[0];
+}
+
 /** A price ladder's level in dollars: "↑ $150k" → 150000. */
 export function ladderLevel(name: string): number {
   const n = Number(name.replace(/[^\d.]/g, ""));

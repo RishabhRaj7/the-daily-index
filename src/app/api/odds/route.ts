@@ -25,9 +25,12 @@ export async function GET(req: Request) {
   const follows = list(params.get("f"), "|", 8, 40);
   const watch = list(params.get("w"), "|", 12, 80);
   const pins = list(params.get("p"), ",", 12, 120).filter((id) => /^(pm|ks):[\w.-]+$/i.test(id));
+  // `r`: the next Grand Prix ("Singapore Grand Prix"), so its winner market
+  // is always read for the pit wall.
+  const race = list(params.get("r"), "|", 1, 60);
   // A stale reading is served at once; the fresh one is read after the response.
   const [universe, record] = await Promise.all([
-    getOddsUniverse(follows, (task) => after(task), watch, pins),
+    getOddsUniverse([...race, ...follows], (task) => after(task), watch, pins),
     oddsRecordSummary().catch(() => null),
   ]);
   // No track record yet: build one from the past month's settled questions,

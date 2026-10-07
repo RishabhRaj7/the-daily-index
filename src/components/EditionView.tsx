@@ -69,9 +69,9 @@ import MarketPulseSection from "@/components/sections/MarketPulseSection";
 import ClutchSection from "@/components/sections/ClutchSection";
 import StrawPollSection from "@/components/sections/StrawPollSection";
 import { OddsStrip } from "@/components/odds/OddsCard";
-import { SparksContext, useSparks } from "@/components/odds/odds-context";
+import { RaceOddsContext, SparksContext, useSparks } from "@/components/odds/odds-context";
 import InBrief from "@/components/story/InBrief";
-import { layoutOdds, scoreOdds, storyOdds, type OddsFollow, type OddsLayout, type OddsPick } from "@/lib/odds-pick";
+import { layoutOdds, raceMarket, scoreOdds, storyOdds, type OddsFollow, type OddsLayout, type OddsPick } from "@/lib/odds-pick";
 import { StoryOddsContext } from "@/components/story/StoryOdds";
 import type { OddsUniverse } from "@/lib/types";
 import GrapevineSection from "@/components/sections/GrapevineSection";
@@ -836,10 +836,15 @@ export default function EditionView({
     oddsWatch.join("|"),
     oddsPins.join(","),
   ];
+  // The next Grand Prix, searched by its country ("Singapore Grand Prix"),
+  // so the pit wall always has its winner market.
+  const nextRace = edition.f1?.nextRace ?? null;
+  const raceQuery = nextRace && personalization.sports.includes("f1") ? `${nextRace.country} Grand Prix` : "";
   const oddsUrl = `/api/odds?${new URLSearchParams({
     ...(oddsQuery[0] ? { f: oddsQuery[0] } : {}),
     ...(oddsQuery[1] ? { w: oddsQuery[1] } : {}),
     ...(oddsQuery[2] ? { p: oddsQuery[2] } : {}),
+    ...(raceQuery ? { r: raceQuery } : {}),
   })}`;
   const [odds, setOdds] = useState<OddsUniverse | null>(null);
   useEffect(() => {
@@ -877,6 +882,7 @@ export default function EditionView({
     // Each market prints once on the page.
     return { ...layoutOdds(picks.filter((p) => !under.has(p.market.id)), personalization.hiddenSections, under), stories };
   }, [odds, edition.sections, f1Stories, footballStories, tennisStories, personalization, oddsFollows]);
+  const raceOdds = useMemo(() => (odds ? (raceMarket(odds.markets, nextRace) ?? null) : null), [odds, nextRace]);
   // A week's line for every market on the page, in one request.
   const sparks = useSparks([
     ...[oddsLayout.poll.lead, ...oddsLayout.poll.movers, ...oddsLayout.poll.busiest].filter((p): p is OddsPick => !!p).map((p) => p.market),
@@ -1057,6 +1063,7 @@ export default function EditionView({
   return (
     <main className="flex-1 page-scale">
       <SparksContext.Provider value={sparks}>
+      <RaceOddsContext.Provider value={raceOdds}>
       <StoryOddsContext.Provider value={oddsLayout.stories}>
       {prep !== "revealed" && (
         <EditionPrepOverlay
@@ -1176,6 +1183,7 @@ export default function EditionView({
         </div>
       </footer>
       </StoryOddsContext.Provider>
+      </RaceOddsContext.Provider>
       </SparksContext.Provider>
     </main>
   );
