@@ -261,12 +261,15 @@ export default function StartingGrid({
     return () => ro.disconnect();
   }, [showAll, baseRows, tableRows.length]);
   const visibleRows = showAll ? tableRows : tableRows.slice(0, fit);
+  const sprintQuali = /^Sprint (Qualifying|Shootout)$/.test(session?.name ?? "");
   const timingTitle = racePhase === "race"
     ? liveResults.length > 0 ? "Live race" : "Starting grid"
     : racePhase === "qualifying"
       ? "Starting grid"
       : racePhase === "practice"
-        ? `${SESSION_LABEL[session?.name ?? ""] ?? session?.name ?? "Practice"} times`
+        ? sprintQuali
+          ? "Sprint grid"
+          : `${SESSION_LABEL[session?.name ?? ""] ?? session?.name ?? "Practice"} times`
         : "Race result";
   const timingRace =
     racePhase === "last-race"
@@ -280,8 +283,8 @@ export default function StartingGrid({
     racePhase === "practice" && session
       ? session.name === "Sprint"
         ? `Sprint result · ${day(session.end)}`
-        : /^Sprint (Qualifying|Shootout)$/.test(session.name)
-          ? `Best laps · ${day(session.end)} · sets the sprint grid`
+        : sprintQuali
+          ? `Set in sprint qualifying · ${day(session.end)} · the sprint follows`
           : `Best laps · ${day(session.end)} · grid set in qualifying`
       : racePhase === "qualifying" && gridPending
         ? `Qualifying is over; the timing feed hasn't released the grid yet.${session ? ` ${SESSION_LABEL[session.name] ?? session.name} times until it does.` : ""}`
@@ -290,16 +293,22 @@ export default function StartingGrid({
         : racePhase === "last-race" && lastRace
           ? `Classified · ${day(lastRace.date)}`
           : null;
-  // Where the weekend is: practice, the sprint on a sprint weekend (its
-  // qualifying and the race), then the grid, then the result.
+  // Where the weekend is: practice; on a sprint weekend the sprint's grid
+  // (sprint qualifying) and the sprint; then the race's grid and result.
   const steps = [
     { key: "practice", label: "Practice" },
-    ...(sprint ? [{ key: "sprint", label: "Sprint" }] : []),
+    ...(sprint ? [{ key: "sprint-grid", label: "Sprint grid" }, { key: "sprint", label: "Sprint" }] : []),
     { key: "qualifying", label: "Grid" },
     { key: "last-race", label: "Result" },
   ];
   const stepKey =
-    racePhase === "race" ? "qualifying" : racePhase === "practice" && sprint && session?.name.startsWith("Sprint") ? "sprint" : racePhase;
+    racePhase === "race"
+      ? "qualifying"
+      : racePhase === "practice" && sprint && sprintQuali
+        ? "sprint-grid"
+        : racePhase === "practice" && sprint && session?.name === "Sprint"
+          ? "sprint"
+          : racePhase;
   const stepAt = steps.findIndex((s) => s.key === stepKey);
   const lightsOut = new Date(nextRace.date);
   // The timing card sits on the desk only while a race is running.
