@@ -66,6 +66,8 @@ export interface F1ResultsData {
   tops?: Record<string, F1SessionTop>;
   /** Qualifying is over but its grid hasn't been released yet. */
   gridPending?: boolean;
+  /** The weekend on the timing card runs a sprint. */
+  sprint?: boolean;
 }
 
 /** Composite used for SSR of the fast part (map + calendar). */
@@ -961,6 +963,13 @@ export async function getF1Results(): Promise<F1ResultsData | null> {
   const session: F1SessionResult | null =
     latest && weekendName ? { name: latest.session_name, race: weekendName, end: latest.date_end, rows: byName.get(latest.session_name)! } : null;
 
+  // Whether the weekend on the card has a sprint: this weekend's timetable,
+  // or once its race is the result shown, that race's Jolpica entry.
+  const showingResult = !(qualifyingGrid.length > 0 || gridPending || session);
+  const sprint = showingResult
+    ? !!(race && (await jolpicaRace(race).catch(() => undefined))?.Sprint)
+    : weekend.some((s) => s.session_name === "Sprint");
+
   const liveResults =
     paidLiveProvider && lastSession
       ? await paidLiveProvider.getLiveResults(lastSession.session_key)
@@ -977,6 +986,7 @@ export async function getF1Results(): Promise<F1ResultsData | null> {
     gridSetAt: quali?.date_end ?? null,
     tops,
     gridPending,
+    sprint,
   };
 }
 

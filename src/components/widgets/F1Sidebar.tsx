@@ -498,6 +498,7 @@ export default function F1Sidebar({
           gridSetAt={results.data?.gridSetAt ?? null}
           tops={results.data?.tops ?? {}}
           gridPending={results.data?.gridPending ?? false}
+          sprint={results.data?.sprint ?? false}
           accentColor={accentColor}
           sessionStatus={results.status}
           sessionStale={results.stale}
@@ -542,6 +543,7 @@ export default function F1Sidebar({
           gridSetAt={results.data?.gridSetAt ?? null}
           tops={results.data?.tops ?? {}}
           gridPending={results.data?.gridPending ?? false}
+          sprint={results.data?.sprint ?? false}
           accentColor={accentColor}
           sessionStatus={results.status}
           sessionStale={results.stale}

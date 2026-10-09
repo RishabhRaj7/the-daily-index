@@ -196,8 +196,11 @@ export default function StartingGrid({
   gridSetAt = null,
   tops = {},
   gridPending = false,
+  sprint = false,
 }: {
   gridPending?: boolean;
+  /** The weekend runs a sprint: the progress marker gains a Sprint step. */
+  sprint?: boolean;
   session?: F1SessionResult | null;
   weekendName?: string | null;
   gridSetAt?: string | null;
@@ -275,7 +278,11 @@ export default function StartingGrid({
   const day = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
   const timingNote =
     racePhase === "practice" && session
-      ? session.name === "Sprint" ? `Sprint result · ${day(session.end)}` : `Best laps · ${day(session.end)} · grid set in qualifying`
+      ? session.name === "Sprint"
+        ? `Sprint result · ${day(session.end)}`
+        : /^Sprint (Qualifying|Shootout)$/.test(session.name)
+          ? `Best laps · ${day(session.end)} · sets the sprint grid`
+          : `Best laps · ${day(session.end)} · grid set in qualifying`
       : racePhase === "qualifying" && gridPending
         ? `Qualifying is over; the timing feed hasn't released the grid yet.${session ? ` ${SESSION_LABEL[session.name] ?? session.name} times until it does.` : ""}`
         : racePhase === "qualifying"
@@ -283,13 +290,17 @@ export default function StartingGrid({
         : racePhase === "last-race" && lastRace
           ? `Classified · ${day(lastRace.date)}`
           : null;
-  // Where the weekend is: practice, then the grid, then the result.
+  // Where the weekend is: practice, the sprint on a sprint weekend (its
+  // qualifying and the race), then the grid, then the result.
   const steps = [
     { key: "practice", label: "Practice" },
+    ...(sprint ? [{ key: "sprint", label: "Sprint" }] : []),
     { key: "qualifying", label: "Grid" },
     { key: "last-race", label: "Result" },
-  ] as const;
-  const stepAt = steps.findIndex((s) => s.key === (racePhase === "race" ? "qualifying" : racePhase));
+  ];
+  const stepKey =
+    racePhase === "race" ? "qualifying" : racePhase === "practice" && sprint && session?.name.startsWith("Sprint") ? "sprint" : racePhase;
+  const stepAt = steps.findIndex((s) => s.key === stepKey);
   const lightsOut = new Date(nextRace.date);
   // The timing card sits on the desk only while a race is running.
   const timingHere = live ? part === "desk" : part === "archive";
