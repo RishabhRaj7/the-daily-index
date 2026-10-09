@@ -255,8 +255,19 @@ export function compactMoney(n: number): string {
 }
 
 export interface OddsLayout {
-  /** Straw Poll: the day's biggest mover, the next movers, and the busiest. */
-  poll: { lead: OddsPick | null; movers: OddsPick[]; busiest: OddsPick[] };
+  /** Straw Poll: two leads — the most money traded today and the biggest
+   *  move in points (today's, or failing that the week's) — then the next
+   *  movers and the busiest. */
+  poll: {
+    money: OddsPick | null;
+    mover: OddsPick | null;
+    moverSpan: "today" | "week";
+    /** The most-traded question is also today's biggest move, so the mover
+     *  card holds the next biggest. */
+    moneyMovedMost: boolean;
+    movers: OddsPick[];
+    busiest: OddsPick[];
+  };
   /** Three or four standing questions at the foot of each section. */
   sections: Partial<Record<SectionKey, OddsPick[]>>;
 }
@@ -305,17 +316,24 @@ export function layoutOdds(picks: OddsPick[], hidden: SectionKey[] = [], underSt
     if (list.length) sections[key] = list;
   }
 
-  // Straw Poll: the day's action among what's left, from any subject.
-  const moving = eligible
-    .filter((p) => Math.abs(p.move) >= 4)
-    .sort((a, b) => Math.abs(b.move) * WEIGHT[b.market.subject] - Math.abs(a.move) * WEIGHT[a.market.subject]);
-  // No big move today: the week's biggest swing on a tight market, so the
-  // lead chart has a story to tell; failing that, the strongest question.
-  const weekly = eligible
+  // Straw Poll's two leads look at every question the reader gets, whether or
+  // not a section already shows it, and rank on the raw numbers (no topic
+  // weighting), so each label is literally true:
+  //   money  the most traded today (bought and sold, in dollars);
+  //   mover  the biggest move today in points on a market where traders agree
+  //          on the price; with none of 4+ points, the week's biggest swing.
+  const distinct = (p: OddsPick, q: OddsPick | null) => !q || (p.market.id !== q.market.id && !alike(p.market, q.market));
+  const money = [...eligible].sort((a, b) => b.market.vol24 - a.market.vol24).find((p) => p.market.vol24 > 0) ?? null;
+  const today = eligible.filter((p) => Math.abs(p.move) >= 4).sort((a, b) => Math.abs(b.move) - Math.abs(a.move));
+  const week = eligible
     .filter((p) => !p.market.ladder && !p.market.hit && Math.abs(p.market.lead.week ?? 0) >= 6 && (p.market.spread == null || p.market.spread <= 4) && p.market.vol24 >= 25_000)
-    .sort((a, b) => Math.abs(b.market.lead.week ?? 0) * WEIGHT[b.market.subject] - Math.abs(a.market.lead.week ?? 0) * WEIGHT[a.market.subject]);
-  const lead = moving.find(free) ?? weekly.find(free) ?? eligible.find(free) ?? null;
-  if (lead) take(lead);
+    .sort((a, b) => Math.abs(b.market.lead.week ?? 0) - Math.abs(a.market.lead.week ?? 0));
+  const todayMover = today.find((p) => distinct(p, money)) ?? null;
+  const mover = todayMover ?? week.find((p) => distinct(p, money)) ?? null;
+  const moverSpan = todayMover ? "today" : "week";
+  const moneyMovedMost = !!money && !!today[0] && !distinct(today[0], money);
+  for (const p of [money, mover]) if (p) take(p);
+  const moving = today;
   const movers: OddsPick[] = [];
   for (const p of moving) {
     if (movers.length >= 4) break;
@@ -330,7 +348,7 @@ export function layoutOdds(picks: OddsPick[], hidden: SectionKey[] = [], underSt
     if (busiest.some((q) => q.market.subject === p.market.subject && !(p.market.subject === "world" && !ELECTION.test(p.market.title) && ELECTION.test(q.market.title)))) continue;
     busiest.push(take(p));
   }
-  return { poll: { lead, movers, busiest }, sections };
+  return { poll: { money, mover, moverSpan, moneyMovedMost, movers, busiest }, sections };
 }
 
 /**

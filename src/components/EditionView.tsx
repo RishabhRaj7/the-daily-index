@@ -866,7 +866,7 @@ export default function EditionView({
     [edition.sections, f1Stories, footballStories, tennisStories],
   );
   const oddsLayout = useMemo(() => {
-    if (!odds) return { poll: { lead: null, movers: [], busiest: [] }, sections: {}, stories: new Map() } as OddsLayout & { stories: Map<string, OddsPick> };
+    if (!odds) return { poll: { money: null, mover: null, moverSpan: "today", moneyMovedMost: false, movers: [], busiest: [] }, sections: {}, stories: new Map() } as OddsLayout & { stories: Map<string, OddsPick> };
     const headlines = [
       ...Object.values(edition.sections).flatMap((list) => (list ?? []).map((s) => s.headline)),
       ...f1Stories.map((s) => s.headline),
@@ -885,7 +885,7 @@ export default function EditionView({
   const raceOdds = useMemo(() => (odds ? (raceMarket(odds.markets, nextRace) ?? null) : null), [odds, nextRace]);
   // A week's line for every market on the page, in one request.
   const sparks = useSparks([
-    ...[oddsLayout.poll.lead, ...oddsLayout.poll.movers, ...oddsLayout.poll.busiest].filter((p): p is OddsPick => !!p).map((p) => p.market),
+    ...[oddsLayout.poll.money, oddsLayout.poll.mover, ...oddsLayout.poll.movers, ...oddsLayout.poll.busiest].filter((p): p is OddsPick => !!p).map((p) => p.market),
     ...Object.values(oddsLayout.sections).flatMap((list) => (list ?? []).map((p) => p.market)),
   ]);
 
@@ -914,7 +914,7 @@ export default function EditionView({
       (personalization.sports.includes("football") && footballStories.length > 0) ||
       (personalization.sports.includes("tennis") && tennisStories.length > 0),
     clutch: !isArchive,
-    "straw-poll": !isArchive && !!oddsLayout.poll.lead,
+    "straw-poll": !isArchive && !!(oddsLayout.poll.money || oddsLayout.poll.mover),
     "sky-report": true,
     "market-pulse": true,
     "circuit-board": edition.sections.circuitBoard.length > 0,

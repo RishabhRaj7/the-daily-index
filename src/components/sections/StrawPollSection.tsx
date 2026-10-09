@@ -15,9 +15,12 @@ import { loadPersonalization, savePersonalization } from "@/lib/personalization"
 
 // Straw Poll: the day's action on the prediction markets, for this reader.
 // (The standing questions live at the foot of their own sections.)
-//   the lead      the biggest move among what the reader cares about: its
-//                 week as a chart, every contender a line, with the news
-//                 pinned where it lines up with the jump and one line on why
+//   two leads     side by side, each its week as a chart, every contender a
+//                 line, the news pinned where it lines up with a jump and one
+//                 line on why: the question with the most money traded today,
+//                 and the one that moved the most points today (the week's
+//                 biggest swing when nothing moved). Either may also sit in
+//                 its own section; the label says which rule picked it.
 //   the movers    the next biggest moves, each with its week as a sparkline
 //   the busiest   where the money is today
 //   the record    how often a week-out favourite won this past month,
@@ -32,7 +35,9 @@ interface WhyItem {
   at: string;
 }
 
-function Lead({ p, onOpen }: { p: OddsPick; onOpen: () => void }) {
+const pointsMove = (v: number) => `${v >= 0 ? "▲" : "▼"} ${Math.abs(Math.round(v))} pts`;
+
+function Lead({ p, label, onOpen }: { p: OddsPick; label: string; onOpen: () => void }) {
   const m = p.market;
   const [series, setSeries] = useState<ChartSeries[] | null>(null);
   const [news, setNews] = useState<{ items: WhyItem[]; why: string | null } | null>(null);
@@ -60,16 +65,16 @@ function Lead({ p, onOpen }: { p: OddsPick; onOpen: () => void }) {
       <button type="button" onClick={onOpen} className="text-left group">
         <span className="flex items-center justify-between gap-3 font-label text-[9px]">
           <span style={{ color: "var(--section-hue)" }}>
-            {SUBJECT_LABEL[m.subject]} · {p.watched ? "★ " : ""}
-            {p.why}
+            {label} · {SUBJECT_LABEL[m.subject]}
+            {p.watched ? " · ★" : ""}
           </span>
           <span className="text-ink-faint">Tap for the whole market ›</span>
         </span>
         <span className="flex items-start justify-between gap-4 mt-2">
-          <span className="font-headline text-[1.5rem] sm:text-[1.7rem] leading-[1.12] group-hover:underline decoration-dotted underline-offset-4">{m.title}</span>
+          <span className="font-headline text-[1.35rem] sm:text-[1.5rem] leading-[1.15] group-hover:underline decoration-dotted underline-offset-4">{m.title}</span>
           {!m.hit && (
             <span className="text-right shrink-0">
-              <span className="block font-display font-extrabold text-[2.5rem] sm:text-[3.2rem] leading-[0.85] tabular-nums">{Math.round(m.lead.prob)}%</span>
+              <span className="block font-display font-extrabold text-[2.4rem] sm:text-[2.8rem] leading-[0.85] tabular-nums">{Math.round(m.lead.prob)}%</span>
               <span className="block font-sans text-[13px] font-semibold mt-1 truncate max-w-[10rem]">{m.lead.name === "Yes" ? "Yes" : m.lead.name}</span>
               <Move v={m.lead.move} />
             </span>
@@ -82,9 +87,9 @@ function Lead({ p, onOpen }: { p: OddsPick; onOpen: () => void }) {
           <HitLadder m={m} rows={6} size="lg" />
         </>
       ) : series === null ? (
-        <div className="h-[190px] rounded-xl bg-card-bg animate-pulse" />
+        <div className="h-[170px] rounded-xl bg-card-bg animate-pulse" />
       ) : series.length > 0 ? (
-        <OddsChart series={series} pins={pins} height={190} />
+        <OddsChart series={series} pins={pins} height={170} />
       ) : (
         <FieldBar m={m} height={8} />
       )}
@@ -243,47 +248,68 @@ export default function StrawPollSection({
 }) {
   const [open, setOpen] = useState<OddsPick | null>(null);
   const [sheet, setSheet] = useState<"record" | "watch" | null>(null);
-  if (!poll.lead) return null;
+  if (!poll.money && !poll.mover) return null;
   const read = readAt ? new Date(readAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) : null;
   const rate = record ? record.called / record.total : 0;
 
   return (
     <section id="straw-poll">
       <SectionHeader sectionKey="straw-poll" folio={read ? `Read ${read} IST` : undefined} />
-      <div className={`grid grid-cols-[minmax(0,1fr)] gap-6 ${poll.movers.length ? "lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]" : ""} items-stretch`}>
-        <Lead p={poll.lead} onOpen={() => setOpen(poll.lead)} />
-        {poll.movers.length > 0 && (
-          <div data-reveal>
-            <div className="font-label text-[9.5px] text-ink-soft">Biggest moves today</div>
-            <ul className="divide-y hairline border-b hairline mt-1">
-              {poll.movers.map((p) => (
-                <MoverRow key={p.market.id} p={p} onOpen={() => setOpen(p)} />
-              ))}
-            </ul>
-          </div>
+      <div className={`grid grid-cols-[minmax(0,1fr)] gap-6 ${poll.money && poll.mover ? "lg:grid-cols-2" : ""} items-stretch`}>
+        {poll.money && (
+          <Lead
+            p={poll.money}
+            label={`Most money today · $${compactMoney(poll.money.market.vol24)} traded${poll.moneyMovedMost ? ` · biggest move, ${pointsMove(poll.money.move)}` : ""}`}
+            onOpen={() => setOpen(poll.money)}
+          />
+        )}
+        {poll.mover && (
+          <Lead
+            p={poll.mover}
+            label={
+              poll.moverSpan === "today"
+                ? `${poll.moneyMovedMost ? "Next biggest" : "Biggest"} move today · ${pointsMove(poll.mover.move)}`
+                : `Biggest swing this week · ${pointsMove(poll.mover.market.lead.week ?? 0)}`
+            }
+            onOpen={() => setOpen(poll.mover)}
+          />
         )}
       </div>
 
-      {poll.busiest.length > 0 && (
-        <div className="mt-6" data-reveal>
-          <div className="font-label text-[9.5px] text-ink-soft mb-2">Where the money is today</div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-            {poll.busiest.map((p) => (
-              <button
-                key={p.market.id}
-                type="button"
-                onClick={() => setOpen(p)}
-                className="text-left rounded-xl border hairline px-3 py-2.5 hover:border-[color:var(--section-hue)] transition-colors"
-              >
-                <span className="flex items-baseline justify-between gap-2">
-                  <span className="font-display font-bold text-[1.2rem] leading-none tabular-nums">{p.market.hit ? "↕" : `${Math.round(p.market.lead.prob)}%`}</span>
-                  <span className="font-mono text-[10px] text-ink-faint">${compactMoney(p.market.vol24)} today</span>
-                </span>
-                <span className="block font-sans text-[12.5px] leading-snug mt-1 line-clamp-2">{p.market.title}</span>
-                <span className="block font-mono text-[10px] text-ink-soft mt-0.5 truncate">{p.market.lead.name === "Yes" ? "Yes" : p.market.lead.name}</span>
-              </button>
-            ))}
-          </div>
+      {(poll.movers.length > 0 || poll.busiest.length > 0) && (
+        <div className={`mt-6 grid grid-cols-[minmax(0,1fr)] gap-6 ${poll.movers.length && poll.busiest.length ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : ""}`}>
+          {poll.movers.length > 0 && (
+            <div data-reveal>
+              <div className="font-label text-[9.5px] text-ink-soft">More moves today</div>
+              <ul className="divide-y hairline border-b hairline mt-1">
+                {poll.movers.map((p) => (
+                  <MoverRow key={p.market.id} p={p} onOpen={() => setOpen(p)} />
+                ))}
+              </ul>
+            </div>
+          )}
+          {poll.busiest.length > 0 && (
+            <div data-reveal>
+              <div className="font-label text-[9.5px] text-ink-soft mb-2">Where else the money is today</div>
+              <div className={`grid grid-cols-2 gap-2 ${poll.movers.length ? "" : "lg:grid-cols-4"}`}>
+                {poll.busiest.map((p) => (
+                  <button
+                    key={p.market.id}
+                    type="button"
+                    onClick={() => setOpen(p)}
+                    className="text-left rounded-xl border hairline px-3 py-2.5 hover:border-[color:var(--section-hue)] transition-colors"
+                  >
+                    <span className="flex items-baseline justify-between gap-2">
+                      <span className="font-display font-bold text-[1.2rem] leading-none tabular-nums">{p.market.hit ? "↕" : `${Math.round(p.market.lead.prob)}%`}</span>
+                      <span className="font-mono text-[10px] text-ink-faint">${compactMoney(p.market.vol24)} today</span>
+                    </span>
+                    <span className="block font-sans text-[12.5px] leading-snug mt-1 line-clamp-2">{p.market.title}</span>
+                    <span className="block font-mono text-[10px] text-ink-soft mt-0.5 truncate">{p.market.lead.name === "Yes" ? "Yes" : p.market.lead.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
