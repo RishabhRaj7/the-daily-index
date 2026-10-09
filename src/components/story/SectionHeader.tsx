@@ -42,7 +42,7 @@ export default function SectionHeader({
           <RisingWords text={name} />
         </h2>
         {folio && (
-          <span className="shrink-0 inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-ink-soft pb-2">
+          <span className="min-w-0 sm:shrink-0 inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-ink-soft pb-2 text-right">
             {folio}
           </span>
         )}

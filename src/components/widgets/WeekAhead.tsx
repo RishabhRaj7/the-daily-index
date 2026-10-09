@@ -8,7 +8,8 @@ import { loadPersonalization } from "@/lib/personalization";
 // day a column of what's dated in it — policy decisions, market closures,
 // public holidays, IPO dates, the F1 weekend and your Valorant teams'
 // matches — all in IST. On a phone
-// the days scroll sideways. Beyond the week, the next policy dates wait at
+// and tablet the days stack as an agenda, the date beside its events,
+// three days open and the rest a tap away. Beyond the week, the next policy dates wait at
 // the end. Nothing is printed until the dates arrive, and a day with
 // nothing on it stays quiet.
 
@@ -20,6 +21,9 @@ const KIND: Record<AheadEvent["kind"], { label: string; hue: string }> = {
   f1: { label: "F1", hue: "var(--hue-f1)" },
   esports: { label: "Valorant", hue: "var(--hue-clutch)" },
 };
+
+/** Days a phone shows before "the rest of the week". */
+const SHOWN = 3;
 
 const DAY = (iso: string) => new Date(`${iso}T12:00:00Z`);
 
@@ -56,6 +60,7 @@ function Event({ e }: { e: AheadEvent }) {
 
 export default function WeekAhead() {
   const [week, setWeek] = useState<WeekAheadData | null>(null);
+  const [whole, setWhole] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -76,7 +81,7 @@ export default function WeekAhead() {
         <h2 className="font-display font-bold text-[1.6rem] leading-none">The Week Ahead</h2>
         <span className="font-mono text-[10px] text-ink-soft">All times IST</span>
       </div>
-      <ol className="flex lg:grid lg:grid-cols-7 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 sm:mx-0 sm:px-0 lg:overflow-visible">
+      <ol className="divide-y hairline lg:divide-y-0 lg:grid lg:grid-cols-7">
         {days.map((date, i) => {
           const d = DAY(date);
           const events = week.events.filter((e) => e.date === date);
@@ -84,9 +89,9 @@ export default function WeekAhead() {
           return (
             <li
               key={date}
-              className={`snap-start shrink-0 w-[11.5rem] lg:w-auto pr-4 lg:px-3 ${i > 0 ? "lg:border-l hairline" : "lg:pl-0"}`}
+              className={`min-w-0 ${!whole && i >= SHOWN ? "hidden" : "grid"} grid-cols-[4.25rem_minmax(0,1fr)] gap-3 py-3 lg:block lg:py-0 lg:px-3 ${i > 0 ? "lg:border-l hairline" : "lg:pl-0"}`}
             >
-              <div className="flex items-baseline gap-2 mb-3">
+              <div className="flex flex-col lg:flex-row lg:items-baseline gap-0.5 lg:gap-2 lg:mb-3">
                 <span className={`font-display font-bold text-[1.7rem] leading-none tabular-nums ${today ? "text-[color:var(--section-hue)]" : ""}`}>
                   {d.getUTCDate()}
                 </span>
@@ -108,6 +113,14 @@ export default function WeekAhead() {
           );
         })}
       </ol>
+      <button
+        type="button"
+        onClick={() => setWhole((w) => !w)}
+        aria-expanded={whole}
+        className="lg:hidden w-full border-t hairline pt-3 font-mono text-[11px] text-ink-soft hover:text-ink text-left"
+      >
+        {whole ? "Show less ▴" : `The rest of the week · ${week.events.filter((e) => e.date >= days[SHOWN]).length} more ▾`}
+      </button>
       {week.later.length > 0 && (
         <p className="font-mono text-[11px] text-ink-soft mt-5">
           Later:{" "}

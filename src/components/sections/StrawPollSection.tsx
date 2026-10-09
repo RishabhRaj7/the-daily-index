@@ -56,7 +56,7 @@ function Lead({ p, onOpen }: { p: OddsPick; onOpen: () => void }) {
   const top = news?.items.find((n) => pins.some((x) => x.title === n.title)) ?? news?.items[0];
 
   return (
-    <div className="module h-full flex flex-col gap-3" data-reveal>
+    <div className="module min-w-0 h-full flex flex-col gap-3" data-reveal>
       <button type="button" onClick={onOpen} className="text-left group">
         <span className="flex items-center justify-between gap-3 font-label text-[9px]">
           <span style={{ color: "var(--section-hue)" }}>
@@ -69,7 +69,7 @@ function Lead({ p, onOpen }: { p: OddsPick; onOpen: () => void }) {
           <span className="font-headline text-[1.5rem] sm:text-[1.7rem] leading-[1.12] group-hover:underline decoration-dotted underline-offset-4">{m.title}</span>
           {!m.hit && (
             <span className="text-right shrink-0">
-              <span className="block font-display font-extrabold text-[3.2rem] leading-[0.85] tabular-nums">{Math.round(m.lead.prob)}%</span>
+              <span className="block font-display font-extrabold text-[2.5rem] sm:text-[3.2rem] leading-[0.85] tabular-nums">{Math.round(m.lead.prob)}%</span>
               <span className="block font-sans text-[13px] font-semibold mt-1 truncate max-w-[10rem]">{m.lead.name === "Yes" ? "Yes" : m.lead.name}</span>
               <Move v={m.lead.move} />
             </span>
@@ -250,7 +250,7 @@ export default function StrawPollSection({
   return (
     <section id="straw-poll">
       <SectionHeader sectionKey="straw-poll" folio={read ? `Read ${read} IST` : undefined} />
-      <div className={`grid gap-6 ${poll.movers.length ? "lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]" : ""} items-stretch`}>
+      <div className={`grid grid-cols-[minmax(0,1fr)] gap-6 ${poll.movers.length ? "lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]" : ""} items-stretch`}>
         <Lead p={poll.lead} onOpen={() => setOpen(poll.lead)} />
         {poll.movers.length > 0 && (
           <div data-reveal>
