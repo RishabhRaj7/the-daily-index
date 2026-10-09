@@ -38,11 +38,6 @@ const mono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "The Daily Index",
   description: "An index of everything that matters today.",
-  icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon.ico",
-    apple: "/favicon.ico",
-  },
 };
 
 export const viewport: Viewport = {
