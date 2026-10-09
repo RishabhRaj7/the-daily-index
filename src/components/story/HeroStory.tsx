@@ -20,9 +20,24 @@ function headlineSize(text: string): string {
   return "text-[1.7rem] sm:text-[2rem] lg:text-[2.1rem]";
 }
 
+/** The standfirst in whole sentences, about seven lines' worth: never cut
+ *  mid-sentence, and a feed's trailing "…" or "[…]" fragment dropped. */
+function wholeSentences(text: string, max = 460): string {
+  const clean = text.replace(/\s*(\[\s*(…|\.\.\.)\s*\]|…|\.\.\.)\s*$/, "").trim();
+  const sentences = clean.match(/[^.!?]+[.!?]+["'’”)]*(\s+|$)/g) ?? [];
+  let out = "";
+  for (const s of sentences) {
+    if (out && (out + s).length > max) break;
+    out += s;
+  }
+  // No sentence end at all (a headline-like blurb): keep it as it came.
+  if (!out) return clean.length > max ? `${clean.slice(0, clean.lastIndexOf(" ", max))}…` : clean;
+  return out.trim();
+}
+
 export default function HeroStory({ story }: { story: Story }) {
   const domId = `story-${story.id}`;
-  const standfirst = story.body[0];
+  const standfirst = story.body[0] ? wholeSentences(story.body[0]) : null;
   const meta = SECTION_META[story.section];
   const hue = meta?.hue ?? "var(--accent)";
 
@@ -74,7 +89,7 @@ export default function HeroStory({ story }: { story: Story }) {
         </div>
 
         {standfirst && (
-          <p className="text-[16px] md:text-[17px] leading-[1.6] text-ink/90 mt-5 pt-5 border-t hairline line-clamp-[7]">{standfirst}</p>
+          <p className="text-[16px] md:text-[17px] leading-[1.6] text-ink/90 mt-5 pt-5 border-t hairline">{standfirst}</p>
         )}
         {story.why && (
           <p className="why-line font-headline italic text-[17px] leading-snug text-ink mt-4">
