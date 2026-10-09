@@ -422,6 +422,14 @@ edition starts building before the reader is back on the paper.
   on 429. A cold sidebar now makes 4 OpenF1 calls (was 7); warm, none.
 - Drivers' and constructors' tables come from Jolpica alone (points and wins
   in one call each); Jolpica team names are mapped to OpenF1's.
+- OpenF1 answers 401 to keyless callers for the whole of any live session
+  (past races included). Fallback chain in `lib/live/f1.ts`: OpenF1 → the
+  last good OpenF1 answer kept in the store (`f1:kept:v1:*`, keyed by race
+  day, 3–8 weeks) → Jolpica (calendar, weekend timetable, race / sprint /
+  qualifying classifications, shaped as OpenF1 rows with negative keys).
+  Practice times and the circuit image exist only in OpenF1 or its kept copy.
+  The Pit wall's ↻ Refresh sends `fresh=1`: `withFreshF1` skips the memo and
+  Data Cache and walks the same chain.
 - "Last race" is the latest Race session that started ≥ 90 min ago — no
   longer `session_key=latest`, which showed practice on race-weekend Fridays.
 - Market Pulse: one Yahoo `spark` request for all six indices (was six), and

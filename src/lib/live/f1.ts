@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { F1_DRIVERS, F1_DRIVER_SEASON } from "@/lib/config/f1-drivers";
 import { getStore } from "@/lib/server/store";
 import type {
@@ -235,17 +236,56 @@ const MEMO_TTL_MS = 10 * 60 * 1000;
 const memoStore = new Map<string, { at: number; value: unknown }>();
 const memoInflight = new Map<string, Promise<unknown>>();
 
+// ---- where the data comes from ------------------------------------------------
+// OpenF1 first. While any session is running it shuts every endpoint, past
+// races included, to keyless callers — a whole Friday afternoon can go dark —
+// and it can simply be down. So:
+//   1. every good OpenF1 answer is kept in the store (Redis) for weeks, keyed
+//      by the race weekend rather than OpenF1's ids, and served when OpenF1
+//      won't answer;
+//   2. with nothing kept, Jolpica (the Ergast successor, never locked) stands
+//      in: the calendar and session times, race, sprint and qualifying
+//      classifications. Practice times exist only in OpenF1, so they come
+//      from what was kept.
+// The Pit wall's ↻ Refresh runs in a fresh scope: no memo, no Data Cache,
+// OpenF1 asked again first, then the same fallbacks.
+const freshScope = new AsyncLocalStorage<boolean>();
+const isFreshRead = () => freshScope.getStore() === true;
+
+/** Run `fn` with every F1 cache skipped (the Pit wall's refresh). */
+export function withFreshF1<T>(fn: () => Promise<T>): Promise<T> {
+  return freshScope.run(true, fn);
+}
+
+const KEPT_DAYS = 21;
+
+/** Ask upstream; keep a good answer, and fall back to the last kept one. */
+async function kept<T>(key: string, ask: () => Promise<T | null>, good: (v: T) => boolean, days = KEPT_DAYS): Promise<T | null> {
+  const store = getStore();
+  const answer = await ask().catch(() => null);
+  if (answer != null && good(answer)) {
+    await store.set(`f1:kept:v1:${key}`, answer, { ttlSeconds: days * 86_400 }).catch(() => {});
+    return answer;
+  }
+  const last = await store.get<T>(`f1:kept:v1:${key}`).catch(() => null);
+  return last != null && good(last) ? last : null;
+}
+
+/** A race weekend's id across sources: the race's UTC date. */
+const raceDay = (race: { date_start: string }) => race.date_start.slice(0, 10);
+
 function memoized<T>(
   key: string,
   fn: () => Promise<T>,
   shouldCache: (value: T) => boolean = () => true,
 ): Promise<T> {
+  const fresh = isFreshRead();
   const hit = memoStore.get(key);
-  if (hit && Date.now() - hit.at < MEMO_TTL_MS) {
+  if (!fresh && hit && Date.now() - hit.at < MEMO_TTL_MS) {
     return Promise.resolve(hit.value as T);
   }
   const pending = memoInflight.get(key);
-  if (pending) return pending as Promise<T>;
+  if (pending && !fresh) return pending as Promise<T>;
   const promise = fn()
     .then((value) => {
       // Empty-looking results (a transient 5xx/429 answered by openF1()'s
@@ -272,19 +312,23 @@ export function clearF1Memo(): void {
 
 async function openF1<T>(path: string, revalidate = 3600): Promise<T | null> {
   try {
+    const init: RequestInit = isFreshRead() ? { cache: "no-store" } : { next: { revalidate } };
     await waitForOpenF1Slot();
-    let response = await fetch(`${OPENF1_API}/${path}`, { next: { revalidate } });
+    let response = await fetch(`${OPENF1_API}/${path}`, init);
     if (response.status === 429) {
       // Another instance used the budget; one paced retry, then give up.
       await new Promise((resolve) => setTimeout(resolve, 1500));
       await waitForOpenF1Slot();
-      response = await fetch(`${OPENF1_API}/${path}`, { next: { revalidate } });
+      response = await fetch(`${OPENF1_API}/${path}`, init);
     }
     if (!response.ok) {
       // OpenF1 answers 404 when a query has no rows yet — e.g. the next
       // race's starting_grid before qualifying. That is "no data", not a
       // failure, so it stays out of the error log.
-      if (response.status !== 404) {
+      // A 401 is the live-session lockout: expected, and answered by the
+      // fallbacks, so it is logged once as a note rather than an error.
+      if (response.status === 401) console.warn(`openF1 locked (live session): ${path}`);
+      else if (response.status !== 404) {
         console.error(`openF1 failed: ${path} -> ${response.status} ${response.statusText}`);
       }
       return null;
@@ -300,7 +344,8 @@ async function openF1<T>(path: string, revalidate = 3600): Promise<T | null> {
 // positions, points and wins — in one request each.
 async function jolpica<T>(path: string, revalidate = 900): Promise<T | null> {
   try {
-    const response = await fetch(`${JOLPICA_API}/${path}`, { next: { revalidate } });
+    const init: RequestInit = isFreshRead() ? { cache: "no-store" } : { next: { revalidate } };
+    const response = await fetch(`${JOLPICA_API}/${path}`, init);
     if (!response.ok) {
       console.error(`jolpica failed: ${path} -> ${response.status} ${response.statusText}`);
       return null;
@@ -310,6 +355,128 @@ async function jolpica<T>(path: string, revalidate = 900): Promise<T | null> {
     console.error(`jolpica error: ${path}`, err);
     return null;
   }
+}
+
+// ---- Jolpica stand-ins ---------------------------------------------------------
+// Shaped like OpenF1's answers so everything downstream reads one form. Its
+// sessions carry negative keys (−round for the weekend, −(round·10 + n) for
+// each session) so they can never be sent to OpenF1 by mistake.
+
+interface JolpicaSlot {
+  date: string;
+  time?: string;
+}
+
+interface JolpicaRace extends Partial<Record<"FirstPractice" | "SecondPractice" | "ThirdPractice" | "Qualifying" | "Sprint" | "SprintQualifying" | "SprintShootout", JolpicaSlot>> {
+  season: string;
+  round: string;
+  date: string;
+  time?: string;
+  Circuit: { circuitName: string; Location: { locality: string; country: string } };
+}
+
+interface JolpicaClassified {
+  number: string;
+  position: string;
+  points?: string;
+  laps?: string;
+  status?: string;
+  Time?: { millis?: string; time: string };
+  Q1?: string;
+  Q2?: string;
+  Q3?: string;
+}
+
+interface JolpicaRacesResponse {
+  MRData: { RaceTable: { Races: Array<JolpicaRace & { Results?: JolpicaClassified[]; SprintResults?: JolpicaClassified[]; QualifyingResults?: JolpicaClassified[] }> } };
+}
+
+// How long each session runs, for the end times Jolpica doesn't give.
+const SESSION_MINUTES: Record<string, number> = {
+  "Practice 1": 60, "Practice 2": 60, "Practice 3": 60, "Sprint Qualifying": 45, Sprint: 60, Qualifying: 60, Race: 120,
+};
+
+function jolpicaSession(r: JolpicaRace, name: string, slot: JolpicaSlot, n: number): OpenF1Session {
+  const round = Number(r.round);
+  const start = new Date(`${slot.date}T${slot.time ?? "12:00:00Z"}`);
+  return {
+    session_key: -(round * 10 + n),
+    meeting_key: -round,
+    session_name: name,
+    date_start: start.toISOString(),
+    date_end: new Date(start.getTime() + (SESSION_MINUTES[name] ?? 60) * 60_000).toISOString(),
+    country_name: r.Circuit.Location.country,
+    circuit_short_name: r.Circuit.Location.locality,
+    location: r.Circuit.Location.locality,
+    year: Number(r.season),
+  };
+}
+
+function jolpicaWeekend(r: JolpicaRace): OpenF1Session[] {
+  const slots: [string, JolpicaSlot | undefined][] = [
+    ["Practice 1", r.FirstPractice],
+    ["Sprint Qualifying", r.SprintQualifying ?? r.SprintShootout],
+    ["Practice 2", r.SecondPractice],
+    ["Sprint", r.Sprint],
+    ["Practice 3", r.ThirdPractice],
+    ["Qualifying", r.Qualifying],
+    ["Race", { date: r.date, time: r.time }],
+  ];
+  return slots
+    .flatMap(([name, slot], i) => (slot ? [jolpicaSession(r, name, slot, i + 1)] : []))
+    .sort((a, b) => a.date_start.localeCompare(b.date_start));
+}
+
+function getJolpicaSeason(year: number): Promise<JolpicaRace[]> {
+  return memoized(
+    `jolpica-season:${year}`,
+    async () => (await jolpica<JolpicaRacesResponse>(`${year}/races/?limit=40`, 21600))?.MRData.RaceTable.Races ?? [],
+    (races) => races.length > 0,
+  );
+}
+
+/** The Jolpica round of a race weekend, matched on the race's date. */
+async function jolpicaRace(race: OpenF1Session): Promise<JolpicaRace | undefined> {
+  const races = await getJolpicaSeason(race.year);
+  if (race.meeting_key < 0) return races.find((r) => Number(r.round) === -race.meeting_key);
+  const t = Date.parse(race.date_start);
+  return races.find((r) => Math.abs(Date.parse(`${r.date}T12:00:00Z`) - t) < 3 * 86_400_000);
+}
+
+/** "1:31.234" or "+5.123" → seconds. */
+function seconds(text: string | undefined): number | null {
+  if (!text) return null;
+  const m = /^\+?(?:(\d+):)?(\d+(?:\.\d+)?)$/.exec(text.trim());
+  return m ? Number(m[1] ?? 0) * 60 + Number(m[2]) : null;
+}
+
+/** A Jolpica race or sprint classification, as OpenF1 rows. */
+function jolpicaRaceRows(rows: JolpicaClassified[]): OpenF1Result[] {
+  return rows.map((r) => {
+    const status = r.status ?? "";
+    const lapped = /^\+\d+ Laps?$/.test(status) || status === "Lapped";
+    const finished = status === "Finished" || lapped;
+    const pos = Number(r.position);
+    return {
+      driver_number: Number(r.number),
+      position: Number.isFinite(pos) ? pos : null,
+      number_of_laps: Number(r.laps ?? 0),
+      points: Number(r.points ?? 0),
+      duration: pos === 1 && r.Time?.millis ? Number(r.Time.millis) / 1000 : null,
+      gap_to_leader: pos === 1 ? 0 : r.Time ? seconds(r.Time.time) : lapped ? status.toUpperCase() : null,
+      dnf: !finished && !/Did not start|Disqualified/i.test(status),
+      dns: /Did not start/i.test(status),
+      dsq: /Disqualified/i.test(status),
+    };
+  });
+}
+
+async function jolpicaClassification(race: OpenF1Session, kind: "results" | "sprint" | "qualifying"): Promise<JolpicaClassified[]> {
+  const r = await jolpicaRace(race);
+  if (!r) return [];
+  const data = await jolpica<JolpicaRacesResponse>(`${r.season}/${r.round}/${kind}/?limit=40`, 600);
+  const got = data?.MRData.RaceTable.Races[0];
+  return (kind === "results" ? got?.Results : kind === "sprint" ? got?.SprintResults : got?.QualifyingResults) ?? [];
 }
 
 // Grand Prix names are built from the session's `location` (the host city /
@@ -373,16 +540,24 @@ function formatDuration(seconds: number): string {
 // from (schedule, standings, session details and the roster all need it).
 function getSeasonSessions(): Promise<OpenF1Session[] | null> {
   const year = new Date().getUTCFullYear();
-  return memoized(`sessions:${year}`, async () => {
-    const sessions = await openF1<OpenF1Session[]>(
-      `sessions?year=${year}&session_name=Race`,
-      21600,
-    );
-    if (!sessions?.length) return null;
-    return sessions
-      .filter((session) => !session.session_name.includes("Sprint"))
-      .sort((a, b) => a.date_start.localeCompare(b.date_start));
-  });
+  return memoized(
+    `sessions:${year}`,
+    async () => {
+      const races = await kept(
+        `season:${year}`,
+        async () =>
+          (await openF1<OpenF1Session[]>(`sessions?year=${year}&session_name=Race`, 21600))
+            ?.filter((session) => !session.session_name.includes("Sprint"))
+            .sort((a, b) => a.date_start.localeCompare(b.date_start)) ?? null,
+        (list) => list.length > 0,
+        60,
+      );
+      if (races) return races;
+      const fallback = (await getJolpicaSeason(year)).map((r) => jolpicaSession(r, "Race", { date: r.date, time: r.time }, 7));
+      return fallback.length > 0 ? fallback : null;
+    },
+    (list) => list !== null,
+  );
 }
 
 // Driver details come from static season data (lib/config/f1-drivers.ts).
@@ -429,35 +604,48 @@ function getLiveSessionDrivers(sessionKey: number): Promise<Map<number, OpenF1Dr
 async function getDriverDetails(fallbackSessionKey?: number): Promise<Map<number, OpenF1Driver>> {
   const seasonMatches = new Date().getUTCFullYear() === F1_DRIVER_SEASON;
   if (seasonMatches) return staticDriverMap();
-  if (fallbackSessionKey === undefined) return staticDriverMap();
+  if (fallbackSessionKey === undefined || fallbackSessionKey < 0) return staticDriverMap();
   const live = await getLiveSessionDrivers(fallbackSessionKey);
   return live.size > 0 ? live : staticDriverMap();
 }
 
 // The meetings endpoint carries the official F1 track-map image
-// (circuit_image); sessions alone do not include it.
-function getMeetingImage(meetingKey: number): Promise<string | undefined> {
-  return memoized(`meeting:${meetingKey}`, async () => {
-    const meeting = await openF1<OpenF1Meeting[]>(`meetings?meeting_key=${meetingKey}`, 21600);
-    return meeting?.[0]?.circuit_image ?? undefined;
+// (circuit_image); sessions alone do not include it. Kept by race weekend,
+// so a weekend read from Jolpica still gets the map OpenF1 gave earlier.
+function getMeetingImage(race: OpenF1Session): Promise<string | undefined> {
+  return memoized(`meeting:${raceDay(race)}`, async () => {
+    const image = await kept(
+      `image:${raceDay(race)}`,
+      async () => (race.meeting_key > 0 ? ((await openF1<OpenF1Meeting[]>(`meetings?meeting_key=${race.meeting_key}`, 21600))?.[0]?.circuit_image ?? null) : null),
+      (url) => url.length > 0,
+      120,
+    );
+    return image ?? undefined;
   });
 }
 
-/** Every session of one race weekend, raw, in running order. */
-function getMeetingRaw(meetingKey: number): Promise<OpenF1Session[]> {
+/** Every session of one race weekend, raw, in running order: OpenF1, what
+ *  was kept of it, or Jolpica's timetable. */
+function getMeetingRaw(race: OpenF1Session): Promise<OpenF1Session[]> {
   return memoized(
-    `meeting-sessions:${meetingKey}`,
-    async () =>
-      ((await openF1<OpenF1Session[]>(`sessions?meeting_key=${meetingKey}`, 21600)) ?? []).sort((a, b) =>
-        a.date_start.localeCompare(b.date_start),
-      ),
+    `meeting-sessions:${raceDay(race)}`,
+    async () => {
+      const sessions = await kept(
+        `weekend:${raceDay(race)}`,
+        async () => (race.meeting_key > 0 ? await openF1<OpenF1Session[]>(`sessions?meeting_key=${race.meeting_key}`, 21600) : null),
+        (list) => list.length > 0,
+      );
+      if (sessions) return [...sessions].sort((a, b) => a.date_start.localeCompare(b.date_start));
+      const r = await jolpicaRace(race);
+      return r ? jolpicaWeekend(r) : [];
+    },
     (list) => list.length > 0,
   );
 }
 
 /** Every session of one race weekend, in running order. */
-async function getMeetingSessions(meetingKey: number): Promise<F1Session[]> {
-  return (await getMeetingRaw(meetingKey)).map((s) => ({ name: s.session_name, start: s.date_start, end: s.date_end }));
+async function getMeetingSessions(race: OpenF1Session): Promise<F1Session[]> {
+  return (await getMeetingRaw(race)).map((s) => ({ name: s.session_name, start: s.date_start, end: s.date_end }));
 }
 
 // Time-sensitive derivation from the (cached) season sessions — computed on
@@ -490,10 +678,16 @@ function resultSession(sorted: OpenF1Session[]): OpenF1Session | undefined {
   return [...sorted].reverse().find((s) => new Date(s.date_end).getTime() <= cutoff);
 }
 
-function getSessionResult(sessionKey: number): Promise<OpenF1Result[]> {
+function getSessionResult(race: OpenF1Session): Promise<OpenF1Result[]> {
   return memoized(
-    `result:${sessionKey}`,
-    async () => (await openF1<OpenF1Result[]>(`session_result?session_key=${sessionKey}`, 3600)) ?? [],
+    `result:${raceDay(race)}`,
+    async () =>
+      (await kept(
+        `result:${raceDay(race)}`,
+        async () => (race.session_key > 0 ? await openF1<OpenF1Result[]>(`session_result?session_key=${race.session_key}`, 3600) : null),
+        (rows) => rows.length > 0,
+        60,
+      )) ?? jolpicaRaceRows(await jolpicaClassification(race, "results")),
     (rows) => rows.length > 0,
   );
 }
@@ -520,22 +714,37 @@ function labelRaceResults(
   };
 }
 
-// A finished practice, sprint or qualifying session's classification. Kept
-// briefly (10 min) since timing can be amended just after the flag.
-// The last good answer is kept in the store for a few days: OpenF1 locks
-// every endpoint while a later session is live, and the weekend list and
-// practice table must not empty out for the length of qualifying.
-function getWeekendResult(sessionKey: number): Promise<OpenF1WeekendResult[]> {
+// A finished practice, sprint or qualifying session's classification, kept
+// briefly (10 min) since timing can be amended just after the flag. What
+// OpenF1 last said is kept for weeks: it locks every endpoint while a later
+// session is live, and the weekend list and practice table must not empty
+// out for the length of qualifying. Failing both, Jolpica has qualifying and
+// the sprint (practice times are OpenF1's alone).
+function getWeekendResult(s: OpenF1Session, race: OpenF1Session): Promise<OpenF1WeekendResult[]> {
+  const id = `${raceDay(race)}:${s.session_name}`;
   return memoized(
-    `wk-result:${sessionKey}`,
+    `wk-result:${id}`,
     async () => {
-      const key = `f1:wk-result:v1:${sessionKey}`;
-      const rows = (await openF1<OpenF1WeekendResult[]>(`session_result?session_key=${sessionKey}`, 600)) ?? [];
-      if (rows.length > 0) {
-        await getStore().set(key, rows, { ttlSeconds: 4 * 86_400 }).catch(() => {});
-        return rows;
-      }
-      return (await getStore().get<OpenF1WeekendResult[]>(key).catch(() => null)) ?? [];
+      const rows = await kept(
+        `wk:${id}`,
+        async () => (s.session_key > 0 ? await openF1<OpenF1WeekendResult[]>(`session_result?session_key=${s.session_key}`, 600) : null),
+        (list) => list.length > 0,
+      );
+      if (rows) return rows;
+      // Kept before the store was keyed by weekend (until mid-Oct 2026).
+      const legacy = s.session_key > 0 ? await getStore().get<OpenF1WeekendResult[]>(`f1:wk-result:v1:${s.session_key}`).catch(() => null) : null;
+      if (legacy?.length) return legacy;
+      if (s.session_name === "Sprint") return jolpicaRaceRows(await jolpicaClassification(race, "sprint"));
+      if (s.session_name !== "Qualifying") return [];
+      return (await jolpicaClassification(race, "qualifying")).map((q) => ({
+        driver_number: Number(q.number),
+        position: Number(q.position) || null,
+        duration: [seconds(q.Q1), seconds(q.Q2), seconds(q.Q3)],
+        gap_to_leader: null,
+        dnf: false,
+        dns: false,
+        dsq: false,
+      }));
     },
     (rows) => rows.length > 0,
   );
@@ -580,20 +789,24 @@ function weekendRows(rows: OpenF1WeekendResult[], drivers: Map<number, OpenF1Dri
 // after the flag OpenF1 can still answer nothing (it locks every endpoint
 // while a session is live, and an overrunning qualifying stays "live"), so an
 // empty answer is asked again on the next read rather than kept.
-function getStartingGrid(sessionKey: number) {
+function getStartingGrid(quali: OpenF1Session, race: OpenF1Session) {
   return memoized(
-    `grid:${sessionKey}`,
+    `grid:${raceDay(race)}`,
     async () =>
-      (await openF1<{ driver_number: number; position: number; lap_duration: number | null }[]>(
-        `starting_grid?session_key=${sessionKey}`,
-        120,
+      (await kept(
+        `grid:${raceDay(race)}`,
+        async () =>
+          quali.session_key > 0
+            ? await openF1<{ driver_number: number; position: number; lap_duration: number | null }[]>(`starting_grid?session_key=${quali.session_key}`, 120)
+            : null,
+        (rows) => rows.length > 0,
       )) ?? [],
     (rows) => rows.length > 0,
   );
 }
 
-async function fetchStartingGrid(sessionKey: number, drivers: Map<number, OpenF1Driver>): Promise<F1GridResult[]> {
-  const grid = await getStartingGrid(sessionKey);
+async function fetchStartingGrid(quali: OpenF1Session, race: OpenF1Session, drivers: Map<number, OpenF1Driver>): Promise<F1GridResult[]> {
+  const grid = await getStartingGrid(quali, race);
   return [...grid].sort((a, b) => a.position - b.position).map((row) => ({
     position: row.position,
     driver: driverLabel(drivers.get(row.driver_number), row.driver_number),
@@ -616,8 +829,8 @@ export async function getF1Map(): Promise<F1MapData | null> {
   if (!sessions?.length) return null;
   const { nextSession, nextRound } = analyzeSeason(sessions);
   const [circuitImageUrl, weekend] = await Promise.all([
-    getMeetingImage(nextSession.meeting_key),
-    getMeetingSessions(nextSession.meeting_key).catch(() => []),
+    getMeetingImage(nextSession).catch(() => undefined),
+    getMeetingSessions(nextSession).catch(() => []),
   ]);
   return { nextRace: { ...raceFromSession(nextSession, nextRound, circuitImageUrl), sessions: weekend } };
 }
@@ -703,9 +916,9 @@ export async function getF1Results(): Promise<F1ResultsData | null> {
   // This weekend: the first race not yet settled (running or to come).
   const weekendRace = sessions.find((s) => Date.parse(s.date_end) + SETTLE_MS > now);
   const [results, drivers, weekend] = await Promise.all([
-    race ? getSessionResult(race.session_key) : Promise.resolve([] as OpenF1Result[]),
+    race ? getSessionResult(race) : Promise.resolve([] as OpenF1Result[]),
     getDriverDetails(lastSession?.session_key),
-    weekendRace ? getMeetingRaw(weekendRace.meeting_key).catch(() => [] as OpenF1Session[]) : Promise.resolve([] as OpenF1Session[]),
+    weekendRace ? getMeetingRaw(weekendRace).catch(() => [] as OpenF1Session[]) : Promise.resolve([] as OpenF1Session[]),
   ]);
   const lastRace = race && results.length > 0 ? labelRaceResults(race, results, drivers) : null;
   const weekendName = weekendRace ? grandPrixName(weekendRace) : null;
@@ -720,7 +933,7 @@ export async function getF1Results(): Promise<F1ResultsData | null> {
   const byName = new Map<string, F1GridResult[]>();
   await Promise.all(
     finished.map(async (s) => {
-      const rows = weekendRows(await getWeekendResult(s.session_key).catch(() => []), drivers, s.session_name === "Sprint");
+      const rows = weekendRows(await getWeekendResult(s, weekendRace!).catch(() => []), drivers, s.session_name === "Sprint");
       byName.set(s.session_name, rows);
       if (rows[0]) tops[s.session_name] = { code: rows[0].code, driver: rows[0].driver, team: rows[0].team, time: rows[0].time };
     }),
@@ -728,7 +941,7 @@ export async function getF1Results(): Promise<F1ResultsData | null> {
 
   let qualifyingGrid: F1GridResult[] = [];
   if (quali) {
-    qualifyingGrid = await fetchStartingGrid(quali.session_key, drivers);
+    qualifyingGrid = await fetchStartingGrid(quali, weekendRace!, drivers);
     // The official grid can lag the session (and differs only by penalties):
     // until it lands, the qualifying order stands in.
     if (qualifyingGrid.length === 0) qualifyingGrid = byName.get("Qualifying") ?? [];
@@ -769,8 +982,8 @@ export async function getF1Schedule(): Promise<F1ScheduleData | null> {
   if (!sessions?.length) return null;
   const { nextSession, nextRound, upcoming } = analyzeSeason(sessions);
   const [circuitImageUrl, weekend] = await Promise.all([
-    getMeetingImage(nextSession.meeting_key),
-    getMeetingSessions(nextSession.meeting_key).catch(() => []),
+    getMeetingImage(nextSession).catch(() => undefined),
+    getMeetingSessions(nextSession).catch(() => []),
   ]);
   return {
     nextRace: { ...raceFromSession(nextSession, nextRound, circuitImageUrl), sessions: weekend },

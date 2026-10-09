@@ -43,10 +43,10 @@ import YourPaddock from "./YourPaddock";
 //
 // Two rules make the section feel solid:
 //
-//   Cache-first — every part is cached in sessionStorage. Refresh re-reads
-//   local data first and only goes to the network for parts that are missing
-//   or stale, so clicking it can never cost a table that was already on
-//   screen. (The masthead's "Refresh edition" still forces a cold re-pull.)
+//   Cache-first — every part is cached in sessionStorage, so a page load only
+//   goes to the network for parts that are missing or stale. ↻ Refresh asks
+//   the server afresh with every cache skipped (OpenF1, then the copy kept of
+//   it, then Jolpica — see lib/live/f1.ts).
 //
 //   Never destructive — a failed or empty response never replaces data we
 //   already hold. The block keeps its rows and notes that the refresh didn't
@@ -317,12 +317,12 @@ export default function F1Sidebar({
 
   // Fetch one part from the network and fold the answer in.
   const fetchPart = useCallback(
-    async <T,>(part: PartName, set: PartSetter<T>) => {
+    async <T,>(part: PartName, set: PartSetter<T>, fresh = false) => {
       if (busyRef.current.has(part)) return;
       busyRef.current.add(part);
       set((prev) => (prev.data ? prev : { status: "loading", data: null, stale: false }));
       try {
-        const res = await fetch(`/api/f1?part=${part}`, { cache: "no-store" });
+        const res = await fetch(`/api/f1?part=${part}${fresh ? "&fresh=1" : ""}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`f1 ${part} ${res.status}`);
         applyPart(part, set, (await res.json()) as F1PartResult<T>);
       } catch {
@@ -347,7 +347,7 @@ export default function F1Sidebar({
           return;
         }
       }
-      await fetchPart(part, set);
+      await fetchPart(part, set, force);
     },
     [fetchPart],
   );
@@ -377,7 +377,7 @@ export default function F1Sidebar({
         const done = new Set<PartName>();
         if (needed.length > 0) {
           try {
-            const res = await fetch(`/api/f1?parts=${needed.join(",")}`, { cache: "no-store" });
+            const res = await fetch(`/api/f1?parts=${needed.join(",")}${opts.force ? "&fresh=1" : ""}`, { cache: "no-store" });
             if (!res.ok || !res.body) throw new Error(`f1 stream ${res.status}`);
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
@@ -401,7 +401,7 @@ export default function F1Sidebar({
             // part, still in display order.
           }
           for (const part of needed) {
-            if (!done.has(part)) await fetchPart(part, setterFor(part));
+            if (!done.has(part)) await fetchPart(part, setterFor(part), opts.force);
           }
         }
         if (mountedRef.current) setCheckedAt(new Date().toISOString());
@@ -449,8 +449,8 @@ export default function F1Sidebar({
     <div className="contents">
       <div className="space-y-4 min-w-0 lg:col-start-2 lg:row-start-1">
       {/* Pit wall header — the single section-scoped refresh control. It
-          re-reads local data first and only fetches what's missing or stale,
-          so it can never blank a table that is already on screen. */}
+          asks the server afresh (OpenF1 first, then the kept copy, then
+          Jolpica), and a failed answer never blanks a table on screen. */}
       <div className="flex items-center justify-between gap-2">
         <span className="font-display font-extrabold text-[1.6rem] leading-none">Pit wall</span>
         <span className="flex items-center gap-2">
@@ -464,10 +464,10 @@ export default function F1Sidebar({
           )}
           <button
             type="button"
-            onClick={() => void runSequence()}
+            onClick={() => void runSequence({ force: true })}
             disabled={refreshing}
             className="chip h-7 px-3 text-[11px]"
-            title="Re-read the F1 section from local data, fetching only what is missing or stale"
+            title="Ask the timing feeds again: OpenF1 first, then the last copy kept, then Jolpica"
           >
             {refreshing ? (
               <>

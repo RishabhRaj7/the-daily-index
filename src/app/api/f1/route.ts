@@ -5,6 +5,7 @@ import {
   getF1Constructors,
   getF1DriverStandings,
   getF1Results,
+  withFreshF1,
   type F1PartResult,
 } from "@/lib/live/f1";
 
@@ -12,6 +13,8 @@ export const dynamic = "force-dynamic";
 
 // GET /api/f1?part=map|drivers|calendar|constructors|standings|results
 // GET /api/f1?parts=map,drivers,…   (streamed, newline-delimited JSON)
+// &fresh=1 (the Pit wall's ↻ Refresh): every cache skipped, OpenF1 asked
+// first, then what was kept of it, then Jolpica (see lib/live/f1.ts).
 //
 // The sidebar loads every part it is missing in ONE streamed request: the
 // server starts all of them at once — OpenF1 calls are paced inside
@@ -74,11 +77,12 @@ async function runPart<T>(
   }
 }
 
-function streamParts(names: PartName[]): Response {
+function streamParts(names: PartName[], fresh: boolean): Response {
   // Start everything now; emit in request order as each one settles.
-  const pending = names.map((name) =>
-    runPart(PARTS[name].fn as () => Promise<unknown | null>, PARTS[name].empty),
-  );
+  const pending = names.map((name) => {
+    const run = () => runPart(PARTS[name].fn as () => Promise<unknown | null>, PARTS[name].empty);
+    return fresh ? withFreshF1(run) : run();
+  });
   const encoder = new TextEncoder();
   const body = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -97,6 +101,7 @@ function streamParts(names: PartName[]): Response {
 export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
   const many = params.get("parts");
+  const fresh = params.get("fresh") === "1";
   if (many !== null) {
     const names = [...new Set(many.split(",").map((p) => p.trim()))].filter(isPartName);
     if (names.length === 0) {
@@ -105,7 +110,7 @@ export async function GET(req: Request) {
         { status: 400, headers: NO_STORE },
       );
     }
-    return streamParts(names);
+    return streamParts(names, fresh);
   }
 
   const part = params.get("part") ?? "";
@@ -120,6 +125,7 @@ export async function GET(req: Request) {
   const { fn, empty } = PARTS[part];
   // The union of part return types collapses to `unknown` here on purpose —
   // each part's concrete shape is asserted by its caller in F1Sidebar.
-  const result = await runPart(fn as () => Promise<unknown | null>, empty);
+  const run = () => runPart(fn as () => Promise<unknown | null>, empty);
+  const result = await (fresh ? withFreshF1(run) : run());
   return Response.json(result, { headers: NO_STORE });
 }
