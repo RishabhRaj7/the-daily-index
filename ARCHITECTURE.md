@@ -427,7 +427,9 @@ edition starts building before the reader is back on the paper.
   last good OpenF1 answer kept in the store (`f1:kept:v1:*`, keyed by race
   day, 3–8 weeks) → Jolpica (calendar, weekend timetable, race / sprint /
   qualifying classifications, shaped as OpenF1 rows with negative keys).
-  Practice times and the circuit image exist only in OpenF1 or its kept copy.
+  Practice times exist only in OpenF1 or its kept copy. Track maps are
+  served from public/f1/circuits (lib/config/f1-circuits.ts, by Jolpica
+  circuitId); a circuit not there falls back to OpenF1's circuit_image.
   The Pit wall's ↻ Refresh sends `fresh=1`: `withFreshF1` skips the memo and
   Data Cache and walks the same chain.
 - "Last race" is the latest Race session that started ≥ 90 min ago — no

@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { F1_DRIVERS, F1_DRIVER_SEASON } from "@/lib/config/f1-drivers";
+import { LOCAL_CIRCUITS } from "@/lib/config/f1-circuits";
 import { getStore } from "@/lib/server/store";
 import type {
   F1Race,
@@ -372,7 +373,7 @@ interface JolpicaRace extends Partial<Record<"FirstPractice" | "SecondPractice" 
   round: string;
   date: string;
   time?: string;
-  Circuit: { circuitName: string; Location: { locality: string; country: string } };
+  Circuit: { circuitId: string; circuitName: string; Location: { locality: string; country: string } };
 }
 
 interface JolpicaClassified {
@@ -609,11 +610,14 @@ async function getDriverDetails(fallbackSessionKey?: number): Promise<Map<number
   return live.size > 0 ? live : staticDriverMap();
 }
 
-// The meetings endpoint carries the official F1 track-map image
-// (circuit_image); sessions alone do not include it. Kept by race weekend,
-// so a weekend read from Jolpica still gets the map OpenF1 gave earlier.
+// The track map: the site's own copy when it has one (lib/config/f1-circuits.ts),
+// so it costs no OpenF1 call and survives a lockout. Otherwise the meetings
+// endpoint's circuit_image (sessions alone do not include it), kept by race
+// weekend so a weekend read from Jolpica still gets the map OpenF1 gave.
 function getMeetingImage(race: OpenF1Session): Promise<string | undefined> {
   return memoized(`meeting:${raceDay(race)}`, async () => {
+    const circuit = (await jolpicaRace(race).catch(() => undefined))?.Circuit.circuitId;
+    if (circuit && LOCAL_CIRCUITS.has(circuit)) return `/f1/circuits/${circuit}.png`;
     const image = await kept(
       `image:${raceDay(race)}`,
       async () => (race.meeting_key > 0 ? ((await openF1<OpenF1Meeting[]>(`meetings?meeting_key=${race.meeting_key}`, 21600))?.[0]?.circuit_image ?? null) : null),
