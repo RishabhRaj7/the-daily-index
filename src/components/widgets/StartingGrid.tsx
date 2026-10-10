@@ -12,6 +12,8 @@ import { F1_DRIVERS } from "@/lib/config/f1-drivers";
 import type { OddsMarket } from "@/lib/types";
 import type { LiveSnapshot } from "@/lib/f1-live-types";
 import LiveCard from "@/components/f1/LiveCard";
+import { TeamGlyph } from "@/components/f1/LiveTiming";
+import TrackMap, { useTrack } from "@/components/f1/TrackMap";
 
 function formatCountdown(ms: number) {
   if (ms <= 0) return "Lights out";
@@ -236,6 +238,7 @@ export default function StartingGrid({
   }, [nextRace.circuit]);
   const [showAll, setShowAll] = useState(false);
   const raceOdds = useContext(RaceOddsContext);
+  const track = useTrack(part === "desk" ? nextRace.circuitKey : null);
   const live = racePhase === "race" && currentRace !== null;
   const displayedRace = live && currentRace ? currentRace : nextRace;
 
@@ -341,7 +344,12 @@ export default function StartingGrid({
         <div className="font-display font-extrabold uppercase text-[1.9rem] leading-[0.9] mt-3">{displayedRace.name}</div>
         <div className="font-mono text-[10px] text-ink-soft mt-1">{displayedRace.circuit}</div>
 
-        {!live && nextRace.circuitImageUrl && (
+        {!live && track && (
+          <div className="my-4 mx-auto max-w-[22rem]">
+            <TrackMap model={track} label={`${nextRace.circuit} track layout`} />
+          </div>
+        )}
+        {!live && !track && nextRace.circuitImageUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={nextRace.circuitImageUrl}
@@ -493,8 +501,11 @@ export default function StartingGrid({
                     <tr key={`${r.position ?? "dnf"}-${r.code}`} className="border-t hairline first:border-t-0">
                       <td className="py-1.5 font-mono w-6 text-ink-soft">{r.position ?? "—"}</td>
                       <td className="py-1.5">
-                        <span className="inline-block w-[3px] h-3 rounded-full mr-2 align-middle" style={{ background: teamColor(r.team) }} />
-                        <span className="font-semibold font-sans">{r.driver}</span>
+                        <span className="flex items-center gap-2">
+                          <span className="inline-block w-[3px] h-3 rounded-full shrink-0" style={{ background: teamColor(r.team) }} />
+                          <TeamGlyph team={r.team} colour={teamColor(r.team) ?? "var(--ink-faint)"} />
+                          <span className="font-semibold font-sans">{r.driver}</span>
+                        </span>
                       </td>
                       <td className="py-1.5 text-ink-soft truncate max-w-[80px]">{r.team}</td>
                       <td className="py-1.5 text-right font-mono text-ink-soft">

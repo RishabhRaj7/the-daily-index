@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalS
 import type { LapMark, LiveRow, LiveSector, LiveSnapshot, SegmentMark } from "@/lib/f1-live-types";
 import { loadPersonalization, PERSONALIZATION_CHANGED_EVENT } from "@/lib/personalization";
 import TyreIcon from "./TyreIcon";
+import { teamLogo } from "@/lib/f1-assets";
 
 // The running order, as the timing screens show it. Its columns follow the
 // session and the room it has (it measures itself):
@@ -71,7 +72,10 @@ function useLayoutFor(ref: React.RefObject<HTMLDivElement | null>, allowWide: bo
   return layout;
 }
 
-function Status({ r, race }: { r: LiveRow; race: boolean }) {
+function Status({ r, race, running }: { r: LiveRow; race: boolean; running: boolean }) {
+  // Once the flag has fallen everyone is in the pits; only the out and the
+  // knocked out are worth a word.
+  if (!running) return r.out ? <span className="font-label text-[8.5px] text-ink-faint">{race ? "DNF" : "Out"}</span> : !race && r.knockedOut ? <span className="font-label text-[8.5px] text-ink-faint">KO</span> : null;
   if (r.out) return <span className="font-label text-[8.5px] text-ink-faint">Out</span>;
   if (r.inPit) return <span className="rounded px-1 font-label text-[8.5px] text-white" style={{ background: "var(--f1-pit)" }}>Pit</span>;
   if (r.pitOut) return <span className="font-label text-[8.5px]" style={{ color: "var(--f1-pit)" }}>Out lap</span>;
@@ -97,7 +101,30 @@ function Sector({ s }: { s: LiveSector | undefined }) {
   );
 }
 
-export default function LiveTiming({ snap, limit, wide = false }: { snap: LiveSnapshot; limit?: number; wide?: boolean }) {
+export function TeamGlyph({ team, colour, size = 14 }: { team: string; colour: string; size?: number }) {
+  const logo = teamLogo(team);
+  return logo ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={logo} alt="" width={size} height={size} className="f1-logo shrink-0 object-contain" style={{ width: size, height: size }} loading="lazy" />
+  ) : (
+    <span className="shrink-0 rounded-full" style={{ width: size * 0.7, height: size * 0.7, background: colour }} />
+  );
+}
+
+export default function LiveTiming({
+  snap,
+  limit,
+  wide = false,
+  focus = null,
+  onFocus,
+}: {
+  snap: LiveSnapshot;
+  limit?: number;
+  wide?: boolean;
+  /** The driver followed on the map; tapping a row follows another. */
+  focus?: string | null;
+  onFocus?: (code: string) => void;
+}) {
   const race = snap.type === "Race";
   const fav = useF1Favourites();
   const box = useRef<HTMLDivElement>(null);
@@ -165,6 +192,7 @@ export default function LiveTiming({ snap, limit, wide = false }: { snap: LiveSn
         {rows.map((r) => {
           const mine = fav.codes.has(r.code) || (fav.team !== "" && r.team === fav.team);
           const faded = r.out || (r.knockedOut && !race);
+          const focused = focus === r.code;
           return (
             <div key={r.code}>
               <div
@@ -172,15 +200,19 @@ export default function LiveTiming({ snap, limit, wide = false }: { snap: LiveSn
                   if (el) refs.current.set(r.code, el);
                   else refs.current.delete(r.code);
                 }}
-                className={`grid gap-x-2 items-center border-t hairline text-[12px] ${showSectors ? "py-[7px]" : "py-[5px]"} ${faded ? "opacity-45" : ""}`}
-                style={{ gridTemplateColumns: cols, ...(mine ? { background: `color-mix(in srgb, ${r.colour} 12%, transparent)` } : {}) }}
+                className={`grid gap-x-2 items-center border-t hairline text-[12px] relative ${showSectors ? "py-[7px]" : "py-[5px]"} ${faded ? "opacity-45" : ""} ${onFocus ? "cursor-pointer hover:bg-[var(--card-bg)]" : ""}`}
+                style={{ gridTemplateColumns: cols, ...(mine || focused ? { background: `color-mix(in srgb, ${r.colour} ${focused ? 20 : 11}%, transparent)` } : {}) }}
+                onClick={onFocus ? () => onFocus(r.code) : undefined}
+                aria-current={focused || undefined}
               >
+                {focused && <span className="absolute left-0 top-1 bottom-1 w-[3px] rounded-full" style={{ background: r.colour }} aria-hidden="true" />}
                 <span className="font-mono text-[11px] tabular-nums text-ink-soft pl-0.5">{r.position}</span>
                 <span className="flex items-center gap-2 min-w-0">
                   <span className="w-[3px] h-3.5 rounded-full shrink-0" style={{ background: r.colour }} />
+                  {layout !== "narrow" && <TeamGlyph team={r.team} colour={r.colour} />}
                   <span className="font-sans font-bold tracking-[0.02em]">{r.code}</span>
                   {showSectors && <span className="text-ink-soft truncate">{r.name}</span>}
-                  <Status r={r} race={race} />
+                  <Status r={r} race={race} running={snap.running} />
                 </span>
                 <span className="font-mono text-[11.5px] tabular-nums text-right" style={!race && r.bestFastest ? { color: "var(--f1-fastest)" } : undefined}>
                   {race ? (r.position === 1 ? "Leader" : r.interval || "—") : r.best || "—"}

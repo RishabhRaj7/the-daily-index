@@ -156,6 +156,8 @@ interface OpenF1Session {
   circuit_short_name: string;
   location: string;
   year: number;
+  /** F1's circuit key (OpenF1 carries it; Jolpica's stand-ins don't). */
+  circuit_key?: number;
 }
 
 interface OpenF1Meeting {
@@ -514,6 +516,7 @@ function raceFromSession(session: OpenF1Session, round: number, circuitImageUrl?
     circuit: session.circuit_short_name,
     date: session.date_start,
     circuitImageUrl,
+    ...(session.circuit_key ? { circuitKey: session.circuit_key } : {}),
   };
 }
 

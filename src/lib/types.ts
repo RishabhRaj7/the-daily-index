@@ -184,6 +184,8 @@ export interface F1Race {
   circuit: string;
   date: string; // ISO date
   circuitImageUrl?: string;
+  /** F1's circuit key — the vector track map (/api/f1/track). */
+  circuitKey?: number;
   polePosition?: { driver: string; team: string; time: string };
   /** Every session of the race weekend (practice, sprint, qualifying, race);
    *  only filled for the next race. */

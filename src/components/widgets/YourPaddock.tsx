@@ -12,6 +12,8 @@ import {
   teamAbbrev,
   teamColor,
 } from "@/lib/personalization";
+import { driverPhotoByCode, teamCar, teamLogo } from "@/lib/f1-assets";
+import type { TeammateH2H } from "@/lib/live/f1-h2h";
 
 // Your paddock: the team and drivers the reader follows, with the numbers
 // that say how their season is going — championship place, gaps, wins and
@@ -20,16 +22,78 @@ import {
 
 const MAX_DRIVERS = 2;
 
+// The team's logo on its colour (F1's own glyph); its initials if there's none.
 function Badge({ team, size = 44 }: { team: string; size?: number }) {
   const color = teamColor(team) ?? "var(--ink-soft)";
-  const ink = teamColor(team) && isLightTeamColor(teamColor(team)!) ? "#111" : "#fff";
+  const light = teamColor(team) ? isLightTeamColor(teamColor(team)!) : false;
+  const logo = teamLogo(team);
   return (
     <span
       className="flex items-center justify-center rounded-lg font-mono font-black tracking-wider shrink-0"
-      style={{ background: color, color: ink, width: size, height: size, fontSize: size * 0.26 }}
+      style={{ background: color, color: light ? "#111" : "#fff", width: size, height: size, fontSize: size * 0.26 }}
     >
-      {teamAbbrev(team)}
+      {logo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={logo} alt={team} width={size * 0.62} height={size * 0.62} style={{ width: size * 0.62, height: size * 0.62, filter: light ? "invert(1)" : undefined }} className="object-contain" />
+      ) : (
+        teamAbbrev(team)
+      )}
     </span>
+  );
+}
+
+// Teammates head to head this season: who out-qualified whom, who finished
+// ahead, and the usual qualifying gap.
+function useH2H(team: string): TeammateH2H | null {
+  const [h2h, setH2h] = useState<{ team: string; data: TeammateH2H | null } | null>(null);
+  useEffect(() => {
+    if (!team) return;
+    let live = true;
+    fetch(`/api/f1/h2h?team=${encodeURIComponent(team)}`)
+      .then((r) => (r.ok ? (r.json() as Promise<TeammateH2H | null>) : null))
+      .then((data) => live && setH2h({ team, data }))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [team]);
+  return h2h && h2h.team === team ? h2h.data : null;
+}
+
+function VersusBar({ label, pair, color }: { label: string; pair: [number, number]; color: string }) {
+  const total = pair[0] + pair[1] || 1;
+  return (
+      <div className="grid grid-cols-[1.4rem_minmax(0,1fr)_1.4rem] items-center gap-2">
+        <span className="font-mono text-[12px] tabular-nums text-right font-semibold">{pair[0]}</span>
+        <span className="relative h-[18px] rounded-md overflow-hidden bg-[color:var(--rule)]">
+          <span className="absolute inset-y-0 left-0 bar-grow" style={{ width: `${(pair[0] / total) * 100}%`, background: color }} />
+          <span className="absolute inset-0 grid place-items-center font-label text-[8px] mix-blend-difference text-white">{label}</span>
+        </span>
+        <span className="font-mono text-[12px] tabular-nums font-semibold">{pair[1]}</span>
+      </div>
+  );
+}
+
+function Versus({ h, color }: { h: TeammateH2H; color: string }) {
+  return (
+    <div className="rounded-xl border hairline p-3">
+      <div className="flex items-center justify-between gap-2 mb-2.5">
+        <span className="font-sans font-bold text-[12.5px]">{h.a.name}</span>
+        <span className="font-label text-[8.5px] text-ink-faint">Head to head · {h.rounds} rounds</span>
+        <span className="font-sans font-bold text-[12.5px]">{h.b.name}</span>
+      </div>
+      <div className="space-y-1.5">
+        <VersusBar label="Qualifying" pair={h.quali} color={color} />
+        <VersusBar label="Race" pair={h.race} color={color} />
+      </div>
+      {h.gap !== null && (
+        <p className="font-mono text-[10.5px] text-ink-soft mt-2.5 text-center">
+          {Math.abs(h.gap) < 0.0005
+            ? "Dead level over a lap in qualifying"
+            : `${h.gap < 0 ? h.a.name : h.b.name} usually ${Math.abs(h.gap).toFixed(3)}s quicker in qualifying`}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -202,6 +266,7 @@ export default function YourPaddock({
   lastRace: F1LastRace | null;
 }) {
   const [open, setOpen] = useState(false);
+  const h2h = useH2H(favoriteTeam);
   const picker = open ? <PaddockPicker roster={roster} onClose={() => setOpen(false)} /> : null;
 
   const drivers = favoriteDriverIds
@@ -252,6 +317,8 @@ export default function YourPaddock({
   const wins = teamDrivers.reduce((n, d) => n + d.wins, 0);
   const teamFinishes = finishOf(lastRace, (t) => normalizeF1Team(t) === favoriteTeam);
   const best = teamFinishes.map((r) => r.position).filter((p): p is number => p !== null).sort((a, b) => a - b)[0];
+  const car = favoriteTeam ? teamCar(favoriteTeam, 720) : null;
+  const logo = favoriteTeam ? teamLogo(favoriteTeam) : null;
 
   return (
     <div className="module self-stretch flex flex-col gap-4" data-reveal>
@@ -264,13 +331,18 @@ export default function YourPaddock({
 
       {favoriteTeam ? (
         <div
-          className="rounded-xl p-4"
+          className="relative overflow-hidden rounded-xl p-4 border"
           style={{
-            background: `linear-gradient(135deg, color-mix(in srgb, ${color} 22%, var(--card-bg)), var(--card-bg) 70%)`,
-            boxShadow: `inset 3px 0 0 ${color}`,
+            background: `linear-gradient(135deg, color-mix(in srgb, ${color} 24%, var(--card-bg)), var(--card-bg) 72%)`,
+            borderColor: `color-mix(in srgb, ${color} 45%, transparent)`,
           }}
         >
-          <div className="flex items-center gap-3">
+          {/* the team's mark, oversized and cropped, behind everything */}
+          {logo && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logo} alt="" aria-hidden="true" className="f1-logo absolute -right-8 -top-6 w-44 h-44 object-contain opacity-[0.07] pointer-events-none select-none" />
+          )}
+          <div className="relative flex items-center gap-3">
             <Badge team={favoriteTeam} />
             <div className="min-w-0 flex-1">
               <div className="font-display font-extrabold uppercase text-[1.5rem] leading-none truncate">{favoriteTeam}</div>
@@ -286,15 +358,19 @@ export default function YourPaddock({
             )}
           </div>
 
+          {car && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={car} alt={`The ${favoriteTeam} car`} className="relative w-full max-w-[22rem] mx-auto h-auto mt-3 -mb-1 drop-shadow-[0_10px_14px_rgba(0,0,0,0.35)]" loading="lazy" />
+          )}
           {row ? (
             <>
-              <div className="h-1.5 rounded-full bg-[color:var(--rule)] mt-4 overflow-hidden" title="Points against the leader">
+              <div className="relative h-1.5 rounded-full bg-[color:var(--rule)] mt-4 overflow-hidden" title="Points against the leader">
                 <div
                   className="h-full rounded-full bar-grow"
                   style={{ width: `${leader ? Math.max(3, (row.points / leader.points) * 100) : 0}%`, background: color }}
                 />
               </div>
-              <div className="grid grid-cols-4 gap-2 mt-3">
+              <div className="relative grid grid-cols-4 gap-2 mt-3">
                 <Stat
                   label={row.position === 1 ? "Lead" : "To leader"}
                   value={row.position === 1 && behind ? `+${row.points - behind.points}` : leader ? `−${leader.points - row.points}` : "—"}
@@ -318,6 +394,8 @@ export default function YourPaddock({
         </button>
       )}
 
+      {h2h && color && <Versus h={h2h} color={color} />}
+
       {drivers.length > 0 ? (
         <ul className="grid gap-2">
           {drivers.map((d) => {
@@ -327,11 +405,12 @@ export default function YourPaddock({
             const finish = finishOf(lastRace, (_, code) => code === d.code)[0];
             return (
               <li key={d.id} className="rounded-xl border hairline p-3 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
-                <span
-                  className="font-mono font-black text-[11px] rounded-md px-1.5 py-1"
-                  style={{ background: c, color: teamColor(d.team) && isLightTeamColor(c) ? "#111" : "#fff" }}
-                >
+                <span className="relative w-11 h-11 rounded-full overflow-hidden shrink-0 grid place-items-center font-mono font-black text-[10px]" style={{ background: `color-mix(in srgb, ${c} 35%, var(--paper))` }}>
                   {d.code}
+                  {driverPhotoByCode(d.code, d.team, 120) && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={driverPhotoByCode(d.code, d.team, 120)!} alt="" className="absolute inset-0 w-full h-full object-cover object-top" loading="lazy" />
+                  )}
                 </span>
                 <span className="min-w-0">
                   <span className="block font-sans font-semibold text-[14px] truncate">{d.name}</span>

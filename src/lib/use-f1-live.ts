@@ -11,6 +11,7 @@ import type { LiveAnswer, LiveSnapshot } from "@/lib/f1-live-types";
 // paused while hidden, caught up on return.
 
 const POLL_MS = 5_000;
+const pageStart = typeof performance !== "undefined" ? Date.now() - performance.now() : Date.now();
 const BEFORE_MS = 15 * 60_000;
 const AFTER_MS = 45 * 60_000;
 
@@ -28,12 +29,15 @@ export function liveWindow(sessions: F1Session[] | undefined, now = Date.now()):
 
 export function useF1Live(opts: { sessions?: F1Session[]; full?: boolean; always?: boolean }): {
   snapshot: LiveSnapshot | null;
+  /** Between sessions (full reads only): the last session, final. */
+  last: LiveSnapshot | null;
   next: string | null;
   checked: boolean;
 } {
   const { sessions, full = false, always = false } = opts;
   const [snapshot, setSnapshot] = useState<LiveSnapshot | null>(null);
   const [next, setNext] = useState<string | null>(null);
+  const [last, setLast] = useState<LiveSnapshot | null>(null);
   const [checked, setChecked] = useState(false);
   const key = JSON.stringify(sessions?.map((s) => [s.start, s.end]) ?? []);
   const sessionsRef = useRef(sessions);
@@ -45,6 +49,7 @@ export function useF1Live(opts: { sessions?: F1Session[]; full?: boolean; always
     let timer: ReturnType<typeof setTimeout> | undefined;
     let controller: AbortController | null = null;
     let stopped = false;
+    let lastLive = false;
 
     const schedule = (ms: number) => {
       clearTimeout(timer);
@@ -66,20 +71,28 @@ export function useF1Live(opts: { sessions?: F1Session[]; full?: boolean; always
       controller?.abort();
       controller = new AbortController();
       try {
-        const q = new URLSearchParams({ ...(full ? { full: "1" } : {}), ...(replay ? { replay } : {}) });
+        // ?f1from=<seconds into the feed>&f1speed=<×> plays the replay through time.
+        const sp = new URLSearchParams(location.search);
+        const from = Number(sp.get("f1from"));
+        const speed = Number(sp.get("f1speed")) || 1;
+        const t = replay && from ? String(Math.round(from + ((Date.now() - pageStart) / 1000) * speed)) : null;
+        const q = new URLSearchParams({ ...(full ? { full: "1" } : {}), ...(replay ? { replay } : {}), ...(t ? { t } : {}) });
         const res = await fetch(`/api/f1/live${q.size ? `?${q}` : ""}`, { cache: "no-store", signal: controller.signal });
         const answer = (await res.json()) as LiveAnswer;
         if (stopped) return;
+        lastLive = answer.live;
         if (answer.live) setSnapshot(answer.snapshot);
         else {
           setSnapshot(null);
           setNext(answer.next);
+          if (answer.last) setLast(answer.last);
         }
       } catch {
         // Keep the last snapshot through a dropped request.
       }
       setChecked(true);
-      schedule(POLL_MS);
+      // Between sessions the full page only needs a look every minute.
+      schedule(full && !always ? POLL_MS : full ? (lastLive ? POLL_MS : 60_000) : POLL_MS);
     }
 
     const onVisible = () => {
@@ -95,7 +108,7 @@ export function useF1Live(opts: { sessions?: F1Session[]; full?: boolean; always
     };
   }, [key, full, always]);
 
-  return { snapshot, next, checked };
+  return { snapshot, last, next, checked };
 }
 
 /** Time left on the session clock, ticking between reads. */

@@ -25,6 +25,7 @@ export const LIVE_TOPICS = [
   "TeamRadio",
   "WeatherData",
   "ChampionshipPrediction",
+  "LapSeries",
 ] as const;
 
 export type LiveTopic = (typeof LIVE_TOPICS)[number];

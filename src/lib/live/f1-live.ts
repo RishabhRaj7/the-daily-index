@@ -1,5 +1,6 @@
 import { getStore } from "@/lib/server/store";
 import { currentSession, radioUrl, readLiveState, sessionTime, type CurrentSessionInfo, type LiveState } from "./f1-signalr";
+import { driverPhoto } from "@/lib/f1-assets";
 import type {
   LapMark,
   LiveAnswer,
@@ -193,6 +194,29 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
       .map((s) => ({ compound: compound(s.Compound), laps: Math.max(0, num(s.TotalLaps) - num(s.StartLaps)), fresh: str(s.New) === "true" })),
   }));
 
+  // A typical lap's three sectors: the middle of the field's latest times.
+  const median = (xs: number[]) => {
+    const v = xs.filter((x) => x > 0).sort((a, b) => a - b);
+    return v.length ? v[Math.floor(v.length / 2)] : 0;
+  };
+  const refs = [0, 1, 2].map((i) => median(rows.map((r) => num(r.sectors[i]?.value))));
+  const sectorRef = refs.every((x) => x > 0) ? (refs as [number, number, number]) : null;
+
+  const photos: Record<string, string> = {};
+  for (const [no, raw] of Object.entries(drivers)) {
+    const d = obj(raw);
+    const url = driverPhoto({ publicId: str(d.PublicIdRight) || null, team: str(d.TeamName), reference: str(d.Reference) || null }, 160);
+    const code = byNo.get(no)?.code ?? str(d.Tla);
+    if (url && code) photos[code] = url;
+  }
+
+  const lapPositions = Object.entries(obj(state.LapSeries))
+    .map(([no, v]) => {
+      const r = byNo.get(no);
+      return { code: r?.code ?? no, colour: r?.colour ?? "#888888", positions: list(obj(v).LapPosition).map(num) };
+    })
+    .filter((d) => d.positions.length > 1);
+
   const cp = obj(state.ChampionshipPrediction);
   const teamColour = new Map(rows.map((r) => [r.team, r.colour]));
   const prediction: LivePrediction | null =
@@ -215,6 +239,9 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
   return {
     at: new Date().toISOString(),
     sessionKey: num(si.Key) || info.Key,
+    circuitKey: num(obj(meeting.Circuit).Key) || null,
+    path: str(si.Path) || info.Path || null,
+    sectorRef,
     meeting: str(meeting.Name) || info.Meeting?.Name || "",
     location: str(meeting.Location) || info.Meeting?.Location || "",
     session,
@@ -237,6 +264,8 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
     radio,
     stints,
     prediction,
+    photos,
+    lapPositions: type === "Race" ? lapPositions : [],
   };
 }
 
@@ -277,9 +306,12 @@ async function keepClassification(snap: LiveSnapshot, info: CurrentSessionInfo):
 
 /** Pit wall size: the table and its header, nothing else. */
 export function compact(s: LiveSnapshot): LiveSnapshot {
-  const { raceControl, radio, stints, prediction, ...rest } = s;
+  const { raceControl, radio, stints, prediction, photos, lapPositions, transcripts, ...rest } = s;
   void stints;
   void prediction;
+  void photos;
+  void lapPositions;
+  void transcripts;
   return {
     ...rest,
     rows: rest.rows.map((r) => ({ ...r, sectors: r.sectors.map((x) => ({ ...x, segments: [] })) })),
@@ -290,29 +322,110 @@ export function compact(s: LiveSnapshot): LiveSnapshot {
 }
 
 /** Development only: a finished session from F1's archive, shown as if it were running. */
-export async function replay(path: string): Promise<LiveAnswer> {
-  const base = `https://livetiming.formula1.com/static/${path.replace(/^\/+|\/?$/g, "")}/`;
-  const topics = ["SessionInfo", "SessionStatus", "TrackStatus", "LapCount", "ExtrapolatedClock", "DriverList", "TimingData", "TimingAppData", "TimingStats", "RaceControlMessages", "TeamRadio", "WeatherData", "ChampionshipPrediction"];
+const ARCHIVE_TOPICS = ["SessionInfo", "SessionStatus", "TrackStatus", "LapCount", "ExtrapolatedClock", "DriverList", "TimingData", "TimingAppData", "TimingStats", "RaceControlMessages", "TeamRadio", "WeatherData", "ChampionshipPrediction", "LapSeries"];
+
+const infoFrom = (state: LiveState, fallbackPath?: string): CurrentSessionInfo | null => {
+  const si = obj(state.SessionInfo);
+  if (!si.Key) return null;
+  return { Key: num(si.Key), Type: str(si.Type), Name: str(si.Name), StartDate: str(si.StartDate), EndDate: str(si.EndDate), GmtOffset: str(si.GmtOffset), Path: str(si.Path) || fallbackPath };
+};
+
+/** A finished session's final state from F1's archive (null until it's published). */
+export async function archivedSession(path: string): Promise<LiveSnapshot | null> {
+  const clean = path.replace(/^\/+|\/?$/g, "");
+  const base = `https://livetiming.formula1.com/static/${clean}/`;
   const state: LiveState = {};
   await Promise.all(
-    topics.map(async (t) => {
-      const res = await fetch(`${base}${t}.json`, { next: { revalidate: 3600 } }).catch(() => null);
+    ARCHIVE_TOPICS.map(async (t) => {
+      const res = await fetch(`${base}${t}.json`, { next: { revalidate: 86_400 } }).catch(() => null);
       if (res?.ok) state[t as keyof LiveState] = JSON.parse((await res.text()).replace(/^\uFEFF/, ""));
     }),
   );
-  const si = obj(state.SessionInfo);
-  if (!si.Key) return { live: false, next: null };
-  const info: CurrentSessionInfo = { Key: num(si.Key), Type: str(si.Type), Name: str(si.Name), StartDate: str(si.StartDate), EndDate: str(si.EndDate), GmtOffset: str(si.GmtOffset), Path: str(si.Path) };
-  const snap = parse(state, info);
-  return { live: true, snapshot: { ...snap, running: true, status: "Started", clockRunning: false } };
+  const info = infoFrom(state, `${clean}/`);
+  if (!info || !state.TimingData) return null;
+  return { ...parse(state, info), running: false, clockRunning: false };
 }
 
-export async function getLive(opts: { fresh?: boolean } = {}): Promise<LiveAnswer> {
+/** Development only: a finished session shown as if running — at its end, or `t` seconds into its feed. */
+export async function replay(path: string, t?: number): Promise<LiveAnswer> {
+  let snap: LiveSnapshot | null;
+  if (t !== undefined && Number.isFinite(t)) {
+    const { stateAt } = await import("./f1-replay");
+    const { state } = await stateAt(path, t);
+    const info = infoFrom(state, path);
+    snap = info ? parse(state, info) : null;
+  } else {
+    snap = await archivedSession(path);
+  }
+  return snap ? { live: true, snapshot: { ...snap, running: true, status: "Started", clockRunning: false } } : { live: false, next: null };
+}
+
+// ---- the last session, kept -------------------------------------------------
+// Every session's final state is kept for six weeks, so between sessions the
+// live centre still has the whole of the last one (timing, strategy, race
+// control, radio, the title fight, the race story). If nobody had the page
+// open when the flag fell, it is built once from F1's archive and kept.
+
+const SESSION_DAYS = 45;
+const LAST = "f1:session:last";
+
+async function keepSession(snap: LiveSnapshot): Promise<void> {
+  const store = getStore();
+  await store.set(`f1:session:v1:${snap.sessionKey}`, snap, { ttlSeconds: SESSION_DAYS * 86_400 }).catch(() => {});
+  await store.set(LAST, snap.sessionKey, { ttlSeconds: SESSION_DAYS * 86_400 }).catch(() => {});
+}
+
+interface IndexSession {
+  Key: number;
+  Name: string;
+  EndDate: string;
+  GmtOffset: string;
+  Path?: string;
+}
+
+/** The latest session F1 lists as over (by its scheduled end, plus half an hour). */
+async function latestFinished(): Promise<IndexSession | null> {
+  const year = new Date().getUTCFullYear();
+  for (const y of [year, year - 1]) {
+    try {
+      const res = await fetch(`https://livetiming.formula1.com/static/${y}/Index.json`, { next: { revalidate: 900 } });
+      if (!res.ok) continue;
+      const idx = JSON.parse((await res.text()).replace(/^\uFEFF/, "")) as { Meetings?: { Sessions?: IndexSession[] }[] };
+      const done = (idx.Meetings ?? [])
+        .flatMap((m) => m.Sessions ?? [])
+        .filter((x) => x.Path && sessionTime(x.EndDate, x.GmtOffset) + AFTER_MS < Date.now())
+        .sort((a, b) => sessionTime(a.EndDate, a.GmtOffset) - sessionTime(b.EndDate, b.GmtOffset));
+      if (done.length) return done[done.length - 1];
+    } catch {}
+  }
+  return null;
+}
+
+export async function lastSession(): Promise<LiveSnapshot | null> {
+  const store = getStore();
+  const [latest, pointer] = await Promise.all([latestFinished(), store.get<number>(LAST).catch(() => null)]);
+  const want = latest?.Key ?? pointer;
+  if (want) {
+    const kept = await store.get<LiveSnapshot>(`f1:session:v1:${want}`).catch(() => null);
+    if (kept) return kept;
+  }
+  if (latest?.Path) {
+    const built = await archivedSession(latest.Path);
+    if (built) {
+      await keepSession(built);
+      return built;
+    }
+  }
+  // F1 hasn't published the newest yet: the one before, as kept.
+  return pointer ? await store.get<LiveSnapshot>(`f1:session:v1:${pointer}`).catch(() => null) : null;
+}
+
+export async function getLive(opts: { fresh?: boolean; withLast?: boolean } = {}): Promise<LiveAnswer> {
   const info = await sessionInfo();
-  if (!info) return { live: false, next: null };
-  if (!inWindow(info)) {
-    const start = sessionTime(info.StartDate, info.GmtOffset);
-    return { live: false, next: start > Date.now() ? new Date(start).toISOString() : null };
+  if (!info || !inWindow(info)) {
+    const start = info ? sessionTime(info.StartDate, info.GmtOffset) : 0;
+    const next = start > Date.now() ? new Date(start).toISOString() : null;
+    return { live: false, next, ...(opts.withLast ? { last: await lastSession().catch(() => null) } : {}) };
   }
 
   const store = getStore();
@@ -333,6 +446,8 @@ export async function getLive(opts: { fresh?: boolean } = {}): Promise<LiveAnswe
     const snap = parse(state, info);
     await store.set(KEY, snap, { ttlSeconds: 3600 }).catch(() => {});
     await keepClassification(snap, info);
+    // The flag has fallen: this is the session's final word, kept.
+    if (!snap.running && /^(Finished|Finalised|Ends)$/.test(snap.status)) await keepSession(snap);
     return { live: true, snapshot: snap };
   } finally {
     await store.del(LOCK).catch(() => {});

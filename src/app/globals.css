@@ -750,3 +750,38 @@ html[data-f1-live] [data-nav="paddock-notes"]::after {
 @media (prefers-reduced-motion: reduce) {
   .stint-in { animation: none; }
 }
+
+/* F1 team logos arrive as white glyphs; the morning paper prints them dark. */
+.f1-logo { filter: invert(1) brightness(0.15); }
+html[data-edition="evening"] .f1-logo { filter: none; }
+
+/* Circuit maps: the line draws itself in, the corner numbers follow; the
+   focused car breathes; a lit mini-sector fades up. */
+.track-undrawn .track-line { stroke-dasharray: 1; stroke-dashoffset: 1; }
+.track-undrawn .track-corner { opacity: 0; }
+.track-drawn .track-line { stroke-dasharray: 1; animation: track-draw 2s var(--ease-out) both; }
+.track-drawn .track-corner { animation: fade-in 0.6s ease-out 1.3s both; }
+@keyframes track-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.car-pulse { animation: car-pulse 1.8s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes car-pulse { 50% { transform: scale(1.35); opacity: 0.08; } }
+.segment-in { animation: fade-in 0.4s ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .track-drawn .track-line, .track-drawn .track-corner, .car-pulse, .segment-in { animation: none; }
+  .track-undrawn .track-line { stroke-dashoffset: 0; }
+  .track-undrawn .track-corner { opacity: 1; }
+}
+
+/* Race story lines draw in; "Transcribing…" shimmers while it waits. */
+.story-line { stroke-dasharray: 1; animation: track-draw 1.6s var(--ease-out) both; }
+.shimmer-text {
+  background: linear-gradient(90deg, var(--ink-faint) 0%, var(--ink) 50%, var(--ink-faint) 100%) 0 0 / 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer-text 1.6s linear infinite;
+}
+@keyframes shimmer-text { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .story-line, .shimmer-text { animation: none; }
+  .shimmer-text { color: var(--ink-faint); background: none; }
+}

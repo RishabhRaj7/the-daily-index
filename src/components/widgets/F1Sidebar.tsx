@@ -24,6 +24,7 @@ import { teamColor } from "@/lib/personalization";
 import { isFresh, readF1Part, writeF1Part } from "@/lib/f1-cache";
 import StartingGrid from "./StartingGrid";
 import { useF1Live } from "@/lib/use-f1-live";
+import { TeamGlyph } from "@/components/f1/LiveTiming";
 import YourPaddock from "./YourPaddock";
 
 // Progressive F1 sidebar.
@@ -182,7 +183,7 @@ function StandingsBars({
   rows,
   leader,
 }: {
-  rows: Array<{ key: string; position: number; name: string; sub?: string; color?: string; points: number }>;
+  rows: Array<{ key: string; position: number; name: string; sub?: string; color?: string; team?: string; points: number }>;
   leader: number;
 }) {
   return (
@@ -192,9 +193,10 @@ function StandingsBars({
         return (
           <li key={r.key} className="grid grid-cols-[1.4rem_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 text-[13px]">
             <span className="font-mono text-[11px] text-ink-soft">{r.position}</span>
-            <span className="truncate font-sans font-medium">
-              {r.name}
-              {r.sub && <span className="font-mono text-[10px] text-ink-faint ml-1.5">{r.sub}</span>}
+            <span className="flex items-center gap-2 min-w-0 font-sans font-medium">
+              {r.team && <TeamGlyph team={r.team} colour={r.color ?? "var(--ink-faint)"} size={15} />}
+              <span className="truncate">{r.name}</span>
+              {r.sub && <span className="font-mono text-[10px] text-ink-faint shrink-0">{r.sub}</span>}
             </span>
             <span className="font-mono text-[12px] text-right">{r.points}</span>
             <span />
@@ -604,6 +606,7 @@ export default function F1Sidebar({
                 position: cs.position,
                 name: cs.team.replace(/\s*F1 Team$/i, "").trim(),
                 color: teamColor(cs.team),
+                team: cs.team,
                 points: cs.points,
               }))}
               leader={constructorRows[0]?.points ?? 0}
@@ -655,6 +658,7 @@ export default function F1Sidebar({
                 name: d.name,
                 sub: d.code,
                 color: teamColor(d.team),
+                team: d.team,
                 points: d.points,
               }))}
               leader={driverRows[0]?.points ?? 0}

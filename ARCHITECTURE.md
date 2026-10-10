@@ -450,7 +450,29 @@ edition starts building before the reader is back on the paper.
   the top bar's F1 link wears a dot (`html[data-f1-live]`). Everything else
   lives on `/f1/live` (`LiveCentre`): timing with sectors and mini-sectors,
   tyre strategy, race control, team radio, F1's projected title standings,
-  weather. In development `?f1replay=<archive path>` plays a finished session.
+  weather. In development `?f1replay=<archive path>` plays a finished session;
+  add `&f1from=<seconds into the feed>&f1speed=<×>` to play it through time
+  (`lib/live/f1-replay.ts` applies the archive's `.jsonStream` deltas).
+- Kept on our side: every session's final snapshot for 45 days
+  (`f1:session:v1:<key>`, pointer `f1:session:last`); between sessions
+  `/api/f1/live?full=1` answers `{ last }`, built once from F1's archive if
+  nobody had the page open at the flag. Circuit models 60 days, radio
+  transcripts 120 days.
+- Track maps (`lib/live/f1-track.ts`, `/api/f1/track?key=`): MultiViewer's
+  public circuit API (outline in F1 coordinates, rotation + 90°, corners, a
+  reference lap's time at each point). Circuits it lacks are traced from F1's
+  archive: the fastest driver's best lap at the latest session there, its
+  `Position.z` samples between the lap's start and end. `TrackMap` draws the
+  outline in, lights the followed driver's mini-sectors, and places the field
+  by estimate (`lib/f1-track-progress.ts`: completed mini-sectors spread over
+  a typical sector split; in races, gap to the leader ÷ lap time), carried on
+  at lap pace between reads. Exact live positions need F1 TV and aren't used.
+- Team radio transcripts: Gemini listens to each MP3 once
+  (`lib/live/f1-radio.ts`, `/api/f1/radio`, three new per call).
+- Official imagery from F1's image server (`lib/f1-assets.ts`): team logo
+  glyphs (white; `.f1-logo` darkens them on the morning paper), car renders,
+  driver portraits. Teammate head-to-head from Jolpica (`lib/live/f1-h2h.ts`,
+  `/api/f1/h2h?team=`), shown in Your paddock.
 - "Last race" is the latest Race session that started ≥ 90 min ago — no
   longer `session_key=latest`, which showed practice on race-weekend Fridays.
 - Market Pulse: one Yahoo `spark` request for all six indices (was six), and

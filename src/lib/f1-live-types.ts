@@ -89,6 +89,12 @@ export interface LiveSnapshot {
   /** When the feed was read. */
   at: string;
   sessionKey: number;
+  /** F1's circuit key (the track map's key, /api/f1/track). */
+  circuitKey: number | null;
+  /** F1's archive folder for this session ("2026/2026-10-11_…/2026-10-10_Qualifying/"). */
+  path: string | null;
+  /** A typical lap split into its three sectors, in seconds (places mini-sectors on the map). */
+  sectorRef: [number, number, number] | null;
   meeting: string;
   location: string;
   /** "Practice 2", "Sprint Qualifying", "Race". */
@@ -116,7 +122,34 @@ export interface LiveSnapshot {
   radio?: LiveRadio[];
   stints?: LiveStints[];
   prediction?: LivePrediction | null;
+  /** Portraits by timing code. */
+  photos?: Record<string, string>;
+  /** Races: each driver's position at the end of every lap. */
+  lapPositions?: { code: string; colour: string; positions: number[] }[];
+  /** Team radio transcripts, by clip address (filled in as they are written). */
+  transcripts?: Record<string, string>;
 }
 
 /** What /api/f1/live answers. */
-export type LiveAnswer = { live: false; next: string | null } | { live: true; snapshot: LiveSnapshot };
+export type LiveAnswer =
+  | { live: false; next: string | null; last?: LiveSnapshot | null }
+  | { live: true; snapshot: LiveSnapshot };
+
+/** A circuit as a vector, in a box of `width` × `height` (lib/live/f1-track.ts). */
+export interface TrackModel {
+  circuitKey: number;
+  year: number;
+  name: string;
+  width: number;
+  height: number;
+  /** The outline as an SVG path, starting at the line, in racing direction. */
+  path: string;
+  points: [number, number][];
+  /** For each point, how far through a reference lap (0–1) a car is there. */
+  fraction: number[];
+  corners: { number: number; x: number; y: number }[];
+  /** The reference lap's time, in seconds. */
+  lapTime: number | null;
+  /** Time lost to a pit stop under green, in seconds. */
+  pitLoss: number | null;
+}
