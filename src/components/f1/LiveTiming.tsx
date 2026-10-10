@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalS
 import type { LapMark, LiveRow, LiveSector, LiveSnapshot, SegmentMark } from "@/lib/f1-live-types";
 import { loadPersonalization, PERSONALIZATION_CHANGED_EVENT } from "@/lib/personalization";
 import TyreIcon from "./TyreIcon";
+import { DriverName } from "./DriverLink";
 import { teamLogo } from "@/lib/f1-assets";
 
 // The running order, as the timing screens show it. Its columns follow the
@@ -223,8 +224,10 @@ export default function LiveTiming({
                 <span className="flex items-center gap-2 min-w-0">
                   <span className="w-[3px] h-3.5 rounded-full shrink-0" style={{ background: r.colour }} />
                   {layout !== "narrow" && <TeamGlyph team={r.team} colour={r.colour} />}
-                  <span className="font-sans font-bold tracking-[0.02em]">{r.code}</span>
-                  {showName && <span className="text-ink-soft truncate min-w-0">{r.name}</span>}
+                  <DriverName code={r.code} className="flex items-baseline gap-2 min-w-0">
+                    <span className="font-sans font-bold tracking-[0.02em]">{r.code}</span>
+                    {showName && <span className="text-ink-soft truncate min-w-0">{r.name}</span>}
+                  </DriverName>
                   <Status r={r} race={race} running={snap.running} />
                 </span>
                 <span className="font-mono text-[11.5px] tabular-nums text-right" style={!race && r.bestFastest ? { color: "var(--f1-fastest)" } : undefined}>

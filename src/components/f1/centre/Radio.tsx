@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { LiveRadio } from "@/lib/f1-live-types";
 import { readTurns } from "@/lib/f1-radio-speaker";
+import { DriverName } from "../DriverLink";
 import { clock } from "./ui";
 
 // Team radio: one player for the page (a new clip stops the last), the
@@ -186,7 +187,9 @@ export function RadioRow({
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
-          <span className="font-sans font-bold text-[13px]">{clip.code}</span>
+          <DriverName code={clip.code} className="font-sans font-bold text-[13px]">
+            {clip.code}
+          </DriverName>
           <span className="font-label text-[8px] text-ink-faint">Radio</span>
           <span className="font-mono text-[10.5px] text-ink-faint tabular-nums">{clock(clip.utc)}</span>
           <button

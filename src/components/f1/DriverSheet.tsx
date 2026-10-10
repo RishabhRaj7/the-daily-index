@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import type { Season, SeasonCell, SeasonDriver } from "@/lib/live/f1-season";
 import { driverPhotoByCode } from "@/lib/f1-assets";
 import { TeamGlyph } from "./LiveTiming";
+import { DriverName } from "./DriverLink";
 
 // A driver's season, round by round: where they qualified, started and
 // finished (or why they didn't), their points, sprints and fastest laps; a
@@ -137,7 +138,10 @@ function Body({ season, d }: { season: Season; d: SeasonDriver }) {
       {mate && (
         <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-3 sm:p-4 mt-4 grid sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-4 items-center">
           <span className="font-label text-[9.5px]">
-            Against {mate.name}
+            Against{" "}
+            <DriverName code={mate.code} className="font-label">
+              {mate.name}
+            </DriverName>
             <span className="block font-mono normal-case tracking-normal text-[10px] text-ink-faint mt-1">teammate</span>
           </span>
           {[

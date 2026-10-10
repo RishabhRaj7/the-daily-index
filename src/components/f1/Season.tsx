@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { Leader, Season as SeasonData, SeasonCell, SeasonDriver, SeasonStats } from "@/lib/live/f1-season";
 import { driverPhotoByCode } from "@/lib/f1-assets";
 import { TeamGlyph, useF1Favourites } from "./LiveTiming";
-import DriverSheet from "./DriverSheet";
+import { DriverName, openDriver } from "./DriverLink";
 
 // The season so far, under the session on /f1/live:
 //   records   eight cards — most wins, podiums and poles (driver beside
@@ -55,7 +55,9 @@ function Who({ l, team }: { l: Leader; team?: boolean }) {
       ) : (
         <TeamGlyph team={l.team} colour="var(--ink-faint)" size={15} />
       )}
-      <span className="font-sans text-[12px] font-semibold truncate">{l.who}</span>
+      <DriverName code={team ? null : l.code} className="font-sans text-[12px] font-semibold truncate">
+        {l.who}
+      </DriverName>
     </span>
   );
 }
@@ -293,7 +295,6 @@ export default function Season() {
   const [data, setData] = useState<SeasonData | null>(null);
   const [failed, setFailed] = useState(false);
   const [mode, setMode] = useState<Mode>("race");
-  const [driver, setDriver] = useState<string | null>(null);
   useEffect(() => {
     fetch("/api/f1/season")
       .then((r) => (r.ok ? (r.json() as Promise<SeasonData>) : Promise.reject()))
@@ -319,9 +320,8 @@ export default function Season() {
             <Records stats={data.stats[mode]} />
           </div>
           <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 sm:p-5 mt-6">
-            <Grid data={data} onDriver={setDriver} />
+            <Grid data={data} onDriver={openDriver} />
           </div>
-          {driver && <DriverSheet code={driver} onClose={() => setDriver(null)} />}
           <p className="font-mono text-[9.5px] text-ink-faint mt-3">Tap a driver for their season round by round · from Jolpica (the Ergast archive) · results land there a few hours after each race.</p>
         </>
       )}

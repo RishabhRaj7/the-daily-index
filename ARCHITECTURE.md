@@ -563,6 +563,21 @@ edition starts building before the reader is back on the paper.
   (F1 coordinates → the model's box, `f1:track:v4`) so the lane is placed
   exactly; served as `pit`. The map draws it under the track (dashed, PIT)
   and shows the cars in the pits along its middle.
+- The live map's toolbar (`TrackMap` with `controls`, on the Live view and
+  the enlarged map): driver codes for everyone, the reader's drivers or none;
+  cars in team or tyre colours (with a key); Follow, which zooms in and keeps
+  the camera on the followed car; zoom in/out and back to the whole circuit
+  (scroll and pinch on the enlarged map), drag to look around, and a mini map
+  of where the view is. The view is written straight onto the SVG (no
+  re-render per frame); the reader's choices are kept on the device.
+- Any driver's name opens their season: `components/f1/DriverLink.tsx`
+  (`DriverName`, `openDriver`) with one `DriverSheetHost` in the root layout.
+  Used by the home page's championship table, grid, podium, odds, weekend
+  tops and paddock; the timing table (the name; the row still follows on the
+  map), the followed driver's card, the title projection, race control's
+  text, radio and pit stops, every Analysis table, the lap chart's labels,
+  the weekend grid and circuit history, the season grid and records, and a
+  teammate inside the sheet.
 - Head to head (`/api/f1/h2h?team=` or `?a=RUS&b=VER`): teammates, or the
   reader's two drivers when they're not the same pair; Your paddock switches.
 - Official imagery from F1's image server (`lib/f1-assets.ts`): team logo

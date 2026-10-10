@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LiveSnapshot, SegmentMark, TrackModel } from "@/lib/f1-live-types";
 import { estimateCars, headingAt, pointAt, sectorEnds, segmentBounds, segmentMarks } from "@/lib/f1-track-progress";
+import { useF1Favourites } from "./LiveTiming";
+import { TYRE } from "./TyreIcon";
 
 // The circuit as a vector: it draws itself when it comes into view, with the
 // start/finish line (chequered) and the three sectors marked. During a
@@ -80,6 +82,7 @@ export default function TrackMap({
   fit = false,
   className = "",
   label,
+  controls = false,
 }: {
   model: TrackModel;
   snap?: LiveSnapshot | null;
@@ -97,6 +100,8 @@ export default function TrackMap({
   fit?: boolean;
   className?: string;
   label?: string;
+  /** The map's toolbar (codes, colours, follow, zoom) and mini map, for a session. */
+  controls?: boolean;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [drawn, setDrawn] = useState(false);
@@ -181,6 +186,107 @@ export default function TrackMap({
     }
   }, [cars, readAt, rate]);
 
+  // ---- the camera: zoom, pan, follow -------------------------------------------
+  // The view is a window on the model's box, kept in refs and written straight
+  // onto the SVG (the frame loop moves it every frame while following a car),
+  // so panning and following never re-render the map.
+  const [zoom, setZoom] = useState(1);
+  const [follow, setFollow] = useState(false);
+  const zoomRef = useRef(1);
+  const followRef = useRef<string | null>(null);
+  const centre = useRef({ x: model.width / 2, y: model.height / 2 });
+  const miniRef = useRef<SVGRectElement>(null);
+  const applyView = useCallback(() => {
+    const z = zoomRef.current;
+    const w = model.width / z;
+    const h = model.height / z;
+    const c = centre.current;
+    c.x = z <= 1 ? model.width / 2 : Math.min(model.width - w / 2, Math.max(w / 2, c.x));
+    c.y = z <= 1 ? model.height / 2 : Math.min(model.height - h / 2, Math.max(h / 2, c.y));
+    const box = [c.x - w / 2, c.y - h / 2, w, h].map((v) => v.toFixed(1));
+    svgRef.current?.setAttribute("viewBox", box.join(" "));
+    const m = miniRef.current;
+    if (m) ["x", "y", "width", "height"].forEach((k, i) => m.setAttribute(k, box[i]));
+  }, [model]);
+  useEffect(() => {
+    zoomRef.current = zoom;
+    applyView();
+  }, [zoom, applyView]);
+  useEffect(() => {
+    followRef.current = follow && focus && snap?.running ? focus : null;
+  }, [follow, focus, snap?.running]);
+  const zoomBy = (factor: number, at?: { x: number; y: number }) => {
+    const z = zoomRef.current;
+    const next = Math.min(8, Math.max(1, z * factor));
+    if (at && next !== z) {
+      // Keep the point under the pointer where it is.
+      const c = centre.current;
+      c.x = at.x + (c.x - at.x) * (z / next);
+      c.y = at.y + (c.y - at.y) * (z / next);
+    }
+    zoomRef.current = next;
+    setZoom(next);
+    applyView();
+  };
+  /** A screen point in the model's units. */
+  const toModel = (clientX: number, clientY: number) => {
+    const svg = svgRef.current;
+    const m = svg?.getScreenCTM();
+    if (!svg || !m) return null;
+    const p = new DOMPoint(clientX, clientY).matrixTransform(m.inverse());
+    return { x: p.x, y: p.y };
+  };
+  // Scroll to zoom (the enlarged map only: on the page a scroll should scroll).
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg || !big) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const at = toModel(e.clientX, e.clientY) ?? undefined;
+      zoomBy(Math.exp(-e.deltaY * 0.0015), at);
+    };
+    svg.addEventListener("wheel", onWheel, { passive: false });
+    return () => svg.removeEventListener("wheel", onWheel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [big, model]);
+  // Drag to pan once zoomed; two fingers pinch (the enlarged map).
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<number | null>(null);
+  const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (zoomRef.current <= 1 && !big) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()];
+      pinch.current = Math.hypot(a.x - b.x, a.y - b.y);
+    }
+  };
+  const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    const was = pointers.current.get(e.pointerId);
+    if (!was) return;
+    const now = { x: e.clientX, y: e.clientY };
+    pointers.current.set(e.pointerId, now);
+    if (pointers.current.size === 2 && pinch.current) {
+      const [a, b] = [...pointers.current.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      zoomBy(d / pinch.current, toModel((a.x + b.x) / 2, (a.y + b.y) / 2) ?? undefined);
+      pinch.current = d;
+      return;
+    }
+    if (zoomRef.current <= 1) return;
+    const k = svgRef.current?.getScreenCTM()?.a ?? 1;
+    if (Math.hypot(now.x - was.x, now.y - was.y) > 0.5) {
+      if (followRef.current) setFollow(false);
+      followRef.current = null;
+      centre.current.x -= (now.x - was.x) / k;
+      centre.current.y -= (now.y - was.y) / k;
+      applyView();
+    }
+  };
+  const onPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
+    pointers.current.delete(e.pointerId);
+    if (pointers.current.size < 2) pinch.current = null;
+  };
+
   const hasSnap = !!snap;
   useEffect(() => {
     if (!hasSnap) return;
@@ -208,6 +314,12 @@ export default function TrackMap({
         motion.current.set(c.code, at);
         const [x, y] = pointAt(model, at);
         el.setAttribute("transform", `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
+        // The camera rides with the followed car (zoomed in a little if it wasn't).
+        if (followRef.current === c.code) {
+          centre.current.x = x;
+          centre.current.y = y;
+          applyView();
+        }
       }
 
       // The followed driver's lit mini-sectors, up to the car.
@@ -238,9 +350,20 @@ export default function TrackMap({
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [hasSnap, model]);
+  }, [hasSnap, model, applyView]);
 
-  const r = (big ? 10 : 13) * scale;
+  // Zoomed in, the cars and their codes grow a little, not as much as the track.
+  const inv = 1 / Math.sqrt(zoom);
+  const r = (big ? 10 : 13) * scale * inv;
+  const fav = useF1Favourites();
+  const [codes, setCodes] = useStoredChoice<"all" | "yours" | "off">("f1-map-codes", "all", ["all", "yours", "off"]);
+  const [paint, setPaint] = useStoredChoice<"team" | "tyre">("f1-map-paint", "team", ["team", "tyre"]);
+  const tyreOf = new Map((snap?.rows ?? []).map((row) => [row.code, row.tyre?.compound ?? null]));
+  const fill = (code: string, colour: string) => {
+    const t = paint === "tyre" ? tyreOf.get(code) : null;
+    return t ? TYRE[t].colour : colour;
+  };
+  const showCode = (code: string) => codes === "all" || code === focus || (codes === "yours" && fav.codes.has(code));
   const start = across(model, 0, 30 * scale);
   const out = (x: number, y: number, d: number) => {
     const dx = x - cx;
@@ -276,6 +399,11 @@ export default function TrackMap({
         viewBox={`0 0 ${model.width} ${model.height}`}
         className={`block w-full ${big || fit ? "h-full" : "h-auto"} ${drawn ? "track-drawn" : "track-undrawn"}`}
         preserveAspectRatio="xMidYMid meet"
+        onPointerDown={controls ? onPointerDown : undefined}
+        onPointerMove={controls ? onPointerMove : undefined}
+        onPointerUp={controls ? onPointerUp : undefined}
+        onPointerCancel={controls ? onPointerUp : undefined}
+        style={controls && (zoom > 1 || big) ? { touchAction: "none", cursor: zoom > 1 ? "grab" : undefined } : undefined}
         role="img"
         aria-label={label ?? `${model.name} circuit map`}
       >
@@ -377,9 +505,9 @@ export default function TrackMap({
             return (
               <g key={`pit-${row.code}`} transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`} onClick={onFocus ? () => onFocus(row.code) : undefined} style={onFocus ? { cursor: "pointer" } : undefined}>
                 <title>{`${row.code} in the pits`}</title>
-                <circle r={(mine ? 1.1 : 0.85) * r} fill={row.colour} stroke="var(--f1-pit)" strokeWidth={3 * scale} />
-                {(pitted.length <= 6 || mine) && (
-                  <text x={r * 1.3} y={-r} fontSize={(mine ? 20 : 15) * scale} fontWeight={700} fontFamily="var(--font-sans)" fill="var(--ink-soft)" stroke="var(--paper)" strokeWidth={5 * scale} paintOrder="stroke">
+                <circle r={(mine ? 1.1 : 0.85) * r} fill={fill(row.code, row.colour)} stroke="var(--f1-pit)" strokeWidth={3 * scale * inv} />
+                {(pitted.length <= 6 || mine) && showCode(row.code) && (
+                  <text x={r * 1.3} y={-r} fontSize={(mine ? 20 : 15) * scale * inv} fontWeight={700} fontFamily="var(--font-sans)" fill="var(--ink-soft)" stroke="var(--paper)" strokeWidth={5 * scale} paintOrder="stroke">
                     {row.code}
                   </text>
                 )}
@@ -412,24 +540,68 @@ export default function TrackMap({
                 style={onFocus ? { cursor: "pointer" } : undefined}
               >
                 {mine && <circle r={r * 1.9} fill={c.colour} opacity={0.22} className="car-pulse" />}
-                <circle r={mine ? r * 1.25 : r} fill={c.colour} stroke="var(--paper)" strokeWidth={3.5 * scale} />
-                <text
-                  x={r * 1.5}
-                  y={-r * 1.2}
-                  fontSize={(mine ? (big ? 19 : 24) : big ? 14 : 19) * scale}
-                  fontWeight={700}
-                  fontFamily="var(--font-sans)"
-                  fill="var(--ink)"
-                  stroke="var(--paper)"
-                  strokeWidth={5 * scale}
-                  paintOrder="stroke"
-                >
-                  {c.code}
-                </text>
+                <circle r={mine ? r * 1.25 : r} fill={fill(c.code, c.colour)} stroke={paint === "tyre" ? c.colour : "var(--paper)"} strokeWidth={(paint === "tyre" ? 4.5 : 3.5) * scale * inv} />
+                {showCode(c.code) && (
+                  <text
+                    x={r * 1.5}
+                    y={-r * 1.2}
+                    fontSize={(mine ? (big ? 19 : 24) : big ? 14 : 19) * scale * inv}
+                    fontWeight={700}
+                    fontFamily="var(--font-sans)"
+                    fill="var(--ink)"
+                    stroke="var(--paper)"
+                    strokeWidth={5 * scale * inv}
+                    paintOrder="stroke"
+                  >
+                    {c.code}
+                  </text>
+                )}
               </g>
             );
           })}
       </svg>
+      {controls && snap && (
+        <MapTools
+          codes={codes}
+          onCodes={setCodes}
+          paint={paint}
+          onPaint={setPaint}
+          follow={follow}
+          onFollow={(on) => {
+            setFollow(on);
+            if (on && zoomRef.current < 2.5) zoomBy(2.5 / zoomRef.current);
+          }}
+          canFollow={!!focus && snap.running}
+          zoom={zoom}
+          onZoom={(f) => zoomBy(f)}
+          onReset={() => {
+            setFollow(false);
+            followRef.current = null;
+            zoomRef.current = 1;
+            setZoom(1);
+            applyView();
+          }}
+        />
+      )}
+      {controls && zoom > 1 && (
+        // Where the zoomed view is on the whole circuit.
+        <svg viewBox={`0 0 ${model.width} ${model.height}`} className="absolute left-0 bottom-0 w-20 sm:w-24 h-auto rounded-lg border hairline bg-[var(--surface)] opacity-90 pointer-events-none" aria-hidden="true">
+          <path d={model.path} fill="none" stroke="var(--ink-faint)" strokeWidth={14 * scale} strokeLinejoin="round" />
+          <rect ref={miniRef} fill="color-mix(in srgb, var(--hue-f1) 18%, transparent)" stroke="var(--hue-f1)" strokeWidth={8 * scale} rx={10 * scale} />
+        </svg>
+      )}
+      {controls && paint === "tyre" && snap?.running && (
+        <div className="absolute right-0 bottom-0 flex gap-2 font-mono text-[9px] text-ink-faint pointer-events-none">
+          {(["SOFT", "MEDIUM", "HARD", "INTERMEDIATE", "WET"] as const)
+            .filter((t) => [...tyreOf.values()].includes(t))
+            .map((t) => (
+              <span key={t} className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full" style={{ background: TYRE[t].colour }} />
+                {TYRE[t].name}
+              </span>
+            ))}
+        </div>
+      )}
       {onExpand && (
         <button type="button" onClick={onExpand} className="absolute top-0 right-0 icon-btn" aria-label="Enlarge the map" title="Enlarge the map">
           <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -437,6 +609,103 @@ export default function TrackMap({
           </svg>
         </button>
       )}
+    </div>
+  );
+}
+
+/** A choice the reader made on the map, remembered on this device. */
+function useStoredChoice<T extends string>(key: string, initial: T, allowed: readonly T[]): [T, (v: T) => void] {
+  const [v, setV] = useState<T>(initial);
+  useEffect(() => {
+    try {
+      const kept = localStorage.getItem(key) as T | null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (kept && allowed.includes(kept)) setV(kept);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return [
+    v,
+    (next: T) => {
+      setV(next);
+      try {
+        localStorage.setItem(key, next);
+      } catch {}
+    },
+  ];
+}
+
+function ToolButton({ on, onClick, title, children, disabled }: { on?: boolean; onClick: () => void; title: string; children: React.ReactNode; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      aria-label={title}
+      aria-pressed={on}
+      className={`h-7 min-w-7 px-2 rounded-full font-sans text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors disabled:opacity-35 ${on ? "text-[color:var(--paper)]" : "text-ink-soft hover:text-ink"}`}
+      style={on ? { background: "var(--ink)" } : undefined}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** The map's toolbar: which codes show, what colours the cars, follow a car, zoom. */
+function MapTools(p: {
+  codes: "all" | "yours" | "off";
+  onCodes: (v: "all" | "yours" | "off") => void;
+  paint: "team" | "tyre";
+  onPaint: (v: "team" | "tyre") => void;
+  follow: boolean;
+  onFollow: (on: boolean) => void;
+  canFollow: boolean;
+  zoom: number;
+  onZoom: (factor: number) => void;
+  onReset: () => void;
+}) {
+  const nextCodes = { all: "yours", yours: "off", off: "all" } as const;
+  return (
+    <div className="absolute left-0 top-0 flex flex-wrap items-center gap-1 max-w-[calc(100%-3rem)]">
+      <div className="glass border hairline rounded-full p-0.5 flex items-center">
+        <ToolButton
+          onClick={() => p.onCodes(nextCodes[p.codes])}
+          title={`Driver codes: ${p.codes === "all" ? "everyone" : p.codes === "yours" ? "your drivers and the followed car" : "the followed car only"} (tap to change)`}
+        >
+          <span className="font-mono text-[10px]">ABC</span>
+          <span className="text-ink-faint font-normal">{p.codes === "all" ? "All" : p.codes === "yours" ? "Yours" : "Off"}</span>
+        </ToolButton>
+        <ToolButton onClick={() => p.onPaint(p.paint === "team" ? "tyre" : "team")} title={p.paint === "team" ? "Cars in team colours (tap for tyres)" : "Cars in their tyre's colour (tap for teams)"}>
+          <span className="flex" aria-hidden="true">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ background: p.paint === "tyre" ? TYRE.SOFT.colour : "var(--hue-f1)" }} />
+            {p.paint === "tyre" && <span className="w-2.5 h-2.5 rounded-full -ml-1" style={{ background: TYRE.MEDIUM.colour }} />}
+          </span>
+          {p.paint === "team" ? "Teams" : "Tyres"}
+        </ToolButton>
+        <ToolButton on={p.follow} onClick={() => p.onFollow(!p.follow)} disabled={!p.canFollow} title={p.follow ? "Stop following" : "Keep the camera on the followed car"}>
+          <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+            <circle cx="8" cy="8" r="2.5" />
+            <path d="M8 1.5v2.5M8 12v2.5M1.5 8H4M12 8h2.5" strokeLinecap="round" />
+          </svg>
+          Follow
+        </ToolButton>
+      </div>
+      <div className="glass border hairline rounded-full p-0.5 flex items-center">
+        <ToolButton onClick={() => p.onZoom(1 / 1.6)} disabled={p.zoom <= 1} title="Zoom out">
+          −
+        </ToolButton>
+        <ToolButton onClick={() => p.onZoom(1.6)} disabled={p.zoom >= 8} title="Zoom in">
+          +
+        </ToolButton>
+        {p.zoom > 1 && (
+          <ToolButton onClick={p.onReset} title="Show the whole circuit">
+            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+              <path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10" />
+            </svg>
+          </ToolButton>
+        )}
+      </div>
     </div>
   );
 }

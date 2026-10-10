@@ -6,6 +6,7 @@ import type { LiveSnapshot, TrackModel } from "@/lib/f1-live-types";
 import TrackMap from "./TrackMap";
 import { TeamGlyph } from "./LiveTiming";
 import TyreIcon from "./TyreIcon";
+import { DriverName } from "./DriverLink";
 import { LiveDot, sessionLine } from "./LiveCard";
 
 // The map, enlarged: the track filling the screen with the field on it, the
@@ -61,7 +62,7 @@ export default function MapSheet({
           {/* the map fits the space both ways, whatever the circuit's shape */}
           <div className="relative min-h-[60vh] lg:min-h-0">
             <div className="absolute inset-3 sm:inset-6">
-              <TrackMap model={model} snap={snap} focus={focus} onFocus={onFocus} big className="w-full h-full" />
+              <TrackMap model={model} snap={snap} focus={focus} onFocus={onFocus} big controls className="w-full h-full" />
             </div>
           </div>
           <aside className="hidden lg:block border-l hairline overflow-y-auto p-4">
@@ -71,22 +72,31 @@ export default function MapSheet({
                 const on = r.code === focus;
                 return (
                   <li key={r.code}>
-                    <button
-                      type="button"
+                    <div
+                      role="button"
+                      tabIndex={0}
                       onClick={() => onFocus(r.code)}
-                      className={`w-full grid grid-cols-[1.4rem_minmax(0,1fr)_auto_auto] items-center gap-2 rounded-lg px-2 py-[5px] text-left text-[12px] ${r.out || (snap.running && r.inPit) ? "opacity-50" : ""}`}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onFocus(r.code);
+                        }
+                      }}
+                      className={`w-full cursor-pointer grid grid-cols-[1.4rem_minmax(0,1fr)_auto_auto] items-center gap-2 rounded-lg px-2 py-[5px] text-left text-[12px] ${r.out || (snap.running && r.inPit) ? "opacity-50" : ""}`}
                       style={on ? { background: `color-mix(in srgb, ${r.colour} 20%, transparent)` } : undefined}
                     >
                       <span className="font-mono text-[11px] text-ink-soft tabular-nums">{r.position}</span>
                       <span className="flex items-center gap-2 min-w-0">
                         <span className="w-[3px] h-3.5 rounded-full shrink-0" style={{ background: r.colour }} />
                         <TeamGlyph team={r.team} colour={r.colour} />
-                        <span className="font-sans font-bold">{r.code}</span>
+                        <DriverName code={r.code} className="font-sans font-bold">
+                          {r.code}
+                        </DriverName>
                         {snap.running && r.inPit && <span className="font-label text-[8px]" style={{ color: "var(--f1-pit)" }}>Pit</span>}
                       </span>
                       <span className="font-mono text-[10.5px] tabular-nums text-ink-soft">{race ? (r.position === 1 ? "Leader" : r.interval) : r.best}</span>
                       {r.tyre ? <TyreIcon compound={r.tyre.compound} fresh={r.tyre.fresh} size={14} /> : <span />}
-                    </button>
+                    </div>
                   </li>
                 );
               })}

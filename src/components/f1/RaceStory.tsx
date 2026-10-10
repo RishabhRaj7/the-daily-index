@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import type { LiveSnapshot } from "@/lib/f1-live-types";
+import { openDriver } from "./DriverLink";
 
 // The race, lap by lap: every driver's position at the end of each lap
 // (F1's LapSeries). The reader's drivers and the one being followed are drawn
@@ -125,7 +126,9 @@ export default function RaceStory({ data, highlight, names }: { data: Story; hig
                 fillOpacity={lifted && !up ? 0.45 : 1}
                 style={{ cursor: "pointer" }}
                 onPointerEnter={() => setHover({ code: d.code, lap: end })}
+                onClick={() => openDriver(d.code)}
               >
+                <title>{`${d.code}: the season, round by round`}</title>
                 {d.code}
               </text>
             </g>

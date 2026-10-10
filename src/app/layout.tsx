@@ -7,6 +7,7 @@ import { EditionProvider } from "@/lib/edition-context";
 import ReadingProgressBar from "@/components/chrome/ReadingProgressBar";
 import MotionRuntime from "@/components/chrome/MotionRuntime";
 import OnboardingGate from "@/components/onboarding/OnboardingGate";
+import { DriverSheetHost } from "@/components/f1/DriverLink";
 import { getF1Roster } from "@/lib/live/f1";
 
 // Four voices, one job each:
@@ -72,6 +73,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <MotionRuntime />
           {children}
           <OnboardingGate f1Roster={f1Roster} />
+          <DriverSheetHost />
         </EditionProvider>
       </body>
     </html>

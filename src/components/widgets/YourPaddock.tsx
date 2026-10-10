@@ -13,6 +13,7 @@ import {
   teamColor,
 } from "@/lib/personalization";
 import { driverPhotoByCode, teamCar, teamLogo } from "@/lib/f1-assets";
+import { DriverName } from "@/components/f1/DriverLink";
 import type { HeadToHead } from "@/lib/live/f1-h2h";
 
 // Your paddock: the team and drivers the reader follows, with the numbers
@@ -116,12 +117,12 @@ function Versus({ options }: { options: { id: string; label: string; query: stri
       {h ? (
         <>
           <div className="flex items-center justify-between gap-2 mb-2">
-            <span className="font-sans font-bold text-[12.5px]" style={{ color: ca }}>
-              {h.a.name}
-            </span>
-            <span className="font-sans font-bold text-[12.5px]" style={{ color: h.team ? undefined : cb }}>
-              {h.b.name}
-            </span>
+            <DriverName code={h.a.code} className="font-sans font-bold text-[12.5px]">
+              <span style={{ color: ca }}>{h.a.name}</span>
+            </DriverName>
+            <DriverName code={h.b.code} className="font-sans font-bold text-[12.5px]">
+              <span style={{ color: h.team ? undefined : cb }}>{h.b.name}</span>
+            </DriverName>
           </div>
           <div className="space-y-1.5">
             <VersusBar label="Qualifying" pair={h.quali} colours={[ca, cb]} />
@@ -464,7 +465,9 @@ export default function YourPaddock({
                   )}
                 </span>
                 <span className="min-w-0">
-                  <span className="block font-sans font-semibold text-[14px] truncate">{d.name}</span>
+                  <DriverName code={d.code} className="block font-sans font-semibold text-[14px] truncate max-w-full">
+                    {d.name}
+                  </DriverName>
                   <span className="block font-mono text-[10px] text-ink-soft truncate">
                     {s ? `${s.points} pts · ${s.wins} win${s.wins === 1 ? "" : "s"}` : d.team}
                     {ahead && s ? ` · −${ahead.points - s.points} to P${ahead.position}` : ""}

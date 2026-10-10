@@ -25,6 +25,7 @@ import { isFresh, readF1Part, writeF1Part } from "@/lib/f1-cache";
 import StartingGrid from "./StartingGrid";
 import { useF1Live } from "@/lib/use-f1-live";
 import { TeamGlyph } from "@/components/f1/LiveTiming";
+import { DriverName } from "@/components/f1/DriverLink";
 import YourPaddock from "./YourPaddock";
 
 // Progressive F1 sidebar.
@@ -183,7 +184,7 @@ function StandingsBars({
   rows,
   leader,
 }: {
-  rows: Array<{ key: string; position: number; name: string; sub?: string; color?: string; team?: string; points: number }>;
+  rows: Array<{ key: string; position: number; name: string; sub?: string; code?: string; color?: string; team?: string; points: number }>;
   leader: number;
 }) {
   return (
@@ -195,7 +196,9 @@ function StandingsBars({
             <span className="font-mono text-[11px] text-ink-soft">{r.position}</span>
             <span className="flex items-center gap-2 min-w-0 font-sans font-medium">
               {r.team && <TeamGlyph team={r.team} colour={r.color ?? "var(--ink-faint)"} size={15} />}
-              <span className="truncate">{r.name}</span>
+              <DriverName code={r.code} className="truncate">
+                {r.name}
+              </DriverName>
               {r.sub && <span className="font-mono text-[10px] text-ink-faint shrink-0">{r.sub}</span>}
             </span>
             <span className="font-mono text-[12px] text-right">{r.points}</span>
@@ -657,6 +660,7 @@ export default function F1Sidebar({
                 position: d.position,
                 name: d.name,
                 sub: d.code,
+                code: d.code,
                 color: teamColor(d.team),
                 team: d.team,
                 points: d.points,

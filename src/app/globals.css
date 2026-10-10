@@ -785,3 +785,19 @@ html[data-edition="evening"] .f1-logo { filter: none; }
   .story-line, .shimmer-text { animation: none; }
   .shimmer-text { color: var(--ink-faint); background: none; }
 }
+
+/* A driver's name that opens their season (components/f1/DriverLink.tsx). */
+.driver-link {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.15s ease;
+}
+.driver-link:hover,
+.driver-link:focus-visible {
+  text-decoration-color: currentColor;
+}

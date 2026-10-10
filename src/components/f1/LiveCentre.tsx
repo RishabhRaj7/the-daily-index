@@ -12,7 +12,7 @@ import TrackMap, { useTrack } from "./TrackMap";
 import MapSheet from "./MapSheet";
 import PastSessions from "./PastSessions";
 import Season from "./Season";
-import DriverSheet from "./DriverSheet";
+import { DriverName, openDriver } from "./DriverLink";
 import ReplayBar, { useReplay } from "./ReplayBar";
 import { LiveDot, SessionClock, TONE, sessionLine } from "./LiveCard";
 import Feed from "./centre/Feed";
@@ -145,7 +145,6 @@ function pitWindow(snap: LiveSnapshot, row: LiveRow, track: TrackModel | null): 
 
 function FocusCard({ row, photo, snap, track }: { row: LiveRow; photo: string | null; snap: LiveSnapshot; track: TrackModel | null }) {
   const stop = pitWindow(snap, row, track);
-  const [season, setSeason] = useState(false);
   return (
     <div className="mt-4 pt-4 border-t hairline">
       <div className="flex items-center gap-3">
@@ -158,7 +157,9 @@ function FocusCard({ row, photo, snap, track }: { row: LiveRow; photo: string | 
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
             <TeamGlyph team={row.team} colour={row.colour} />
-            <span className="font-sans font-bold text-[14px] truncate">{row.name || row.code}</span>
+            <DriverName code={row.code} className="font-sans font-bold text-[14px] truncate">
+              {row.name || row.code}
+            </DriverName>
             <span className="font-mono text-[11px] text-ink-soft">P{row.position}</span>
           </span>
           <span className="block font-mono text-[10.5px] text-ink-soft mt-1 truncate">
@@ -172,10 +173,9 @@ function FocusCard({ row, photo, snap, track }: { row: LiveRow; photo: string | 
           </span>
         )}
       </div>
-      <button type="button" onClick={() => setSeason(true)} className="mt-2.5 font-sans text-[12px] font-semibold text-ink-soft hover:text-ink">
+      <button type="button" onClick={() => openDriver(row.code)} className="mt-2.5 font-sans text-[12px] font-semibold text-ink-soft hover:text-ink">
         {row.name || row.code}&rsquo;s season, round by round →
       </button>
-      {season && <DriverSheet code={row.code} onClose={() => setSeason(false)} />}
       {stop && (
         <div className="mt-3 rounded-xl border hairline px-3 py-2.5">
           <div className="flex items-baseline justify-between gap-2">
@@ -203,7 +203,7 @@ function FocusCard({ row, photo, snap, track }: { row: LiveRow; photo: string | 
 
 // ---- the title, live ---------------------------------------------------------------
 
-function TitleRow({ label, team, colour, position, predicted, points, predictedPoints, mine }: { label: string; team?: string; colour: string; position: number; predicted: number; points: number; predictedPoints: number; mine?: boolean }) {
+function TitleRow({ label, team, colour, position, predicted, points, predictedPoints, mine, code }: { label: string; team?: string; colour: string; position: number; predicted: number; points: number; predictedPoints: number; mine?: boolean; code?: string }) {
   const moved = position - predicted;
   return (
     <li
@@ -214,7 +214,9 @@ function TitleRow({ label, team, colour, position, predicted, points, predictedP
       <span className="flex items-center gap-2 min-w-0">
         <span className="w-[3px] h-3.5 rounded-full shrink-0" style={{ background: colour }} />
         {team && <TeamGlyph team={team} colour={colour} />}
-        <span className="font-sans font-bold truncate">{label}</span>
+        <DriverName code={code} className="font-sans font-bold truncate">
+          {label}
+        </DriverName>
       </span>
       <span className="font-mono text-[10px] text-center" style={{ color: moved > 0 ? "var(--f1-personal)" : moved < 0 ? "var(--down)" : "var(--ink-faint)" }}>
         {moved > 0 ? `▲${moved}` : moved < 0 ? `▼${-moved}` : "–"}
@@ -290,7 +292,7 @@ function LiveView({ snap, live, replay }: { snap: LiveSnapshot; live: boolean; r
     <div className="grid lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-5 lg:gap-6 items-stretch">
       {track ? (
         <Panel id="track" label={track.name || "Track"} meta={live || replay ? "Cars placed from the timing loops" : track.corners.length ? `${track.corners.length} corners` : undefined} className="order-1 lg:col-start-2 lg:row-start-1">
-          <TrackMap model={track} snap={snap} focus={focus} onFocus={setPicked} onExpand={() => setEnlarged(true)} fit className="h-[42vh] max-h-[26rem] lg:h-auto lg:max-h-none" />
+          <TrackMap model={track} snap={snap} focus={focus} onFocus={setPicked} onExpand={() => setEnlarged(true)} fit controls className="h-[42vh] max-h-[26rem] lg:h-auto lg:max-h-none" />
           {enlarged && <MapSheet model={track} snap={snap} focus={focus} onFocus={setPicked} onClose={() => setEnlarged(false)} />}
           {focusRow && <FocusCard row={focusRow} photo={photos[focusRow.code] ?? driverPhotoByCode(focusRow.code, focusRow.team)} snap={snap} track={track} />}
           {focusRow && snap.running && (
@@ -311,7 +313,7 @@ function LiveView({ snap, live, replay }: { snap: LiveSnapshot; live: boolean; r
       <Panel
         id="timing"
         label={live || replay ? "Timing" : "Final classification"}
-        meta={replay ? "As it stood · tap a driver to follow" : live ? `Read ${new Date(snap.at).toLocaleTimeString("en-GB")} · every 5 s` : "Tap a driver to follow on the map"}
+        meta={replay ? "As it stood · tap a row to follow, a name for the season" : live ? `Read ${new Date(snap.at).toLocaleTimeString("en-GB")} · every 5 s` : "Tap a row to follow · a name for the season"}
         className="order-2 lg:col-start-1 lg:row-start-1"
       >
         <LiveTiming snap={snap} wide focus={focus} onFocus={setPicked} />

@@ -362,9 +362,9 @@ async function raceOf(meeting: string, year: number): Promise<JRace | null> {
 
 export interface PastRace {
   year: number;
-  winner: { name: string; team: string; grid: number | null } | null;
-  pole: { name: string; team: string; time: string | null } | null;
-  fastest: { name: string; time: string } | null;
+  winner: { name: string; code?: string; team: string; grid: number | null } | null;
+  pole: { name: string; code?: string; team: string; time: string | null } | null;
+  fastest: { name: string; code?: string; time: string } | null;
 }
 
 export interface CircuitHistory {
@@ -383,7 +383,7 @@ export interface CircuitHistory {
 /** Who has won, started on pole and set the fastest lap here, kept a week. */
 export async function circuitHistory(meeting: string, year = new Date().getUTCFullYear()): Promise<CircuitHistory | null> {
   const store = getStore();
-  const k = `f1:circuit-history:v1:${year}:${meeting.toLowerCase().replace(/\W+/g, "-")}`;
+  const k = `f1:circuit-history:v2:${year}:${meeting.toLowerCase().replace(/\W+/g, "-")}`;
   const kept = await store.get<CircuitHistory>(k).catch(() => null);
   if (kept) return kept;
   const race = await raceOf(meeting, year);
@@ -411,9 +411,9 @@ export async function circuitHistory(meeting: string, year = new Date().getUTCFu
       const f = fastBy.get(y)?.Results?.[0];
       return {
         year: y,
-        winner: w ? { name: w.Driver.familyName, team: w.Constructor.name, grid: Number(w.grid) || null } : null,
-        pole: p ? { name: p.Driver.familyName, team: p.Constructor.name, time: p.Q3 || p.Q2 || p.Q1 || null } : null,
-        fastest: f?.FastestLap?.Time?.time ? { name: f.Driver.familyName, time: f.FastestLap.Time.time } : null,
+        winner: w ? { name: w.Driver.familyName, code: w.Driver.code, team: w.Constructor.name, grid: Number(w.grid) || null } : null,
+        pole: p ? { name: p.Driver.familyName, code: p.Driver.code, team: p.Constructor.name, time: p.Q3 || p.Q2 || p.Q1 || null } : null,
+        fastest: f?.FastestLap?.Time?.time ? { name: f.Driver.familyName, code: f.Driver.code, time: f.FastestLap.Time.time } : null,
       };
     });
   const out: CircuitHistory = {
