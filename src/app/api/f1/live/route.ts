@@ -6,6 +6,10 @@ export const maxDuration = 20;
 // GET /api/f1/live           the Pit wall's live table (compact)
 // GET /api/f1/live?full=1    everything, for /f1/live; between sessions it
 //                            carries the last session in full ({ last })
+// GET /api/f1/live?session=<archive path>            a past session, final
+// GET /api/f1/live?session=<path>&t=<s>[&timeline=1] that session as it stood
+//                            t seconds into its feed (the replay bar), with
+//                            its flags, laps and parts on the first ask
 //
 // { live: false, next } when no session is near (no connection is made);
 // { live: true, snapshot } from a few seconds before the start until half an
@@ -22,6 +26,15 @@ export async function GET(req: Request) {
     // ?session=<archive path>: one past session in full.
     const past = params.get("session");
     if (past && /^\d{4}\/[\w-]+\/[\w-]+\/$/.test(past)) {
+      const at = t === null ? NaN : Number(t);
+      if (Number.isFinite(at) && at >= 0 && at < 6 * 3600) {
+        const [answer, line] = await Promise.all([replay(past, at), params.get("timeline") === "1" ? import("@/lib/live/f1-replay").then((m) => m.timeline(past)) : null]);
+        const servedAt = new Date().toISOString();
+        return Response.json(
+          answer.live ? { live: true, snapshot: { ...answer.snapshot, servedAt }, timeline: line } : { live: false, next: null, timeline: line },
+          { headers: { "Cache-Control": "no-store" } },
+        );
+      }
       const last = await pastSession(past);
       return Response.json({ live: false, next: null, last }, { headers: { "Cache-Control": "public, max-age=300" } });
     }

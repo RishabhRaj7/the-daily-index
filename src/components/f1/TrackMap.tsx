@@ -5,16 +5,20 @@ import type { LiveSnapshot, SegmentMark, TrackModel } from "@/lib/f1-live-types"
 import { estimateCars, headingAt, pointAt, sectorEnds, segmentBounds, segmentMarks } from "@/lib/f1-track-progress";
 
 // The circuit as a vector: it draws itself when it comes into view, with the
-// start/finish line (chequered), the direction of travel (an arrow off the
-// line, chevrons round the lap) and the three sectors marked. During a
+// start/finish line (chequered) and the three sectors marked. During a
 // session it carries the field — each car's place estimated from the timing
 // loops (lib/f1-track-progress.ts) — and lights the followed driver's
 // mini-sectors purple, green or yellow along the track.
 //
-// Car motion: each car is driven forward at its own lap pace, and every new
-// estimate only changes how fast it goes (a quarter to just over double its
-// pace) until it has caught up — so cars never run backwards or jump; only a
-// big disagreement (a pit stop, a first sighting) places a car outright.
+// Car motion. Each car is driven forward at the speed it has been making —
+// measured over the last half-minute of estimates, so a cool-down lap, an
+// out-lap or a safety car slows it as it slows the real car — and every new
+// estimate only changes how fast it goes until it has caught up: up to two
+// and a half times its speed when behind, down to a standstill when ahead.
+// So a car waits rather than runs backwards, and catches up rather than
+// jumps. Whole laps are ignored when comparing (the lap counter and the
+// loops don't tick over at the same instant), and only a car a third of a
+// lap out — a first sighting, say — is placed outright.
 
 const cache = new Map<number, Promise<TrackModel | null>>();
 
@@ -127,13 +131,41 @@ export default function TrackMap({
   // ---- the field: driven forward, steered towards each estimate ------------
   const carRefs = useRef(new Map<string, SVGGElement>());
   const motion = useRef(new Map<string, number>());
+  /** Each car's recent estimates (read time, laps travelled), for its speed. */
+  const seen = useRef(new Map<string, { t: number; d: number }[]>());
+  const paceRef = useRef(new Map<string, number>());
   const carsRef = useRef(cars);
   const readAt = snap?.localAt ?? (snap ? Date.parse(snap.at) : 0);
   const readRef = useRef(readAt);
+  // A replay runs the session clock at its own rate (0 while paused).
+  const rate = snap?.replaySpeed ?? 1;
+  const rateRef = useRef(rate);
   useEffect(() => {
     carsRef.current = cars;
     readRef.current = readAt;
-  }, [cars, readAt]);
+    if (rateRef.current !== rate) seen.current.clear(); // speeds measured at the old rate
+    rateRef.current = rate;
+    for (const c of cars) {
+      if (!c.onTrack) {
+        // Off the track: forget it, so it is placed afresh when it rejoins.
+        seen.current.delete(c.code);
+        motion.current.delete(c.code);
+        paceRef.current.delete(c.code);
+        continue;
+      }
+      const hist = (seen.current.get(c.code) ?? []).filter((h) => readAt - h.t < 40_000 && h.t < readAt);
+      hist.push({ t: readAt, d: c.distance });
+      seen.current.set(c.code, hist);
+      // The speed it has really been making over the last 12–40 s (in session time).
+      const first = hist[0];
+      const span = ((readAt - first.t) / 1000) * (rate || 1);
+      const moved = c.distance - first.d;
+      const made = span >= 12 && moved > 0.02 && moved < 0.9 ? span / moved : null;
+      // Close to its lap pace: the lap pace (steadier). Well off it: what it's making.
+      const pace = made && Math.abs(made / c.pace - 1) > 0.15 ? Math.min(400, Math.max(55, made)) : c.pace;
+      paceRef.current.set(c.code, pace);
+    }
+  }, [cars, readAt, rate]);
 
   const hasSnap = !!snap;
   useEffect(() => {
@@ -144,15 +176,21 @@ export default function TrackMap({
     const frame = (now: number) => {
       const dt = Math.min(0.25, (now - last) / 1000);
       last = now;
-      const since = Math.max(0, (Date.now() - readRef.current) / 1000);
+      // Carried on from the last read for 12 s at most: a stalled feed
+      // leaves the cars waiting, not running on alone.
+      const r = rateRef.current;
+      const since = Math.min(12, Math.max(0, (Date.now() - readRef.current) / 1000)) * r;
       for (const c of carsRef.current) {
         const el = carRefs.current.get(c.code);
         if (!el) continue;
-        // Where the estimate says the car is by now, carried on at its pace.
-        const target = c.distance + since / c.pace;
+        const pace = paceRef.current.get(c.code) ?? c.pace;
+        // Where the estimate says the car is by now, carried on at its speed.
+        const target = c.distance + since / pace;
         let at = motion.current.get(c.code);
-        if (at === undefined || reduced || Math.abs(target - at) > 0.3) at = target;
-        else at += (dt / c.pace) * Math.min(2.2, Math.max(0.25, 1 + (target - at) * 14));
+        if (at !== undefined) at += Math.round(target - at); // whole laps don't count
+        const err = at === undefined ? 0 : target - at;
+        if (at === undefined || reduced || Math.abs(err) > 0.33) at = target;
+        else at += ((dt * r) / pace) * Math.min(2.5, Math.max(0, 1 + err * 12));
         motion.current.set(c.code, at);
         const [x, y] = pointAt(model, at);
         el.setAttribute("transform", `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
@@ -165,14 +203,6 @@ export default function TrackMap({
 
   const r = (big ? 10 : 13) * scale;
   const start = across(model, 0, 30 * scale);
-  const startArrow = (() => {
-    const [x, y] = pointAt(model, 0.035);
-    return { x, y, a: (headingAt(model, 0.035) * 180) / Math.PI };
-  })();
-  const chevrons = [0.2, 0.4, 0.6, 0.8].map((f) => {
-    const [x, y] = pointAt(model, f);
-    return { f, x, y, a: (headingAt(model, f) * 180) / Math.PI };
-  });
   const out = (x: number, y: number, d: number) => {
     const dx = x - cx;
     const dy = y - cy;
@@ -211,20 +241,6 @@ export default function TrackMap({
           )}
 
         <g className="track-corner">
-          {/* direction of travel round the lap */}
-          {chevrons.map((c) => (
-            <path
-              key={c.f}
-              d={`M${-6 * scale},${-6 * scale} L${2 * scale},0 L${-6 * scale},${6 * scale}`}
-              transform={`translate(${c.x} ${c.y}) rotate(${c.a})`}
-              fill="none"
-              stroke="var(--paper)"
-              strokeWidth={3 * scale}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          ))}
-
           {/* where sectors 2 and 3 begin */}
           {ends &&
             [
@@ -258,16 +274,8 @@ export default function TrackMap({
           </text>
         </g>
 
-        {/* start / finish: chequered across the track, an arrow off the line */}
+        {/* start / finish, chequered across the track */}
         <line x1={start.x1} y1={start.y1} x2={start.x2} y2={start.y2} stroke={`url(#chequer-${model.circuitKey})`} strokeWidth={10 * scale} />
-        <path
-          d={`M${-12 * scale},${-11 * scale} L${8 * scale},0 L${-12 * scale},${11 * scale} Z`}
-          transform={`translate(${startArrow.x} ${startArrow.y}) rotate(${startArrow.a})`}
-          fill="var(--hue-f1)"
-          stroke="var(--paper)"
-          strokeWidth={2.5 * scale}
-          strokeLinejoin="round"
-        />
 
         {/* the field */}
         {cars

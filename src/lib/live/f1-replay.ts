@@ -1,11 +1,13 @@
 import type { LiveState } from "./f1-signalr";
 
-// Development only: a finished session replayed through time from F1's
-// archive. Each topic's ".jsonStream" holds every change the live feed sent,
-// stamped with the time since the feed opened; applying them in order up to
-// t rebuilds the state a live reader would have had at t. Used to see the
-// live views move (rows changing places, flashes, cars on the map) without
-// waiting for a race weekend.
+// A finished session replayed through time from F1's archive (the replay
+// bar on /f1/live, and ?f1replay= in development). Each topic's
+// ".jsonStream" holds every change the live feed sent, stamped with the time
+// since the feed opened; applying them in order up to t rebuilds the state a
+// live reader would have had at t. A race's streams come to about 6.5 MB;
+// the two most recent sessions asked for stay in memory, each with a cursor,
+// so playing forward costs only the changes since the last read (going back
+// starts again from the top, still only milliseconds).
 
 const TOPICS = [
   "SessionInfo",
@@ -39,6 +41,7 @@ interface Timeline {
 
 const timelines = new Map<string, Promise<Event[]>>();
 const cursors = new Map<string, Timeline>();
+const KEEP = 2;
 
 const stamp = (s: string) => {
   const [h, m, sec] = s.split(":").map(Number);
@@ -85,14 +88,68 @@ function merge(target: unknown, delta: unknown): unknown {
   return out;
 }
 
+function eventsFor(path: string): Promise<Event[]> {
+  let events = timelines.get(path);
+  if (events) {
+    // Most recently used last.
+    timelines.delete(path);
+    timelines.set(path, events);
+    return events;
+  }
+  events = loadEvents(path);
+  events.then((l) => l.length === 0 && timelines.delete(path)).catch(() => timelines.delete(path));
+  timelines.set(path, events);
+  while (timelines.size > KEEP) {
+    const oldest = timelines.keys().next().value as string;
+    timelines.delete(oldest);
+    cursors.delete(oldest);
+  }
+  return events;
+}
+
+export type FlagTone = "green" | "yellow" | "sc" | "vsc" | "red";
+
+/** The shape of a session for the replay bar: when it ran, its flags, its laps and parts. */
+export interface ReplayTimeline {
+  /** Seconds into the feed: a minute before the first start … the end. */
+  start: number;
+  end: number;
+  flags: { t: number; tone: FlagTone }[];
+  laps: { t: number; lap: number }[];
+  /** Where each part begins (Q1/Q2/Q3, or SQ…), for qualifying. */
+  parts: { t: number; label: string }[];
+}
+
+const TRACK_TONE: Record<string, FlagTone> = { "1": "green", "2": "yellow", "4": "sc", "5": "red", "6": "vsc", "7": "vsc" };
+
+export async function timeline(path: string): Promise<ReplayTimeline | null> {
+  const list = await eventsFor(path);
+  if (list.length === 0) return null;
+  const starts: number[] = [];
+  let end = list.at(-1)!.t;
+  const flags: ReplayTimeline["flags"] = [];
+  const laps: ReplayTimeline["laps"] = [];
+  for (const e of list) {
+    const d = e.data as Record<string, unknown>;
+    if (e.topic === "SessionStatus") {
+      if (d.Status === "Started") starts.push(e.t);
+      if (d.Status === "Finalised" || d.Status === "Ends") end = Math.min(end, e.t);
+    } else if (e.topic === "TrackStatus" && typeof d.Status === "string") {
+      const tone = TRACK_TONE[d.Status];
+      if (tone && flags.at(-1)?.tone !== tone) flags.push({ t: e.t, tone });
+    } else if (e.topic === "LapCount" && typeof d.CurrentLap === "number") {
+      laps.push({ t: e.t, lap: d.CurrentLap });
+    }
+  }
+  const start = Math.max(0, (starts[0] ?? 0) - 60);
+  const sprint = /sprint/i.test(path);
+  const parts = starts.length > 1 ? starts.map((t, i) => ({ t, label: `${sprint ? "SQ" : "Q"}${i + 1}` })) : [];
+  return { start, end: Math.max(start + 60, end), flags, laps, parts };
+}
+
 /** The session's state `t` seconds after its feed opened. */
 export async function stateAt(path: string, t: number): Promise<{ state: LiveState; end: number }> {
-  let events = timelines.get(path);
-  if (!events) {
-    events = loadEvents(path);
-    timelines.set(path, events);
-  }
-  const list = await events;
+  const list = await eventsFor(path);
   let tl = cursors.get(path);
   if (!tl || t < tl.t) {
     tl = { events: list, state: {}, cursor: 0, t: 0 };

@@ -448,11 +448,30 @@ edition starts building before the reader is back on the paper.
 - During a session the Pit wall's timing card is `components/f1/LiveCard.tsx`
   (running order, tyres, a moving border; rows glide on overtakes and flash);
   the top bar's F1 link wears a dot (`html[data-f1-live]`). Everything else
-  lives on `/f1/live` (`LiveCentre`): timing with sectors and mini-sectors,
-  tyre strategy, race control, team radio, F1's projected title standings,
-  weather. In development `?f1replay=<archive path>` plays a finished session;
-  add `&f1from=<seconds into the feed>&f1speed=<×>` to play it through time
-  (`lib/live/f1-replay.ts` applies the archive's `.jsonStream` deltas).
+  lives on `/f1/live` (`LiveCentre`), laid out in even rows: timing beside
+  the map and lap benchmarks (the two columns stretch to one height; the
+  timing panel's key sits at its foot); race control beside team radio (the
+  same fixed height, each scrolling inside); then tyre strategy, the race
+  lap by lap (point at any line: it lifts out and a card names the driver,
+  their place that lap and places gained since the start), F1's projected
+  title standings, and the season (below). In development
+  `?f1replay=<archive path>&f1from=<s>&f1speed=<×>` still plays a session.
+- Replay (`components/f1/ReplayBar.tsx`): any finished session on `/f1/live`
+  has a Replay button; the bar along the foot plays it back from F1's
+  archive at 1–30× (`/api/f1/live?session=<path>&t=<s>` every 1.5 s; the
+  first ask adds `&timeline=1` for the flags, laps and qualifying parts that
+  colour and mark the bar). Drag to seek; space, ←/→ and Esc work.
+  `lib/live/f1-replay.ts` rebuilds the state at t from the `.jsonStream`
+  deltas (~6.5 MB a race), keeping the two most recent sessions in memory
+  with a cursor. The map runs at the replay's rate (`replaySpeed`).
+- Lap benchmarks (`/api/f1/benchmarks?meeting=&type=`): the session's best
+  against last year's pole (or fastest race lap) and the fastest race lap at
+  the circuit since 2022, from Jolpica, kept a week.
+- Season (`components/f1/Season.tsx`, `/api/f1/season`, `lib/live/f1-season.ts`,
+  kept 3 h): records for Grands Prix, sprints or both (most wins, podiums,
+  poles by driver and constructor; best average finish; most places gained;
+  largest and closest winning margins; biggest climb) and every driver's
+  points or places round by round, coloured by finishing place.
 - Kept on our side: every session's final snapshot for 45 days
   (`f1:session:v1:<key>`, pointer `f1:session:last`); between sessions
   `/api/f1/live?full=1` answers `{ last }`, built once from F1's archive if
@@ -464,26 +483,40 @@ edition starts building before the reader is back on the paper.
   archive: the fastest driver's best lap at the latest session there, its
   `Position.z` samples between the lap's start and end. `TrackMap` draws the
   outline in, lights the followed driver's mini-sectors, and places the field
-  by estimate (`lib/f1-track-progress.ts`: completed mini-sectors spread over
-  a typical sector split; in races, gap to the leader ÷ lap time), carried on
-  at lap pace between reads. Exact live positions need F1 TV and aren't used.
+  by estimate (`lib/f1-track-progress.ts`: mini-sectors up to the furthest
+  one lit, spread over a typical sector split; in races, gap to the leader ÷
+  lap time, and for lapped cars the interval to the car ahead). Exact live
+  positions need F1 TV and aren't used.
   Motion: each car's estimate is a distance in laps (laps done + share of
   this one, placed mid-way into its current mini-sector; a fully lit lap
-  means it has just crossed the line). The map drives cars forward at lap
-  pace and steers by speed only (0.25–2.2×) towards each new estimate, timed
-  by the browser's arrival clock (`localAt`), so cars never run backwards or
-  jump. Maps also mark the chequered start/finish, the direction of travel
-  and where sectors 2 and 3 begin (sector split remembered per circuit from
-  any session run there: `f1:track:sectors:v1:<key>`). An enlarge button opens
-  `MapSheet` (the map full screen with the running order).
+  means it has just crossed the line). The map drives each car at the speed
+  it has actually been making (measured over the last 12–40 s, so cool-down
+  laps, out-laps and safety cars slow it; lap pace until then) and steers by
+  speed only (standstill to 2.5×) towards each new estimate, timed by the
+  browser's arrival clock (`localAt`) and carried on for 12 s at most. Whole
+  laps are ignored when comparing; only a third of a lap's disagreement
+  places a car outright. A car that pits is forgotten and placed afresh.
+  Maps mark the chequered start/finish and where sectors 2 and 3 begin
+  (sector split remembered per circuit from any session run there:
+  `f1:track:sectors:v1:<key>`). An enlarge button opens `MapSheet` (the map
+  full screen with the running order).
 - Past sessions: `/api/f1/sessions` lists the season's finished sessions from
   F1's archive index; `/api/f1/live?full=1&session=<path>` returns one in
   full (kept 45 days under `f1:past:v1:<path>`); `/f1/live?session=<path>`
   shows it (the picker keeps it in the address).
-- Team radio transcripts: Gemini listens to each MP3 once
-  (`lib/live/f1-radio.ts`, `/api/f1/radio`, three new per call), returning a
-  0–1 confidence (less for each "[unclear]" word) shown as five pips. Model:
-  `GEMINI_RADIO_MODEL`, else `GEMINI_MODEL`.
+- Team radio transcripts (`lib/live/f1-radio.ts`, `/api/f1/radio`, three new
+  per call, kept 120 days): radio has its own model pool, apart from the
+  news summaries' (`GEMINI_MODEL`, Flash-Lite): gemini-3.8-flash, 3.6-flash,
+  3.5-flash, 3.7-flash (each ~20 free calls a day, 5 a minute), with
+  gemini-3.5-transcribe as the last resort; `GEMINI_RADIO_MODEL` puts one
+  first. Per-minute use is counted in the store; a model that says its day
+  is spent is set aside until Google's midnight (Pacific), a busy one for a
+  minute, an overloaded one (503) for 30 s, and the clip passes to the next.
+  Accuracy: each clip is heard by two different models and compared word
+  by word; the confidence is the share of words they agree on (five pips
+  and a word), and words only one heard are marked `{{…}}` and shown
+  underlined as unsure. With one listen it is the model's own rating,
+  capped at 0.8. `{ paused: true }` when the whole pool is spent.
 - Head to head (`/api/f1/h2h?team=` or `?a=RUS&b=VER`): teammates, or the
   reader's two drivers when they're not the same pair; Your paddock switches.
 - Official imagery from F1's image server (`lib/f1-assets.ts`): team logo

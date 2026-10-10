@@ -12,10 +12,10 @@ import type { LiveRow, LiveSnapshot, SegmentMark, TrackModel } from "./f1-live-t
 //     behind ÷ lap time), which keeps the field in order and properly spaced;
 //   - the circuit model turns a share of a lap into a point on the track,
 //     using the time a reference lap took to reach each point.
-// The map (components/f1/TrackMap.tsx) then drives each car forward at its
-// lap pace and steers it towards each new estimate by easing its speed —
-// never backwards, never a jump. An estimate, good to a corner or so, and
-// labelled as one.
+// The map (components/f1/TrackMap.tsx) then drives each car forward at the
+// speed it has actually been making and steers it towards each new estimate
+// by easing that speed — it waits rather than runs backwards, and catches up
+// rather than jumps. An estimate, good to a corner or so, and labelled as one.
 
 /** The point on the track a car has reached, `f` of the way through a lap. */
 export function pointAt(model: TrackModel, f: number): [number, number] {
@@ -65,16 +65,20 @@ export function segmentBounds(snap: Pick<LiveSnapshot, "sectorRef" | "rows">): {
   return out;
 }
 
-/** How many of the lap's mini-sectors a car has completed (in order from the line). */
+/**
+ * How many of the lap's mini-sectors a car has completed: up to the furthest
+ * one lit, so a timing loop that missed the car doesn't hold it back.
+ */
 function completed(row: LiveRow): number {
   let k = 0;
+  let furthest = 0;
   for (const s of row.sectors) {
     for (const g of s.segments) {
-      if (g === "none") return k;
       k++;
+      if (g !== "none") furthest = k;
     }
   }
-  return k;
+  return furthest;
 }
 
 const seconds = (t: string) => {
@@ -87,7 +91,7 @@ export interface CarEstimate {
   colour: string;
   /** Laps travelled at the read: laps done + share of the current one. */
   distance: number;
-  /** Seconds per lap, for driving the car on between reads. */
+  /** Seconds per lap at racing speed (its last lap), until the map has seen it move. */
   pace: number;
   onTrack: boolean;
 }
@@ -108,20 +112,31 @@ export function estimateCars(snap: LiveSnapshot): CarEstimate[] {
   };
 
   const race = snap.type === "Race";
-  const leader = snap.rows.find((r) => r.position === 1 && !r.out && !r.inPit);
+  // Gaps are to P1 even while P1 is in the pits (its loops still count there).
+  const leader = snap.rows.find((r) => r.position === 1 && !r.out);
   const lead = leader ? byLoops(leader) : null;
+
+  // In a race, down the order: behind the leader by `gap` seconds; once a
+  // car is lapped (its gap reads "1 L"), behind the car ahead by its
+  // interval — so a car being lapped doesn't change how it is placed.
+  const placed = new Map<string, number>();
+  let ahead: number | null = null;
+  for (const r of [...snap.rows].sort((a, b) => a.position - b.position)) {
+    let distance = byLoops(r);
+    if (race && lead !== null && r !== leader) {
+      const gap = seconds(r.gap);
+      const interval = seconds(r.interval);
+      if (gap !== null && gap < lapRef * 0.97) distance = lead - gap / lapRef;
+      else if (ahead !== null && interval !== null && interval < lapRef * 0.97) distance = ahead - interval / lapRef;
+    }
+    placed.set(r.code, distance);
+    ahead = r.out ? ahead : distance;
+  }
 
   return snap.rows.map((r) => {
     const pace = Math.max(60, Math.min(240, seconds(r.last) ?? lapRef));
     const onTrack = !r.out && !r.inPit && !(r.knockedOut && !race);
-    let distance = byLoops(r);
-    if (race && lead !== null && r !== leader) {
-      // Behind the leader by `gap` seconds: place by time, which updates
-      // smoothly and keeps the order honest.
-      const gap = seconds(r.gap);
-      if (gap !== null && gap < lapRef * 0.97) distance = lead - gap / lapRef;
-    }
-    return { code: r.code, colour: r.colour, distance, pace, onTrack };
+    return { code: r.code, colour: r.colour, distance: placed.get(r.code) ?? byLoops(r), pace, onTrack };
   });
 }
 

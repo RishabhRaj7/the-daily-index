@@ -92,6 +92,8 @@ export interface LiveSnapshot {
   servedAt?: string;
   /** Browser time (ms) the read corresponds to — set on arrival, so motion never trusts two clocks agreeing. */
   localAt?: number;
+  /** In a replay: session seconds per real second (0 while paused). Live: absent (1). */
+  replaySpeed?: number;
   sessionKey: number;
   /** F1's circuit key (the track map's key, /api/f1/track). */
   circuitKey: number | null;
