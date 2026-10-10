@@ -1,5 +1,4 @@
 import { cachedTranscripts, radioPaused, transcribe } from "@/lib/live/f1-radio";
-import { settleText } from "@/lib/f1-radio-speaker";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -28,8 +27,6 @@ export async function GET(req: Request) {
   const paused = missing.length > 0 && (await radioPaused());
   const written = paused ? [] : await Promise.all(missing.slice(0, 3).map(async (x) => [x.u, await transcribe(x.u, x.w || "the driver", x.f)] as const));
   for (const [u, t] of written) if (t) known[u] = t;
-  // Speakers settled by the current rules, kept transcripts included (free: no model call).
-  for (const x of clips) if (known[x.u] && x.w) known[x.u] = { ...known[x.u], text: settleText(known[x.u].text, x.w, x.f) };
   return Response.json(
     { transcripts: known, pending: Math.max(0, missing.length - written.filter(([, t]) => t).length), paused },
     { headers: { "Cache-Control": "no-store" } },

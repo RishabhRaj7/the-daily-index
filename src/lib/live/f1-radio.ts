@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { GoogleGenAI, Type } from "@google/genai";
 import { getStore } from "@/lib/server/store";
-import { settle, writeTurns, type Speaker } from "@/lib/f1-radio-speaker";
+import { joinTurns, writeTurns, type Speaker } from "@/lib/f1-radio-speaker";
 
 // Team radio, written down. Each clip is a short MP3 on F1's server; Gemini
 // listens and transcribes it once, and the text is kept for four months, so
@@ -142,8 +142,39 @@ function writers(): Slot[] {
   return own ? [{ model: own, rpm: 5 }, ...WRITERS.filter((w) => w.model !== own)] : WRITERS;
 }
 
-// Who is speaking is the model's call by ear first (the prompt says what each
-// side sounds like), then checked against the words (lib/f1-radio-speaker.ts).
+// Who is speaking is the model's call: it hears the voices and the whole
+// exchange, which no rule over the written words can. These are its
+// instructions for telling the two apart — sound first, then words, then
+// the flow of the conversation — and for saying "unsure" instead of guessing.
+const SPEAKERS = (first: string | null) =>
+  [
+    'Label every turn "driver" or "engineer", or "unsure" when you cannot tell. A wrong label is worse than "unsure".',
+    "",
+    "1. Listen first. The driver speaks from the cockpit at speed: behind the voice there is engine roar, wind, gear shifts,",
+    "kerb rattle or heavy breathing, and the voice is often raised, strained, breathless, clipped or distorted by the helmet",
+    "mic. The engineer speaks from the pit wall on a close studio-like microphone: clean, level, calm, with little or no noise",
+    "behind it. A change in the background noise or in the voice's quality marks a change of speaker. After the race, the",
+    "driver's side is quieter (cool-down lap), but the helmet mic still sounds rougher and more wind-blown than the pit wall.",
+    "",
+    "2. Then the words. The driver typically: says how the car feels (grip, balance, tyres going off, brakes, understeer,",
+    "oversteer, a problem with the car or himself); complains about another driver or an incident (he pushed me off, he hit",
+    "me, unbelievable); asks for information (what's the gap, are we boxing, what tyres is he on, how many laps); swears",
+    "(bleeped words are nearly always the driver); celebrates or thanks the team (thank you guys, get in, vamos).",
+    "The engineer typically: gives instructions (box box, box this lap, stay out, push now, plan B, strat or engine modes,",
+    "lift and coast, manage the tyres, let him by, hold position, bring it home); gives numbers (gaps in seconds, deltas,",
+    "lap counts, positions such as you're P4, lap times, targets); relays race control (penalties, investigations, track",
+    "limits, safety car, VSC, flags); asks how the car or the driver is (how are the tyres, you OK, any damage); calls the",
+    `driver by name${first ? ` (here "${first}")` : ""} or "mate"; runs the routine after the flag (that's P2, cool-down lap,`,
+    "stop the car, weighbridge). Both sides say copy, yeah, okay, mate, well done and let's go, so those alone decide nothing.",
+    "",
+    "3. Then the flow. A question is usually answered by the other side: what's the gap? is answered by the engineer, how",
+    "are the tyres? by the driver. A bare copy, yeah, okay or understood answers whoever spoke just before it. Many clips",
+    "hold only one speaker, most often the engineer alone (an instruction, or a message after the flag), so don't invent a",
+    "second voice; equally, don't merge two voices into one turn when you hear the sound change.",
+    "",
+    "4. When sound and words disagree, go with what you hear. When neither settles it, say unsure.",
+  ].join("\n");
+
 async function write(model: string, data: string, who: string, first: string | null): Promise<{ text: string; confidence: number | null }> {
   const name = first ? `${first} (${who})` : who;
   const res = await client!.models.generateContent({
@@ -155,18 +186,12 @@ async function write(model: string, data: string, who: string, first: string | n
           { inlineData: { mimeType: "audio/mpeg", data } },
           {
             text:
-              `This is a Formula 1 team radio clip between the driver ${name} and their race engineer. ` +
+              `This is a Formula 1 team radio clip between the driver ${name} and their race engineer.\n\n` +
               "Transcribe exactly what is said, in English, as turns in order, a new turn whenever the speaker changes. " +
-              "Tell the two apart by sound first: the driver speaks from the cockpit, so behind his voice there is engine roar, " +
-              "wind, gear shifts or heavy breathing, and his voice is often raised, strained, clipped or distorted; the engineer " +
-              "speaks from the pit wall on a close microphone, so his voice is clean and level with little noise behind it. " +
-              "Then by what is said: the driver reports how the car feels, complains, asks for gaps or the plan, and thanks the team; " +
-              "the engineer gives instructions, gaps, lap counts and positions, passes on penalties and flags, asks how the car is, " +
-              `and often begins by saying the driver's name. Clips often hold only one speaker, often only the engineer. ` +
-              'Set speaker to "driver" or "engineer"; if you cannot tell who is speaking, set "unsure" rather than guessing. ' +
               "Keep F1 terms as said (box, delta, deg, DRS). " +
-              'Write any word you cannot make out as "[unclear]" rather than guessing, and bleeped words as "[bleep]". ' +
-              "Then give your confidence that the transcript matches what was said, from 0 (guesswork) to 1 (every word clear). " +
+              'Write any word you cannot make out as "[unclear]" rather than guessing, and bleeped words as "[bleep]".\n\n' +
+              SPEAKERS(first) +
+              "\n\nThen give your confidence that the transcript matches what was said, from 0 (guesswork) to 1 (every word clear). " +
               "If nothing intelligible is said, return no turns.",
           },
         ],
@@ -197,7 +222,7 @@ async function write(model: string, data: string, who: string, first: string | n
   const turns = (parsed.turns ?? [])
     .map((t) => ({ who: (["driver", "engineer"].includes(t.speaker ?? "") ? t.speaker : "unsure") as Speaker, said: (t.text ?? "").replace(/\s+/g, " ").trim() }))
     .filter((t) => t.said);
-  return { text: turns.length ? writeTurns(settle(turns, first), who) : "", confidence: typeof parsed.confidence === "number" ? Math.min(1, Math.max(0, parsed.confidence)) : null };
+  return { text: turns.length ? writeTurns(joinTurns(turns), who) : "", confidence: typeof parsed.confidence === "number" ? Math.min(1, Math.max(0, parsed.confidence)) : null };
 }
 
 /** The second listen: plain words. The transcribe model answers in an audio-transcription part. */

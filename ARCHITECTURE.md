@@ -523,17 +523,15 @@ edition starts building before the reader is back on the paper.
   and a word), and words only one heard are marked `{{…}}` and shown
   underlined as unsure. With one listen it is the model's own rating,
   capped at 0.8. `{ paused: true }` when the whole pool is spent.
-  Who said what (`lib/f1-radio-speaker.ts`): the writer returns turns marked
-  driver / engineer / unsure, told what each sounds like (the cockpit's
-  engine, wind and breathing against the pit wall's clean mic). The words are
-  then scored for each side (car feel, complaints, questions and thanks for
-  the driver; instructions, numbers, race control, questions about the car,
-  the driver's first name and the after-flag routine for the engineer): a
-  two-point lead overrules the model, a smaller one settles an unsure line. A
-  line after a question in the same voice is the answer; a bare "copy" or
-  "yeah" answers whoever spoke last. Unsure lines stay unsure on the page.
-  `/api/f1/radio` runs the rules on every read (`&f=<first name>` per clip),
-  so stored transcripts follow the current rules at no model cost.
+  Who said what: the writing model labels each turn driver / engineer /
+  unsure under the instructions in `SPEAKERS` (`lib/live/f1-radio.ts`) —
+  listen first (the cockpit's engine, wind and breathing against the pit
+  wall's clean mic), then the words (car feel, complaints, questions, thanks
+  and bleeps for the driver; instructions, numbers, race control, the
+  driver's first name and the after-flag routine for the engineer), then the
+  flow (questions answered by the other side, a bare "copy" answers the last
+  speaker), and say unsure rather than guess. `lib/f1-radio-speaker.ts` only
+  reads and writes the labelled form; unsure lines stay unsure on the page.
 - `/f1/live` is five views (kept in the address, `#analysis/pace`): Live
   (timing beside the map and the followed driver's card, with where a stop
   now would put them, side by side at about the same height, and the feed
