@@ -1,6 +1,7 @@
 import { getStore } from "@/lib/server/store";
 import { currentSession, radioUrl, readLiveState, sessionTime, type CurrentSessionInfo, type LiveState } from "./f1-signalr";
 import { driverPhoto } from "@/lib/f1-assets";
+import { rememberSectors } from "./f1-track";
 import type {
   LapMark,
   LiveAnswer,
@@ -371,6 +372,7 @@ const LAST = "f1:session:last";
 
 async function keepSession(snap: LiveSnapshot): Promise<void> {
   const store = getStore();
+  await rememberSectors(snap.circuitKey, snap.sectorRef);
   await store.set(`f1:session:v1:${snap.sessionKey}`, snap, { ttlSeconds: SESSION_DAYS * 86_400 }).catch(() => {});
   await store.set(LAST, snap.sessionKey, { ttlSeconds: SESSION_DAYS * 86_400 }).catch(() => {});
 }
@@ -407,7 +409,10 @@ export async function lastSession(): Promise<LiveSnapshot | null> {
   const want = latest?.Key ?? pointer;
   if (want) {
     const kept = await store.get<LiveSnapshot>(`f1:session:v1:${want}`).catch(() => null);
-    if (kept) return kept;
+    if (kept) {
+      void rememberSectors(kept.circuitKey, kept.sectorRef);
+      return kept;
+    }
   }
   if (latest?.Path) {
     const built = await archivedSession(latest.Path);
@@ -452,4 +457,52 @@ export async function getLive(opts: { fresh?: boolean; withLast?: boolean } = {}
   } finally {
     await store.del(LOCK).catch(() => {});
   }
+}
+
+// ---- past sessions ------------------------------------------------------------
+
+export interface PastMeeting {
+  meeting: string;
+  location: string;
+  round: number;
+  sessions: { name: string; path: string; end: string }[];
+}
+
+/** Every finished session of a season, newest meeting first (F1's archive index). */
+export async function seasonSessions(year = new Date().getUTCFullYear()): Promise<PastMeeting[]> {
+  try {
+    const res = await fetch(`https://livetiming.formula1.com/static/${year}/Index.json`, { next: { revalidate: 900 } });
+    if (!res.ok) return [];
+    const idx = JSON.parse((await res.text()).replace(/^\uFEFF/, "")) as {
+      Meetings?: { Name: string; Location: string; Number?: number; Sessions?: (IndexSession & { Type?: string })[] }[];
+    };
+    return (idx.Meetings ?? [])
+      .filter((m) => (m.Number ?? 0) > 0 && !/testing/i.test(m.Name))
+      .map((m) => ({
+        meeting: m.Name,
+        location: m.Location,
+        round: m.Number ?? 0,
+        sessions: (m.Sessions ?? [])
+          .filter((x) => x.Path && sessionTime(x.EndDate, x.GmtOffset) + AFTER_MS < Date.now())
+          .map((x) => ({ name: x.Name, path: x.Path!, end: new Date(sessionTime(x.EndDate, x.GmtOffset)).toISOString() })),
+      }))
+      .filter((m) => m.sessions.length > 0)
+      .reverse();
+  } catch {
+    return [];
+  }
+}
+
+/** One past session in full: what was kept, else F1's archive (then kept). */
+export async function pastSession(path: string): Promise<LiveSnapshot | null> {
+  const store = getStore();
+  const key = `f1:past:v1:${path}`;
+  const kept = await store.get<LiveSnapshot>(key).catch(() => null);
+  if (kept) return kept;
+  const built = await archivedSession(path);
+  if (built) {
+    await store.set(key, built, { ttlSeconds: 45 * 86_400 }).catch(() => {});
+    void rememberSectors(built.circuitKey, built.sectorRef);
+  }
+  return built;
 }

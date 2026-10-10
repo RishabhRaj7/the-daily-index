@@ -253,3 +253,22 @@ export async function getTrack(circuitKey: number, year = new Date().getUTCFullY
   memo.set(id, { at: Date.now(), model });
   return model;
 }
+
+// ---- the sectors -----------------------------------------------------------
+// Where the timing sectors fall is in no circuit file, but every session run
+// at a circuit shows it (its typical sector times). Remembered per circuit so
+// the next-race map can mark S2 and S3 before any running there this year.
+
+const sectorKey = (circuitKey: number) => `f1:track:sectors:v1:${circuitKey}`;
+
+export async function rememberSectors(circuitKey: number | null, ref: [number, number, number] | null): Promise<void> {
+  if (!circuitKey || !ref) return;
+  const lap = ref[0] + ref[1] + ref[2];
+  if (!(lap > 0)) return;
+  const ends: [number, number] = [Math.round((ref[0] / lap) * 10000) / 10000, Math.round(((ref[0] + ref[1]) / lap) * 10000) / 10000];
+  await getStore().set(sectorKey(circuitKey), ends, { ttlSeconds: 120 * 86_400 }).catch(() => {});
+}
+
+export async function sectorsFor(circuitKey: number): Promise<[number, number] | null> {
+  return getStore().get<[number, number]>(sectorKey(circuitKey)).catch(() => null);
+}

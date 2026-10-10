@@ -467,8 +467,25 @@ edition starts building before the reader is back on the paper.
   by estimate (`lib/f1-track-progress.ts`: completed mini-sectors spread over
   a typical sector split; in races, gap to the leader ÷ lap time), carried on
   at lap pace between reads. Exact live positions need F1 TV and aren't used.
+  Motion: each car's estimate is a distance in laps (laps done + share of
+  this one, placed mid-way into its current mini-sector; a fully lit lap
+  means it has just crossed the line). The map drives cars forward at lap
+  pace and steers by speed only (0.25–2.2×) towards each new estimate, timed
+  by the browser's arrival clock (`localAt`), so cars never run backwards or
+  jump. Maps also mark the chequered start/finish, the direction of travel
+  and where sectors 2 and 3 begin (sector split remembered per circuit from
+  any session run there: `f1:track:sectors:v1:<key>`). An enlarge button opens
+  `MapSheet` (the map full screen with the running order).
+- Past sessions: `/api/f1/sessions` lists the season's finished sessions from
+  F1's archive index; `/api/f1/live?full=1&session=<path>` returns one in
+  full (kept 45 days under `f1:past:v1:<path>`); `/f1/live?session=<path>`
+  shows it (the picker keeps it in the address).
 - Team radio transcripts: Gemini listens to each MP3 once
-  (`lib/live/f1-radio.ts`, `/api/f1/radio`, three new per call).
+  (`lib/live/f1-radio.ts`, `/api/f1/radio`, three new per call), returning a
+  0–1 confidence (less for each "[unclear]" word) shown as five pips. Model:
+  `GEMINI_RADIO_MODEL`, else `GEMINI_MODEL`.
+- Head to head (`/api/f1/h2h?team=` or `?a=RUS&b=VER`): teammates, or the
+  reader's two drivers when they're not the same pair; Your paddock switches.
 - Official imagery from F1's image server (`lib/f1-assets.ts`): team logo
   glyphs (white; `.f1-logo` darkens them on the morning paper), car renders,
   driver portraits. Teammate head-to-head from Jolpica (`lib/live/f1-h2h.ts`,

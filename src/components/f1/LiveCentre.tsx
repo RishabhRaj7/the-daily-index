@@ -10,6 +10,8 @@ import LiveTiming, { TeamGlyph, useF1Favourites } from "./LiveTiming";
 import TyreIcon, { TYRE } from "./TyreIcon";
 import TrackMap, { useTrack } from "./TrackMap";
 import RaceStory from "./RaceStory";
+import MapSheet from "./MapSheet";
+import PastSessions from "./PastSessions";
 import { LiveDot, SessionClock, TONE, sessionLine } from "./LiveCard";
 
 // /f1/live — a session in full. One spacing scale throughout (panels 20px in,
@@ -184,8 +186,14 @@ function RaceControl({ items }: { items: LiveRaceControl[] }) {
 }
 
 /** Transcripts for the clips on show: kept ones at once, new ones as they're written. */
-function useTranscripts(clips: LiveRadio[]): { text: Record<string, string>; pending: boolean } {
-  const [text, setText] = useState<Record<string, string>>({});
+interface Written {
+  text: string;
+  confidence: number | null;
+  model: string;
+}
+
+function useTranscripts(clips: LiveRadio[]): { text: Record<string, Written>; pending: boolean } {
+  const [text, setText] = useState<Record<string, Written>>({});
   const [pending, setPending] = useState(true);
   const ids = clips.map((c) => c.url).join("|");
   useEffect(() => {
@@ -200,7 +208,7 @@ function useTranscripts(clips: LiveRadio[]): { text: Record<string, string>; pen
       }
       try {
         const res = await fetch(`/api/f1/radio?${q}`);
-        const d = (await res.json()) as { transcripts: Record<string, string>; pending: number };
+        const d = (await res.json()) as { transcripts: Record<string, Written>; pending: number };
         if (stop) return;
         setText((t) => ({ ...t, ...d.transcripts }));
         setPending(d.pending > 0);
@@ -217,6 +225,41 @@ function useTranscripts(clips: LiveRadio[]): { text: Record<string, string>; pen
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ids]);
   return { text, pending };
+}
+
+/** How sure the transcriber is: five pips and a word, never a bare percentage. */
+function Confidence({ value, model }: { value: number | null; model: string }) {
+  if (value === null) return null;
+  const pips = Math.max(1, Math.round(value * 5));
+  const word = value >= 0.85 ? "Clear" : value >= 0.65 ? "Mostly clear" : value >= 0.45 ? "Rough" : "Hard to hear";
+  const tone = value >= 0.85 ? "var(--f1-personal)" : value >= 0.65 ? "var(--f1-slower)" : "var(--down)";
+  return (
+    <span className="inline-flex items-center gap-1.5 font-mono text-[9.5px] text-ink-faint" title={`Machine transcript (${model}) · confidence ${Math.round(value * 100)}%`}>
+      <span className="flex gap-[2px]" aria-hidden="true">
+        {Array.from({ length: 5 }, (_, i) => (
+          <span key={i} className="w-[5px] h-[5px] rounded-full" style={{ background: i < pips ? tone : "var(--rule)" }} />
+        ))}
+      </span>
+      {word} · AI transcript
+    </span>
+  );
+}
+
+function Said({ text }: { text: string }) {
+  // Words the transcriber couldn't make out stay visible as such.
+  return (
+    <>
+      {text.split(/(\[(?:unclear|bleep)\])/i).map((part, i) =>
+        /^\[(unclear|bleep)\]$/i.test(part) ? (
+          <span key={i} className="font-mono text-[10.5px] text-ink-faint italic px-0.5">
+            {part.toLowerCase() === "[bleep]" ? "[bleep]" : "[?]"}
+          </span>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </>
+  );
 }
 
 function Transcript({ text, code }: { text: string; code: string }) {
@@ -236,7 +279,9 @@ function Transcript({ text, code }: { text: string; code: string }) {
         return (
           <p key={i} className="font-headline text-[14px] leading-snug">
             {who && <span className={`font-label text-[8.5px] mr-1.5 ${driver ? "" : "text-ink-faint"}`}>{driver ? code : "Engineer"}</span>}
-            <span className={driver ? "" : "text-ink-soft"}>{said}</span>
+            <span className={driver ? "" : "text-ink-soft"}>
+              <Said text={said} />
+            </span>
           </p>
         );
       })}
@@ -313,7 +358,12 @@ function Radio({ clips, photos }: { clips: LiveRadio[]; photos: Record<string, s
                   </span>
                 )}
                 {text[c.url] ? (
-                  <Transcript text={text[c.url]} code={c.code} />
+                  <>
+                    <Transcript text={text[c.url].text} code={c.code} />
+                    <div className="mt-1.5">
+                      <Confidence value={text[c.url].confidence} model={text[c.url].model} />
+                    </div>
+                  </>
                 ) : (
                   <p className={`mt-2 font-mono text-[10.5px] ${pending ? "shimmer-text" : "text-ink-faint"}`}>{pending ? "Transcribing…" : "No transcript"}</p>
                 )}
@@ -435,6 +485,7 @@ function useInView(ids: string[]): string | null {
 // ---- the page -------------------------------------------------------------------
 
 function Session({ snap, live }: { snap: LiveSnapshot; live: boolean }) {
+  const [enlarged, setEnlarged] = useState(false);
   const fav = useF1Favourites();
   const favCodes = fav.codes;
   const [picked, setPicked] = useState<string | null>(null);
@@ -519,7 +570,8 @@ function Session({ snap, live }: { snap: LiveSnapshot; live: boolean }) {
         <div className="flex flex-col gap-6 lg:sticky lg:top-28">
           {track && (
             <Panel id="track" label={track.name || "Track"} meta={live ? "Cars placed from the timing loops" : `${track.corners.length} corners`}>
-              <TrackMap model={track} snap={snap} focus={focus} onFocus={setPicked} />
+              <TrackMap model={track} snap={snap} focus={focus} onFocus={setPicked} onExpand={() => setEnlarged(true)} />
+              {enlarged && <MapSheet model={track} snap={snap} focus={focus} onFocus={setPicked} onClose={() => setEnlarged(false)} />}
               {focusRow && <FocusCard row={focusRow} photo={photos[focusRow.code] ?? driverPhotoByCode(focusRow.code, focusRow.team)} snap={snap} />}
               {focusRow && (
                 <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 font-mono text-[9.5px] text-ink-faint">
@@ -570,9 +622,25 @@ function Session({ snap, live }: { snap: LiveSnapshot; live: boolean }) {
 }
 
 export default function LiveCentre({ race }: { race: F1Race | null }) {
-  const { snapshot, last, next, checked } = useF1Live({ full: true, always: true });
-  const snap = snapshot ?? last;
-  const live = !!snapshot;
+  // ?session=<archive path>: a past session, kept in the address so it can be shared or reloaded.
+  const [past, setPast] = useState<string | null>(null);
+  useEffect(() => {
+    const read = () => setPast(new URLSearchParams(location.search).get("session"));
+    read();
+    window.addEventListener("popstate", read);
+    return () => window.removeEventListener("popstate", read);
+  }, []);
+  const pick = (path: string | null) => {
+    const url = new URL(location.href);
+    if (path) url.searchParams.set("session", path);
+    else url.searchParams.delete("session");
+    history.pushState(null, "", url);
+    setPast(path);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const { snapshot, last, next, checked } = useF1Live({ full: true, always: !past, session: past });
+  const live = !past && !!snapshot;
+  const snap = live ? snapshot : last;
 
   return (
     <>
@@ -580,14 +648,17 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
         <Link href="/#paddock-notes" className="chip">
           <span aria-hidden="true">←</span> Pit wall
         </Link>
-        {snap && (
-          <span className="flex items-center gap-2 rounded-full border hairline h-8 px-3 font-label text-[9.5px]">
-            <LiveDot running={live && snap.running} />
-            <span style={{ color: live && snap.running ? "var(--hue-f1)" : undefined }}>
-              {live ? (snap.running ? "Live" : snap.status === "Inactive" ? "Starting soon" : "Chequered flag") : "Final"}
+        <span className="flex items-center gap-2">
+          <PastSessions current={past} onPick={pick} />
+          {snap && (
+            <span className="flex items-center gap-2 rounded-full border hairline h-8 px-3 font-label text-[9.5px]">
+              <LiveDot running={live && snap.running} />
+              <span style={{ color: live && snap.running ? "var(--hue-f1)" : undefined }}>
+                {live ? (snap.running ? "Live" : snap.status === "Inactive" ? "Starting soon" : "Chequered flag") : past ? "Archive" : "Final"}
+              </span>
             </span>
-          </span>
-        )}
+          )}
+        </span>
       </div>
 
       <header className="mt-8" data-reveal="fade">
@@ -600,10 +671,13 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
       </header>
 
       {!checked && <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] mt-8 h-72 animate-pulse" />}
-      {checked && !live && (
+      {checked && !live && !past && (
         <div className="mt-8">
           <NextUp race={race} next={next} />
         </div>
+      )}
+      {past && checked && !snap && (
+        <p className="mt-8 font-mono text-[11px] text-ink-faint">F1&rsquo;s archive hasn&rsquo;t published that session yet.</p>
       )}
       {snap && <Session snap={snap} live={live} />}
     </>

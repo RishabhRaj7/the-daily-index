@@ -13,7 +13,7 @@ import {
   teamColor,
 } from "@/lib/personalization";
 import { driverPhotoByCode, teamCar, teamLogo } from "@/lib/f1-assets";
-import type { TeammateH2H } from "@/lib/live/f1-h2h";
+import type { HeadToHead } from "@/lib/live/f1-h2h";
 
 // Your paddock: the team and drivers the reader follows, with the numbers
 // that say how their season is going — championship place, gaps, wins and
@@ -42,56 +42,101 @@ function Badge({ team, size = 44 }: { team: string; size?: number }) {
   );
 }
 
-// Teammates head to head this season: who out-qualified whom, who finished
-// ahead, and the usual qualifying gap.
-function useH2H(team: string): TeammateH2H | null {
-  const [h2h, setH2h] = useState<{ team: string; data: TeammateH2H | null } | null>(null);
+// Head to head this season: who out-qualified whom, who finished ahead, and
+// the usual qualifying gap — teammates, or the reader's two drivers when
+// they're not the same pair (a switch picks between them).
+const h2hCache = new Map<string, Promise<HeadToHead | null>>();
+
+function useH2H(query: string | null): HeadToHead | null {
+  const [h2h, setH2h] = useState<{ query: string; data: HeadToHead | null } | null>(null);
   useEffect(() => {
-    if (!team) return;
+    if (!query) return;
     let live = true;
-    fetch(`/api/f1/h2h?team=${encodeURIComponent(team)}`)
-      .then((r) => (r.ok ? (r.json() as Promise<TeammateH2H | null>) : null))
-      .then((data) => live && setH2h({ team, data }))
-      .catch(() => {});
+    let p = h2hCache.get(query);
+    if (!p) {
+      p = fetch(`/api/f1/h2h?v=2&${query}`)
+        .then((r) => (r.ok ? (r.json() as Promise<HeadToHead | null>) : null))
+        .catch(() => null);
+      h2hCache.set(query, p);
+    }
+    p.then((data) => live && setH2h({ query, data }));
     return () => {
       live = false;
     };
-  }, [team]);
-  return h2h && h2h.team === team ? h2h.data : null;
+  }, [query]);
+  return h2h && h2h.query === query ? h2h.data : null;
 }
 
-function VersusBar({ label, pair, color }: { label: string; pair: [number, number]; color: string }) {
+function VersusBar({ label, pair, colours }: { label: string; pair: [number, number]; colours: [string, string] }) {
   const total = pair[0] + pair[1] || 1;
   return (
-      <div className="grid grid-cols-[1.4rem_minmax(0,1fr)_1.4rem] items-center gap-2">
-        <span className="font-mono text-[12px] tabular-nums text-right font-semibold">{pair[0]}</span>
-        <span className="relative h-[18px] rounded-md overflow-hidden bg-[color:var(--rule)]">
-          <span className="absolute inset-y-0 left-0 bar-grow" style={{ width: `${(pair[0] / total) * 100}%`, background: color }} />
-          <span className="absolute inset-0 grid place-items-center font-label text-[8px] mix-blend-difference text-white">{label}</span>
-        </span>
-        <span className="font-mono text-[12px] tabular-nums font-semibold">{pair[1]}</span>
-      </div>
+    <div className="grid grid-cols-[1.4rem_minmax(0,1fr)_1.4rem] items-center gap-2">
+      <span className="font-mono text-[12px] tabular-nums text-right font-semibold">{pair[0]}</span>
+      <span className="relative h-[18px] rounded-md overflow-hidden flex gap-[2px] bg-[color:var(--rule)]">
+        <span className="h-full bar-grow rounded-l-md" style={{ width: `${(pair[0] / total) * 100}%`, background: colours[0] }} />
+        <span className="h-full flex-1 rounded-r-md" style={{ background: `color-mix(in srgb, ${colours[1]} 55%, transparent)` }} />
+        <span className="absolute inset-0 grid place-items-center font-label text-[8px] mix-blend-difference text-white">{label}</span>
+      </span>
+      <span className="font-mono text-[12px] tabular-nums font-semibold">{pair[1]}</span>
+    </div>
   );
 }
 
-function Versus({ h, color }: { h: TeammateH2H; color: string }) {
+function Versus({ options }: { options: { id: string; label: string; query: string }[] }) {
+  const [pick, setPick] = useState(options[0]?.id);
+  const chosen = options.find((o) => o.id === pick) ?? options[0];
+  const h = useH2H(chosen?.query ?? null);
+  if (!chosen) return null;
+  const ca = h?.a.team ? (teamColor(h.a.team) ?? "var(--ink-soft)") : "var(--ink-soft)";
+  // Teammates share a colour: the second takes a lighter shade of it.
+  const bColour = h?.b.team ? teamColor(h.b.team) : undefined;
+  const cb = h ? (h.team ? `color-mix(in srgb, ${bColour ?? "var(--ink-soft)"} 45%, var(--paper))` : (bColour ?? "var(--ink-faint)")) : "var(--ink-faint)";
   return (
     <div className="rounded-xl border hairline p-3">
-      <div className="flex items-center justify-between gap-2 mb-2.5">
-        <span className="font-sans font-bold text-[12.5px]">{h.a.name}</span>
-        <span className="font-label text-[8.5px] text-ink-faint">Head to head · {h.rounds} rounds</span>
-        <span className="font-sans font-bold text-[12.5px]">{h.b.name}</span>
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <span className="font-label text-[8.5px] text-ink-faint">Head to head{h ? ` · ${h.rounds} rounds` : ""}</span>
+        {options.length > 1 && (
+          <span className="flex rounded-full border hairline p-0.5" role="tablist" aria-label="Who to compare">
+            {options.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                role="tab"
+                aria-selected={o.id === chosen.id}
+                onClick={() => setPick(o.id)}
+                className={`rounded-full px-2.5 h-6 font-sans text-[11px] font-semibold transition-colors ${o.id === chosen.id ? "text-[color:var(--paper)]" : "text-ink-soft hover:text-ink"}`}
+                style={o.id === chosen.id ? { background: "var(--ink)" } : undefined}
+              >
+                {o.label}
+              </button>
+            ))}
+          </span>
+        )}
       </div>
-      <div className="space-y-1.5">
-        <VersusBar label="Qualifying" pair={h.quali} color={color} />
-        <VersusBar label="Race" pair={h.race} color={color} />
-      </div>
-      {h.gap !== null && (
-        <p className="font-mono text-[10.5px] text-ink-soft mt-2.5 text-center">
-          {Math.abs(h.gap) < 0.0005
-            ? "Dead level over a lap in qualifying"
-            : `${h.gap < 0 ? h.a.name : h.b.name} usually ${Math.abs(h.gap).toFixed(3)}s quicker in qualifying`}
-        </p>
+      {h ? (
+        <>
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <span className="font-sans font-bold text-[12.5px]" style={{ color: ca }}>
+              {h.a.name}
+            </span>
+            <span className="font-sans font-bold text-[12.5px]" style={{ color: h.team ? undefined : cb }}>
+              {h.b.name}
+            </span>
+          </div>
+          <div className="space-y-1.5">
+            <VersusBar label="Qualifying" pair={h.quali} colours={[ca, cb]} />
+            <VersusBar label="Race" pair={h.race} colours={[ca, cb]} />
+          </div>
+          {h.gap !== null && (
+            <p className="font-mono text-[10.5px] text-ink-soft mt-2.5 text-center">
+              {Math.abs(h.gap) < 0.0005
+                ? "Dead level over a lap in qualifying"
+                : `${h.gap < 0 ? h.a.name : h.b.name} usually ${Math.abs(h.gap).toFixed(3)}s quicker in qualifying`}
+            </p>
+          )}
+        </>
+      ) : (
+        <p className="font-mono text-[10.5px] shimmer-text">Comparing the season…</p>
       )}
     </div>
   );
@@ -266,7 +311,6 @@ export default function YourPaddock({
   lastRace: F1LastRace | null;
 }) {
   const [open, setOpen] = useState(false);
-  const h2h = useH2H(favoriteTeam);
   const picker = open ? <PaddockPicker roster={roster} onClose={() => setOpen(false)} /> : null;
 
   const drivers = favoriteDriverIds
@@ -394,7 +438,14 @@ export default function YourPaddock({
         </button>
       )}
 
-      {h2h && color && <Versus h={h2h} color={color} />}
+      {(() => {
+        const options: { id: string; label: string; query: string }[] = [];
+        if (favoriteTeam) options.push({ id: "team", label: "Teammates", query: `team=${encodeURIComponent(favoriteTeam)}` });
+        const codes = drivers.map((d) => d.code).filter(Boolean);
+        const sameTeam = drivers.length === 2 && drivers.every((d) => normalizeF1Team(d.team) === favoriteTeam);
+        if (codes.length === 2 && !sameTeam) options.push({ id: "mine", label: "Your drivers", query: `a=${codes[0]}&b=${codes[1]}` });
+        return options.length > 0 ? <Versus options={options} /> : null;
+      })()}
 
       {drivers.length > 0 ? (
         <ul className="grid gap-2">

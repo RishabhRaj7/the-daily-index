@@ -88,6 +88,10 @@ export interface LivePrediction {
 export interface LiveSnapshot {
   /** When the feed was read. */
   at: string;
+  /** When the server answered (the read may be a few seconds older). */
+  servedAt?: string;
+  /** Browser time (ms) the read corresponds to — set on arrival, so motion never trusts two clocks agreeing. */
+  localAt?: number;
   sessionKey: number;
   /** F1's circuit key (the track map's key, /api/f1/track). */
   circuitKey: number | null;
@@ -152,4 +156,6 @@ export interface TrackModel {
   lapTime: number | null;
   /** Time lost to a pit stop under green, in seconds. */
   pitLoss: number | null;
+  /** Where sectors 1 and 2 end, as shares of a lap (remembered from sessions run here). */
+  sectors?: [number, number] | null;
 }

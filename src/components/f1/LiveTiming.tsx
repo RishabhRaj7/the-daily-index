@@ -32,7 +32,11 @@ const SEGMENT_COLOUR: Record<SegmentMark, string> = {
   none: "var(--rule)",
 };
 
-type Layout = "narrow" | "medium" | "wide";
+// narrow   a phone: code, the main time, gap, tyre
+// medium   a card: + last lap, tyre age, stops
+// roomy    + surname; the time columns share the room evenly
+// wide     (the live centre) + the three sectors with their mini-sectors
+type Layout = "narrow" | "medium" | "roomy" | "wide";
 
 function subscribe(cb: () => void) {
   window.addEventListener(PERSONALIZATION_CHANGED_EVENT, cb);
@@ -62,7 +66,7 @@ function useLayoutFor(ref: React.RefObject<HTMLDivElement | null>, allowWide: bo
     if (!el) return;
     const measure = () => {
       const w = el.clientWidth;
-      setLayout(allowWide && w >= 820 ? "wide" : w >= 430 ? "medium" : "narrow");
+      setLayout(allowWide && w >= 760 ? "wide" : w >= 600 ? "roomy" : w >= 430 ? "medium" : "narrow");
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -162,23 +166,27 @@ export default function LiveTiming({
     prev.current = seen;
   }, [snap, layout]);
 
+  // Past "medium" the driver column stops at a sensible width and the time
+  // columns share what's left, so no gulf opens between name and numbers.
+  const t = "minmax(4.3rem,1fr)";
   const cols =
     layout === "wide"
-      ? race
-        ? "1.6rem minmax(9rem,1fr) 4.8rem 4.8rem 5.2rem repeat(3, 5.4rem) 3.6rem 2.4rem"
-        : "1.6rem minmax(9rem,1fr) 5.2rem 4.6rem 5.2rem repeat(3, 5.4rem) 3.6rem"
-      : layout === "medium"
-        ? race
-          ? "1.5rem minmax(0,1fr) 4.2rem 4.2rem 4.6rem 3rem 1.6rem"
-          : "1.5rem minmax(0,1fr) 4.6rem 4rem 4.6rem 3rem"
-        : "1.5rem minmax(0,1fr) 4.4rem 3.9rem 1.6rem";
+      ? `1.6rem minmax(10rem,1.5fr) ${t} ${t} ${t} repeat(3, minmax(4.8rem,1fr)) minmax(3.4rem,0.8fr)${race ? " minmax(2.2rem,0.5fr)" : ""}`
+      : layout === "roomy"
+        ? `1.6rem minmax(9rem,1.6fr) ${t} ${t} ${t} minmax(3.4rem,0.8fr)${race ? " minmax(2.2rem,0.5fr)" : ""}`
+        : layout === "medium"
+          ? race
+            ? "1.5rem minmax(0,1fr) 4.2rem 4.2rem 4.6rem 3rem 1.6rem"
+            : "1.5rem minmax(0,1fr) 4.6rem 4rem 4.6rem 3rem"
+          : "1.5rem minmax(0,1fr) 4.4rem 3.9rem 1.6rem";
   const showLast = layout !== "narrow";
+  const showName = layout === "roomy" || layout === "wide";
   const showSectors = layout === "wide";
   const showStops = race && layout !== "narrow";
 
   return (
     <div ref={box}>
-      <div className="grid gap-x-2 items-center font-label text-[8.5px] text-ink-faint pb-1" style={{ gridTemplateColumns: cols }}>
+      <div className="grid gap-x-3 items-center font-label text-[8.5px] text-ink-faint pb-1.5 px-2.5" style={{ gridTemplateColumns: cols }}>
         <span>P</span>
         <span>Driver</span>
         <span className="text-right">{race ? "Interval" : "Best"}</span>
@@ -194,24 +202,24 @@ export default function LiveTiming({
           const faded = r.out || (r.knockedOut && !race);
           const focused = focus === r.code;
           return (
-            <div key={r.code}>
+            <div key={r.code} className="border-t hairline">
               <div
                 ref={(el) => {
                   if (el) refs.current.set(r.code, el);
                   else refs.current.delete(r.code);
                 }}
-                className={`grid gap-x-2 items-center border-t hairline text-[12px] relative ${showSectors ? "py-[7px]" : "py-[5px]"} ${faded ? "opacity-45" : ""} ${onFocus ? "cursor-pointer hover:bg-[var(--card-bg)]" : ""}`}
+                className={`grid gap-x-3 items-center rounded-lg px-2.5 my-[2px] text-[12px] relative ${showSectors ? "py-[6px]" : "py-[4px]"} ${faded ? "opacity-45" : ""} ${onFocus ? "cursor-pointer hover:bg-[var(--card-bg)]" : ""}`}
                 style={{ gridTemplateColumns: cols, ...(mine || focused ? { background: `color-mix(in srgb, ${r.colour} ${focused ? 20 : 11}%, transparent)` } : {}) }}
                 onClick={onFocus ? () => onFocus(r.code) : undefined}
                 aria-current={focused || undefined}
               >
-                {focused && <span className="absolute left-0 top-1 bottom-1 w-[3px] rounded-full" style={{ background: r.colour }} aria-hidden="true" />}
+                {focused && <span className="absolute left-0.5 top-1.5 bottom-1.5 w-[3px] rounded-full" style={{ background: r.colour }} aria-hidden="true" />}
                 <span className="font-mono text-[11px] tabular-nums text-ink-soft pl-0.5">{r.position}</span>
                 <span className="flex items-center gap-2 min-w-0">
                   <span className="w-[3px] h-3.5 rounded-full shrink-0" style={{ background: r.colour }} />
                   {layout !== "narrow" && <TeamGlyph team={r.team} colour={r.colour} />}
                   <span className="font-sans font-bold tracking-[0.02em]">{r.code}</span>
-                  {showSectors && <span className="text-ink-soft truncate">{r.name}</span>}
+                  {showName && <span className="text-ink-soft truncate">{r.name}</span>}
                   <Status r={r} race={race} running={snap.running} />
                 </span>
                 <span className="font-mono text-[11.5px] tabular-nums text-right" style={!race && r.bestFastest ? { color: "var(--f1-fastest)" } : undefined}>
