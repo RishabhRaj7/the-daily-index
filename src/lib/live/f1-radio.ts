@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { GoogleGenAI, Type } from "@google/genai";
 import { getStore } from "@/lib/server/store";
+import { settle, writeTurns, type Speaker } from "@/lib/f1-radio-speaker";
 
 // Team radio, written down. Each clip is a short MP3 on F1's server; Gemini
 // listens and transcribes it once, and the text is kept for four months, so
@@ -141,7 +142,10 @@ function writers(): Slot[] {
   return own ? [{ model: own, rpm: 5 }, ...WRITERS.filter((w) => w.model !== own)] : WRITERS;
 }
 
-async function write(model: string, data: string, who: string): Promise<{ text: string; confidence: number | null }> {
+// Who is speaking is the model's call by ear first (the prompt says what each
+// side sounds like), then checked against the words (lib/f1-radio-speaker.ts).
+async function write(model: string, data: string, who: string, first: string | null): Promise<{ text: string; confidence: number | null }> {
+  const name = first ? `${first} (${who})` : who;
   const res = await client!.models.generateContent({
     model,
     contents: [
@@ -151,12 +155,19 @@ async function write(model: string, data: string, who: string): Promise<{ text: 
           { inlineData: { mimeType: "audio/mpeg", data } },
           {
             text:
-              `This is a Formula 1 team radio clip between ${who} and their race engineer. ` +
-              "Transcribe exactly what is said, in English. Start each speaker's turn on a new line, " +
-              `beginning "${who}:" for the driver and "Engineer:" for the team. Keep F1 terms as said (box, delta, deg, DRS). ` +
+              `This is a Formula 1 team radio clip between the driver ${name} and their race engineer. ` +
+              "Transcribe exactly what is said, in English, as turns in order, a new turn whenever the speaker changes. " +
+              "Tell the two apart by sound first: the driver speaks from the cockpit, so behind his voice there is engine roar, " +
+              "wind, gear shifts or heavy breathing, and his voice is often raised, strained, clipped or distorted; the engineer " +
+              "speaks from the pit wall on a close microphone, so his voice is clean and level with little noise behind it. " +
+              "Then by what is said: the driver reports how the car feels, complains, asks for gaps or the plan, and thanks the team; " +
+              "the engineer gives instructions, gaps, lap counts and positions, passes on penalties and flags, asks how the car is, " +
+              `and often begins by saying the driver's name. Clips often hold only one speaker, often only the engineer. ` +
+              'Set speaker to "driver" or "engineer"; if you cannot tell who is speaking, set "unsure" rather than guessing. ' +
+              "Keep F1 terms as said (box, delta, deg, DRS). " +
               'Write any word you cannot make out as "[unclear]" rather than guessing, and bleeped words as "[bleep]". ' +
               "Then give your confidence that the transcript matches what was said, from 0 (guesswork) to 1 (every word clear). " +
-              "If nothing intelligible is said, return an empty text.",
+              "If nothing intelligible is said, return no turns.",
           },
         ],
       },
@@ -165,15 +176,28 @@ async function write(model: string, data: string, who: string): Promise<{ text: 
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
-        properties: { text: { type: Type.STRING }, confidence: { type: Type.NUMBER } },
-        required: ["text", "confidence"],
+        properties: {
+          turns: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: { speaker: { type: Type.STRING, enum: ["driver", "engineer", "unsure"] }, text: { type: Type.STRING } },
+              required: ["speaker", "text"],
+            },
+          },
+          confidence: { type: Type.NUMBER },
+        },
+        required: ["turns", "confidence"],
       },
       temperature: 0.1,
       abortSignal: AbortSignal.timeout(40_000),
     },
   });
-  const parsed = JSON.parse(res.text ?? "{}") as { text?: string; confidence?: number };
-  return { text: parsed.text?.trim() ?? "", confidence: typeof parsed.confidence === "number" ? Math.min(1, Math.max(0, parsed.confidence)) : null };
+  const parsed = JSON.parse(res.text ?? "{}") as { turns?: { speaker?: string; text?: string }[]; confidence?: number };
+  const turns = (parsed.turns ?? [])
+    .map((t) => ({ who: (["driver", "engineer"].includes(t.speaker ?? "") ? t.speaker : "unsure") as Speaker, said: (t.text ?? "").replace(/\s+/g, " ").trim() }))
+    .filter((t) => t.said);
+  return { text: turns.length ? writeTurns(settle(turns, first), who) : "", confidence: typeof parsed.confidence === "number" ? Math.min(1, Math.max(0, parsed.confidence)) : null };
 }
 
 /** The second listen: plain words. The transcribe model answers in an audio-transcription part. */
@@ -217,7 +241,7 @@ export function agree(written: string, heard: string): { share: number; marked: 
       if (t.includes("\n")) lineStart = true;
       return;
     }
-    const label = /:$/.test(t) && (lineStart || /^(Engineer|Driver|[A-Z]{2,4}):$/.test(t));
+    const label = /:$/.test(t) && (lineStart || /^(Engineer|Driver|Unsure|[A-Z]{2,4}):$/.test(t));
     lineStart = false;
     if (label || /^\[.*\]$/.test(t)) return;
     const n = norm(t);
@@ -252,7 +276,7 @@ export function agree(written: string, heard: string): { share: number; marked: 
 }
 
 /** Transcribe one clip (or read the kept text). Null when it can't be heard or no model has room. */
-export async function transcribe(url: string, who: string): Promise<Transcript | null> {
+export async function transcribe(url: string, who: string, first: string | null = null): Promise<Transcript | null> {
   const store = getStore();
   const kept = await store.get<Transcript>(key(url)).catch(() => null);
   if (kept?.text) return kept;
@@ -280,7 +304,7 @@ export async function transcribe(url: string, who: string): Promise<Transcript |
     let w: { text: string; confidence: number | null } | null = null;
     for (let attempt = 0; attempt < 3 && model; attempt++) {
       try {
-        w = await write(model, data, who);
+        w = await write(model, data, who, first);
         break;
       } catch (err) {
         console.error(`[f1/radio] ${model} refused:`, err instanceof Error ? err.message.slice(0, 160) : err);

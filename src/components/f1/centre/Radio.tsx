@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { LiveRadio } from "@/lib/f1-live-types";
+import { readTurns } from "@/lib/f1-radio-speaker";
 import { clock } from "./ui";
 
 // Team radio: one player for the page (a new clip stops the last), the
@@ -20,7 +21,7 @@ export function useTranscripts(clips: LiveRadio[]): { text: Record<string, Writt
   const [text, setText] = useState<Record<string, Written>>({});
   const [pending, setPending] = useState(true);
   const [paused, setPaused] = useState(false);
-  const ids = clips.map((c) => `${c.url}|${c.code}`).join(",");
+  const ids = clips.map((c) => `${c.url}|${c.code}|${c.first ?? ""}`).join(",");
   useEffect(() => {
     if (!ids) return;
     let stop = false;
@@ -28,9 +29,10 @@ export function useTranscripts(clips: LiveRadio[]): { text: Record<string, Writt
     const ask = async () => {
       const q = new URLSearchParams();
       for (const pair of ids.split(",")) {
-        const [u, w] = pair.split("|");
+        const [u, w, f] = pair.split("|");
         q.append("u", u);
         q.append("w", w);
+        q.append("f", f);
       }
       try {
         const res = await fetch(`/api/f1/radio?${q}`);
@@ -134,28 +136,21 @@ function Said({ text }: { text: string }) {
 }
 
 export function Transcript({ text, code }: { text: string; code: string }) {
-  // Turns start at a speaker label, wherever the model put them (a new line
-  // or mid-line: "… Engineer: Well done Max. VER: Yeah, …").
-  const turns = text
-    .split(new RegExp(`(?:^|\\s+|\\n+)(?=(?:\\{\\{)?(?:Engineer|${code}|Driver):\\s)`, "i"))
-    .map((t) => t.trim())
-    .filter(Boolean);
+  // Turns as settled on the server (lib/f1-radio-speaker.ts): the driver, the
+  // engineer, or a line nobody could place, shown without a guess.
+  const turns = readTurns(text, code);
   return (
     <div className="mt-2 space-y-1">
-      {turns.map((line, i) => {
-        const m = /^(?:\{\{)?([^:{}]{2,12}):\s*([\s\S]*)$/.exec(line);
-        const who = m?.[1] ?? "";
-        const said = m ? m[2] : line;
-        const driver = who.toUpperCase() === code || (who !== "" && who.toLowerCase() !== "engineer");
-        return (
-          <p key={i} className="font-headline text-[14px] leading-snug">
-            {who && <span className={`font-label text-[8.5px] mr-1.5 ${driver ? "" : "text-ink-faint"}`}>{driver ? code : "Engineer"}</span>}
-            <span className={driver ? "" : "text-ink-soft"}>
-              <Said text={said} />
-            </span>
-          </p>
-        );
-      })}
+      {turns.map((t, i) => (
+        <p key={i} className="font-headline text-[14px] leading-snug">
+          <span className={`font-label text-[8.5px] mr-1.5 ${t.who === "driver" ? "" : "text-ink-faint"}`} title={t.who === "unsure" ? "Couldn't tell whether the driver or the engineer said this" : undefined}>
+            {t.who === "driver" ? code : t.who === "engineer" ? "Engineer" : "Driver or engineer?"}
+          </span>
+          <span className={t.who === "driver" ? "" : "text-ink-soft"}>
+            <Said text={t.said} />
+          </span>
+        </p>
+      ))}
     </div>
   );
 }

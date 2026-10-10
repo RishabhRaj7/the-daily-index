@@ -183,7 +183,8 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
       const no = str(c.RacingNumber);
       const url = radioUrl(info.Path, str(c.Path));
       const r = byNo.get(no);
-      return url ? [{ utc: str(c.Utc), number: no, code: r?.code ?? no, colour: r?.colour ?? "#888888", url }] : [];
+      const first = str(obj(drivers[no]).FirstName);
+      return url ? [{ utc: str(c.Utc), number: no, code: r?.code ?? no, colour: r?.colour ?? "#888888", url, ...(first ? { first } : {}) }] : [];
     })
     .reverse()
     .slice(0, 90);

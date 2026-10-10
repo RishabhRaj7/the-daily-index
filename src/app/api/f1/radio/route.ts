@@ -1,9 +1,10 @@
 import { cachedTranscripts, radioPaused, transcribe } from "@/lib/live/f1-radio";
+import { settleText } from "@/lib/f1-radio-speaker";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// GET /api/f1/radio?u=<clip>&w=<code>&u=…   team radio transcripts.
+// GET /api/f1/radio?u=<clip>&w=<code>&f=<first name>&u=…   team radio transcripts.
 // Answers every kept transcript at once and writes up to three new ones per
 // call (newest first), so a page catching up never waits on a whole race's
 // worth; the client asks again for the rest. { paused: true } when every
@@ -13,13 +14,22 @@ const CLIP = /^https:\/\/livetiming\.formula1\.com\/static\/[\w/.-]+\/TeamRadio\
 
 export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
-  const urls = params.getAll("u").filter((u) => CLIP.test(u)).slice(0, 40);
-  const who = params.getAll("w");
+  const w = params.getAll("w");
+  const f = params.getAll("f");
+  // Each clip with its driver (code, first name), paired before any is dropped.
+  const clips = params
+    .getAll("u")
+    .map((u, i) => ({ u, w: w[i] || "", f: f[i] || null }))
+    .filter((x) => CLIP.test(x.u))
+    .slice(0, 40);
+  const urls = clips.map((x) => x.u);
   const known = await cachedTranscripts(urls);
-  const missing = urls.map((u, i) => ({ u, w: who[i] || "the driver" })).filter((x) => !known[x.u]);
+  const missing = clips.filter((x) => !known[x.u]);
   const paused = missing.length > 0 && (await radioPaused());
-  const written = paused ? [] : await Promise.all(missing.slice(0, 3).map(async (x) => [x.u, await transcribe(x.u, x.w)] as const));
+  const written = paused ? [] : await Promise.all(missing.slice(0, 3).map(async (x) => [x.u, await transcribe(x.u, x.w || "the driver", x.f)] as const));
   for (const [u, t] of written) if (t) known[u] = t;
+  // Speakers settled by the current rules, kept transcripts included (free: no model call).
+  for (const x of clips) if (known[x.u] && x.w) known[x.u] = { ...known[x.u], text: settleText(known[x.u].text, x.w, x.f) };
   return Response.json(
     { transcripts: known, pending: Math.max(0, missing.length - written.filter(([, t]) => t).length), paused },
     { headers: { "Cache-Control": "no-store" } },

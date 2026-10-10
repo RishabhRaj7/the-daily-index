@@ -71,6 +71,8 @@ export interface LiveRadio {
   code: string;
   colour: string;
   url: string;
+  /** The driver's first name (the engineer often opens with it). */
+  first?: string;
 }
 
 export interface LiveStints {
