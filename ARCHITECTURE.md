@@ -517,6 +517,28 @@ edition starts building before the reader is back on the paper.
   and a word), and words only one heard are marked `{{…}}` and shown
   underlined as unsure. With one listen it is the model's own rating,
   capped at 0.8. `{ paused: true }` when the whole pool is spent.
+- `/f1/live` is five views (kept in the address, `#analysis/pace`): Live
+  (timing beside the map and the followed driver's card, with where a stop
+  now would put them, and the latest of the feed), Analysis (tyres and pit
+  stops · lap chart · pace: speed traps, best sectors and ideal laps, lap
+  benchmarks · stewards: open and decided cases, deleted laps), Feed (race
+  control read plainly by `lib/f1-race-control.ts`, radio and pit stops, filed
+  All/Flags/Stewards/Track limits/Pits/Radio/Info, "your drivers"), Weekend
+  (`/api/f1/weekend`, `lib/live/f1-weekend.ts`: every session's top three,
+  fastest lap and weather, every driver's place across the weekend, recent
+  winners/poles/fastest laps at the circuit and its most successful driver,
+  the next rounds) and Season. Phones get a bottom tab bar. Parts live in
+  `components/f1/centre/`. The feed also parses `TimingStats` (speed traps,
+  best sectors) and `PitStopSeries` (each stop's standing and lane time).
+- Driver season (`components/f1/DriverSheet.tsx`): from the season grid, the
+  weekend grid or the followed driver's card — round by round qualifying
+  (with time), grid, finish or why they retired, points, sprint, fastest lap;
+  a chart; totals; and the teammate comparison. `/api/f1/season` carries each
+  driver's qualifying places/times and each result's status and laps.
+- Mini-sector bounds are measured per circuit from F1's archive (when each
+  timing loop lit on clean laps, `f1:track:loops:v1:<key>`, served with the
+  track as `loops`), so cars are placed where the loops really are; the
+  followed driver's lit mini-sectors are clipped at the car each frame.
 - Head to head (`/api/f1/h2h?team=` or `?a=RUS&b=VER`): teammates, or the
   reader's two drivers when they're not the same pair; Your paddock switches.
 - Official imagery from F1's image server (`lib/f1-assets.ts`): team logo

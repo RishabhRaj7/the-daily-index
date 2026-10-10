@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { Leader, Season as SeasonData, SeasonCell, SeasonDriver, SeasonStats } from "@/lib/live/f1-season";
 import { driverPhotoByCode } from "@/lib/f1-assets";
 import { TeamGlyph, useF1Favourites } from "./LiveTiming";
+import DriverSheet from "./DriverSheet";
 
 // The season so far, under the session on /f1/live:
 //   records   eight cards — most wins, podiums and poles (driver beside
@@ -169,7 +170,7 @@ function Records({ stats }: { stats: SeasonStats }) {
 // ---- the grid -------------------------------------------------------------------
 
 /** A finishing place's colour: podium metals, blues for the points, grey beyond, red for a retirement. */
-function tone(c: SeasonCell | null): { bg: string; fg: string } {
+export function tone(c: SeasonCell | null): { bg: string; fg: string } {
   if (!c) return { bg: "transparent", fg: "var(--ink-faint)" };
   if (!/^\d+$/.test(c.text)) return { bg: "color-mix(in srgb, var(--down) 22%, transparent)", fg: "var(--ink)" };
   const p = c.pos ?? 99;
@@ -181,7 +182,7 @@ function tone(c: SeasonCell | null): { bg: string; fg: string } {
   return { bg: "color-mix(in srgb, var(--ink) 9%, transparent)", fg: "var(--ink-soft)" };
 }
 
-function Grid({ data }: { data: SeasonData }) {
+function Grid({ data, onDriver }: { data: SeasonData; onDriver: (code: string) => void }) {
   const [races, setRaces] = useState<Races>("all");
   const [show, setShow] = useState<Show>("points");
   const fav = useF1Favourites().codes;
@@ -228,11 +229,11 @@ function Grid({ data }: { data: SeasonData }) {
                 <tr key={d.code} className="group">
                   <td className="sticky left-0 z-10 bg-[var(--surface)] font-mono text-[11px] text-ink-soft px-1">{k + 1}</td>
                   <td className="sticky left-7 z-10 bg-[var(--surface)] px-1">
-                    <span className="flex items-center gap-1.5 whitespace-nowrap">
+                    <button type="button" onClick={() => onDriver(d.code)} className="flex items-center gap-1.5 whitespace-nowrap text-left" title={`${d.name}'s season, round by round`}>
                       <span className="w-[3px] h-3.5 rounded-full" style={{ background: d.colour }} />
                       <TeamGlyph team={d.team} colour={d.colour} size={13} />
-                      <span className={`font-sans text-[12px] ${mine ? "font-bold" : "font-semibold"} group-hover:text-[color:var(--hue-f1)] transition-colors`}>{d.name}</span>
-                    </span>
+                      <span className={`font-sans text-[12px] ${mine ? "font-bold" : "font-semibold"} underline decoration-transparent group-hover:decoration-current underline-offset-2 group-hover:text-[color:var(--hue-f1)] transition-colors`}>{d.name}</span>
+                    </button>
                   </td>
                   <td className="text-right font-mono font-semibold px-2">{pts}</td>
                   {cols.map(({ r, i }) => {
@@ -292,6 +293,7 @@ export default function Season() {
   const [data, setData] = useState<SeasonData | null>(null);
   const [failed, setFailed] = useState(false);
   const [mode, setMode] = useState<Mode>("race");
+  const [driver, setDriver] = useState<string | null>(null);
   useEffect(() => {
     fetch("/api/f1/season")
       .then((r) => (r.ok ? (r.json() as Promise<SeasonData>) : Promise.reject()))
@@ -317,9 +319,10 @@ export default function Season() {
             <Records stats={data.stats[mode]} />
           </div>
           <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 sm:p-5 mt-6">
-            <Grid data={data} />
+            <Grid data={data} onDriver={setDriver} />
           </div>
-          <p className="font-mono text-[9.5px] text-ink-faint mt-3">From Jolpica (the Ergast archive) · results land there a few hours after each race.</p>
+          {driver && <DriverSheet code={driver} onClose={() => setDriver(null)} />}
+          <p className="font-mono text-[9.5px] text-ink-faint mt-3">Tap a driver for their season round by round · from Jolpica (the Ergast archive) · results land there a few hours after each race.</p>
         </>
       )}
     </section>

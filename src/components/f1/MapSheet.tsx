@@ -57,10 +57,12 @@ export default function MapSheet({
             </svg>
           </button>
         </header>
-        <div className="flex-1 min-h-0 grid lg:grid-cols-[minmax(0,1fr)_17rem]">
+        <div className="flex-1 min-h-0 grid grid-rows-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_17rem]">
           {/* the map fits the space both ways, whatever the circuit's shape */}
           <div className="relative min-h-[60vh] lg:min-h-0">
-            <TrackMap model={model} snap={snap} focus={focus} onFocus={onFocus} big className="absolute inset-3 sm:inset-6" />
+            <div className="absolute inset-3 sm:inset-6">
+              <TrackMap model={model} snap={snap} focus={focus} onFocus={onFocus} big className="w-full h-full" />
+            </div>
           </div>
           <aside className="hidden lg:block border-l hairline overflow-y-auto p-4">
             <div className="font-label text-[9px] text-ink-faint mb-2">Running order · tap to follow</div>

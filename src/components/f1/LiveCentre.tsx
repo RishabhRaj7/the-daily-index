@@ -12,6 +12,7 @@ import TrackMap, { useTrack } from "./TrackMap";
 import MapSheet from "./MapSheet";
 import PastSessions from "./PastSessions";
 import Season from "./Season";
+import DriverSheet from "./DriverSheet";
 import ReplayBar, { useReplay } from "./ReplayBar";
 import { LiveDot, SessionClock, TONE, sessionLine } from "./LiveCard";
 import Feed from "./centre/Feed";
@@ -144,6 +145,7 @@ function pitWindow(snap: LiveSnapshot, row: LiveRow, track: TrackModel | null): 
 
 function FocusCard({ row, photo, snap, track }: { row: LiveRow; photo: string | null; snap: LiveSnapshot; track: TrackModel | null }) {
   const stop = pitWindow(snap, row, track);
+  const [season, setSeason] = useState(false);
   return (
     <div className="mt-4 pt-4 border-t hairline">
       <div className="flex items-center gap-3">
@@ -170,6 +172,10 @@ function FocusCard({ row, photo, snap, track }: { row: LiveRow; photo: string | 
           </span>
         )}
       </div>
+      <button type="button" onClick={() => setSeason(true)} className="mt-2.5 font-sans text-[12px] font-semibold text-ink-soft hover:text-ink">
+        {row.name || row.code}&rsquo;s season, round by round →
+      </button>
+      {season && <DriverSheet code={row.code} onClose={() => setSeason(false)} />}
       {stop && (
         <div className="mt-3 rounded-xl border hairline px-3 py-2.5">
           <div className="flex items-baseline justify-between gap-2">

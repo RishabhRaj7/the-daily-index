@@ -22,6 +22,7 @@ interface JDriver {
   familyName: string;
 }
 interface JResult {
+  laps?: string;
   position: string;
   positionText: string;
   points: string;
@@ -54,6 +55,13 @@ export interface SeasonCell {
   text: string;
   points: number;
   grid: number | null;
+  /** How the race ended for them: "Finished", "+1 Lap", "Collision", "Engine"… */
+  status: string;
+  /** Laps completed. */
+  laps: number | null;
+  /** Their fastest lap, and whether it was the race's quickest. */
+  fastestLap: string | null;
+  fastestOfAll: boolean;
 }
 
 export interface SeasonDriver {
@@ -65,6 +73,10 @@ export interface SeasonDriver {
   /** One per round of the calendar; null where the driver had no result. */
   gp: (SeasonCell | null)[];
   sprint: (SeasonCell | null)[];
+  /** Qualifying place each round (null where they didn't qualify). */
+  quali: (number | null)[];
+  /** Their best qualifying lap each round (the deepest part they reached). */
+  qualiTime: (string | null)[];
 }
 
 export interface SeasonRound {
@@ -117,12 +129,14 @@ async function pages(path: string, total = 6): Promise<JRace[]> {
       }
     }),
   );
-  // A round can straddle two pages; join its rows back up.
+  // A round can straddle two pages; join its rows back up (by season and
+  // round: a circuit's history spans many seasons).
   const byRound = new Map<string, JRace>();
   for (const r of got.flat()) {
-    const had = byRound.get(r.round);
+    const id = `${r.season}-${r.round}`;
+    const had = byRound.get(id);
     byRound.set(
-      r.round,
+      id,
       had
         ? {
             ...had,
@@ -133,7 +147,7 @@ async function pages(path: string, total = 6): Promise<JRace[]> {
         : r,
     );
   }
-  return [...byRound.values()].sort((a, b) => Number(a.round) - Number(b.round));
+  return [...byRound.values()].sort((a, b) => Number(a.season) - Number(b.season) || Number(a.round) - Number(b.round));
 }
 
 const code = (d: JDriver) => d.code ?? d.familyName.slice(0, 3).toUpperCase();
@@ -146,6 +160,10 @@ function cell(r: JResult): SeasonCell {
     text: classified ? r.positionText : (STATUS[r.positionText] ?? r.positionText),
     points: Number(r.points) || 0,
     grid: Number(r.grid) || null,
+    status: r.status,
+    laps: r.laps ? Number(r.laps) : null,
+    fastestLap: r.FastestLap?.Time?.time ?? null,
+    fastestOfAll: r.FastestLap?.rank === "1",
   };
 }
 
@@ -261,7 +279,7 @@ async function build(year: number): Promise<Season | null> {
     names.set(c, r.Driver.familyName);
     let d = drivers.get(c);
     if (!d) {
-      d = { code: c, name: r.Driver.familyName, team: r.Constructor.name, colour: "#888888", points: 0, gp: new Array(n).fill(null), sprint: new Array(n).fill(null) };
+      d = { code: c, name: r.Driver.familyName, team: r.Constructor.name, colour: "#888888", points: 0, gp: new Array(n).fill(null), sprint: new Array(n).fill(null), quali: new Array(n).fill(null), qualiTime: new Array(n).fill(null) };
       drivers.set(c, d);
     }
     d.team = r.Constructor.name; // the latest team (results come in round order)
@@ -273,6 +291,12 @@ async function build(year: number): Promise<Season | null> {
       const d = touch(r);
       d.gp[i] = cell(r);
       d.points += Number(r.points) || 0;
+    }
+    for (const q of qua.get(round.round)?.QualifyingResults ?? []) {
+      const d = drivers.get(code(q.Driver));
+      if (!d) continue;
+      d.quali[i] = Number(q.position) || null;
+      d.qualiTime[i] = q.Q3 || q.Q2 || q.Q1 || null;
     }
     for (const r of spr.get(round.round)?.SprintResults ?? []) {
       const d = touch(r);
@@ -299,7 +323,7 @@ async function build(year: number): Promise<Season | null> {
 
 export async function getSeason(year = new Date().getUTCFullYear()): Promise<Season | null> {
   const store = getStore();
-  const k = `f1:season:v3:${year}`;
+  const k = `f1:season:v5:${year}`;
   const kept = await store.get<Season>(k).catch(() => null);
   if (kept) return kept;
   const built = await build(year);
@@ -320,6 +344,91 @@ export interface Benchmark {
   year: number;
 }
 
+/** The season's Jolpica race for an F1 meeting name. */
+async function raceOf(meeting: string, year: number): Promise<JRace | null> {
+  const schedule = await pages(`${year}/races/`, 1);
+  const want = meeting.toLowerCase();
+  // F1 and Jolpica don't always name a meeting alike ("Bahrain Grand Prix" was
+  // held at Sepang in 2026 and Jolpica calls it "… in Malaysia").
+  return (
+    schedule.find((r) => r.raceName.toLowerCase() === want) ??
+    schedule.find((r) => r.raceName.toLowerCase().startsWith(want)) ??
+    schedule.find((r) => want.includes(r.Circuit.Location.country.toLowerCase())) ??
+    null
+  );
+}
+
+// ---- a circuit's history -----------------------------------------------------------
+
+export interface PastRace {
+  year: number;
+  winner: { name: string; team: string; grid: number | null } | null;
+  pole: { name: string; team: string; time: string | null } | null;
+  fastest: { name: string; time: string } | null;
+}
+
+export interface CircuitHistory {
+  circuit: string;
+  locality: string;
+  country: string;
+  /** Grands Prix held here before this season, and the first. */
+  races: number;
+  firstYear: number | null;
+  /** The latest five, newest first. */
+  recent: PastRace[];
+  /** Most wins here among everyone (all time). */
+  mostWins: { name: string; wins: number } | null;
+}
+
+/** Who has won, started on pole and set the fastest lap here, kept a week. */
+export async function circuitHistory(meeting: string, year = new Date().getUTCFullYear()): Promise<CircuitHistory | null> {
+  const store = getStore();
+  const k = `f1:circuit-history:v1:${year}:${meeting.toLowerCase().replace(/\W+/g, "-")}`;
+  const kept = await store.get<CircuitHistory>(k).catch(() => null);
+  if (kept) return kept;
+  const race = await raceOf(meeting, year);
+  if (!race) return null;
+  const id = race.Circuit.circuitId;
+  const [wins, poles, fastest] = await Promise.all([pages(`circuits/${id}/results/1/`, 2), pages(`circuits/${id}/qualifying/1/`, 1), pages(`circuits/${id}/fastest/1/results/`, 1)]);
+  const before = (r: JRace) => Number(r.season) < year;
+  const won = wins.filter(before);
+  const by = (list: JRace[]) => new Map(list.filter(before).map((r) => [Number(r.season), r]));
+  const poleBy = by(poles);
+  const fastBy = by(fastest);
+  const tally = new Map<string, number>();
+  for (const r of won) {
+    const w = r.Results?.[0];
+    if (w) tally.set(`${w.Driver.givenName} ${w.Driver.familyName}`, (tally.get(`${w.Driver.givenName} ${w.Driver.familyName}`) ?? 0) + 1);
+  }
+  const top = [...tally.entries()].sort((a, b) => b[1] - a[1])[0];
+  const recent: PastRace[] = won
+    .slice(-5)
+    .reverse()
+    .map((r) => {
+      const y = Number(r.season);
+      const w = r.Results?.[0];
+      const p = poleBy.get(y)?.QualifyingResults?.[0];
+      const f = fastBy.get(y)?.Results?.[0];
+      return {
+        year: y,
+        winner: w ? { name: w.Driver.familyName, team: w.Constructor.name, grid: Number(w.grid) || null } : null,
+        pole: p ? { name: p.Driver.familyName, team: p.Constructor.name, time: p.Q3 || p.Q2 || p.Q1 || null } : null,
+        fastest: f?.FastestLap?.Time?.time ? { name: f.Driver.familyName, time: f.FastestLap.Time.time } : null,
+      };
+    });
+  const out: CircuitHistory = {
+    circuit: (race.Circuit as { circuitName?: string }).circuitName ?? race.raceName,
+    locality: race.Circuit.Location.locality,
+    country: race.Circuit.Location.country,
+    races: won.length,
+    firstYear: won[0] ? Number(won[0].season) : null,
+    recent,
+    mostWins: top ? { name: top[0], wins: top[1] } : null,
+  };
+  await store.set(k, out, { ttlSeconds: 7 * 86_400 }).catch(() => {});
+  return out;
+}
+
 /**
  * Reference laps for a meeting's session: last year's pole (qualifying and
  * practice) or fastest race lap (races and sprints), and the fastest race
@@ -328,17 +437,10 @@ export interface Benchmark {
  */
 export async function benchmarks(meeting: string, type: string, year = new Date().getUTCFullYear()): Promise<Benchmark[]> {
   const store = getStore();
-  const k = `f1:bench:v2:${year}:${meeting.toLowerCase().replace(/\W+/g, "-")}:${type === "Race" ? "race" : "quali"}`;
+  const k = `f1:bench:v3:${year}:${meeting.toLowerCase().replace(/\W+/g, "-")}:${type === "Race" ? "race" : "quali"}`;
   const kept = await store.get<Benchmark[]>(k).catch(() => null);
   if (kept) return kept;
-  const schedule = await pages(`${year}/races/`, 1);
-  const want = meeting.toLowerCase();
-  // F1 and Jolpica don't always name a meeting alike ("Bahrain Grand Prix" was
-  // held at Sepang in 2026 and Jolpica calls it "… in Malaysia").
-  const race =
-    schedule.find((r) => r.raceName.toLowerCase() === want) ??
-    schedule.find((r) => r.raceName.toLowerCase().startsWith(want)) ??
-    schedule.find((r) => want.includes(r.Circuit.Location.country.toLowerCase()));
+  const race = await raceOf(meeting, year);
   if (!race) return [];
   const id = race.Circuit.circuitId;
   const out: Benchmark[] = [];
