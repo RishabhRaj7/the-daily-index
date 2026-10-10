@@ -571,6 +571,16 @@ edition starts building before the reader is back on the paper.
   back to the whole circuit). Scroll and pinch zoom the enlarged map; drag
   looks around once zoomed; a mini map shows where the view is. The view is
   written straight onto the SVG; the reader's choices are kept on the device.
+- The followed driver's card (under the map): who and where, a Season
+  button; the speedometer beside their last and best laps (with the gap to
+  the session's fastest), the three sectors (this lap's, coloured as the
+  timing screens colour them, with the mini-sectors and each personal
+  best), their race in tyres and what a stop now would cost.
+- Tyre strategy (`components/f1/Stints.tsx`: `StintLine`, `LapAxis`) on a
+  lap scale: each stint a line in its compound's colour (dashed for a used
+  set), the tyre where it went on, its laps along it, and while running a dot
+  with the laps on the set now. Analysis → Tyres for the field; the card for
+  the followed driver.
 - Telemetry for the followed driver (`lib/live/f1-telemetry.ts`,
   `centre/Telemetry.tsx`): a speedometer in the driver's card under the map
   (speed round the dial in the team colour, throttle and brake on the inner

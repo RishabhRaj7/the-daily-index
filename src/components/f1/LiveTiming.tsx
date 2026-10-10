@@ -19,13 +19,13 @@ import { teamLogo } from "@/lib/f1-assets";
 // green or red; a new session-best lap flashes purple. In a qualifying part
 // a dashed line marks the cut-off.
 
-const MARK_COLOUR: Record<LapMark, string> = {
+export const MARK_COLOUR: Record<LapMark, string> = {
   fastest: "var(--f1-fastest)",
   personal: "var(--f1-personal)",
   none: "inherit",
 };
 
-const SEGMENT_COLOUR: Record<SegmentMark, string> = {
+export const SEGMENT_COLOUR: Record<SegmentMark, string> = {
   fastest: "var(--f1-fastest)",
   personal: "var(--f1-personal)",
   slower: "var(--f1-slower)",

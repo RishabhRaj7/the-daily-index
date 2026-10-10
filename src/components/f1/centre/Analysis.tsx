@@ -5,6 +5,7 @@ import type { LiveSnapshot, LiveStats, LiveStints } from "@/lib/f1-live-types";
 import { deletedLaps, stewardsCases, type StewardsCase } from "@/lib/f1-race-control";
 import TyreIcon, { TYRE } from "../TyreIcon";
 import RaceStory from "../RaceStory";
+import { LapAxis, StintLine } from "../Stints";
 import { TeamGlyph } from "../LiveTiming";
 import { Empty, Panel, Seg, clock } from "./ui";
 
@@ -31,37 +32,23 @@ const lapText = (s: number) => {
 
 // ---- tyres -------------------------------------------------------------------
 
-function Strategy({ stints, total, highlight }: { stints: LiveStints[]; total: number; highlight: Set<string> }) {
+function Strategy({ stints, total, highlight, running }: { stints: LiveStints[]; total: number; highlight: Set<string>; running: boolean }) {
   const scale = Math.max(total, ...stints.map((d) => d.stints.reduce((n, s) => n + s.laps, 0)), 1);
   return (
     <>
-      <div className="space-y-[5px]">
+      <div className="grid grid-cols-[3rem_minmax(0,1fr)] gap-x-3">
+        <span />
+        <LapAxis total={scale} />
+      </div>
+      <div className="space-y-1.5 mt-2">
         {stints.map((d, row) => (
-          <div key={d.code} className={`grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-3 ${highlight.size && !highlight.has(d.code) ? "opacity-80" : ""}`}>
+          <div key={d.code} className={`grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-3 pt-2 ${highlight.size && !highlight.has(d.code) ? "opacity-80" : ""}`}>
             <span className="flex items-center gap-1.5 font-sans font-bold text-[11.5px]">
               <span className="w-[3px] h-3 rounded-full" style={{ background: d.colour }} />
               {d.code}
             </span>
-            <span className="flex h-[18px] gap-[3px]">
-              {d.stints.map((s, i) => {
-                const t = TYRE[s.compound];
-                return (
-                  <span
-                    key={i}
-                    className="stint-in h-full rounded-[5px] flex items-center justify-center font-mono text-[9.5px] font-bold overflow-hidden border"
-                    style={{
-                      width: `${(Math.max(s.laps, 0.6) / scale) * 100}%`,
-                      background: `color-mix(in srgb, ${t.colour} ${s.fresh ? 26 : 13}%, transparent)`,
-                      borderColor: `color-mix(in srgb, ${t.colour} ${s.fresh ? 75 : 40}%, transparent)`,
-                      color: t.colour,
-                      animationDelay: `${row * 22 + i * 60}ms`,
-                    }}
-                    title={`${t.name}${s.fresh ? "" : " (used)"} · ${s.laps} laps`}
-                  >
-                    {s.laps >= 3 ? `${t.letter}${s.laps >= 6 ? ` ${s.laps}` : ""}` : ""}
-                  </span>
-                );
-              })}
+            <span className="pr-3">
+              <StintLine stints={d.stints} total={scale} running={running} delay={row * 22} />
             </span>
           </div>
         ))}
@@ -72,7 +59,7 @@ function Strategy({ stints, total, highlight }: { stints: LiveStints[]; total: n
             <TyreIcon compound={c} size={13} /> {TYRE[c].name}
           </span>
         ))}
-        <span className="text-ink-faint">Faint = a used set</span>
+        <span className="text-ink-faint">Dashed: a used set · the number along a stint: its laps · the dot: laps on the set now</span>
       </div>
     </>
   );
@@ -363,7 +350,7 @@ export default function Analysis({ snap, sub, onSub, highlight, mine }: { snap: 
       {cur === "tyres" && (
         <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] gap-6 items-start">
           <Panel label="Tyre strategy" meta={race && snap.lap ? `${snap.lap.total} laps` : "Laps on each set"}>
-            {snap.stints?.some((d) => d.stints.length) ? <Strategy stints={snap.stints} total={race ? (snap.lap?.total ?? 0) : 0} highlight={highlight} /> : <Empty>No stints yet.</Empty>}
+            {snap.stints?.some((d) => d.stints.length) ? <Strategy stints={snap.stints} total={race ? (snap.lap?.total ?? 0) : 0} highlight={highlight} running={snap.running} /> : <Empty>No stints yet.</Empty>}
           </Panel>
           <Panel label="Quickest stops" meta="Time standing still">
             <Stops snap={snap} />

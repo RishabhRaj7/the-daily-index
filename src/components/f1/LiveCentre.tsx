@@ -6,8 +6,9 @@ import type { F1Race } from "@/lib/types";
 import type { LivePrediction, LiveRow, LiveSnapshot, TrackModel } from "@/lib/f1-live-types";
 import { useF1Live } from "@/lib/use-f1-live";
 import { driverPhotoByCode } from "@/lib/f1-assets";
-import LiveTiming, { TeamGlyph, useF1Favourites } from "./LiveTiming";
+import LiveTiming, { MARK_COLOUR, SEGMENT_COLOUR, TeamGlyph, useF1Favourites } from "./LiveTiming";
 import TyreIcon from "./TyreIcon";
+import { StintLine } from "./Stints";
 import TrackMap, { useTrack } from "./TrackMap";
 import MapSheet from "./MapSheet";
 import PastSessions from "./PastSessions";
@@ -144,12 +145,28 @@ function pitWindow(snap: LiveSnapshot, row: LiveRow, track: TrackModel | null): 
   };
 }
 
+const lapSecs = (t?: string | null) => {
+  const m = /^(?:(\d+):)?(\d+\.\d+)$/.exec(t ?? "");
+  return m ? Number(m[1] ?? 0) * 60 + Number(m[2]) : null;
+};
+
+/**
+ * The followed driver, under the map: who and where, then their speedometer
+ * (a tap opens the telemetry) beside their laps — last and best against the
+ * session's fastest — the three sectors with their mini-sectors and personal
+ * bests, the race in tyres, and what a stop now would cost.
+ */
 function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; photo: string | null; snap: LiveSnapshot; track: TrackModel | null; live: boolean; replayT: number | null }) {
   const stop = pitWindow(snap, row, track);
-  // The speedometer beside the driver; a tap opens the telemetry in detail.
   const telemetry = useTelemetry(snap, row.code, live, replayT);
   const [detail, setDetail] = useState(false);
   const hasTelemetry = !!telemetry.now || telemetry.samples.length > 1 || (!live && !!snap.path);
+  const stats = snap.stats?.find((s) => s.code === row.code);
+  const stints = snap.stints?.find((s) => s.code === row.code)?.stints ?? [];
+  const race = snap.type === "Race";
+  const total = race ? (snap.lap?.total ?? 0) : 0;
+  const fastest = snap.rows.find((r) => r.bestFastest);
+  const off = !row.bestFastest && fastest ? (lapSecs(row.best) ?? 0) - (lapSecs(fastest.best) ?? 0) : null;
   return (
     <div className="mt-4 pt-4 border-t hairline">
       <div className="flex items-center gap-3">
@@ -168,44 +185,97 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
             <span className="font-mono text-[11px] text-ink-soft">P{row.position}</span>
           </span>
           <span className="block font-mono text-[10.5px] text-ink-soft mt-1 truncate">
-            {snap.type === "Race" ? (row.position === 1 ? "Leading" : `${row.gap || "—"} to the leader · ${row.interval || "—"} to the car ahead`) : `Best ${row.best || "—"} · last ${row.last || "—"}`}
+            {race ? (row.position === 1 ? "Leading" : `${row.gap || "—"} to the leader · ${row.interval || "—"} to the car ahead`) : `${row.gap || "—"} to the fastest`}
           </span>
         </span>
-        {row.tyre && (
-          <span className="flex flex-col items-center gap-0.5 shrink-0">
-            <TyreIcon compound={row.tyre.compound} fresh={row.tyre.fresh} size={22} />
-            <span className="font-mono text-[9.5px] text-ink-soft">{row.tyre.laps} laps</span>
-          </span>
-        )}
+        <button type="button" onClick={() => openDriver(row.code)} className="chip h-8 text-[11.5px] shrink-0" title={`${row.name || row.code}'s season, round by round`}>
+          Season →
+        </button>
       </div>
-      <div className={`mt-3 grid gap-3 items-start ${hasTelemetry ? "grid-cols-1 sm:grid-cols-[13.5rem_minmax(0,1fr)]" : ""}`}>
-      {hasTelemetry && <Speedometer now={telemetry.now} colour={row.colour} code={row.code} source={telemetry.source} onOpen={() => setDetail(true)} />}
-      <div className="min-w-0">
-      <button type="button" onClick={() => openDriver(row.code)} className="font-sans text-[12px] font-semibold text-ink-soft hover:text-ink text-left">
-        {row.name || row.code}&rsquo;s season, round by round →
-      </button>
-      {stop && (
-        <div className="mt-3 rounded-xl border hairline px-3 py-2.5">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="font-label text-[8.5px] text-ink-faint">A stop now</span>
-            <span className="font-mono text-[9.5px] text-ink-faint">costs ~{stop.loss.toFixed(0)} s</span>
+
+      <div className={`mt-3 grid gap-3 items-start ${hasTelemetry ? "sm:grid-cols-[13.5rem_minmax(0,1fr)]" : ""}`}>
+        {hasTelemetry && <Speedometer now={telemetry.now} colour={row.colour} code={row.code} source={telemetry.source} onOpen={() => setDetail(true)} />}
+        <div className="min-w-0 space-y-3">
+          {/* last and best, against the session's fastest */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-xl border hairline px-3 py-2">
+              <div className="font-label text-[8px] text-ink-faint">Last lap</div>
+              <div className="font-mono text-[15px] font-semibold tabular-nums mt-1" style={{ color: MARK_COLOUR[row.lastMark] }}>
+                {row.last || "—"}
+              </div>
+            </div>
+            <div className="rounded-xl border hairline px-3 py-2" style={row.bestFastest ? { borderColor: "var(--f1-fastest)" } : undefined}>
+              <div className="font-label text-[8px] text-ink-faint">{row.bestFastest ? "Best · fastest of all" : "Best lap"}</div>
+              <div className="font-mono text-[15px] font-semibold tabular-nums mt-1" style={{ color: row.bestFastest ? "var(--f1-fastest)" : undefined }}>
+                {row.best || "—"}
+                {off !== null && off > 0 && <span className="font-normal text-[10px] text-ink-faint ml-1.5">+{off.toFixed(3)}</span>}
+              </div>
+            </div>
           </div>
-          <div className="text-[12.5px] mt-1 leading-snug">
-            Out in <b className="font-display text-[1.05rem]">P{stop.pos}</b>
-            {stop.ahead && (
-              <span className="text-ink-soft">
-                , {stop.ahead.by.toFixed(1)} s behind <b className="text-ink">{stop.ahead.code}</b>
-              </span>
-            )}
-            {stop.behind && (
-              <span className="text-ink-soft">
-                , {stop.behind.by.toFixed(1)} s ahead of <b className="text-ink">{stop.behind.code}</b>
-              </span>
-            )}
+
+          {/* the sectors: this lap's (coloured as the timing screens colour them), mini-sectors, and their bests */}
+          <div className="rounded-xl border hairline px-3 py-2.5">
+            <div className="grid grid-cols-3 gap-3">
+              {[0, 1, 2].map((i) => {
+                const s = row.sectors[i];
+                return (
+                  <div key={i} className="min-w-0">
+                    <div className="font-label text-[8px] text-ink-faint">S{i + 1}</div>
+                    <div className="font-mono text-[13px] font-semibold tabular-nums mt-0.5" style={{ color: s ? MARK_COLOUR[s.mark] : undefined }}>
+                      {s?.value || "—"}
+                    </div>
+                    {s && s.segments.length > 0 && (
+                      <div className="flex gap-[2px] mt-1" aria-hidden="true">
+                        {s.segments.map((g, k) => (
+                          <span key={k} className="h-[4px] flex-1 max-w-[9px] rounded-[1px]" style={{ background: SEGMENT_COLOUR[g] }} />
+                        ))}
+                      </div>
+                    )}
+                    {stats?.bestSectors[i] && <div className="font-mono text-[9.5px] text-ink-faint mt-1 tabular-nums">best {stats.bestSectors[i]}</div>}
+                  </div>
+                );
+              })}
+            </div>
           </div>
+
+          {/* the race in tyres */}
+          {stints.length > 0 && (
+            <div className="rounded-xl border hairline px-3 pt-2 pb-1">
+              <div className="flex items-baseline justify-between font-label text-[8px] text-ink-faint">
+                <span>Tyres</span>
+                <span>
+                  {row.stops} stop{row.stops === 1 ? "" : "s"}
+                  {total ? ` · ${total} laps` : ""}
+                </span>
+              </div>
+              <div className="pt-3 pr-2">
+                <StintLine stints={stints} total={total} running={snap.running} />
+              </div>
+            </div>
+          )}
+
+          {stop && (
+            <div className="rounded-xl border hairline px-3 py-2.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="font-label text-[8.5px] text-ink-faint">A stop now</span>
+                <span className="font-mono text-[9.5px] text-ink-faint">costs ~{stop.loss.toFixed(0)} s</span>
+              </div>
+              <div className="text-[12.5px] mt-1 leading-snug">
+                Out in <b className="font-display text-[1.05rem]">P{stop.pos}</b>
+                {stop.ahead && (
+                  <span className="text-ink-soft">
+                    , {stop.ahead.by.toFixed(1)} s behind <b className="text-ink">{stop.ahead.code}</b>
+                  </span>
+                )}
+                {stop.behind && (
+                  <span className="text-ink-soft">
+                    , {stop.behind.by.toFixed(1)} s ahead of <b className="text-ink">{stop.behind.code}</b>
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
-      )}
-      </div>
       </div>
       {detail && <TelemetrySheet t={telemetry} code={row.code} name={row.name} colour={row.colour} onClose={() => setDetail(false)} />}
     </div>
