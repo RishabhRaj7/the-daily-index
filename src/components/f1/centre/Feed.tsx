@@ -5,7 +5,6 @@ import type { LivePitStop, LiveRadio, LiveSnapshot } from "@/lib/f1-live-types";
 import { readRaceControl, type RcItem, type RcTone } from "@/lib/f1-race-control";
 import TyreIcon, { TYRE } from "../TyreIcon";
 import { RadioRow, usePlayer, useTranscripts } from "./Radio";
-import { DriverName } from "../DriverLink";
 import { Empty, Seg, clock } from "./ui";
 
 // The session as it happens, in one stream: race control (read plainly —
@@ -67,25 +66,6 @@ const matches = (it: Item, f: Filter) =>
 
 const about = (it: Item): string[] => (it.kind === "rc" ? it.rc.drivers : it.kind === "radio" ? [it.radio.code] : [it.pit.code]);
 
-/** Race control's text with each driver it names opening their season. */
-function Linked({ text, codes }: { text: string; codes: string[] }) {
-  if (!codes.length) return <>{text}</>;
-  const re = new RegExp(`\\b(${codes.join("|")})\\b`, "g");
-  return (
-    <>
-      {text.split(re).map((part, i) =>
-        codes.includes(part) ? (
-          <DriverName key={i} code={part} className="font-semibold">
-            {part}
-          </DriverName>
-        ) : (
-          part
-        ),
-      )}
-    </>
-  );
-}
-
 function RcRow({ it }: { it: RcItem }) {
   const c = TONE_COLOUR[it.tone];
   return (
@@ -95,7 +75,7 @@ function RcRow({ it }: { it: RcItem }) {
         {it.tone === "penalty" ? "Penalty" : it.tone === "sc" ? "Safety car" : KIND_LABEL[it.kind]}
       </span>
       <span className="text-[13px] leading-snug">
-        <Linked text={it.text} codes={it.drivers} />
+        {it.text}
         {it.cleared && <span className="font-mono text-[10.5px] text-ink-faint"> · cleared {clock(it.cleared)}</span>}
       </span>
     </div>
@@ -110,10 +90,7 @@ function PitRow({ p, tyre }: { p: LivePitStop; tyre: { compound: keyof typeof TY
           <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--f1-pit)" }} /> Pit stop
         </span>
         <span className="block text-[13px] leading-snug">
-          <DriverName code={p.code} className="font-sans font-bold">
-            {p.code}
-          </DriverName>{" "}
-          pits on lap {p.lap}
+          <b className="font-sans">{p.code}</b> pits on lap {p.lap}
           {p.stationary !== null && <> · {p.stationary.toFixed(1)} s standing</>}
           {p.lane !== null && <span className="text-ink-soft"> · {p.lane.toFixed(1)} s in the lane</span>}
         </span>

@@ -574,6 +574,7 @@ export default function TrackMap({
           canFollow={!!focus && snap.running}
           zoom={zoom}
           onZoom={(f) => zoomBy(f)}
+          tyres={paint === "tyre" && snap.running ? (["SOFT", "MEDIUM", "HARD", "INTERMEDIATE", "WET"] as const).filter((t) => [...tyreOf.values()].includes(t)) : []}
           onReset={() => {
             setFollow(false);
             followRef.current = null;
@@ -589,18 +590,6 @@ export default function TrackMap({
           <path d={model.path} fill="none" stroke="var(--ink-faint)" strokeWidth={14 * scale} strokeLinejoin="round" />
           <rect ref={miniRef} fill="color-mix(in srgb, var(--hue-f1) 18%, transparent)" stroke="var(--hue-f1)" strokeWidth={8 * scale} rx={10 * scale} />
         </svg>
-      )}
-      {controls && paint === "tyre" && snap?.running && (
-        <div className="absolute right-0 bottom-0 flex gap-2 font-mono text-[9px] text-ink-faint pointer-events-none">
-          {(["SOFT", "MEDIUM", "HARD", "INTERMEDIATE", "WET"] as const)
-            .filter((t) => [...tyreOf.values()].includes(t))
-            .map((t) => (
-              <span key={t} className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full" style={{ background: TYRE[t].colour }} />
-                {TYRE[t].name}
-              </span>
-            ))}
-        </div>
       )}
       {onExpand && (
         <button type="button" onClick={onExpand} className="absolute top-0 right-0 icon-btn" aria-label="Enlarge the map" title="Enlarge the map">
@@ -635,24 +624,54 @@ function useStoredChoice<T extends string>(key: string, initial: T, allowed: rea
   ];
 }
 
-function ToolButton({ on, onClick, title, children, disabled }: { on?: boolean; onClick: () => void; title: string; children: React.ReactNode; disabled?: boolean }) {
+
+/** A round map control, like a map app's. */
+function MapButton({ on, onClick, label, children, disabled }: { on?: boolean; onClick: () => void; label: string; children: React.ReactNode; disabled?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      title={title}
-      aria-label={title}
+      title={label}
+      aria-label={label}
       aria-pressed={on}
-      className={`h-7 min-w-7 px-2 rounded-full font-sans text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors disabled:opacity-35 ${on ? "text-[color:var(--paper)]" : "text-ink-soft hover:text-ink"}`}
-      style={on ? { background: "var(--ink)" } : undefined}
+      className={`w-8 h-8 grid place-items-center transition-colors disabled:opacity-30 ${on ? "text-[color:var(--paper)]" : "text-ink-soft hover:text-ink"}`}
+      style={on ? { background: "var(--hue-f1)" } : undefined}
     >
       {children}
     </button>
   );
 }
 
-/** The map's toolbar: which codes show, what colours the cars, follow a car, zoom. */
+function Choice<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: [T, string][]; onChange: (v: T) => void }) {
+  return (
+    <div>
+      <div className="font-label text-[8.5px] text-ink-faint mb-1.5">{label}</div>
+      <div className="grid rounded-lg border hairline p-0.5 gap-0.5" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }} role="radiogroup" aria-label={label}>
+        {options.map(([v, text]) => (
+          <button
+            key={v}
+            type="button"
+            role="radio"
+            aria-checked={value === v}
+            onClick={() => onChange(v)}
+            className={`h-7 rounded-md font-sans text-[11.5px] font-semibold transition-colors ${value === v ? "text-[color:var(--paper)]" : "text-ink-soft hover:text-ink"}`}
+            style={value === v ? { background: "var(--ink)" } : undefined}
+          >
+            {text}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The map's controls. Top left, one Map options button: what labels the cars
+ * and what colours them (with the tyre key when it's tyres). Bottom right, a
+ * stack like any map app's: follow the chosen car, zoom in, zoom out, and
+ * back to the whole circuit.
+ */
 function MapTools(p: {
   codes: "all" | "yours" | "off";
   onCodes: (v: "all" | "yours" | "off") => void;
@@ -664,48 +683,100 @@ function MapTools(p: {
   zoom: number;
   onZoom: (factor: number) => void;
   onReset: () => void;
+  tyres: readonly ("SOFT" | "MEDIUM" | "HARD" | "INTERMEDIATE" | "WET")[];
 }) {
-  const nextCodes = { all: "yours", yours: "off", off: "all" } as const;
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => {
+      if (!box.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("pointerdown", away);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("pointerdown", away);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
   return (
-    <div className="absolute left-0 top-0 flex flex-wrap items-center gap-1 max-w-[calc(100%-3rem)]">
-      <div className="glass border hairline rounded-full p-0.5 flex items-center">
-        <ToolButton
-          onClick={() => p.onCodes(nextCodes[p.codes])}
-          title={`Driver codes: ${p.codes === "all" ? "everyone" : p.codes === "yours" ? "your drivers and the followed car" : "the followed car only"} (tap to change)`}
+    <>
+      <div ref={box} className="absolute left-0 top-0 z-10 flex items-start gap-2">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="glass border hairline rounded-full h-8 pl-2.5 pr-3 flex items-center gap-1.5 font-sans text-[11.5px] font-semibold text-ink-soft hover:text-ink"
         >
-          <span className="font-mono text-[10px]">ABC</span>
-          <span className="text-ink-faint font-normal">{p.codes === "all" ? "All" : p.codes === "yours" ? "Yours" : "Off"}</span>
-        </ToolButton>
-        <ToolButton onClick={() => p.onPaint(p.paint === "team" ? "tyre" : "team")} title={p.paint === "team" ? "Cars in team colours (tap for tyres)" : "Cars in their tyre's colour (tap for teams)"}>
-          <span className="flex" aria-hidden="true">
-            <span className="w-2.5 h-2.5 rounded-full" style={{ background: p.paint === "tyre" ? TYRE.SOFT.colour : "var(--hue-f1)" }} />
-            {p.paint === "tyre" && <span className="w-2.5 h-2.5 rounded-full -ml-1" style={{ background: TYRE.MEDIUM.colour }} />}
-          </span>
-          {p.paint === "team" ? "Teams" : "Tyres"}
-        </ToolButton>
-        <ToolButton on={p.follow} onClick={() => p.onFollow(!p.follow)} disabled={!p.canFollow} title={p.follow ? "Stop following" : "Keep the camera on the followed car"}>
-          <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-            <circle cx="8" cy="8" r="2.5" />
-            <path d="M8 1.5v2.5M8 12v2.5M1.5 8H4M12 8h2.5" strokeLinecap="round" />
+          <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+            <path d="M2.5 4.5h7M12.5 4.5h1M2.5 11.5h1M6.5 11.5h7" />
+            <circle cx="11" cy="4.5" r="1.5" />
+            <circle cx="5" cy="11.5" r="1.5" />
           </svg>
-          Follow
-        </ToolButton>
-      </div>
-      <div className="glass border hairline rounded-full p-0.5 flex items-center">
-        <ToolButton onClick={() => p.onZoom(1 / 1.6)} disabled={p.zoom <= 1} title="Zoom out">
-          −
-        </ToolButton>
-        <ToolButton onClick={() => p.onZoom(1.6)} disabled={p.zoom >= 8} title="Zoom in">
-          +
-        </ToolButton>
-        {p.zoom > 1 && (
-          <ToolButton onClick={p.onReset} title="Show the whole circuit">
-            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
-              <path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10" />
-            </svg>
-          </ToolButton>
+          Map options
+        </button>
+        {p.tyres.length > 0 && !open && (
+          <span className="glass border hairline rounded-full h-8 px-3 flex items-center gap-2.5 font-mono text-[9.5px] text-ink-soft">
+            {p.tyres.map((t) => (
+              <span key={t} className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full" style={{ background: TYRE[t].colour }} />
+                {TYRE[t].name}
+              </span>
+            ))}
+          </span>
+        )}
+        {open && (
+          <div className="absolute left-0 top-10 w-60 rounded-2xl border hairline bg-[var(--surface)] shadow-xl p-3.5 space-y-3.5 animate-[fade-in_0.15s_ease]">
+            <Choice
+              label="Driver names on the map"
+              value={p.codes}
+              onChange={p.onCodes}
+              options={[
+                ["all", "Everyone"],
+                ["yours", "Yours"],
+                ["off", "None"],
+              ]}
+            />
+            <Choice
+              label="Colour the cars by"
+              value={p.paint}
+              onChange={p.onPaint}
+              options={[
+                ["team", "Team"],
+                ["tyre", "Tyre"],
+              ]}
+            />
+            <p className="font-mono text-[9.5px] text-ink-faint leading-relaxed">The followed driver always keeps their name. Drag to look around once zoomed{" "}in.</p>
+          </div>
         )}
       </div>
-    </div>
+      <div className="absolute right-0 bottom-0 z-10 glass border hairline rounded-2xl overflow-hidden flex flex-col divide-y divide-[var(--rule)]">
+        <MapButton on={p.follow} onClick={() => p.onFollow(!p.follow)} disabled={!p.canFollow} label={p.follow ? "Stop following the car" : "Follow the chosen car"}>
+          <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+            <circle cx="8" cy="8" r="4" />
+            <circle cx="8" cy="8" r="1.2" fill="currentColor" />
+            <path d="M8 1.5V4M8 12v2.5M1.5 8H4M12 8h2.5" />
+          </svg>
+        </MapButton>
+        <MapButton onClick={() => p.onZoom(1.6)} disabled={p.zoom >= 8} label="Zoom in">
+          <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+            <path d="M8 3.5v9M3.5 8h9" />
+          </svg>
+        </MapButton>
+        <MapButton onClick={() => p.onZoom(1 / 1.6)} disabled={p.zoom <= 1} label="Zoom out">
+          <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+            <path d="M3.5 8h9" />
+          </svg>
+        </MapButton>
+        {p.zoom > 1 && (
+          <MapButton onClick={p.onReset} label="Show the whole circuit">
+            <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+              <path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10" />
+            </svg>
+          </MapButton>
+        )}
+      </div>
+    </>
   );
 }

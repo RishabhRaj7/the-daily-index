@@ -13,7 +13,6 @@ import type { OddsMarket } from "@/lib/types";
 import type { LiveSnapshot } from "@/lib/f1-live-types";
 import LiveCard from "@/components/f1/LiveCard";
 import { TeamGlyph } from "@/components/f1/LiveTiming";
-import { DriverName } from "@/components/f1/DriverLink";
 import TrackMap, { useTrack } from "@/components/f1/TrackMap";
 
 function formatCountdown(ms: number) {
@@ -66,12 +65,6 @@ function Countdown({ target }: { target: string }) {
   );
 }
 
-/** A driver's timing code, from the season's roster, by surname. */
-function codeOf(name: string): string | undefined {
-  const last = name.trim().split(/\s+/).pop()?.toLowerCase() ?? "";
-  return F1_DRIVERS.find((d) => d.lastName.toLowerCase() === last)?.nameAcronym;
-}
-
 /** A driver's team, from the season's roster, by surname ("Andrea Kimi Antonelli" → Mercedes). */
 function teamOf(name: string): string {
   const last = name.trim().split(/\s+/).pop()?.toLowerCase() ?? "";
@@ -96,9 +89,7 @@ function RaceOdds({ market: m }: { market: OddsMarket }) {
             const team = teamOf(o.name);
             return (
               <li key={o.name} className="grid grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)_2.6rem] items-center gap-2">
-                <DriverName code={codeOf(o.name)} className="font-sans font-semibold text-[12.5px] truncate">
-                  {o.name}
-                </DriverName>
+                <span className="font-sans font-semibold text-[12.5px] truncate">{o.name}</span>
                 <span className="h-2 rounded-full bg-[color:var(--rule)] overflow-hidden">
                   <span className="block h-full rounded-full" style={{ width: `${Math.max(2, (o.prob / max) * 100)}%`, background: team ? teamColor(team) : "var(--section-hue)" }} />
                 </span>
@@ -171,9 +162,7 @@ function Podium({ rows }: { rows: Row[] }) {
         const color = teamColor(r!.team);
         return (
           <div key={r!.code} className="flex flex-col items-center text-center min-w-0">
-            <DriverName code={r!.code} className="font-sans font-semibold text-[12px] leading-tight truncate max-w-full">
-              {r!.driver}
-            </DriverName>
+            <span className="font-sans font-semibold text-[12px] leading-tight truncate max-w-full">{r!.driver}</span>
             <span className="font-mono text-[9px] text-ink-soft truncate max-w-full">{r!.team}</span>
             {/* The winner's race time; the others' gap to the winner. */}
             <span className="font-mono text-[10px] tabular-nums truncate max-w-full mt-0.5 mb-1.5">
@@ -515,9 +504,7 @@ export default function StartingGrid({
                         <span className="flex items-center gap-2">
                           <span className="inline-block w-[3px] h-3 rounded-full shrink-0" style={{ background: teamColor(r.team) }} />
                           <TeamGlyph team={r.team} colour={teamColor(r.team) ?? "var(--ink-faint)"} />
-                          <DriverName code={r.code} className="font-semibold font-sans">
-                            {r.driver}
-                          </DriverName>
+                          <span className="font-semibold font-sans">{r.driver}</span>
                         </span>
                       </td>
                       <td className="py-1.5 text-ink-soft truncate max-w-[80px]">{r.team}</td>

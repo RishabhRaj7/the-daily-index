@@ -117,12 +117,12 @@ function Versus({ options }: { options: { id: string; label: string; query: stri
       {h ? (
         <>
           <div className="flex items-center justify-between gap-2 mb-2">
-            <DriverName code={h.a.code} className="font-sans font-bold text-[12.5px]">
-              <span style={{ color: ca }}>{h.a.name}</span>
-            </DriverName>
-            <DriverName code={h.b.code} className="font-sans font-bold text-[12.5px]">
-              <span style={{ color: h.team ? undefined : cb }}>{h.b.name}</span>
-            </DriverName>
+            <span className="font-sans font-bold text-[12.5px]" style={{ color: ca }}>
+              {h.a.name}
+            </span>
+            <span className="font-sans font-bold text-[12.5px]" style={{ color: h.team ? undefined : cb }}>
+              {h.b.name}
+            </span>
           </div>
           <div className="space-y-1.5">
             <VersusBar label="Qualifying" pair={h.quali} colours={[ca, cb]} />

@@ -3,7 +3,6 @@
 import { useSyncExternalStore } from "react";
 import type { F1Session, F1SessionTop } from "@/lib/types";
 import { teamColor } from "@/lib/personalization";
-import { DriverName } from "@/components/f1/DriverLink";
 
 // The next race weekend, session by session, in the reader's own time:
 // practice, sprint qualifying / sprint on sprint weekends, qualifying and
@@ -90,9 +89,7 @@ export default function RaceWeekend({ sessions, tops = {} }: { sessions: F1Sessi
                       {top && (
                         <span className="ml-2 inline-flex items-center gap-1 align-middle text-[11px] text-ink-soft" title={`${top.driver} quickest, ${top.time}`}>
                           <span className="w-[3px] h-3 rounded-full" style={{ background: teamColor(top.team) }} />
-                          <DriverName code={top.code} className="font-sans font-semibold text-ink">
-                            {top.code}
-                          </DriverName>
+                          <span className="font-sans font-semibold text-ink">{top.code}</span>
                           <span className="font-mono text-[10.5px]">{top.time}</span>
                         </span>
                       )}

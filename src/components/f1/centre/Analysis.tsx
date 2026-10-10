@@ -6,7 +6,6 @@ import { deletedLaps, stewardsCases, type StewardsCase } from "@/lib/f1-race-con
 import TyreIcon, { TYRE } from "../TyreIcon";
 import RaceStory from "../RaceStory";
 import { TeamGlyph } from "../LiveTiming";
-import { DriverName } from "../DriverLink";
 import { Empty, Panel, Seg, clock } from "./ui";
 
 // The session taken apart, one question at a time:
@@ -41,7 +40,7 @@ function Strategy({ stints, total, highlight }: { stints: LiveStints[]; total: n
           <div key={d.code} className={`grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-3 ${highlight.size && !highlight.has(d.code) ? "opacity-80" : ""}`}>
             <span className="flex items-center gap-1.5 font-sans font-bold text-[11.5px]">
               <span className="w-[3px] h-3 rounded-full" style={{ background: d.colour }} />
-              <DriverName code={d.code}>{d.code}</DriverName>
+              {d.code}
             </span>
             <span className="flex h-[18px] gap-[3px]">
               {d.stints.map((s, i) => {
@@ -92,9 +91,7 @@ function Stops({ snap }: { snap: LiveSnapshot }) {
           <span className="flex items-center gap-2 min-w-0">
             <span className="w-[3px] h-3.5 rounded-full shrink-0" style={{ background: p.colour }} />
             <TeamGlyph team={team.get(p.code) ?? ""} colour={p.colour} />
-            <DriverName code={p.code} className="font-sans font-bold">
-              {p.code}
-            </DriverName>
+            <b className="font-sans">{p.code}</b>
             <span className="font-mono text-[10.5px] text-ink-faint">lap {p.lap}</span>
             <span className="flex-1 h-[6px] rounded-full bg-[var(--rule)] overflow-hidden min-w-[2rem] hidden sm:block">
               <span className="block h-full rounded-full" style={{ width: `${(best / p.stationary!) * 100}%`, background: i === 0 ? "var(--f1-fastest)" : p.colour }} />
@@ -135,9 +132,7 @@ function Speeds({ stats, mine }: { stats: LiveStats[]; mine: Set<string> }) {
         {list.map((s, i) => (
           <li key={s.code} className={`grid grid-cols-[1.4rem_2.6rem_minmax(0,1fr)_3.6rem] items-center gap-2 text-[12px] ${mine.has(s.code) ? "font-bold" : ""}`}>
             <span className="font-mono text-[10.5px] text-ink-soft">{i + 1}</span>
-            <DriverName code={s.code} className="font-sans font-bold">
-              {s.code}
-            </DriverName>
+            <span className="font-sans font-bold">{s.code}</span>
             <span className="h-[8px] rounded-full bg-[var(--rule)] overflow-hidden">
               <span className="block h-full rounded-full" style={{ width: `${Math.max(4, ((s.speeds[trap]! - floor) / (top - floor)) * 100)}%`, background: s.colour, opacity: mine.has(s.code) ? 1 : 0.75 }} />
             </span>
@@ -189,7 +184,7 @@ function Ideal({ stats, mine }: { stats: LiveStats[]; mine: Set<string> }) {
               <tr key={s.code} className={`border-t hairline text-right font-mono ${mine.has(s.code) ? "bg-[color-mix(in_srgb,var(--hue-f1)_8%,transparent)]" : ""}`}>
                 <td className="text-left py-[5px] font-sans font-bold">
                   <span className="inline-block w-[3px] h-3 rounded-full mr-1.5 align-middle" style={{ background: s.colour }} />
-                  <DriverName code={s.code}>{s.code}</DriverName>
+                  {s.code}
                 </td>
                 {parts.map((p, i) => (
                   <td key={i} style={p !== null && p === bestOf[i] ? { color: "var(--f1-fastest)" } : undefined}>
@@ -245,7 +240,7 @@ export function Benchmarks({ snap }: { snap: LiveSnapshot }) {
           {best && (
             <span className="flex items-center gap-1.5 font-sans text-[12px] font-bold">
               <TeamGlyph team={best.team} colour={best.colour} size={14} />
-              <DriverName code={best.code}>{best.code}</DriverName>
+              {best.code}
             </span>
           )}
         </div>
@@ -329,9 +324,7 @@ function Stewards({ snap }: { snap: LiveSnapshot }) {
             {deleted.map((d) => (
               <li key={d.code} className="border-t hairline first:border-t-0 py-2.5">
                 <div className="flex items-center gap-3">
-                  <DriverName code={d.code} className="font-sans font-bold text-[13px] w-10">
-                    {d.code}
-                  </DriverName>
+                  <b className="font-sans text-[13px] w-10">{d.code}</b>
                   <span className="flex gap-1" aria-label={`${d.limits} for track limits`}>
                     {[0, 1, 2, 3].map((i) => (
                       <span key={i} className="w-5 h-2 rounded-full" style={{ background: i < d.limits ? (i >= 3 ? "var(--down)" : i === 2 ? "var(--ink)" : "#fb923c") : "var(--rule)" }} />

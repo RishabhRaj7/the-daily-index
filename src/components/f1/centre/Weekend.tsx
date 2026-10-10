@@ -9,7 +9,7 @@ import TrackMap, { useTrack } from "../TrackMap";
 import { TeamGlyph } from "../LiveTiming";
 import { tone } from "../Season";
 import { useSeasonData } from "../DriverSheet";
-import { DriverName, openDriver } from "../DriverLink";
+import { openDriver } from "../DriverLink";
 import { Benchmarks } from "./Analysis";
 import { Panel } from "./ui";
 
@@ -66,19 +66,11 @@ function Countdown({ at }: { at: string }) {
 }
 
 function SessionCard({ s, on, onOpen }: { s: WeekendSession; on: boolean; onOpen: () => void }) {
-  // The card opens the session; a driver's name in it opens the driver.
   return (
-    <div
-      role="button"
-      tabIndex={0}
+    <button
+      type="button"
       onClick={onOpen}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onOpen();
-        }
-      }}
-      className={`text-left cursor-pointer rounded-2xl border p-4 flex flex-col gap-3 transition-colors min-w-0 ${on ? "" : "border-[var(--card-border)] bg-[var(--card-bg)] hover:border-[color:var(--ink-faint)]"}`}
+      className={`text-left rounded-2xl border p-4 flex flex-col gap-3 transition-colors min-w-0 ${on ? "" : "border-[var(--card-border)] bg-[var(--card-bg)] hover:border-[color:var(--ink-faint)]"}`}
       style={on ? { borderColor: "var(--hue-f1)", background: "color-mix(in srgb, var(--hue-f1) 9%, var(--card-bg))" } : undefined}
       aria-current={on || undefined}
     >
@@ -94,9 +86,7 @@ function SessionCard({ s, on, onOpen }: { s: WeekendSession; on: boolean; onOpen
             </span>
             <span className="flex items-center gap-1.5 min-w-0">
               <TeamGlyph team={r.team} colour={r.colour} size={13} />
-              <DriverName code={r.code} className="font-sans font-semibold truncate">
-                {r.name}
-              </DriverName>
+              <span className="font-sans font-semibold truncate">{r.name}</span>
             </span>
             <span className="font-mono text-[10.5px] text-ink-soft tabular-nums">{r.time}</span>
           </li>
@@ -105,7 +95,7 @@ function SessionCard({ s, on, onOpen }: { s: WeekendSession; on: boolean; onOpen
       <div className="mt-auto pt-2 border-t hairline flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[9.5px] text-ink-faint">
         {s.fastest && (
           <span>
-            <span style={{ color: "var(--f1-fastest)" }}>■</span> <DriverName code={s.fastest.code}>{s.fastest.code}</DriverName> {s.fastest.time}
+            <span style={{ color: "var(--f1-fastest)" }}>■</span> {s.fastest.code} {s.fastest.time}
           </span>
         )}
         {s.air !== null && (
@@ -118,7 +108,7 @@ function SessionCard({ s, on, onOpen }: { s: WeekendSession; on: boolean; onOpen
           {on ? "On show" : "Open →"}
         </span>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -291,18 +281,16 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
                         {r.winner && (
                           <span className="flex items-center gap-1.5">
                             <TeamGlyph team={r.winner.team} colour="var(--ink-faint)" size={13} />
-                            <DriverName code={r.winner.code} className="font-sans font-bold">
-                              {r.winner.name}
-                            </DriverName>
+                            <b className="font-sans">{r.winner.name}</b>
                             {r.winner.grid && r.winner.grid > 1 && <span className="font-mono text-[10px] text-ink-faint">from P{r.winner.grid}</span>}
                           </span>
                         )}
                       </td>
                       <td className="font-sans">
-                        <DriverName code={r.pole?.code}>{r.pole?.name}</DriverName> <span className="font-mono text-[10px] text-ink-faint">{r.pole?.time}</span>
+                        {r.pole?.name} <span className="font-mono text-[10px] text-ink-faint">{r.pole?.time}</span>
                       </td>
                       <td className="font-sans">
-                        <DriverName code={r.fastest?.code}>{r.fastest?.name}</DriverName> <span className="font-mono text-[10px] text-ink-faint">{r.fastest?.time}</span>
+                        {r.fastest?.name} <span className="font-mono text-[10px] text-ink-faint">{r.fastest?.time}</span>
                       </td>
                     </tr>
                   ))}
