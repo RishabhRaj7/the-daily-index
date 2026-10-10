@@ -18,6 +18,7 @@ import { LiveDot, SessionClock, TONE, sessionLine } from "./LiveCard";
 import Feed from "./centre/Feed";
 import Analysis, { type Sub } from "./centre/Analysis";
 import Weekend from "./centre/Weekend";
+import Telemetry, { telemetryMeta } from "./centre/Telemetry";
 import { Panel, Tile } from "./centre/ui";
 
 // /f1/live — a session, spread over five views rather than one long page:
@@ -273,7 +274,7 @@ function NextUp({ race, next }: { race: F1Race | null; next: string | null }) {
 
 // ---- the views ------------------------------------------------------------------------
 
-function LiveView({ snap, live, replay }: { snap: LiveSnapshot; live: boolean; replay: boolean }) {
+function LiveView({ snap, live, replay, replayT }: { snap: LiveSnapshot; live: boolean; replay: boolean; replayT: number | null }) {
   const [enlarged, setEnlarged] = useState(false);
   const fav = useF1Favourites();
   const [picked, setPicked] = useState<string | null>(null);
@@ -284,7 +285,7 @@ function LiveView({ snap, live, replay }: { snap: LiveSnapshot; live: boolean; r
   const photos = snap.photos ?? {};
   const race = snap.type === "Race";
 
-  // A phone reads down: the map, the order, the feed. A wide screen puts the
+  // A phone reads down: the map, the order, the telemetry, the feed. A wide screen puts the
   // order and the map side by side (sized so the two come out about as tall)
   // and the feed across the full width beneath them, its filters down the
   // left and its list scrolling inside.
@@ -307,7 +308,13 @@ function LiveView({ snap, live, replay }: { snap: LiveSnapshot; live: boolean; r
       ) : (
         <div className="order-1 lg:col-start-2 lg:row-start-1 rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] aspect-[4/3] animate-pulse" />
       )}
-      <Panel id="feed" label="Feed" meta="Race control · radio · pits" className="order-3 lg:col-span-2 h-[78vh] max-h-[40rem] lg:h-[34rem]">
+      {/* the followed driver's telemetry (live only when F1 sends car data) */}
+      {focus && (!live || snap.telemetry) && (
+        <Panel id="telemetry" label="Telemetry" meta={telemetryMeta(live, replay, focus)} className="order-3 lg:col-span-2">
+          <Telemetry snap={snap} code={focus} live={live && !replay} replayT={replay ? replayT : null} />
+        </Panel>
+      )}
+      <Panel id="feed" label="Feed" meta="Race control · radio · pits" className="order-4 lg:col-span-2 h-[78vh] max-h-[40rem] lg:h-[34rem]">
         <Feed snap={snap} mine={fav.codes} photos={photos} page={20} pinned />
       </Panel>
       <Panel
@@ -487,7 +494,7 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
       </nav>
 
       <div key={view} className="mt-5 lg:mt-6 animate-[fade-in_0.25s_ease]">
-        {snap && view === "live" && <LiveView snap={snap} live={live} replay={inReplay} />}
+        {snap && view === "live" && <LiveView snap={snap} live={live} replay={inReplay} replayT={inReplay ? replay.t : null} />}
         {snap && view === "analysis" && <Analysis snap={snap} sub={nav.sub} onSub={(s) => go("analysis", s)} highlight={highlight} mine={fav.codes} />}
         {snap && view === "feed" && (
           <Panel label="The feed" meta={`${snap.session} · newest first`}>

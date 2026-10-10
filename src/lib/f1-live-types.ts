@@ -108,6 +108,27 @@ export interface LivePrediction {
   teams: { name: string; colour: string; position: number; predicted: number; points: number; predictedPoints: number }[];
 }
 
+/** One car's reading from F1's car data: km/h, rpm, gear, throttle %, brake on, DRS. */
+export interface CarNow {
+  speed: number;
+  rpm: number;
+  gear: number;
+  throttle: number;
+  brake: boolean;
+  drs: "open" | "eligible" | "off";
+}
+
+/** A driver's lap of telemetry (/api/f1/telemetry): [seconds into the lap, km/h, throttle %, brake 0/1, gear, rpm, DRS open 0/1]. */
+export interface LapTrace {
+  code: string;
+  lap: number;
+  /** The lap in progress (a replay) or their fastest. */
+  kind: "current" | "fastest";
+  lapTime: string | null;
+  samples: number[][];
+  now: CarNow | null;
+}
+
 export interface LiveSnapshot {
   /** When the feed was read. */
   at: string;
@@ -159,6 +180,8 @@ export interface LiveSnapshot {
   lapPositions?: { code: string; colour: string; positions: number[] }[];
   /** Team radio transcripts, by clip address (filled in as they are written). */
   transcripts?: Record<string, string>;
+  /** Live: every car's latest telemetry reading, by timing code (when F1 sends car data). */
+  telemetry?: Record<string, CarNow>;
   /** A fingerprint of each slow-moving part (race control, radio…), so a reader can say what it has. */
   versions?: Record<string, string>;
   /** Parts left out of this answer because the reader already has them as they are. */

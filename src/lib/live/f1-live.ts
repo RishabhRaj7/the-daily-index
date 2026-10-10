@@ -2,6 +2,7 @@ import { getStore } from "@/lib/server/store";
 import { currentSession, radioUrl, readLiveState, sessionTime, type CurrentSessionInfo, type LiveState } from "./f1-signalr";
 import { driverPhoto } from "@/lib/f1-assets";
 import { rememberSectors } from "./f1-track";
+import { latestReadings } from "./f1-telemetry";
 import type {
   LapMark,
   LiveAnswer,
@@ -381,8 +382,9 @@ async function keepClassification(snap: LiveSnapshot, info: CurrentSessionInfo):
 
 /** Pit wall size: the table and its header, nothing else. */
 export function compact(s: LiveSnapshot): LiveSnapshot {
-  const { raceControl, radio, stints, prediction, photos, lapPositions, transcripts, stats, pitStops, versions, ...rest } = s;
+  const { raceControl, radio, stints, prediction, photos, lapPositions, transcripts, stats, pitStops, versions, telemetry, ...rest } = s;
   void versions;
+  void telemetry;
   void stats;
   void pitStops;
   void stints;
@@ -523,9 +525,15 @@ export async function getLive(opts: { fresh?: boolean; withLast?: boolean } = {}
     return again && again.sessionKey === info.Key ? { live: true, snapshot: again } : { live: false, next: null };
   }
   try {
-    const state = await readLiveState();
+    // Car data on its own connection: if F1 holds it back (or it's slow), the timing still comes.
+    const [state, cars] = await Promise.all([readLiveState(), readLiveState(["CarData.z"], 4000).catch(() => null)]);
     if (!state) return cached && cached.sessionKey === info.Key ? { live: true, snapshot: cached } : { live: false, next: null };
     const snap = parse(state, info);
+    const readings = latestReadings(cars?.["CarData.z" as keyof LiveState]);
+    if (Object.keys(readings).length) {
+      const codes = new Map(snap.rows.map((r) => [r.number, r.code]));
+      snap.telemetry = Object.fromEntries(Object.entries(readings).flatMap(([no, r]) => (codes.has(no) ? [[codes.get(no)!, r]] : [])));
+    }
     await store.set(KEY, snap, { ttlSeconds: 3600 }).catch(() => {});
     await keepClassification(snap, info);
     // The flag has fallen: this is the session's final word, kept.

@@ -571,6 +571,17 @@ edition starts building before the reader is back on the paper.
   back to the whole circuit). Scroll and pinch zoom the enlarged map; drag
   looks around once zoomed; a mini map shows where the view is. The view is
   written straight onto the SVG; the reader's choices are kept on the device.
+- Telemetry for the followed driver (`lib/live/f1-telemetry.ts`, the Live
+  view's Telemetry panel): speed, revs, gear, throttle, brake and DRS, and
+  the lap drawn out (speed line, throttle band, braking marks; pointing at
+  the lap shows that moment in the readout). Live: the shared read takes
+  CarData.z on a connection of its own (if F1 holds it back, the timing is
+  untouched) and carries every car's latest reading as `telemetry`; the page
+  keeps the last few minutes of them. Finished sessions: F1's archive (a
+  race is ~8 MB) is read once per server and kept half an hour;
+  `/api/f1/telemetry?session=&code=[&t=]` cuts out the lap in progress at
+  the replay's moment, or the driver's fastest lap. Lap boundaries come from
+  TimingData's lap counts on the same feed clock.
 - A driver's name opens their season (`components/f1/DriverLink.tsx`:
   `DriverName`, `openDriver`, one `DriverSheetHost` in the root layout)
   where the whole season is what a reader wants: the home page's
