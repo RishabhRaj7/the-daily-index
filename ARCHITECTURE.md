@@ -444,7 +444,16 @@ edition starts building before the reader is back on the paper.
   `getWeekendResult` reads, so OpenF1's lockout no longer hides those times.
   `/api/f1/live` (compact; `?full=1` for everything). Clients poll every 5 s
   while visible (`lib/use-f1-live.ts`); the Pit wall only inside a session's
-  window from the weekend timetable. Needs Node 22+ (global WebSocket).
+  window from the weekend timetable. Each parsed read carries a fingerprint
+  of every slow part (`versions`: race control, radio, stints, pit stops, lap
+  chart, portraits, Driver of the Day…); a full poll sends back
+  `&have=<part.fingerprint,…>` and gets only the parts that changed (the rest
+  listed in `same`, carried over by the hook as the same objects), so a race
+  poll is ~20 KB instead of ~55 KB and nothing built from an unchanged part is
+  worked out again. Races also carry `dotd` (`lib/f1-dotd.ts`): Driver of the
+  Day, the case so far — our read from places made up, recoveries outside
+  pit cycles, the opening lap, points or a podium for a team low in the
+  table, leading and the fastest lap; F1 publishes no live vote. Needs Node 22+ (global WebSocket).
 - During a session the Pit wall's timing card is `components/f1/LiveCard.tsx`
   (running order, tyres, a moving border; rows glide on overtakes and flash);
   the top bar's F1 link wears a dot (`html[data-f1-live]`). Everything else
@@ -519,7 +528,8 @@ edition starts building before the reader is back on the paper.
   capped at 0.8. `{ paused: true }` when the whole pool is spent.
 - `/f1/live` is five views (kept in the address, `#analysis/pace`): Live
   (timing beside the map and the followed driver's card, with where a stop
-  now would put them, and the latest of the feed), Analysis (tyres and pit
+  now would put them, Driver of the Day in races, and the feed with its
+  filters, scrolling in its own panel), Analysis (tyres and pit
   stops · lap chart · pace: speed traps, best sectors and ideal laps, lap
   benchmarks · stewards: open and decided cases, deleted laps), Feed (race
   control read plainly by `lib/f1-race-control.ts`, radio and pit stops, filed

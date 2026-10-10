@@ -18,12 +18,14 @@ import { LiveDot, SessionClock, TONE, sessionLine } from "./LiveCard";
 import Feed from "./centre/Feed";
 import Analysis, { type Sub } from "./centre/Analysis";
 import Weekend from "./centre/Weekend";
+import Dotd from "./centre/Dotd";
 import { Panel, Tile } from "./centre/ui";
 
 // /f1/live — a session, spread over five views rather than one long page:
 //   Live      the running order beside the map (the field on it, the
-//             followed driver's card with what a pit stop would cost now)
-//             and the latest from the feed
+//             followed driver's card with what a pit stop would cost now),
+//             Driver of the Day as the race makes the case, and the feed
+//             with its filters, scrolling in its own panel
 //   Analysis  tyres and pit stops · the lap chart · pace (speed traps, best
 //             sectors and the ideal lap, lap benchmarks) · the stewards
 //   Feed      race control read plainly, radio with transcripts and every
@@ -271,7 +273,7 @@ function NextUp({ race, next }: { race: F1Race | null; next: string | null }) {
 
 // ---- the views ------------------------------------------------------------------------
 
-function LiveView({ snap, live, replay, onFeed }: { snap: LiveSnapshot; live: boolean; replay: boolean; onFeed: () => void }) {
+function LiveView({ snap, live, replay }: { snap: LiveSnapshot; live: boolean; replay: boolean }) {
   const [enlarged, setEnlarged] = useState(false);
   const fav = useF1Favourites();
   const [picked, setPicked] = useState<string | null>(null);
@@ -282,12 +284,15 @@ function LiveView({ snap, live, replay, onFeed }: { snap: LiveSnapshot; live: bo
   const photos = snap.photos ?? {};
   const race = snap.type === "Race";
 
+  // A phone reads down: the map, the order, Driver of the Day, the feed. A wide
+  // screen puts the order on the left and the rest in a column beside it, the
+  // feed filling what's left of its height and scrolling inside. (The column's
+  // box only exists on a wide screen — on a phone its panels join the page's.)
   return (
     <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,25rem)] gap-5 lg:gap-6 items-stretch">
-      {/* the map first on a phone: the shape of the session at a glance */}
-      <div className="flex flex-col gap-5 lg:gap-6 min-w-0 lg:order-2">
+      <div className="contents lg:flex lg:flex-col lg:gap-6 lg:min-w-0 lg:order-2">
         {track ? (
-          <Panel id="track" label={track.name || "Track"} meta={live || replay ? "Cars placed from the timing loops" : track.corners.length ? `${track.corners.length} corners` : undefined}>
+          <Panel id="track" label={track.name || "Track"} meta={live || replay ? "Cars placed from the timing loops" : track.corners.length ? `${track.corners.length} corners` : undefined} className="order-1 lg:order-none">
             <TrackMap model={track} snap={snap} focus={focus} onFocus={setPicked} onExpand={() => setEnlarged(true)} fit className="h-[42vh] max-h-[26rem] lg:h-auto lg:max-h-none" />
             {enlarged && <MapSheet model={track} snap={snap} focus={focus} onFocus={setPicked} onClose={() => setEnlarged(false)} />}
             {focusRow && <FocusCard row={focusRow} photo={photos[focusRow.code] ?? driverPhotoByCode(focusRow.code, focusRow.team)} snap={snap} track={track} />}
@@ -301,10 +306,15 @@ function LiveView({ snap, live, replay, onFeed }: { snap: LiveSnapshot; live: bo
             )}
           </Panel>
         ) : (
-          <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] aspect-[4/3] animate-pulse" />
+          <div className="order-1 lg:order-none rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] aspect-[4/3] animate-pulse" />
         )}
-        <Panel label="Latest" meta="Race control · radio · pits" className="hidden lg:flex basis-0 grow min-h-[16rem]" scroll>
-          <Feed snap={snap} mine={fav.codes} photos={photos} limit={5} onMore={onFeed} />
+        {race && (
+          <Panel id="driver-of-the-day" label="Driver of the Day" meta={snap.running ? "The case so far" : "How the race made the case"} className="order-3 lg:order-none">
+            <Dotd snap={snap} />
+          </Panel>
+        )}
+        <Panel id="feed" label="Feed" meta="Race control · radio · pits" className="order-4 lg:order-none max-h-[78vh] lg:max-h-none lg:basis-0 lg:grow min-h-[26rem]" scroll>
+          <Feed snap={snap} mine={fav.codes} photos={photos} page={15} pinned />
         </Panel>
       </div>
 
@@ -312,7 +322,7 @@ function LiveView({ snap, live, replay, onFeed }: { snap: LiveSnapshot; live: bo
         id="timing"
         label={live || replay ? "Timing" : "Final classification"}
         meta={replay ? "As it stood · tap a driver to follow" : live ? `Read ${new Date(snap.at).toLocaleTimeString("en-GB")} · every 5 s` : "Tap a driver to follow on the map"}
-        className="lg:order-1"
+        className="order-2 lg:order-1"
       >
         <LiveTiming snap={snap} wide focus={focus} onFocus={setPicked} />
         <div className="mt-auto pt-5 flex flex-wrap items-center gap-x-4 gap-y-1.5 font-mono text-[9.5px] text-ink-faint">
@@ -324,11 +334,6 @@ function LiveView({ snap, live, replay, onFeed }: { snap: LiveSnapshot; live: bo
           </span>
           {race && <span>Interval: to the car ahead · Gap: to the leader</span>}
         </div>
-      </Panel>
-
-      {/* on a phone the latest few sit under the order */}
-      <Panel label="Latest" meta="Race control · radio · pits" className="lg:hidden">
-        <Feed snap={snap} mine={fav.codes} photos={photos} limit={4} onMore={onFeed} />
       </Panel>
     </div>
   );
@@ -490,7 +495,7 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
       </nav>
 
       <div key={view} className="mt-5 lg:mt-6 animate-[fade-in_0.25s_ease]">
-        {snap && view === "live" && <LiveView snap={snap} live={live} replay={inReplay} onFeed={() => go("feed")} />}
+        {snap && view === "live" && <LiveView snap={snap} live={live} replay={inReplay} />}
         {snap && view === "analysis" && <Analysis snap={snap} sub={nav.sub} onSub={(s) => go("analysis", s)} highlight={highlight} mine={fav.codes} />}
         {snap && view === "feed" && (
           <Panel label="The feed" meta={`${snap.session} · newest first`}>

@@ -9,6 +9,10 @@ import type { LiveAnswer, LiveSnapshot } from "@/lib/f1-live-types";
 // end), so on the other six days of the week it makes no request at all;
 // /f1/live asks whenever it is open. Every 5 s while the tab is visible,
 // paused while hidden, caught up on return.
+// A full read says which slow parts it already holds (race control, radio,
+// stints…: their fingerprints) and the server sends only those that changed;
+// the rest carry over from the last answer, as the same objects, so nothing
+// built from them is worked out again.
 
 const POLL_MS = 5_000;
 const pageStart = typeof performance !== "undefined" ? Date.now() - performance.now() : Date.now();
@@ -50,6 +54,7 @@ export function useF1Live(opts: { sessions?: F1Session[]; full?: boolean; always
     let controller: AbortController | null = null;
     let stopped = false;
     let lastLive = false;
+    let held: LiveSnapshot | null = null;
 
     const schedule = (ms: number) => {
       clearTimeout(timer);
@@ -76,18 +81,31 @@ export function useF1Live(opts: { sessions?: F1Session[]; full?: boolean; always
         const from = Number(sp.get("f1from"));
         const speed = Number(sp.get("f1speed")) || 1;
         const t = replay && from ? String(Math.round(from + ((Date.now() - pageStart) / 1000) * speed)) : null;
-        const q = new URLSearchParams({ ...(full ? { full: "1" } : {}), ...(replay ? { replay } : {}), ...(t ? { t } : {}), ...(session ? { session } : {}) });
+        const have = full && held?.versions ? Object.entries(held.versions).map(([k, v]) => `${k}.${v}`).join(",") : null;
+        const q = new URLSearchParams({ ...(full ? { full: "1" } : {}), ...(replay ? { replay } : {}), ...(t ? { t } : {}), ...(session ? { session } : {}), ...(have ? { have } : {}) });
         const res = await fetch(`/api/f1/live${q.size ? `?${q}` : ""}`, { cache: "no-store", signal: controller.signal });
         const answer = (await res.json()) as LiveAnswer;
         if (stopped) return;
         lastLive = answer.live;
         if (answer.live) {
           // The read happened (servedAt − at) before the answer arrived.
-          const s = answer.snapshot;
+          let s = answer.snapshot;
+          if (s.same?.length) {
+            const from = held;
+            if (!from || from.sessionKey !== s.sessionKey) {
+              // Nothing to carry over from (a new session): ask again in full.
+              held = null;
+              schedule(0);
+              return;
+            }
+            s = { ...s, ...Object.fromEntries(s.same.map((k) => [k, from[k as keyof LiveSnapshot]])) };
+          }
+          held = s;
           const age = s.servedAt ? Math.max(0, Date.parse(s.servedAt) - Date.parse(s.at)) : 0;
           setSnapshot({ ...s, localAt: Date.now() - age });
         }
         else {
+          held = null;
           setSnapshot(null);
           setNext(answer.next);
           if (answer.last) setLast(answer.last);

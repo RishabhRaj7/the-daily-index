@@ -2,6 +2,7 @@ import { getStore } from "@/lib/server/store";
 import { currentSession, radioUrl, readLiveState, sessionTime, type CurrentSessionInfo, type LiveState } from "./f1-signalr";
 import { driverPhoto } from "@/lib/f1-assets";
 import { rememberSectors } from "./f1-track";
+import { driverOfTheDay } from "@/lib/f1-dotd";
 import type {
   LapMark,
   LiveAnswer,
@@ -274,7 +275,8 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
         }
       : null;
 
-  return {
+  const lap = lapCount.TotalLaps ? { current: num(lapCount.CurrentLap), total: num(lapCount.TotalLaps) } : null;
+  return withVersions({
     at: new Date().toISOString(),
     sessionKey: num(si.Key) || info.Key,
     circuitKey: num(obj(meeting.Circuit).Key) || null,
@@ -290,7 +292,7 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
     partLabel: part ? `${/^Sprint/.test(session) ? "SQ" : "Q"}${part}` : null,
     cutoff,
     track: TRACK[str(obj(state.TrackStatus).Status)] ?? TRACK["1"],
-    lap: lapCount.TotalLaps ? { current: num(lapCount.CurrentLap), total: num(lapCount.TotalLaps) } : null,
+    lap,
     remaining: str(clock.Remaining) || null,
     clockAt: str(clock.Utc) || null,
     clockRunning: clock.Extrapolating === true,
@@ -306,7 +308,41 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
     lapPositions: type === "Race" ? lapPositions : [],
     stats,
     pitStops,
-  };
+    dotd: type === "Race" ? driverOfTheDay(rows, lapPositions, prediction, pitStops, lap?.current ?? 0, !RUNNING.has(status)) : null,
+  });
+}
+
+// ---- sending only what changed -----------------------------------------------
+// Most of a full read barely moves between two polls: race control, radio,
+// stints, pit stops, the lap chart, portraits. Each gets a fingerprint when
+// the read is parsed (once, on the server, for every reader); a reader sends
+// back the fingerprints it holds and gets only the parts that changed, so a
+// poll carries the timing rows and little else.
+
+export const SLOW_PARTS = ["raceControl", "radio", "stints", "prediction", "photos", "lapPositions", "stats", "pitStops", "dotd"] as const;
+
+const fingerprint = (v: unknown) => {
+  const s = JSON.stringify(v ?? null);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
+  return `${(h >>> 0).toString(36)}${s.length.toString(36)}`;
+};
+
+export function withVersions(s: LiveSnapshot): LiveSnapshot {
+  if (s.versions) return s;
+  return { ...s, versions: Object.fromEntries(SLOW_PARTS.map((k) => [k, fingerprint(s[k])])) };
+}
+
+/** The snapshot without the parts the reader already holds (`have`: "radio.k3x9,stints.p2…"). */
+export function without(s: LiveSnapshot, have: string | null): LiveSnapshot {
+  if (!have) return s;
+  const held = new Set(have.split(","));
+  const v = withVersions(s);
+  const same = SLOW_PARTS.filter((k) => held.has(`${k}.${v.versions![k]}`));
+  if (!same.length) return v;
+  const out: LiveSnapshot = { ...v, same };
+  for (const k of same) delete out[k];
+  return out;
 }
 
 // ---- keeping a finished session --------------------------------------------
@@ -346,7 +382,9 @@ async function keepClassification(snap: LiveSnapshot, info: CurrentSessionInfo):
 
 /** Pit wall size: the table and its header, nothing else. */
 export function compact(s: LiveSnapshot): LiveSnapshot {
-  const { raceControl, radio, stints, prediction, photos, lapPositions, transcripts, stats, pitStops, ...rest } = s;
+  const { raceControl, radio, stints, prediction, photos, lapPositions, transcripts, stats, pitStops, dotd, versions, ...rest } = s;
+  void dotd;
+  void versions;
   void stats;
   void pitStops;
   void stints;
@@ -414,7 +452,7 @@ const LAST = "f1:session:last";
 async function keepSession(snap: LiveSnapshot): Promise<void> {
   const store = getStore();
   await rememberSectors(snap.circuitKey, snap.sectorRef);
-  await store.set(`f1:session:v2:${snap.sessionKey}`, snap, { ttlSeconds: SESSION_DAYS * 86_400 }).catch(() => {});
+  await store.set(`f1:session:v3:${snap.sessionKey}`, snap, { ttlSeconds: SESSION_DAYS * 86_400 }).catch(() => {});
   await store.set(LAST, snap.sessionKey, { ttlSeconds: SESSION_DAYS * 86_400 }).catch(() => {});
 }
 
@@ -449,7 +487,7 @@ export async function lastSession(): Promise<LiveSnapshot | null> {
   const [latest, pointer] = await Promise.all([latestFinished(), store.get<number>(LAST).catch(() => null)]);
   const want = latest?.Key ?? pointer;
   if (want) {
-    const kept = await store.get<LiveSnapshot>(`f1:session:v2:${want}`).catch(() => null);
+    const kept = await store.get<LiveSnapshot>(`f1:session:v3:${want}`).catch(() => null);
     if (kept) {
       void rememberSectors(kept.circuitKey, kept.sectorRef);
       return kept;
@@ -463,7 +501,7 @@ export async function lastSession(): Promise<LiveSnapshot | null> {
     }
   }
   // F1 hasn't published the newest yet: the one before, as kept.
-  return pointer ? await store.get<LiveSnapshot>(`f1:session:v2:${pointer}`).catch(() => null) : null;
+  return pointer ? await store.get<LiveSnapshot>(`f1:session:v3:${pointer}`).catch(() => null) : null;
 }
 
 export async function getLive(opts: { fresh?: boolean; withLast?: boolean } = {}): Promise<LiveAnswer> {
@@ -537,7 +575,7 @@ export async function seasonSessions(year = new Date().getUTCFullYear()): Promis
 /** One past session in full: what was kept, else F1's archive (then kept). */
 export async function pastSession(path: string): Promise<LiveSnapshot | null> {
   const store = getStore();
-  const key = `f1:past:v2:${path}`;
+  const key = `f1:past:v3:${path}`;
   const kept = await store.get<LiveSnapshot>(key).catch(() => null);
   if (kept) return kept;
   const built = await archivedSession(path);

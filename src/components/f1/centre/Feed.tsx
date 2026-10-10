@@ -12,7 +12,8 @@ import { Empty, Seg, clock } from "./ui";
 // (time standing, time in the lane, the tyres it went out on). Filed under
 // All · Flags · Stewards · Track limits · Pits · Radio · Info, with a switch
 // for just the reader's drivers. Blue flags are in Flags only (a race has
-// dozens). On the Live view a short version shows the latest few.
+// dozens). The Live view carries it too, filters and all, beside the map (it
+// scrolls in its own panel there), so it can be read without leaving the order.
 
 type Filter = "all" | "flags" | "stewards" | "limits" | "pits" | "radio" | "info";
 
@@ -37,8 +38,10 @@ export const TONE_COLOUR: Record<RcTone, string> = {
 const KIND_LABEL: Record<RcItem["kind"], string> = { flags: "Flag", stewards: "Stewards", limits: "Track limits", info: "Info" };
 
 function useItems(snap: LiveSnapshot): Item[] {
+  // Numbers to codes, as a string: the rows change every poll, the drivers don't.
+  const drivers = snap.rows.map((r) => `${r.number}:${r.code}`).join(",");
   return useMemo(() => {
-    const numbers = new Map(snap.rows.map((r) => [r.number, r.code]));
+    const numbers = new Map(drivers.split(",").map((x) => x.split(":") as [string, string]));
     const rc: Item[] = readRaceControl(snap.raceControl ?? [], numbers).map((x) => ({ t: when(x.utc), kind: "rc", rc: x }));
     const radio: Item[] = (snap.radio ?? []).map((r) => ({ t: when(r.utc), kind: "radio", radio: r }));
     // The tyres each stop put on: stop n opens stint n + 1.
@@ -55,7 +58,7 @@ function useItems(snap: LiveSnapshot): Item[] {
         });
     }
     return [...rc, ...radio, ...pits].sort((a, b) => b.t - a.t);
-  }, [snap.raceControl, snap.radio, snap.pitStops, snap.stints, snap.rows]);
+  }, [snap.raceControl, snap.radio, snap.pitStops, snap.stints, drivers]);
 }
 
 const matches = (it: Item, f: Filter) =>
@@ -101,16 +104,29 @@ function PitRow({ p, tyre }: { p: LivePitStop; tyre: { compound: keyof typeof TY
   );
 }
 
-export default function Feed({ snap, mine, photos, limit, onMore }: { snap: LiveSnapshot; mine: Set<string>; photos: Record<string, string>; limit?: number; onMore?: () => void }) {
+export default function Feed({
+  snap,
+  mine,
+  photos,
+  page = 40,
+  pinned = false,
+}: {
+  snap: LiveSnapshot;
+  mine: Set<string>;
+  photos: Record<string, string>;
+  /** How many to show at first, and how many more each time. */
+  page?: number;
+  /** In a panel that scrolls: keep the filters in view. */
+  pinned?: boolean;
+}) {
   const items = useItems(snap);
   const [filter, setFilter] = useState<Filter>("all");
   const [onlyMine, setOnlyMine] = useState(false);
-  const [count, setCount] = useState(40);
+  const [count, setCount] = useState(page);
   const player = usePlayer();
-  const compact = limit !== undefined;
 
-  const filtered = items.filter((it) => matches(it, compact ? "all" : filter) && (!onlyMine || about(it).some((c) => mine.has(c))));
-  const shown = filtered.slice(0, compact ? limit : count);
+  const filtered = items.filter((it) => matches(it, filter) && (!onlyMine || about(it).some((c) => mine.has(c))));
+  const shown = filtered.slice(0, count);
   const clips = shown.flatMap((it) => (it.kind === "radio" ? [it.radio] : []));
   const { text, pending, paused } = useTranscripts(clips);
 
@@ -128,24 +144,23 @@ export default function Feed({ snap, mine, photos, limit, onMore }: { snap: Live
 
   return (
     <div className="min-w-0">
-      {!compact && (
-        <div className="flex flex-wrap items-center gap-2 mb-4">
-          <div className="min-w-0 flex-1">
-            <Seg label="Show" value={filter} onChange={setFilter} options={visible} size="sm" />
-          </div>
-          {mine.size > 0 && (
-            <button
-              type="button"
-              onClick={() => setOnlyMine((v) => !v)}
-              aria-pressed={onlyMine}
-              className={`rounded-full border h-8 px-3 font-sans text-[12px] font-semibold transition-colors shrink-0 ${onlyMine ? "text-[color:var(--paper)] border-transparent" : "hairline text-ink-soft hover:text-ink"}`}
-              style={onlyMine ? { background: "var(--hue-f1)" } : undefined}
-            >
-              Your drivers
-            </button>
-          )}
+      {/* in a panel that scrolls, the filters stay at its top */}
+      <div className={`flex flex-wrap items-center gap-2 mb-3 ${pinned ? "sticky top-0 z-10 bg-[var(--card-bg)] pb-1" : ""}`}>
+        <div className="min-w-0 flex-1">
+          <Seg label="Show" value={filter} onChange={setFilter} options={visible} size="sm" />
         </div>
-      )}
+        {mine.size > 0 && (
+          <button
+            type="button"
+            onClick={() => setOnlyMine((v) => !v)}
+            aria-pressed={onlyMine}
+            className={`rounded-full border h-8 px-3 font-sans text-[12px] font-semibold transition-colors shrink-0 ${onlyMine ? "text-[color:var(--paper)] border-transparent" : "hairline text-ink-soft hover:text-ink"}`}
+            style={onlyMine ? { background: "var(--hue-f1)" } : undefined}
+          >
+            Your drivers
+          </button>
+        )}
+      </div>
       {shown.length === 0 ? (
         <Empty>{onlyMine ? "Nothing about your drivers here yet." : "Nothing here yet."}</Empty>
       ) : (
@@ -167,18 +182,11 @@ export default function Feed({ snap, mine, photos, limit, onMore }: { snap: Live
           ))}
         </ol>
       )}
-      {compact
-        ? onMore &&
-          filtered.length > shown.length && (
-            <button type="button" onClick={onMore} className="mt-3 font-sans text-[12px] font-semibold text-ink-soft hover:text-ink">
-              The whole feed ({filtered.length}) →
-            </button>
-          )
-        : filtered.length > shown.length && (
-            <button type="button" onClick={() => setCount((c) => c + 40)} className="mt-3 font-sans text-[12px] font-semibold text-ink-soft hover:text-ink">
-              Earlier ({filtered.length - shown.length} more)
-            </button>
-          )}
+      {filtered.length > shown.length && (
+        <button type="button" onClick={() => setCount((c) => c + page)} className="mt-3 font-sans text-[12px] font-semibold text-ink-soft hover:text-ink">
+          Earlier ({filtered.length - shown.length} more)
+        </button>
+      )}
     </div>
   );
 }

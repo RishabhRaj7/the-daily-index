@@ -1,4 +1,4 @@
-import { compact, getLive, pastSession, replay } from "@/lib/live/f1-live";
+import { compact, getLive, pastSession, replay, without } from "@/lib/live/f1-live";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 20;
@@ -10,6 +10,8 @@ export const maxDuration = 20;
 // GET /api/f1/live?session=<path>&t=<s>[&timeline=1] that session as it stood
 //                            t seconds into its feed (the replay bar), with
 //                            its flags, laps and parts on the first ask
+// &have=<part.fingerprint,…> (full reads) leaves out the slow parts the reader
+//                            already holds as they are (listed in `same`)
 //
 // { live: false, next } when no session is near (no connection is made);
 // { live: true, snapshot } from a few seconds before the start until half an
@@ -42,7 +44,7 @@ export async function GET(req: Request) {
       ? await replay(path, t ? Number(t) : undefined)
       : await getLive({ fresh: params.get("fresh") === "1", withLast: full });
     const servedAt = new Date().toISOString();
-    const body = answer.live ? { live: true, snapshot: { ...(full ? answer.snapshot : compact(answer.snapshot)), servedAt } } : answer;
+    const body = answer.live ? { live: true, snapshot: { ...(full ? without(answer.snapshot, params.get("have")) : compact(answer.snapshot)), servedAt } } : answer;
     return Response.json(body, { headers: { "Cache-Control": "no-store" } });
   } catch (err) {
     console.error("[f1/live] failed:", err);
