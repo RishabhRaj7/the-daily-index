@@ -18,14 +18,12 @@ import { LiveDot, SessionClock, TONE, sessionLine } from "./LiveCard";
 import Feed from "./centre/Feed";
 import Analysis, { type Sub } from "./centre/Analysis";
 import Weekend from "./centre/Weekend";
-import Dotd from "./centre/Dotd";
 import { Panel, Tile } from "./centre/ui";
 
 // /f1/live — a session, spread over five views rather than one long page:
 //   Live      the running order beside the map (the field on it, the
-//             followed driver's card with what a pit stop would cost now),
-//             Driver of the Day as the race makes the case, and the feed
-//             with its filters, scrolling in its own panel
+//             followed driver's card with what a pit stop would cost now)
+//             and the feed with its filters, scrolling in its own panel
 //   Analysis  tyres and pit stops · the lap chart · pace (speed traps, best
 //             sectors and the ideal lap, lap benchmarks) · the stewards
 //   Feed      race control read plainly, radio with transcripts and every
@@ -284,45 +282,37 @@ function LiveView({ snap, live, replay }: { snap: LiveSnapshot; live: boolean; r
   const photos = snap.photos ?? {};
   const race = snap.type === "Race";
 
-  // A phone reads down: the map, the order, Driver of the Day, the feed. A wide
-  // screen puts the order on the left and the rest in a column beside it, the
-  // feed filling what's left of its height and scrolling inside. (The column's
-  // box only exists on a wide screen — on a phone its panels join the page's.)
+  // A phone reads down: the map, the order, the feed. A wide screen puts the
+  // order and the map side by side (sized so the two come out about as tall)
+  // and the feed across the full width beneath them, its filters down the
+  // left and its list scrolling inside.
   return (
-    <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,25rem)] gap-5 lg:gap-6 items-stretch">
-      <div className="contents lg:flex lg:flex-col lg:gap-6 lg:min-w-0 lg:order-2">
-        {track ? (
-          <Panel id="track" label={track.name || "Track"} meta={live || replay ? "Cars placed from the timing loops" : track.corners.length ? `${track.corners.length} corners` : undefined} className="order-1 lg:order-none">
-            <TrackMap model={track} snap={snap} focus={focus} onFocus={setPicked} onExpand={() => setEnlarged(true)} fit className="h-[42vh] max-h-[26rem] lg:h-auto lg:max-h-none" />
-            {enlarged && <MapSheet model={track} snap={snap} focus={focus} onFocus={setPicked} onClose={() => setEnlarged(false)} />}
-            {focusRow && <FocusCard row={focusRow} photo={photos[focusRow.code] ?? driverPhotoByCode(focusRow.code, focusRow.team)} snap={snap} track={track} />}
-            {focusRow && snap.running && (
-              <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 font-mono text-[9.5px] text-ink-faint">
-                <span>{focusRow.code}&rsquo;s mini-sectors:</span>
-                <span style={{ color: "var(--f1-fastest)" }}>■ session best</span>
-                <span style={{ color: "var(--f1-personal)" }}>■ personal best</span>
-                <span style={{ color: "var(--f1-slower)" }}>■ slower</span>
-              </div>
-            )}
-          </Panel>
-        ) : (
-          <div className="order-1 lg:order-none rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] aspect-[4/3] animate-pulse" />
-        )}
-        {race && (
-          <Panel id="driver-of-the-day" label="Driver of the Day" meta={snap.running ? "The case so far" : "How the race made the case"} className="order-3 lg:order-none">
-            <Dotd snap={snap} />
-          </Panel>
-        )}
-        <Panel id="feed" label="Feed" meta="Race control · radio · pits" className="order-4 lg:order-none max-h-[78vh] lg:max-h-none lg:basis-0 lg:grow min-h-[26rem]" scroll>
-          <Feed snap={snap} mine={fav.codes} photos={photos} page={15} pinned />
+    <div className="grid lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-5 lg:gap-6 items-stretch">
+      {track ? (
+        <Panel id="track" label={track.name || "Track"} meta={live || replay ? "Cars placed from the timing loops" : track.corners.length ? `${track.corners.length} corners` : undefined} className="order-1 lg:col-start-2 lg:row-start-1">
+          <TrackMap model={track} snap={snap} focus={focus} onFocus={setPicked} onExpand={() => setEnlarged(true)} fit className="h-[42vh] max-h-[26rem] lg:h-auto lg:max-h-none" />
+          {enlarged && <MapSheet model={track} snap={snap} focus={focus} onFocus={setPicked} onClose={() => setEnlarged(false)} />}
+          {focusRow && <FocusCard row={focusRow} photo={photos[focusRow.code] ?? driverPhotoByCode(focusRow.code, focusRow.team)} snap={snap} track={track} />}
+          {focusRow && snap.running && (
+            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 font-mono text-[9.5px] text-ink-faint">
+              <span>{focusRow.code}&rsquo;s mini-sectors:</span>
+              <span style={{ color: "var(--f1-fastest)" }}>■ session best</span>
+              <span style={{ color: "var(--f1-personal)" }}>■ personal best</span>
+              <span style={{ color: "var(--f1-slower)" }}>■ slower</span>
+            </div>
+          )}
         </Panel>
-      </div>
-
+      ) : (
+        <div className="order-1 lg:col-start-2 lg:row-start-1 rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] aspect-[4/3] animate-pulse" />
+      )}
+      <Panel id="feed" label="Feed" meta="Race control · radio · pits" className="order-3 lg:col-span-2 h-[78vh] max-h-[40rem] lg:h-[34rem]">
+        <Feed snap={snap} mine={fav.codes} photos={photos} page={20} pinned />
+      </Panel>
       <Panel
         id="timing"
         label={live || replay ? "Timing" : "Final classification"}
         meta={replay ? "As it stood · tap a driver to follow" : live ? `Read ${new Date(snap.at).toLocaleTimeString("en-GB")} · every 5 s` : "Tap a driver to follow on the map"}
-        className="order-2 lg:order-1"
+        className="order-2 lg:col-start-1 lg:row-start-1"
       >
         <LiveTiming snap={snap} wide focus={focus} onFocus={setPicked} />
         <div className="mt-auto pt-5 flex flex-wrap items-center gap-x-4 gap-y-1.5 font-mono text-[9.5px] text-ink-faint">

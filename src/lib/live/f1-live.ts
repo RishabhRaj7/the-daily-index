@@ -2,7 +2,6 @@ import { getStore } from "@/lib/server/store";
 import { currentSession, radioUrl, readLiveState, sessionTime, type CurrentSessionInfo, type LiveState } from "./f1-signalr";
 import { driverPhoto } from "@/lib/f1-assets";
 import { rememberSectors } from "./f1-track";
-import { driverOfTheDay } from "@/lib/f1-dotd";
 import type {
   LapMark,
   LiveAnswer,
@@ -308,7 +307,6 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
     lapPositions: type === "Race" ? lapPositions : [],
     stats,
     pitStops,
-    dotd: type === "Race" ? driverOfTheDay(rows, lapPositions, prediction, pitStops, lap?.current ?? 0, !RUNNING.has(status)) : null,
   });
 }
 
@@ -319,7 +317,7 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
 // back the fingerprints it holds and gets only the parts that changed, so a
 // poll carries the timing rows and little else.
 
-export const SLOW_PARTS = ["raceControl", "radio", "stints", "prediction", "photos", "lapPositions", "stats", "pitStops", "dotd"] as const;
+export const SLOW_PARTS = ["raceControl", "radio", "stints", "prediction", "photos", "lapPositions", "stats", "pitStops"] as const;
 
 const fingerprint = (v: unknown) => {
   const s = JSON.stringify(v ?? null);
@@ -382,8 +380,7 @@ async function keepClassification(snap: LiveSnapshot, info: CurrentSessionInfo):
 
 /** Pit wall size: the table and its header, nothing else. */
 export function compact(s: LiveSnapshot): LiveSnapshot {
-  const { raceControl, radio, stints, prediction, photos, lapPositions, transcripts, stats, pitStops, dotd, versions, ...rest } = s;
-  void dotd;
+  const { raceControl, radio, stints, prediction, photos, lapPositions, transcripts, stats, pitStops, versions, ...rest } = s;
   void versions;
   void stats;
   void pitStops;

@@ -106,12 +106,6 @@ export interface LivePrediction {
   teams: { name: string; colour: string; position: number; predicted: number; points: number; predictedPoints: number }[];
 }
 
-/** Driver of the Day, the case so far: our read (lib/f1-dotd.ts), not F1's vote. */
-export interface LiveDotd {
-  lap: number;
-  contenders: { code: string; colour: string; team: string; grid: number; position: number; score: number; reasons: string[] }[];
-}
-
 export interface LiveSnapshot {
   /** When the feed was read. */
   at: string;
@@ -163,8 +157,6 @@ export interface LiveSnapshot {
   lapPositions?: { code: string; colour: string; positions: number[] }[];
   /** Team radio transcripts, by clip address (filled in as they are written). */
   transcripts?: Record<string, string>;
-  /** Races: Driver of the Day, the case so far. */
-  dotd?: LiveDotd | null;
   /** A fingerprint of each slow-moving part (race control, radio…), so a reader can say what it has. */
   versions?: Record<string, string>;
   /** Parts left out of this answer because the reader already has them as they are. */

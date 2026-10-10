@@ -116,7 +116,7 @@ export default function Feed({
   photos: Record<string, string>;
   /** How many to show at first, and how many more each time. */
   page?: number;
-  /** In a panel that scrolls: keep the filters in view. */
+  /** In a panel of fixed height: filters as wrapping chips, held above a list that scrolls. */
   pinned?: boolean;
 }) {
   const items = useItems(snap);
@@ -142,25 +142,46 @@ export default function Feed({
   ];
   const visible = options.filter((o) => o.value === "all" || o.value === filter || (o.count ?? 0) > 0);
 
-  return (
-    <div className="min-w-0">
-      {/* in a panel that scrolls, the filters stay at its top */}
-      <div className={`flex flex-wrap items-center gap-2 mb-3 ${pinned ? "sticky top-0 z-10 bg-[var(--card-bg)] pb-1" : ""}`}>
-        <div className="min-w-0 flex-1">
-          <Seg label="Show" value={filter} onChange={setFilter} options={visible} size="sm" />
-        </div>
-        {mine.size > 0 && (
-          <button
-            type="button"
-            onClick={() => setOnlyMine((v) => !v)}
-            aria-pressed={onlyMine}
-            className={`rounded-full border h-8 px-3 font-sans text-[12px] font-semibold transition-colors shrink-0 ${onlyMine ? "text-[color:var(--paper)] border-transparent" : "hairline text-ink-soft hover:text-ink"}`}
-            style={onlyMine ? { background: "var(--hue-f1)" } : undefined}
-          >
-            Your drivers
+  const chip = (on: boolean) =>
+    `rounded-full border h-7 px-2.5 flex items-center gap-1.5 font-sans text-[11.5px] font-semibold whitespace-nowrap transition-colors ${on ? "text-[color:var(--paper)] border-transparent" : "hairline text-ink-soft hover:text-ink"}`;
+  const mineButton = mine.size > 0 && (
+    <button
+      type="button"
+      onClick={() => setOnlyMine((v) => !v)}
+      aria-pressed={onlyMine}
+      className={pinned ? chip(onlyMine) : `rounded-full border h-8 px-3 font-sans text-[12px] font-semibold transition-colors shrink-0 ${onlyMine ? "text-[color:var(--paper)] border-transparent" : "hairline text-ink-soft hover:text-ink"}`}
+      style={onlyMine ? { background: "var(--hue-f1)" } : undefined}
+    >
+      Your drivers
+    </button>
+  );
+
+  // In a narrow panel the filters wrap as chips (nothing hidden off to the
+  // side) and stay put above the list, which scrolls on its own.
+  const filters = pinned ? (
+    <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Show">
+      {visible.map((o) => {
+        const on = filter === o.value;
+        return (
+          <button key={o.value} type="button" role="tab" aria-selected={on} onClick={() => setFilter(o.value)} className={chip(on)} style={on ? { background: "var(--ink)" } : undefined}>
+            {o.label}
+            {o.count !== undefined && <span className={`font-mono text-[9.5px] tabular-nums ${on ? "opacity-70" : "text-ink-faint"}`}>{o.count}</span>}
           </button>
-        )}
+        );
+      })}
+      {mineButton}
+    </div>
+  ) : (
+    <div className="flex flex-wrap items-center gap-2 mb-4">
+      <div className="min-w-0 flex-1">
+        <Seg label="Show" value={filter} onChange={setFilter} options={visible} size="sm" />
       </div>
+      {mineButton}
+    </div>
+  );
+
+  const list = (
+    <>
       {shown.length === 0 ? (
         <Empty>{onlyMine ? "Nothing about your drivers here yet." : "Nothing here yet."}</Empty>
       ) : (
@@ -183,10 +204,22 @@ export default function Feed({
         </ol>
       )}
       {filtered.length > shown.length && (
-        <button type="button" onClick={() => setCount((c) => c + page)} className="mt-3 font-sans text-[12px] font-semibold text-ink-soft hover:text-ink">
+        <button type="button" onClick={() => setCount((c) => c + page)} className="mt-3 mb-1 font-sans text-[12px] font-semibold text-ink-soft hover:text-ink">
           Earlier ({filtered.length - shown.length} more)
         </button>
       )}
+    </>
+  );
+
+  return pinned ? (
+    <div className="flex flex-col lg:grid lg:grid-cols-[11rem_minmax(0,1fr)] lg:gap-6 min-h-0 flex-1">
+      <div className="shrink-0 pb-3 border-b hairline lg:pb-0 lg:border-b-0 lg:border-r lg:pr-5 [&>div]:lg:flex-col [&>div]:lg:items-start">{filters}</div>
+      <div className="min-h-0 flex-1 overflow-y-auto -mr-2 pr-2 [scrollbar-width:thin] overscroll-contain lg:max-w-4xl">{list}</div>
+    </div>
+  ) : (
+    <div className="min-w-0">
+      {filters}
+      {list}
     </div>
   );
 }
