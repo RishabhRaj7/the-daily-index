@@ -63,6 +63,7 @@ export function buildModel(raw: Raw, circuitKey: number, year: number): TrackMod
   const w = (Math.max(...xs) - minX) * k + PAD * 2;
   const h = (Math.max(...ys) - minY) * k + PAD * 2;
   const fit = ([x, y]: [number, number]): [number, number] => [Math.round(((x - minX) * k + PAD) * 10) / 10, Math.round(((y - minY) * k + PAD) * 10) / 10];
+  const frame = { cx, cy, rotation: (raw.rotation ?? 0) + 90, minX, minY, k };
 
   // Lap fraction at each point, from the reference lap's clock; without it,
   // by distance along the line.
@@ -98,6 +99,7 @@ export function buildModel(raw: Raw, circuitKey: number, year: number): TrackMod
     corners,
     lapTime: raw.candidateLap?.lapTime ?? (times ? total : null),
     pitLoss: raw.pitLoss?.normal ? Number(raw.pitLoss.normal) : null,
+    frame,
   };
 }
 
@@ -232,7 +234,7 @@ export async function getTrack(circuitKey: number, year = new Date().getUTCFullY
   const hit = memo.get(id);
   if (hit && Date.now() - hit.at < 6 * 3_600_000) return hit.model;
   const store = getStore();
-  const key = `f1:track:v3:${id}`;
+  const key = `f1:track:v4:${id}`;
   let model = await store.get<TrackModel>(key).catch(() => null);
   if (!model) {
     for (const y of [year, year - 1, year - 2]) {
@@ -370,4 +372,124 @@ export async function loopsFor(circuitKey: number): Promise<number[] | null> {
   // Nothing measurable yet (a new circuit): ask again in a day.
   await store.set(loopKey(circuitKey), found ?? "none", { ttlSeconds: found ? 120 * 86_400 : 86_400 }).catch(() => {});
   return found;
+}
+
+// ---- the pit lane ------------------------------------------------------------
+// No circuit file has the pit lane, but every race drives it: F1's archive
+// says when each car crossed the pit entry (InPit) and the exit (PitOut), and
+// records where every car is a few times a second. One ordinary stop, traced
+// between the two (a few seconds either side, so it meets the track), is the
+// lane. Traced once per circuit from its latest race and kept four months.
+
+const pitKey = (circuitKey: number) => `f1:track:pit:v1:${circuitKey}`;
+type Lane = { x: number[]; y: number[] };
+
+/** A stream's lines as they arrive, so a long one can be left once the part wanted has passed. */
+async function* streamLines(url: string): AsyncGenerator<string> {
+  const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(45_000) }).catch(() => null);
+  if (!res?.ok || !res.body) return;
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let rest = "";
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      rest += decoder.decode(value, { stream: true });
+      const lines = rest.split(/\r?\n/);
+      rest = lines.pop() ?? "";
+      yield* lines;
+    }
+    if (rest) yield rest;
+  } finally {
+    await reader.cancel().catch(() => {});
+  }
+}
+
+/** The pit lane in F1's coordinates, traced from one stop in a race. */
+export async function measurePitLane(path: string): Promise<Lane | null> {
+  const stream = await text(`${STATIC}/${path}TimingData.jsonStream`);
+  if (!stream) return null;
+  const open = new Map<string, number>();
+  const stops: { no: string; a: number; b: number }[] = [];
+  for (const line of stream.split(/\r?\n/)) {
+    const m = /^(\d{2}:\d{2}:\d{2}\.\d{3})(.*)$/.exec(line);
+    if (!m || !/InPit|PitOut/.test(m[2])) continue;
+    let d: { Lines?: Record<string, { InPit?: boolean; PitOut?: boolean }> };
+    try {
+      d = JSON.parse(m[2]);
+    } catch {
+      continue;
+    }
+    for (const [no, l] of Object.entries(d.Lines ?? {})) {
+      if (l.InPit === true) open.set(no, stampOf(m[1]));
+      if (l.PitOut === true && open.has(no)) {
+        stops.push({ no, a: open.get(no)!, b: stampOf(m[1]) });
+        open.delete(no);
+      }
+    }
+  }
+  // An ordinary stop: the first whose time in the lane is near the race's usual.
+  const times = stops.map((s) => s.b - s.a).sort((x, y) => x - y);
+  if (times.length < 3) return null;
+  const usual = times[Math.floor(times.length / 2)];
+  const stop = stops.find((s) => Math.abs(s.b - s.a - usual) < usual * 0.12);
+  if (!stop) return null;
+  const from = stop.a - 3000;
+  const to = stop.b + 3000;
+
+  const xs: number[] = [];
+  const ys: number[] = [];
+  let offset: number | null = null;
+  for await (const raw of streamLines(`${STATIC}/${path}Position.z.jsonStream`)) {
+    const m = /^(\d{2}:\d{2}:\d{2}\.\d{3})"(.*)"$/.exec(raw.replace(/^﻿/, ""));
+    if (!m) continue;
+    const rel = stampOf(m[1]);
+    if (offset !== null && rel < from - 5000) continue;
+    if (rel > to + 5000) break;
+    let batch: { Position: { Timestamp: string; Entries: Record<string, { X: number; Y: number }> }[] };
+    try {
+      batch = JSON.parse(inflateRawSync(Buffer.from(m[2], "base64")).toString());
+    } catch {
+      continue;
+    }
+    for (const b of batch.Position) {
+      const abs = Date.parse(b.Timestamp);
+      offset ??= abs - rel;
+      const t = abs - offset;
+      const e = b.Entries[stop.no];
+      if (t < from || t > to || !e || (e.X === 0 && e.Y === 0)) continue;
+      // Standing in the box: one point is enough.
+      if (xs.length && Math.hypot(e.X - xs[xs.length - 1], e.Y - ys[ys.length - 1]) < 5) continue;
+      xs.push(e.X);
+      ys.push(e.Y);
+    }
+  }
+  return xs.length >= 10 ? { x: xs, y: ys } : null;
+}
+
+/** The pit lane at this circuit in F1's coordinates, measured once and kept. */
+export async function pitLaneFor(circuitKey: number): Promise<Lane | null> {
+  const store = getStore();
+  const kept = await store.get<Lane | "none">(pitKey(circuitKey)).catch(() => null);
+  if (kept) return kept === "none" ? null : kept;
+  if (!(await store.setIfAbsent(`${pitKey(circuitKey)}:lock`, 1, 120).catch(() => true))) return null;
+  let found: Lane | null = null;
+  for (const { path } of (await sessionsAt(circuitKey)).filter((s) => /_(Race|Sprint)\/$/.test(s.path)).slice(0, 2)) {
+    found = await measurePitLane(path).catch(() => null);
+    if (found) break;
+  }
+  // No race run here yet (a new circuit): ask again in a day.
+  await store.set(pitKey(circuitKey), found ?? "none", { ttlSeconds: found ? 120 * 86_400 : 86_400 }).catch(() => {});
+  return found;
+}
+
+/** F1 coordinates onto a model's box (the same turn and scale as its outline). */
+export function placeOn(model: TrackModel, lane: Lane): [number, number][] | null {
+  const f = model.frame;
+  if (!f) return null;
+  return lane.x.map((x, i) => {
+    const [rx, ry] = rotate(x, lane.y[i], f.rotation, f.cx, f.cy);
+    return [Math.round(((rx - f.minX) * f.k + PAD) * 10) / 10, Math.round(((ry - f.minY) * f.k + PAD) * 10) / 10];
+  });
 }

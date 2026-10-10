@@ -555,6 +555,14 @@ edition starts building before the reader is back on the paper.
   timing loop lit on clean laps, `f1:track:loops:v1:<key>`, served with the
   track as `loops`), so cars are placed where the loops really are; the
   followed driver's lit mini-sectors are clipped at the car each frame.
+- The pit lane is traced per circuit from its latest race: one ordinary stop
+  (time in the lane near the race's median), the car's recorded positions
+  from just before the pit entry (InPit) to just after the exit (PitOut),
+  read from the position stream only as far as needed
+  (`f1:track:pit:v1:<key>`, four months). Track models carry their `frame`
+  (F1 coordinates → the model's box, `f1:track:v4`) so the lane is placed
+  exactly; served as `pit`. The map draws it under the track (dashed, PIT)
+  and shows the cars in the pits along its middle.
 - Head to head (`/api/f1/h2h?team=` or `?a=RUS&b=VER`): teammates, or the
   reader's two drivers when they're not the same pair; Your paddock switches.
 - Official imagery from F1's image server (`lib/f1-assets.ts`): team logo

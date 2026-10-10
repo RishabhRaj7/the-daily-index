@@ -29,7 +29,7 @@ export function useTrack(circuitKey: number | null | undefined): TrackModel | nu
     let live = true;
     let p = cache.get(circuitKey);
     if (!p) {
-      p = fetch(`/api/f1/track?key=${circuitKey}&v=2`)
+      p = fetch(`/api/f1/track?key=${circuitKey}&v=3`)
         .then((r) => (r.ok ? (r.json() as Promise<TrackModel>) : null))
         .catch(() => null);
       cache.set(circuitKey, p);
@@ -250,6 +250,25 @@ export default function TrackMap({
   };
   const startLabel = out(start.x, start.y, 60 * scale);
 
+  // The pit lane (traced from a real stop, entry to exit), and the cars in it
+  // now, spread along its middle where the garages are, in running order.
+  const lane = model.pit && model.pit.length > 1 ? model.pit : null;
+  const laneAt = (() => {
+    if (!lane) return null;
+    const run = [0];
+    for (let i = 1; i < lane.length; i++) run.push(run[i - 1] + Math.hypot(lane[i][0] - lane[i - 1][0], lane[i][1] - lane[i - 1][1]));
+    const total = run[run.length - 1] || 1;
+    return (f: number): [number, number] => {
+      const d = f * total;
+      let i = 1;
+      while (i < lane.length - 1 && run[i] < d) i++;
+      const t = (d - run[i - 1]) / (run[i] - run[i - 1] || 1);
+      return [lane[i - 1][0] + (lane[i][0] - lane[i - 1][0]) * t, lane[i - 1][1] + (lane[i][1] - lane[i - 1][1]) * t];
+    };
+  })();
+  const pitted = laneAt && snap?.running ? snap.rows.filter((x) => x.inPit && !x.out && !(x.knockedOut && snap.type !== "Race")) : [];
+  const pitLabel = laneAt ? out(...laneAt(0.5), 40 * scale) : null;
+
   return (
     <div className={`relative ${className}`}>
       <svg
@@ -267,6 +286,23 @@ export default function TrackMap({
             <rect x={4 * scale} y={4 * scale} width={4 * scale} height={4 * scale} fill="#111" />
           </pattern>
         </defs>
+
+        {/* the pit lane, under the track */}
+        {lane && (
+          <g aria-label="Pit lane">
+            <polyline points={lane.map((p) => p.join(",")).join(" ")} fill="none" stroke="var(--rule)" strokeWidth={16 * scale} strokeLinejoin="round" strokeLinecap="round" />
+            <polyline
+              points={lane.map((p) => p.join(",")).join(" ")}
+              fill="none"
+              stroke="var(--f1-pit)"
+              strokeOpacity={0.75}
+              strokeWidth={3.5 * scale}
+              strokeDasharray={`${10 * scale} ${8 * scale}`}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+          </g>
+        )}
 
         {/* the tarmac, then the line that draws itself */}
         <path d={model.path} fill="none" stroke="var(--rule)" strokeWidth={30 * scale} strokeLinejoin="round" strokeLinecap="round" />
@@ -323,10 +359,33 @@ export default function TrackMap({
           <text x={startLabel[0]} y={startLabel[1]} dy="0.35em" textAnchor="middle" fontSize={(big ? 14 : 18) * scale} fontWeight={700} fontFamily="var(--font-mono)" fill="var(--ink)">
             {ends ? "START · S1" : "START"}
           </text>
+          {pitLabel && (
+            <text x={pitLabel[0]} y={pitLabel[1]} dy="0.35em" textAnchor="middle" fontSize={(big ? 13 : 17) * scale} fontWeight={700} fontFamily="var(--font-mono)" fill="var(--f1-pit)">
+              PIT
+            </text>
+          )}
         </g>
 
         {/* start / finish, chequered across the track */}
         <line x1={start.x1} y1={start.y1} x2={start.x2} y2={start.y2} stroke={`url(#chequer-${model.circuitKey})`} strokeWidth={10 * scale} />
+
+        {/* in the pits */}
+        {laneAt &&
+          pitted.map((row, i) => {
+            const [x, y] = laneAt(pitted.length === 1 ? 0.5 : 0.25 + (0.5 * i) / (pitted.length - 1));
+            const mine = row.code === focus;
+            return (
+              <g key={`pit-${row.code}`} transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`} onClick={onFocus ? () => onFocus(row.code) : undefined} style={onFocus ? { cursor: "pointer" } : undefined}>
+                <title>{`${row.code} in the pits`}</title>
+                <circle r={(mine ? 1.1 : 0.85) * r} fill={row.colour} stroke="var(--f1-pit)" strokeWidth={3 * scale} />
+                {(pitted.length <= 6 || mine) && (
+                  <text x={r * 1.3} y={-r} fontSize={(mine ? 20 : 15) * scale} fontWeight={700} fontFamily="var(--font-sans)" fill="var(--ink-soft)" stroke="var(--paper)" strokeWidth={5 * scale} paintOrder="stroke">
+                    {row.code}
+                  </text>
+                )}
+              </g>
+            );
+          })}
 
         {/* the field */}
         {cars
