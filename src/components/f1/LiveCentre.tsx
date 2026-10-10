@@ -1,520 +1,223 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { F1Race } from "@/lib/types";
-import type { LivePrediction, LiveRaceControl, LiveRadio, LiveRow, LiveSnapshot, LiveStints } from "@/lib/f1-live-types";
+import type { LivePrediction, LiveRow, LiveSnapshot, TrackModel } from "@/lib/f1-live-types";
 import { useF1Live } from "@/lib/use-f1-live";
 import { driverPhotoByCode } from "@/lib/f1-assets";
 import LiveTiming, { TeamGlyph, useF1Favourites } from "./LiveTiming";
-import TyreIcon, { TYRE } from "./TyreIcon";
+import TyreIcon from "./TyreIcon";
 import TrackMap, { useTrack } from "./TrackMap";
-import RaceStory from "./RaceStory";
 import MapSheet from "./MapSheet";
 import PastSessions from "./PastSessions";
 import Season from "./Season";
 import ReplayBar, { useReplay } from "./ReplayBar";
 import { LiveDot, SessionClock, TONE, sessionLine } from "./LiveCard";
+import Feed from "./centre/Feed";
+import Analysis, { type Sub } from "./centre/Analysis";
+import Weekend from "./centre/Weekend";
+import { Panel, Tile } from "./centre/ui";
 
-// /f1/live — a session in full. One spacing scale throughout (panels 20px in,
-// 24px apart), one panel header, figures in the paper's display face:
-//   header     the meeting, where the session is, and the numbers that
-//              matter right now as tiles (lap or clock, track, weather);
-//              a band under it in the track's colour
-//   jump bar   sticky, marking the part in view
-//   timing     every car with sectors and mini-sectors · beside it the map
-//              (the field estimated from the timing loops, the followed
-//              driver's mini-sectors lit along the track) and race control
-//   strategy   tyre stints · team radio with transcripts · the title, live
-//   the race   positions lap by lap (races)
-// Between sessions the same page carries the last session, final.
+// /f1/live — a session, spread over five views rather than one long page:
+//   Live      the running order beside the map (the field on it, the
+//             followed driver's card with what a pit stop would cost now)
+//             and the latest from the feed
+//   Analysis  tyres and pit stops · the lap chart · pace (speed traps, best
+//             sectors and the ideal lap, lap benchmarks) · the stewards
+//   Feed      race control read plainly, radio with transcripts and every
+//             pit stop, filed by kind, with a switch for the reader's drivers
+//   Weekend   this weekend's sessions (open any), the circuit, what's next
+//   Season    the title as it would stand now (races), the season's records
+//             and every round's points
+// The view is kept in the address (#analysis/pace), so it survives a reload
+// and can be shared. On a phone the views sit in a bar along the foot of the
+// screen, like an app's; on a wider screen they head the page.
+// Between sessions the same page carries the last session, final; any
+// finished session can be opened (Past sessions, Weekend) or replayed.
 
-const clock = (utc: string) =>
-  new Date(/Z|[+-]\d{2}:?\d{2}$/.test(utc) ? utc : `${utc}Z`).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+type View = "live" | "analysis" | "feed" | "weekend" | "season";
 
-// Race control shouts in capitals; the paper sets it in sentence case, with
-// the acronyms and driver codes kept.
-const sentence = (m: string) => {
-  const s = (m === m.toUpperCase() ? m.toLowerCase() : m)
-    .replace(/\b(fia|drs|vsc|sc|pu|cet|utc)\b/gi, (w) => w.toUpperCase())
-    .replace(/\((\w{3})\)/g, (_, c: string) => `(${c.toUpperCase()})`);
-  return s.charAt(0).toUpperCase() + s.slice(1);
+const VIEWS: { id: View; label: string; icon: React.ReactNode }[] = [
+  {
+    id: "live",
+    label: "Live",
+    icon: (
+      <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+        <path d="M3 5h14M3 10h14M3 15h9" />
+      </svg>
+    ),
+  },
+  {
+    id: "analysis",
+    label: "Analysis",
+    icon: (
+      <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M3 16V4M3 16h14M6.5 12l3-3.5 2.5 2 4-5" />
+      </svg>
+    ),
+  },
+  {
+    id: "feed",
+    label: "Feed",
+    icon: (
+      <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M4 4h12v9H8l-4 3z" />
+        <path d="M7 7.5h6M7 10h4" />
+      </svg>
+    ),
+  },
+  {
+    id: "weekend",
+    label: "Weekend",
+    icon: (
+      <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M5 17V3M5 4h9l-2 3 2 3H5" />
+      </svg>
+    ),
+  },
+  {
+    id: "season",
+    label: "Season",
+    icon: (
+      <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M6 3h8v4a4 4 0 0 1-8 0zM10 11v3M7 17h6M6 5H3.5a2.5 2.5 0 0 0 2.5 3M14 5h2.5A2.5 2.5 0 0 1 14 8" />
+      </svg>
+    ),
+  },
+];
+
+// Links into the page from before the views (the Pit wall card links #race-control).
+const LEGACY: Record<string, string> = {
+  timing: "live",
+  track: "live",
+  "race-control": "feed",
+  radio: "feed",
+  strategy: "analysis/tyres",
+  story: "analysis/laps",
+  title: "season",
+  benchmarks: "analysis/pace",
 };
 
-function flagColour(flag: string | null, category: string): string {
-  const f = (flag ?? "").toUpperCase();
-  if (f.includes("CHEQUERED") || f.includes("BLACK")) return "var(--ink)";
-  if (f === "RED") return "var(--down)";
-  if (f.includes("YELLOW")) return "var(--f1-slower)";
-  if (f === "GREEN" || f === "CLEAR") return "var(--f1-personal)";
-  if (f === "BLUE") return "var(--f1-pit)";
-  if (/SafetyCar/i.test(category)) return "var(--f1-slower)";
-  return "var(--ink-faint)";
+function readHash(): { view: View; sub: Sub } {
+  const raw = location.hash.replace(/^#/, "");
+  const [v, s] = (LEGACY[raw] ?? raw).split("/");
+  const view = (VIEWS.some((x) => x.id === v) ? v : "live") as View;
+  const sub = (["tyres", "laps", "pace", "stewards"].includes(s) ? s : "tyres") as Sub;
+  return { view, sub };
 }
 
-function Panel({
-  id,
-  label,
-  meta,
-  children,
-  className = "",
-  scroll = false,
-}: {
-  id?: string;
-  label: string;
-  meta?: React.ReactNode;
-  children: React.ReactNode;
-  className?: string;
-  /** A feed: the panel keeps its height and the list scrolls inside it. */
-  scroll?: boolean;
-}) {
-  return (
-    <section id={id} className={`rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 sm:p-5 scroll-mt-32 min-w-0 flex flex-col ${className}`} data-reveal>
-      <header className="flex items-baseline justify-between gap-3 pb-3 mb-4 border-b hairline shrink-0">
-        <h2 className="font-label text-[10.5px] tracking-[0.12em]">{label}</h2>
-        {meta && <span className="font-mono text-[10px] text-ink-faint text-right">{meta}</span>}
-      </header>
-      {scroll ? <div className="feed-scroll min-h-0 flex-1 overflow-y-auto -mr-2 pr-2 [scrollbar-width:thin]">{children}</div> : children}
-    </section>
-  );
-}
+// ---- the followed driver ------------------------------------------------------------
 
-function Tile({ label, value, unit, tone }: { label: string; value: React.ReactNode; unit?: string; tone?: string }) {
-  return (
-    <div className="rounded-xl border hairline px-3 pt-2.5 pb-2 min-w-0" style={tone ? { borderColor: tone, background: `color-mix(in srgb, ${tone} 12%, transparent)` } : undefined}>
-      <div className="font-label text-[8.5px] text-ink-faint truncate">{label}</div>
-      <div className="font-display font-extrabold text-[1.55rem] leading-none mt-1.5 tabular-nums truncate" style={tone ? { color: tone } : undefined}>
-        {value}
-        {unit && <span className="font-mono font-normal text-[10px] text-ink-soft ml-1">{unit}</span>}
-      </div>
-    </div>
-  );
-}
-
-// ---- parts ---------------------------------------------------------------------
-
-function FocusCard({ row, photo, snap }: { row: LiveRow; photo: string | null; snap: LiveSnapshot }) {
-  return (
-    <div className="flex items-center gap-3 mt-4 pt-4 border-t hairline">
-      <span className="relative w-12 h-12 rounded-full overflow-hidden shrink-0" style={{ background: `color-mix(in srgb, ${row.colour} 30%, var(--paper))` }}>
-        {photo && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={photo} alt="" className="absolute inset-0 w-full h-full object-cover object-top" loading="lazy" />
-        )}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2">
-          <TeamGlyph team={row.team} colour={row.colour} />
-          <span className="font-sans font-bold text-[14px]">{row.name || row.code}</span>
-          <span className="font-mono text-[11px] text-ink-soft">P{row.position}</span>
-        </span>
-        <span className="block font-mono text-[10.5px] text-ink-soft mt-1 truncate">
-          {snap.type === "Race" ? (row.position === 1 ? "Leading" : `${row.gap || "—"} to the leader`) : `Best ${row.best || "—"}`} · last {row.last || "—"}
-        </span>
-      </span>
-      {row.tyre && (
-        <span className="flex flex-col items-center gap-0.5">
-          <TyreIcon compound={row.tyre.compound} fresh={row.tyre.fresh} size={22} />
-          <span className="font-mono text-[9.5px] text-ink-soft">{row.tyre.laps} laps</span>
-        </span>
-      )}
-    </div>
-  );
-}
-
-function Strategy({ stints, total, highlight }: { stints: LiveStints[]; total: number; highlight: Set<string> }) {
-  const scale = Math.max(total, ...stints.map((d) => d.stints.reduce((n, s) => n + s.laps, 0)), 1);
-  return (
-    <>
-      <div className="space-y-[5px]">
-        {stints.map((d, row) => (
-          <div key={d.code} className={`grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-3 ${highlight.size && !highlight.has(d.code) ? "opacity-80" : ""}`}>
-            <span className="flex items-center gap-1.5 font-sans font-bold text-[11.5px]">
-              <span className="w-[3px] h-3 rounded-full" style={{ background: d.colour }} />
-              {d.code}
-            </span>
-            <span className="flex h-[18px] gap-[3px]">
-              {d.stints.map((s, i) => {
-                const t = TYRE[s.compound];
-                return (
-                  <span
-                    key={i}
-                    className="stint-in h-full rounded-[5px] flex items-center justify-center font-mono text-[9.5px] font-bold overflow-hidden border"
-                    style={{
-                      width: `${(Math.max(s.laps, 0.6) / scale) * 100}%`,
-                      background: `color-mix(in srgb, ${t.colour} ${s.fresh ? 26 : 13}%, transparent)`,
-                      borderColor: `color-mix(in srgb, ${t.colour} ${s.fresh ? 75 : 40}%, transparent)`,
-                      color: t.colour,
-                      animationDelay: `${row * 22 + i * 60}ms`,
-                    }}
-                    title={`${t.name}${s.fresh ? "" : " (used)"} · ${s.laps} laps`}
-                  >
-                    {s.laps >= 3 ? `${t.letter}${s.laps >= 6 ? ` ${s.laps}` : ""}` : ""}
-                  </span>
-                );
-              })}
-            </span>
-          </div>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-2 pt-4 mt-4 border-t hairline font-mono text-[10px] text-ink-soft">
-        {(["SOFT", "MEDIUM", "HARD", "INTERMEDIATE", "WET"] as const).map((c) => (
-          <span key={c} className="flex items-center gap-1.5">
-            <TyreIcon compound={c} size={13} /> {TYRE[c].name}
-          </span>
-        ))}
-        <span className="text-ink-faint">Faint = a used set</span>
-      </div>
-    </>
-  );
-}
-
-function RaceControl({ items }: { items: LiveRaceControl[] }) {
-  return (
-    <>
-      <ol>
-        {items.map((m, i) => (
-          <li key={`${m.utc}-${i}`} className="grid grid-cols-[2.8rem_minmax(0,1fr)] gap-3 border-t hairline first:border-t-0 py-2.5">
-            <span className="font-mono text-[10.5px] text-ink-soft tabular-nums leading-tight">
-              {clock(m.utc)}
-              {m.lap != null && <span className="block text-ink-faint">L{m.lap}</span>}
-            </span>
-            <span className="text-[12.5px] leading-snug">
-              {(m.flag || m.category !== "Other") && (
-                <span className="flex items-center gap-1.5 font-label text-[8.5px] mb-0.5" style={{ color: flagColour(m.flag, m.category) }}>
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: "currentColor" }} />
-                  {m.flag ? m.flag.toLowerCase() : m.category.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()}
-                </span>
-              )}
-              {sentence(m.message)}
-            </span>
-          </li>
-        ))}
-      </ol>
-    </>
-  );
-}
-
-// ---- lap benchmarks ------------------------------------------------------------
-
-interface Bench {
-  label: string;
-  time: string;
-  who: string;
-  team: string;
-  year: number;
-}
-
-const lapSeconds = (t?: string | null) => {
-  const m = /^(?:(\d+):)?(\d+\.\d+)$/.exec(t ?? "");
-  return m ? Number(m[1] ?? 0) * 60 + Number(m[2]) : null;
+const gapSecs = (r: LiveRow) => {
+  if (r.position === 1) return 0;
+  const m = /^\+?(\d+(?:\.\d+)?)$/.exec(r.gap.trim());
+  return m ? Number(m[1]) : null;
 };
 
 /**
- * The session's best lap against the circuit's references: last year's pole
- * (or fastest race lap) and the fastest race lap since 2022, each with the
- * gap — green where this year's cars are already quicker.
+ * Where a car would come out if it pitted now: its gap to the leader plus
+ * what a stop costs, placed among the cars around it (lead-lap cars with a
+ * gap in seconds). The cost is the circuit's (MultiViewer), else the median
+ * time in the lane at this race so far.
  */
-function Benchmarks({ snap }: { snap: LiveSnapshot }) {
-  const year = Number(snap.path?.slice(0, 4)) || new Date().getFullYear();
-  const [list, setList] = useState<Bench[] | null>(null);
-  const q = `meeting=${encodeURIComponent(snap.meeting)}&type=${snap.type === "Race" ? "Race" : "Qualifying"}&year=${year}`;
-  useEffect(() => {
-    let live = true;
-    fetch(`/api/f1/benchmarks?${q}`)
-      .then((r) => (r.ok ? (r.json() as Promise<Bench[]>) : []))
-      .then((l) => live && setList(l))
-      .catch(() => live && setList([]));
-    return () => {
-      live = false;
-    };
-  }, [q]);
-  const best = snap.rows.find((r) => r.bestFastest && r.best) ?? null;
-  const mine = lapSeconds(best?.best);
-  return (
-    <div className="flex flex-col gap-2.5">
-      <div className="rounded-xl px-3.5 py-3" style={{ background: "color-mix(in srgb, var(--f1-fastest) 13%, transparent)" }}>
-        <div className="font-label text-[8.5px] text-ink-faint">{snap.type === "Race" ? "Fastest lap" : "Session best"}</div>
-        <div className="flex items-end justify-between gap-3 mt-1">
-          <span className="font-mono font-semibold text-[1.55rem] leading-none tabular-nums" style={{ color: "var(--f1-fastest)" }}>
-            {best?.best ?? "—"}
-          </span>
-          {best && (
-            <span className="flex items-center gap-1.5 font-sans text-[12px] font-bold">
-              <TeamGlyph team={best.team} colour={best.colour} size={14} />
-              {best.code}
-            </span>
-          )}
-        </div>
-      </div>
-      {list === null ? (
-        <div className="h-16 rounded-xl bg-[var(--rule)] animate-pulse opacity-40" />
-      ) : list.length === 0 ? (
-        <p className="font-mono text-[10.5px] text-ink-faint px-1">No reference laps: these cars haven&rsquo;t raced here before.</p>
-      ) : (
-        list.map((b) => {
-          const ref = lapSeconds(b.time);
-          const gap = mine !== null && ref !== null ? mine - ref : null;
-          return (
-            <div key={b.label} className="rounded-xl border hairline px-3.5 py-2.5">
-              <div className="font-label text-[8.5px] text-ink-faint">{b.label}</div>
-              <div className="flex items-baseline justify-between gap-3 mt-1">
-                <span className="font-mono font-semibold text-[1.05rem] tabular-nums">{b.time}</span>
-                {gap !== null && (
-                  <span
-                    className="font-mono text-[10.5px] font-semibold tabular-nums rounded-md px-1.5 py-0.5"
-                    style={{ color: gap <= 0 ? "var(--f1-personal)" : "var(--down)", background: `color-mix(in srgb, ${gap <= 0 ? "var(--f1-personal)" : "var(--down)"} 13%, transparent)` }}
-                    title={gap <= 0 ? "This session is quicker" : "This session is slower"}
-                  >
-                    {gap <= 0 ? "−" : "+"}
-                    {Math.abs(gap).toFixed(3)}s
-                  </span>
-                )}
-              </div>
-              <div className="font-sans text-[11px] text-ink-soft mt-0.5">
-                {b.who} · {b.year}
-              </div>
-            </div>
-          );
-        })
-      )}
-    </div>
-  );
-}
-
-/** Transcripts for the clips on show: kept ones at once, new ones as they're written. */
-interface Written {
-  text: string;
-  confidence: number | null;
-  model: string;
-  checkedBy?: string;
-}
-
-function useTranscripts(clips: LiveRadio[]): { text: Record<string, Written>; pending: boolean; paused: boolean } {
-  const [text, setText] = useState<Record<string, Written>>({});
-  const [pending, setPending] = useState(true);
-  const [paused, setPaused] = useState(false);
-  const ids = clips.map((c) => c.url).join("|");
-  useEffect(() => {
-    if (!ids) return;
-    let stop = false;
-    let timer: ReturnType<typeof setTimeout>;
-    const ask = async () => {
-      const q = new URLSearchParams();
-      for (const c of clips) {
-        q.append("u", c.url);
-        q.append("w", c.code);
-      }
-      try {
-        const res = await fetch(`/api/f1/radio?${q}`);
-        const d = (await res.json()) as { transcripts: Record<string, Written>; pending: number; paused?: boolean };
-        if (stop) return;
-        setText((t) => ({ ...t, ...d.transcripts }));
-        setPaused(!!d.paused);
-        setPending(d.pending > 0 && !d.paused);
-        if (d.pending > 0 && !d.paused) timer = setTimeout(ask, 4000);
-      } catch {
-        if (!stop) setPending(false);
-      }
-    };
-    void ask();
-    return () => {
-      stop = true;
-      clearTimeout(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ids]);
-  return { text, pending, paused };
-}
-
-/**
- * How near the text is to what was said: two different models listened, and
- * this is the share of words they agreed on (five pips and a word). After a
- * single listen it is that model's own rating, capped and said to be one.
- */
-function Confidence({ value, model, checkedBy }: { value: number | null; model: string; checkedBy?: string }) {
-  if (value === null) return null;
-  const pips = Math.max(1, Math.round(value * 5));
-  const word = value >= 0.85 ? "Clear" : value >= 0.65 ? "Mostly clear" : value >= 0.45 ? "Rough" : "Hard to hear";
-  const tone = value >= 0.85 ? "var(--f1-personal)" : value >= 0.65 ? "var(--f1-slower)" : "var(--down)";
-  const how = checkedBy ? `two listens agree on ${Math.round(value * 100)}% of words` : "one listen";
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 font-mono text-[9.5px] text-ink-faint"
-      title={checkedBy ? `Written by ${model}, checked by ${checkedBy}: ${Math.round(value * 100)}% of words heard the same. Underlined words were heard differently.` : `Written by ${model}; no second listen was free, so this is its own rating.`}
-    >
-      <span className="flex gap-[2px]" aria-hidden="true">
-        {Array.from({ length: 5 }, (_, i) => (
-          <span key={i} className="w-[5px] h-[5px] rounded-full" style={{ background: i < pips ? tone : "var(--rule)" }} />
-        ))}
-      </span>
-      {word} · {how}
-    </span>
-  );
-}
-
-function Said({ text }: { text: string }) {
-  // Words the transcriber couldn't make out stay visible as such; words the
-  // second listen heard differently ({{…}}) are underlined as unsure.
-  return (
-    <>
-      {text.split(/(\[(?:unclear|bleep)\]|\{\{[\s\S]*?\}\})/i).map((part, i) =>
-        part.startsWith("{{") ? (
-          <span key={i} className="text-ink-faint underline decoration-dotted decoration-1 underline-offset-[3px]" title="Heard differently on the second listen">
-            {part.slice(2, -2)}
-          </span>
-        ) : /^\[(unclear|bleep)\]$/i.test(part) ? (
-          <span key={i} className="font-mono text-[10.5px] text-ink-faint italic px-0.5">
-            {part.toLowerCase() === "[bleep]" ? "[bleep]" : "[?]"}
-          </span>
-        ) : (
-          <span key={i}>{part}</span>
-        ),
-      )}
-    </>
-  );
-}
-
-function Transcript({ text, code }: { text: string; code: string }) {
-  // Turns start at a speaker label, wherever the model put them (a new line
-  // or mid-line: "… Engineer: Well done Max. VER: Yeah, …").
-  const turns = text
-    .split(new RegExp(`(?:^|\\s+|\\n+)(?=(?:Engineer|${code}|Driver):\\s)`, "i"))
-    .map((t) => t.trim())
-    .filter(Boolean);
-  return (
-    <div className="mt-2 space-y-1">
-      {turns.map((line, i) => {
-        const m = /^([^:]{2,12}):\s*([\s\S]*)$/.exec(line);
-        const who = m?.[1] ?? "";
-        const said = m ? m[2] : line;
-        const driver = who.toUpperCase() === code || (who !== "" && who.toLowerCase() !== "engineer");
-        return (
-          <p key={i} className="font-headline text-[14px] leading-snug">
-            {who && <span className={`font-label text-[8.5px] mr-1.5 ${driver ? "" : "text-ink-faint"}`}>{driver ? code : "Engineer"}</span>}
-            <span className={driver ? "" : "text-ink-soft"}>
-              <Said text={said} />
-            </span>
-          </p>
-        );
-      })}
-    </div>
-  );
-}
-
-function Radio({ clips, photos }: { clips: LiveRadio[]; photos: Record<string, string> }) {
-  const [all, setAll] = useState(false);
-  const shown = all ? clips : clips.slice(0, 6);
-  const { text, pending, paused } = useTranscripts(shown);
-  const audio = useRef<HTMLAudioElement | null>(null);
-  const [playing, setPlaying] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0);
-  useEffect(() => () => audio.current?.pause(), []);
-  const toggle = (c: LiveRadio) => {
-    if (playing === c.url) {
-      audio.current?.pause();
-      setPlaying(null);
-      return;
-    }
-    audio.current?.pause();
-    const a = new Audio(c.url);
-    audio.current = a;
-    a.ontimeupdate = () => setProgress(a.duration ? a.currentTime / a.duration : 0);
-    a.onended = () => setPlaying(null);
-    setProgress(0);
-    a.play().then(
-      () => setPlaying(c.url),
-      () => setPlaying(null),
-    );
+function pitWindow(snap: LiveSnapshot, row: LiveRow, track: TrackModel | null): { loss: number; pos: number; ahead: { code: string; by: number } | null; behind: { code: string; by: number } | null } | null {
+  if (snap.type !== "Race" || !snap.running || row.out || row.inPit) return null;
+  const lanes = (snap.pitStops ?? []).map((p) => p.lane).filter((x): x is number => x !== null && x > 10 && x < 45).sort((a, b) => a - b);
+  const loss = track?.pitLoss ?? (lanes.length >= 3 ? lanes[Math.floor(lanes.length / 2)] : null);
+  const mine = gapSecs(row);
+  if (loss === null || mine === null) return null;
+  const out = mine + loss;
+  const field = snap.rows.filter((r) => r !== row && !r.out).flatMap((r) => {
+    const g = gapSecs(r);
+    return g === null ? [] : [{ code: r.code, g }];
+  });
+  const ahead = field.filter((f) => f.g <= out).sort((a, b) => b.g - a.g)[0] ?? null;
+  const behind = field.filter((f) => f.g > out).sort((a, b) => a.g - b.g)[0] ?? null;
+  return {
+    loss,
+    pos: field.filter((f) => f.g <= out).length + 1,
+    ahead: ahead ? { code: ahead.code, by: out - ahead.g } : null,
+    behind: behind ? { code: behind.code, by: behind.g - out } : null,
   };
+}
+
+function FocusCard({ row, photo, snap, track }: { row: LiveRow; photo: string | null; snap: LiveSnapshot; track: TrackModel | null }) {
+  const stop = pitWindow(snap, row, track);
   return (
-    <>
-      <ol>
-        {shown.map((c) => {
-          const on = playing === c.url;
-          return (
-            <li key={c.url} className="flex gap-3 border-t hairline first:border-t-0 py-3">
-              <span className="relative w-10 h-10 rounded-full overflow-hidden shrink-0" style={{ background: `color-mix(in srgb, ${c.colour} 30%, var(--paper))` }}>
-                {photos[c.code] && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={photos[c.code]} alt="" className="absolute inset-0 w-full h-full object-cover object-top" loading="lazy" />
-                )}
+    <div className="mt-4 pt-4 border-t hairline">
+      <div className="flex items-center gap-3">
+        <span className="relative w-12 h-12 rounded-full overflow-hidden shrink-0" style={{ background: `color-mix(in srgb, ${row.colour} 30%, var(--paper))` }}>
+          {photo && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={photo} alt="" className="absolute inset-0 w-full h-full object-cover object-top" loading="lazy" />
+          )}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2">
+            <TeamGlyph team={row.team} colour={row.colour} />
+            <span className="font-sans font-bold text-[14px] truncate">{row.name || row.code}</span>
+            <span className="font-mono text-[11px] text-ink-soft">P{row.position}</span>
+          </span>
+          <span className="block font-mono text-[10.5px] text-ink-soft mt-1 truncate">
+            {snap.type === "Race" ? (row.position === 1 ? "Leading" : `${row.gap || "—"} to the leader · ${row.interval || "—"} to the car ahead`) : `Best ${row.best || "—"} · last ${row.last || "—"}`}
+          </span>
+        </span>
+        {row.tyre && (
+          <span className="flex flex-col items-center gap-0.5 shrink-0">
+            <TyreIcon compound={row.tyre.compound} fresh={row.tyre.fresh} size={22} />
+            <span className="font-mono text-[9.5px] text-ink-soft">{row.tyre.laps} laps</span>
+          </span>
+        )}
+      </div>
+      {stop && (
+        <div className="mt-3 rounded-xl border hairline px-3 py-2.5">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="font-label text-[8.5px] text-ink-faint">A stop now</span>
+            <span className="font-mono text-[9.5px] text-ink-faint">costs ~{stop.loss.toFixed(0)} s</span>
+          </div>
+          <div className="text-[12.5px] mt-1 leading-snug">
+            Out in <b className="font-display text-[1.05rem]">P{stop.pos}</b>
+            {stop.ahead && (
+              <span className="text-ink-soft">
+                , {stop.ahead.by.toFixed(1)} s behind <b className="text-ink">{stop.ahead.code}</b>
               </span>
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-2">
-                  <span className="font-sans font-bold text-[13px]">{c.code}</span>
-                  <span className="font-mono text-[10.5px] text-ink-faint tabular-nums">{clock(c.utc)}</span>
-                  <button
-                    type="button"
-                    onClick={() => toggle(c)}
-                    className="ml-auto flex items-center gap-1.5 rounded-full border hairline h-7 pl-2 pr-3 font-sans text-[11.5px] font-semibold hover:border-[color:var(--ink-soft)] transition-colors"
-                    aria-label={`${on ? "Pause" : "Play"} ${c.code}'s radio`}
-                  >
-                    <span className="w-4 h-4 rounded-full grid place-items-center" style={{ background: c.colour }}>
-                      {on ? (
-                        <svg viewBox="0 0 12 12" className="w-2 h-2" fill="#fff" aria-hidden="true">
-                          <rect x="2.5" y="2" width="2.6" height="8" rx="0.6" />
-                          <rect x="6.9" y="2" width="2.6" height="8" rx="0.6" />
-                        </svg>
-                      ) : (
-                        <svg viewBox="0 0 12 12" className="w-2 h-2 ml-[1px]" fill="#fff" aria-hidden="true">
-                          <path d="M3 1.8v8.4c0 .5.5.8.9.5l6.4-4.2c.4-.3.4-.8 0-1.1L3.9 1.3c-.4-.3-.9 0-.9.5z" />
-                        </svg>
-                      )}
-                    </span>
-                    {on ? "Pause" : "Listen"}
-                  </button>
-                </span>
-                {on && (
-                  <span className="block h-[2px] rounded-full bg-[var(--rule)] mt-2 overflow-hidden">
-                    <span className="block h-full" style={{ width: `${progress * 100}%`, background: c.colour, transition: "width 0.25s linear" }} />
-                  </span>
-                )}
-                {text[c.url] ? (
-                  <>
-                    <Transcript text={text[c.url].text} code={c.code} />
-                    <div className="mt-1.5">
-                      <Confidence value={text[c.url].confidence} model={text[c.url].model} checkedBy={text[c.url].checkedBy} />
-                    </div>
-                  </>
-                ) : (
-                  <p className={`mt-2 font-mono text-[10.5px] ${pending ? "shimmer-text" : "text-ink-faint"}`}>{pending ? "Transcribing…" : paused ? "Transcripts resume when today’s free allowance resets" : "No transcript"}</p>
-                )}
+            )}
+            {stop.behind && (
+              <span className="text-ink-soft">
+                , {stop.behind.by.toFixed(1)} s ahead of <b className="text-ink">{stop.behind.code}</b>
               </span>
-            </li>
-          );
-        })}
-      </ol>
-      {clips.length > 6 && (
-        <button type="button" onClick={() => setAll((v) => !v)} className="font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-3">
-          {all ? "Fewer clips" : `All ${clips.length} clips`}
-        </button>
+            )}
+          </div>
+        </div>
       )}
-    </>
+    </div>
   );
 }
+
+// ---- the title, live ---------------------------------------------------------------
 
 function TitleRow({ label, team, colour, position, predicted, points, predictedPoints, mine }: { label: string; team?: string; colour: string; position: number; predicted: number; points: number; predictedPoints: number; mine?: boolean }) {
   const moved = position - predicted;
   return (
-      <li
-        className="grid grid-cols-[1.6rem_minmax(0,1fr)_1.8rem_3rem_3rem] items-center gap-2 border-t hairline first:border-t-0 py-[6px] text-[12.5px]"
-        style={mine ? { background: `color-mix(in srgb, ${colour} 12%, transparent)` } : undefined}
-      >
-        <span className="font-mono text-[11px] text-ink-soft tabular-nums pl-1">{predicted}</span>
-        <span className="flex items-center gap-2 min-w-0">
-          <span className="w-[3px] h-3.5 rounded-full shrink-0" style={{ background: colour }} />
-          {team && <TeamGlyph team={team} colour={colour} />}
-          <span className="font-sans font-bold truncate">{label}</span>
-        </span>
-        <span className="font-mono text-[10px] text-center" style={{ color: moved > 0 ? "var(--f1-personal)" : moved < 0 ? "var(--down)" : "var(--ink-faint)" }}>
-          {moved > 0 ? `▲${moved}` : moved < 0 ? `▼${-moved}` : "–"}
-        </span>
-        <span className="font-mono text-[12px] tabular-nums text-right">{Math.round(predictedPoints)}</span>
-        <span className="font-mono text-[10.5px] tabular-nums text-right" style={{ color: predictedPoints > points ? "var(--f1-personal)" : "var(--ink-faint)" }}>
-          {predictedPoints > points ? `+${Math.round(predictedPoints - points)}` : "—"}
-        </span>
-      </li>
+    <li
+      className="grid grid-cols-[1.6rem_minmax(0,1fr)_1.8rem_3rem_3rem] items-center gap-2 border-t hairline first:border-t-0 py-[6px] text-[12.5px]"
+      style={mine ? { background: `color-mix(in srgb, ${colour} 12%, transparent)` } : undefined}
+    >
+      <span className="font-mono text-[11px] text-ink-soft tabular-nums pl-1">{predicted}</span>
+      <span className="flex items-center gap-2 min-w-0">
+        <span className="w-[3px] h-3.5 rounded-full shrink-0" style={{ background: colour }} />
+        {team && <TeamGlyph team={team} colour={colour} />}
+        <span className="font-sans font-bold truncate">{label}</span>
+      </span>
+      <span className="font-mono text-[10px] text-center" style={{ color: moved > 0 ? "var(--f1-personal)" : moved < 0 ? "var(--down)" : "var(--ink-faint)" }}>
+        {moved > 0 ? `▲${moved}` : moved < 0 ? `▼${-moved}` : "–"}
+      </span>
+      <span className="font-mono text-[12px] tabular-nums text-right">{Math.round(predictedPoints)}</span>
+      <span className="font-mono text-[10.5px] tabular-nums text-right" style={{ color: predictedPoints > points ? "var(--f1-personal)" : "var(--ink-faint)" }}>
+        {predictedPoints > points ? `+${Math.round(predictedPoints - points)}` : "—"}
+      </span>
+    </li>
   );
 }
 
@@ -547,220 +250,134 @@ function NextUp({ race, next }: { race: F1Race | null; next: string | null }) {
   const first = upcoming[0];
   const at = first ? new Date(first.start) : next ? new Date(next) : null;
   return (
-    <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 sm:p-5 grid md:grid-cols-[minmax(0,1fr)_auto] gap-5 items-center" data-reveal>
-      <div>
-        <div className="flex items-center gap-2 font-label text-[10px] text-ink-soft">
-          <LiveDot running={false} /> Nothing on track right now
-        </div>
-        <p className="font-headline text-[1.45rem] leading-tight mt-2">
-          {first && at
-            ? `${race?.name}: ${first.name}, ${at.toLocaleDateString("en-GB", { weekday: "long" })} at ${at.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}.`
-            : "The next session isn’t on the calendar yet."}
-        </p>
-        <p className="text-[12.5px] text-ink-soft mt-1.5">This page goes live by itself a quarter of an hour before the start. Below, the last session in full.</p>
+    <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-3.5 sm:px-5 flex flex-wrap items-center gap-x-4 gap-y-1">
+      <span className="flex items-center gap-2 font-label text-[9.5px] text-ink-soft">
+        <LiveDot running={false} /> Nothing on track
+      </span>
+      <span className="font-headline text-[15px] leading-snug">
+        {first && at
+          ? `Next: ${first.name}, ${at.toLocaleDateString("en-GB", { weekday: "long" })} at ${at.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. This page goes live by itself.`
+          : "The next session isn’t on the calendar yet."}
+      </span>
+    </div>
+  );
+}
+
+// ---- the views ------------------------------------------------------------------------
+
+function LiveView({ snap, live, replay, onFeed }: { snap: LiveSnapshot; live: boolean; replay: boolean; onFeed: () => void }) {
+  const [enlarged, setEnlarged] = useState(false);
+  const fav = useF1Favourites();
+  const [picked, setPicked] = useState<string | null>(null);
+  const defaultFocus = snap.rows.find((r) => fav.codes.has(r.code) && !r.out)?.code ?? snap.rows[0]?.code ?? null;
+  const focus = picked && snap.rows.some((r) => r.code === picked) ? picked : defaultFocus;
+  const focusRow = snap.rows.find((r) => r.code === focus);
+  const track = useTrack(snap.circuitKey);
+  const photos = snap.photos ?? {};
+  const race = snap.type === "Race";
+
+  return (
+    <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,25rem)] gap-5 lg:gap-6 items-stretch">
+      {/* the map first on a phone: the shape of the session at a glance */}
+      <div className="flex flex-col gap-5 lg:gap-6 min-w-0 lg:order-2">
+        {track ? (
+          <Panel id="track" label={track.name || "Track"} meta={live || replay ? "Cars placed from the timing loops" : track.corners.length ? `${track.corners.length} corners` : undefined}>
+            <TrackMap model={track} snap={snap} focus={focus} onFocus={setPicked} onExpand={() => setEnlarged(true)} fit className="h-[42vh] max-h-[26rem] lg:h-auto lg:max-h-none" />
+            {enlarged && <MapSheet model={track} snap={snap} focus={focus} onFocus={setPicked} onClose={() => setEnlarged(false)} />}
+            {focusRow && <FocusCard row={focusRow} photo={photos[focusRow.code] ?? driverPhotoByCode(focusRow.code, focusRow.team)} snap={snap} track={track} />}
+            {focusRow && snap.running && (
+              <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 font-mono text-[9.5px] text-ink-faint">
+                <span>{focusRow.code}&rsquo;s mini-sectors:</span>
+                <span style={{ color: "var(--f1-fastest)" }}>■ session best</span>
+                <span style={{ color: "var(--f1-personal)" }}>■ personal best</span>
+                <span style={{ color: "var(--f1-slower)" }}>■ slower</span>
+              </div>
+            )}
+          </Panel>
+        ) : (
+          <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] aspect-[4/3] animate-pulse" />
+        )}
+        <Panel label="Latest" meta="Race control · radio · pits" className="hidden lg:flex basis-0 grow min-h-[16rem]" scroll>
+          <Feed snap={snap} mine={fav.codes} photos={photos} limit={5} onMore={onFeed} />
+        </Panel>
       </div>
-      {upcoming.length > 1 && (
-        <ol className="flex flex-wrap md:flex-col gap-x-5 gap-y-1.5 md:min-w-[15rem]">
-          {upcoming.slice(0, 5).map((s) => (
-            <li key={s.name} className="flex justify-between gap-4 text-[12.5px]">
-              <span>{s.name}</span>
-              <span className="font-mono text-[11px] text-ink-soft tabular-nums">
-                {new Date(s.start).toLocaleDateString("en-GB", { weekday: "short" })} {new Date(s.start).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
-              </span>
-            </li>
-          ))}
-        </ol>
+
+      <Panel
+        id="timing"
+        label={live || replay ? "Timing" : "Final classification"}
+        meta={replay ? "As it stood · tap a driver to follow" : live ? `Read ${new Date(snap.at).toLocaleTimeString("en-GB")} · every 5 s` : "Tap a driver to follow on the map"}
+        className="lg:order-1"
+      >
+        <LiveTiming snap={snap} wide focus={focus} onFocus={setPicked} />
+        <div className="mt-auto pt-5 flex flex-wrap items-center gap-x-4 gap-y-1.5 font-mono text-[9.5px] text-ink-faint">
+          <span style={{ color: "var(--f1-fastest)" }}>■ fastest in the session</span>
+          <span style={{ color: "var(--f1-personal)" }}>■ personal best</span>
+          <span style={{ color: "var(--f1-slower)" }}>■ slower</span>
+          <span className="flex items-center gap-1">
+            <TyreIcon compound="SOFT" size={12} /> <TyreIcon compound="MEDIUM" size={12} /> <TyreIcon compound="HARD" size={12} /> tyre · laps on the set
+          </span>
+          {race && <span>Interval: to the car ahead · Gap: to the leader</span>}
+        </div>
+      </Panel>
+
+      {/* on a phone the latest few sit under the order */}
+      <Panel label="Latest" meta="Race control · radio · pits" className="lg:hidden">
+        <Feed snap={snap} mine={fav.codes} photos={photos} limit={4} onMore={onFeed} />
+      </Panel>
+    </div>
+  );
+}
+
+function Tiles({ snap, live }: { snap: LiveSnapshot; live: boolean }) {
+  const race = snap.type === "Race";
+  const tone = TONE[snap.track.tone];
+  const fastest = snap.rows.find((r) => r.bestFastest);
+  return (
+    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+      {race && snap.lap ? (
+        <Tile label="Lap" value={`${snap.lap.current}`} unit={`/ ${snap.lap.total}`} />
+      ) : (
+        <Tile label={live ? (snap.partLabel ? `${snap.partLabel} · left` : "Time left") : "Fastest lap"} value={live && snap.running ? <SessionClock snap={snap} /> : (fastest?.best ?? "—")} unit={live ? undefined : fastest?.code} />
+      )}
+      {live ? <Tile label="Track" value={snap.track.tone === "green" ? "Green" : snap.track.label} tone={snap.track.tone === "green" ? undefined : tone.bg} /> : <Tile label="Session" value="Final" />}
+      {snap.weather && (
+        <>
+          <Tile label="Air" value={snap.weather.air.toFixed(1)} unit="°C" />
+          <Tile label="Track temp" value={snap.weather.track.toFixed(1)} unit="°C" />
+          <Tile label="Humidity" value={Math.round(snap.weather.humidity)} unit="%" />
+          <Tile label={snap.weather.rain ? "Rain" : "Wind"} value={snap.weather.rain ? "Wet" : snap.weather.wind.toFixed(1)} unit={snap.weather.rain ? undefined : "m/s"} tone={snap.weather.rain ? "var(--f1-pit)" : undefined} />
+        </>
       )}
     </div>
   );
 }
 
-/** The jump bar's current part: the last one whose top has passed the bar. */
-function useInView(ids: string[]): string | null {
-  const [cur, setCur] = useState<string | null>(null);
-  const key = ids.join(",");
-  useEffect(() => {
-    const onScroll = () => {
-      let at: string | null = null;
-      for (const id of key.split(",")) {
-        const el = document.getElementById(id);
-        if (el && el.getBoundingClientRect().top < 180) at = id;
-      }
-      setCur(at);
-    };
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [key]);
-  return cur;
-}
-
-// ---- the page -------------------------------------------------------------------
-
-function Session({ snap, live, replay = false }: { snap: LiveSnapshot; live: boolean; replay?: boolean }) {
-  const [enlarged, setEnlarged] = useState(false);
-  const fav = useF1Favourites();
-  const favCodes = fav.codes;
-  const [picked, setPicked] = useState<string | null>(null);
-  const defaultFocus = snap.rows.find((r) => favCodes.has(r.code) && !r.out)?.code ?? snap.rows[0]?.code ?? null;
-  const focus = picked && snap.rows.some((r) => r.code === picked) ? picked : defaultFocus;
-  const focusRow = snap.rows.find((r) => r.code === focus);
-  const highlight = useMemo(() => new Set([...favCodes, ...(focus ? [focus] : [])]), [favCodes, focus]);
-  const track = useTrack(snap.circuitKey);
-  const photos = snap.photos ?? {};
-  const race = snap.type === "Race";
-  const tone = TONE[snap.track.tone];
-
-  const parts = [
-    { id: "timing", label: "Timing" },
-    ...(track ? [{ id: "track", label: "Track" }] : []),
-    ...(snap.raceControl?.length ? [{ id: "race-control", label: "Race control" }] : []),
-    ...(snap.radio?.length ? [{ id: "radio", label: "Radio" }] : []),
-    ...(snap.stints?.some((d) => d.stints.length) ? [{ id: "strategy", label: "Strategy" }] : []),
-    ...(snap.lapPositions?.length ? [{ id: "story", label: "Race story" }] : []),
-    ...(snap.prediction ? [{ id: "title", label: "Title" }] : []),
-    { id: "season", label: "Season" },
-  ];
-  const inView = useInView(parts.map((p) => p.id));
-
-  // Arriving at /f1/live#race-control (from the Pit wall): go there once drawn.
-  const jumped = useRef(false);
-  useEffect(() => {
-    if (jumped.current || !location.hash) return;
-    jumped.current = true;
-    requestAnimationFrame(() => document.getElementById(location.hash.slice(1))?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }, []);
-
-  const lapOrClock = race && snap.lap ? (
-    <Tile label="Lap" value={`${snap.lap.current}`} unit={`/ ${snap.lap.total}`} />
-  ) : (
-    <Tile label={live ? (snap.partLabel ? `${snap.partLabel} · time left` : "Time left") : "Fastest lap"} value={live && snap.running ? <SessionClock snap={snap} /> : (snap.rows.find((r) => r.bestFastest)?.best ?? "—")} unit={live ? undefined : snap.rows.find((r) => r.bestFastest)?.code} />
-  );
-
-  return (
-    <>
-      {/* where the session is, at a glance */}
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mt-6">
-        {lapOrClock}
-        {live ? (
-          <Tile label="Track" value={snap.track.tone === "green" ? "Green" : snap.track.label} tone={snap.track.tone === "green" ? undefined : tone.bg} />
-        ) : (
-          <Tile label="Session" value="Final" />
-        )}
-        {snap.weather ? (
-          <>
-            <Tile label="Air" value={snap.weather.air.toFixed(1)} unit="°C" />
-            <Tile label="Track temp" value={snap.weather.track.toFixed(1)} unit="°C" />
-            <Tile label="Humidity" value={Math.round(snap.weather.humidity)} unit="%" />
-            <Tile label={snap.weather.rain ? "Rain" : "Wind"} value={snap.weather.rain ? "Wet" : snap.weather.wind.toFixed(1)} unit={snap.weather.rain ? undefined : "m/s"} tone={snap.weather.rain ? "var(--f1-pit)" : undefined} />
-          </>
-        ) : null}
-      </div>
-      <div className="h-[3px] rounded-full mt-6" style={{ background: !live || snap.track.tone === "green" ? "var(--hue-f1)" : tone.bg }} />
-
-      <nav aria-label="Parts of the session" className="sticky top-[3.6rem] z-30 mt-6 -mx-1 flex">
-        <div className="glass border hairline rounded-full p-1 flex gap-0.5 overflow-x-auto max-w-full [scrollbar-width:none]">
-          {parts.map((p) => (
-            <a
-              key={p.id}
-              href={`#${p.id}`}
-              className={`rounded-full px-3.5 h-8 flex items-center text-[12.5px] font-sans font-semibold whitespace-nowrap transition-colors ${inView === p.id ? "text-[color:var(--paper)]" : "text-ink-soft hover:text-ink"}`}
-              style={inView === p.id ? { background: "var(--ink)" } : undefined}
-            >
-              {p.label}
-            </a>
-          ))}
-        </div>
-      </nav>
-
-      {/* timing beside the map and the lap benchmarks, the two columns the same height */}
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,25rem)] gap-6 items-stretch mt-6">
-        <Panel
-          id="timing"
-          label={live ? "Timing" : "Final classification"}
-          meta={replay ? "As it stood · tap a driver to follow" : live ? `Read ${new Date(snap.at).toLocaleTimeString("en-GB")} · every 5 s · tap a driver to follow` : "Tap a driver to follow on the map"}
-        >
-          <LiveTiming snap={snap} wide focus={focus} onFocus={setPicked} />
-          {/* the key, at the foot of the panel (it shares its height with the map's column) */}
-          <div className="mt-auto pt-5 flex flex-wrap items-center gap-x-4 gap-y-1.5 font-mono text-[9.5px] text-ink-faint">
-            <span style={{ color: "var(--f1-fastest)" }}>■ fastest in the session</span>
-            <span style={{ color: "var(--f1-personal)" }}>■ personal best</span>
-            <span style={{ color: "var(--f1-slower)" }}>■ slower</span>
-            <span className="flex items-center gap-1">
-              <TyreIcon compound="SOFT" size={12} /> <TyreIcon compound="MEDIUM" size={12} /> <TyreIcon compound="HARD" size={12} /> tyre · laps on the set
-            </span>
-            {race && <span>Interval: to the car ahead · Gap: to the leader</span>}
-          </div>
-        </Panel>
-
-        <div className="flex flex-col gap-6 min-w-0">
-          {track && (
-            <Panel id="track" label={track.name || "Track"} meta={live ? "Cars placed from the timing loops" : track.corners.length ? `${track.corners.length} corners` : undefined}>
-              <TrackMap model={track} snap={snap} focus={focus} onFocus={setPicked} onExpand={() => setEnlarged(true)} />
-              {enlarged && <MapSheet model={track} snap={snap} focus={focus} onFocus={setPicked} onClose={() => setEnlarged(false)} />}
-              {focusRow && <FocusCard row={focusRow} photo={photos[focusRow.code] ?? driverPhotoByCode(focusRow.code, focusRow.team)} snap={snap} />}
-              {focusRow && (
-                <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 font-mono text-[9.5px] text-ink-faint">
-                  <span>{focusRow.code}&rsquo;s mini-sectors:</span>
-                  <span style={{ color: "var(--f1-fastest)" }}>■ session best</span>
-                  <span style={{ color: "var(--f1-personal)" }}>■ personal best</span>
-                  <span style={{ color: "var(--f1-slower)" }}>■ slower</span>
-                </div>
-              )}
-            </Panel>
-          )}
-          <Panel id="benchmarks" label="Lap benchmarks" meta={snap.meeting.replace(/ Grand Prix$/, "")} className="flex-1">
-            <Benchmarks snap={snap} />
-          </Panel>
-        </div>
-      </div>
-
-      {/* the two feeds side by side, the same height, each scrolling inside */}
-      {(snap.raceControl?.length || snap.radio?.length) && (
-        <div className={`grid gap-6 mt-6 ${snap.raceControl?.length && snap.radio?.length ? "lg:grid-cols-2" : ""}`}>
-          {snap.raceControl?.length ? (
-            <Panel id="race-control" label="Race control" meta={`${snap.raceControl.length} messages · newest first`} scroll className="h-[30rem] lg:h-[36rem]">
-              <RaceControl items={snap.raceControl} />
-            </Panel>
-          ) : null}
-          {snap.radio?.length ? (
-            <Panel id="radio" label="Team radio" meta={`${snap.radio.length} clips · transcribed`} scroll className="h-[30rem] lg:h-[36rem]">
-              <Radio clips={snap.radio} photos={photos} />
-            </Panel>
-          ) : null}
-        </div>
-      )}
-
-      {snap.stints?.some((d) => d.stints.length) && (
-        <Panel id="strategy" label="Tyre strategy" meta={race && snap.lap ? `${snap.lap.total} laps` : "Laps on each set"} className="mt-6">
-          <Strategy stints={snap.stints} total={race ? (snap.lap?.total ?? 0) : 0} highlight={highlight} />
-        </Panel>
-      )}
-
-      {snap.lapPositions && snap.lapPositions.length > 0 && (
-        <Panel id="story" label="The race, lap by lap" meta="Point at a line to see whose it is" className="mt-6">
-          <RaceStory data={snap.lapPositions} highlight={highlight} names={Object.fromEntries(snap.rows.map((r) => [r.code, r.name]))} />
-        </Panel>
-      )}
-
-      {snap.prediction && (
-        <Panel id="title" label="The title, live" meta="F1's projection if the race ended now" className="mt-6">
-          <Title p={snap.prediction} fav={favCodes} />
-        </Panel>
-      )}
-    </>
-  );
-}
+// ---- the page --------------------------------------------------------------------------
 
 export default function LiveCentre({ race }: { race: F1Race | null }) {
   // ?session=<archive path>: a past session, kept in the address so it can be shared or reloaded.
   const [past, setPast] = useState<string | null>(null);
+  const [nav, setNav] = useState<{ view: View; sub: Sub }>({ view: "live", sub: "tyres" });
   useEffect(() => {
-    const read = () => setPast(new URLSearchParams(location.search).get("session"));
+    const read = () => {
+      setPast(new URLSearchParams(location.search).get("session"));
+      setNav(readHash());
+    };
     read();
     window.addEventListener("popstate", read);
-    return () => window.removeEventListener("popstate", read);
+    window.addEventListener("hashchange", read);
+    return () => {
+      window.removeEventListener("popstate", read);
+      window.removeEventListener("hashchange", read);
+    };
   }, []);
+  const go = (view: View, sub: Sub = nav.sub) => {
+    setNav({ view, sub });
+    history.replaceState(null, "", `${location.pathname}${location.search}#${view === "analysis" ? `analysis/${sub}` : view}`);
+    // Back to the top of the views when the new one starts above the screen.
+    const top = document.getElementById("views-top");
+    if (top && top.getBoundingClientRect().top < 0) window.scrollTo({ top: top.getBoundingClientRect().top + window.scrollY - 72, behavior: "instant" });
+  };
   const pick = (path: string | null) => {
     const url = new URL(location.href);
     if (path) url.searchParams.set("session", path);
@@ -769,6 +386,7 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
     setPast(path);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
+
   const { snapshot, last, next, checked } = useF1Live({ full: true, always: !past, session: past });
   const live = !past && !!snapshot;
   const base = live ? snapshot : last;
@@ -781,15 +399,20 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
   }
   const replay = useReplay(replaying ? replayPath : null);
   const snap = replaying && replay.snap ? replay.snap : base;
+  const inReplay = replaying && !!replay.snap;
+  const fav = useF1Favourites();
+  const highlight = useMemo(() => new Set(fav.codes), [fav.codes]);
+  const view = nav.view;
+  const tone = snap ? TONE[snap.track.tone] : null;
 
   return (
     <>
-      <div className="flex items-center justify-between gap-3">
-        <Link href="/#paddock-notes" className="chip">
-          <span aria-hidden="true">←</span> Pit wall
+      <div className="flex items-center justify-between gap-2">
+        <Link href="/#paddock-notes" className="chip shrink-0">
+          <span aria-hidden="true">←</span> <span className="hidden sm:inline">Pit wall</span>
         </Link>
-        <span className="flex items-center gap-2">
-          <PastSessions current={past} onPick={pick} />
+        <span className="flex items-center gap-2 min-w-0">
+          <PastSessions current={past} label={past && snap ? `${snap.meeting.replace(/ Grand Prix$/, "")} · ${snap.session.replace("Practice ", "FP")}` : null} onPick={pick} />
           {!live && base?.path && !replaying && (
             <button
               type="button"
@@ -797,7 +420,7 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
                 setReplayPath(base.path);
                 setReplaying(true);
               }}
-              className="chip h-8 text-[12px] gap-1.5"
+              className="chip h-8 text-[12px] gap-1.5 shrink-0"
               title="Play the session back as it happened"
             >
               <svg viewBox="0 0 12 12" className="w-3 h-3" fill="currentColor" aria-hidden="true">
@@ -807,7 +430,7 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
             </button>
           )}
           {snap && (
-            <span className="flex items-center gap-2 rounded-full border hairline h-8 px-3 font-label text-[9.5px]">
+            <span className="hidden sm:flex items-center gap-2 rounded-full border hairline h-8 px-3 font-label text-[9.5px] shrink-0">
               <LiveDot running={(live || replaying) && snap.running} />
               <span style={{ color: (live || replaying) && snap.running ? "var(--hue-f1)" : undefined }}>
                 {replaying ? "Replay" : live ? (snap.running ? "Live" : snap.status === "Inactive" ? "Starting soon" : "Chequered flag") : past ? "Archive" : "Final"}
@@ -817,29 +440,96 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
         </span>
       </div>
 
-      <header className="mt-8" data-reveal="fade">
-        <div className="font-label text-[10px] text-ink-soft">
-          {snap ? `${snap.location} · ${sessionLine(snap)}` : "Live centre"}
+      <header className="mt-6 sm:mt-8">
+        <div className="flex items-center gap-2 font-label text-[10px] text-ink-soft">
+          {snap && <LiveDot running={(live || replaying) && snap.running} />}
+          <span className="truncate">{snap ? `${snap.location} · ${sessionLine(snap)}` : "Live centre"}</span>
         </div>
-        <h1 className="font-display font-extrabold uppercase text-[clamp(2.8rem,9vw,6.5rem)] leading-[0.84] mt-3">
-          {snap?.meeting ?? race?.name ?? "Live centre"}
-        </h1>
+        <h1 className="font-display font-extrabold uppercase text-[clamp(2.2rem,8vw,5.5rem)] leading-[0.86] mt-2.5">{snap?.meeting ?? race?.name ?? "Live centre"}</h1>
       </header>
 
-      {!checked && <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] mt-8 h-72 animate-pulse" />}
+      {!checked && <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] mt-6 h-72 animate-pulse" />}
       {checked && !live && !past && (
-        <div className="mt-8">
+        <div className="mt-5">
           <NextUp race={race} next={next} />
         </div>
       )}
-      {past && checked && !snap && (
-        <p className="mt-8 font-mono text-[11px] text-ink-faint">F1&rsquo;s archive hasn&rsquo;t published that session yet.</p>
+      {past && checked && !snap && <p className="mt-6 font-mono text-[11px] text-ink-faint">F1&rsquo;s archive hasn&rsquo;t published that session yet.</p>}
+
+      {snap && (
+        <div className="mt-5">
+          <Tiles snap={snap} live={live || inReplay} />
+          <div className="h-[3px] rounded-full mt-5" style={{ background: !(live || inReplay) || snap.track.tone === "green" ? "var(--hue-f1)" : tone!.bg }} />
+        </div>
       )}
-      {snap && <Session snap={snap} live={live || (replaying && !!replay.snap)} replay={replaying && !!replay.snap} />}
-      {checked && <Season />}
+
+      <div id="views-top" aria-hidden="true" />
+      {/* the views: a bar at the top on a wide screen */}
+      <nav id="views" aria-label="Views" className="hidden lg:flex sticky top-[3.6rem] z-30 mt-6 scroll-mt-20">
+        <div className="glass border hairline rounded-full p-1 flex gap-0.5">
+          {VIEWS.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              onClick={() => go(v.id)}
+              aria-current={view === v.id ? "page" : undefined}
+              className={`rounded-full px-4 h-9 flex items-center gap-2 text-[13px] font-sans font-semibold whitespace-nowrap transition-colors ${view === v.id ? "text-[color:var(--paper)]" : "text-ink-soft hover:text-ink"}`}
+              style={view === v.id ? { background: "var(--ink)" } : undefined}
+            >
+              <span className="[&_svg]:w-4 [&_svg]:h-4">{v.icon}</span>
+              {v.label}
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      <div key={view} className="mt-5 lg:mt-6 animate-[fade-in_0.25s_ease]">
+        {snap && view === "live" && <LiveView snap={snap} live={live} replay={inReplay} onFeed={() => go("feed")} />}
+        {snap && view === "analysis" && <Analysis snap={snap} sub={nav.sub} onSub={(s) => go("analysis", s)} highlight={highlight} mine={fav.codes} />}
+        {snap && view === "feed" && (
+          <Panel label="The feed" meta={`${snap.session} · newest first`}>
+            <Feed snap={snap} mine={fav.codes} photos={snap.photos ?? {}} />
+          </Panel>
+        )}
+        {snap && view === "weekend" && <Weekend snap={snap} race={race} current={past} onPick={pick} />}
+        {view === "season" && (
+          <div className="space-y-6">
+            {snap?.prediction && (
+              <Panel label="The title, live" meta="F1's projection if the race ended now">
+                <Title p={snap.prediction} fav={fav.codes} />
+              </Panel>
+            )}
+            {checked && <Season />}
+          </div>
+        )}
+      </div>
+
+      {/* the views on a phone: a bar along the foot, like an app's */}
+      <div className="lg:hidden h-20" aria-hidden="true" />
+      <nav aria-label="Views" className="lg:hidden fixed inset-x-0 bottom-0 z-40 glass border-t hairline pb-[env(safe-area-inset-bottom)]">
+        <div className="grid grid-cols-5 max-w-lg mx-auto">
+          {VIEWS.map((v) => {
+            const on = view === v.id;
+            return (
+              <button
+                key={v.id}
+                type="button"
+                onClick={() => go(v.id)}
+                aria-current={on ? "page" : undefined}
+                className={`relative flex flex-col items-center gap-1 pt-2.5 pb-2 font-sans text-[10.5px] font-semibold transition-colors ${on ? "text-ink" : "text-ink-faint"}`}
+              >
+                {on && <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[3px] rounded-b-full" style={{ background: "var(--hue-f1)" }} />}
+                {v.icon}
+                {v.label}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
       {replaying && (
         <>
-          <div className="h-24" aria-hidden="true" />
+          <div className="h-20" aria-hidden="true" />
           <ReplayBar
             replay={replay}
             onClose={() => {

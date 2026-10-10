@@ -29,7 +29,7 @@ export function useTrack(circuitKey: number | null | undefined): TrackModel | nu
     let live = true;
     let p = cache.get(circuitKey);
     if (!p) {
-      p = fetch(`/api/f1/track?key=${circuitKey}`)
+      p = fetch(`/api/f1/track?key=${circuitKey}&v=2`)
         .then((r) => (r.ok ? (r.json() as Promise<TrackModel>) : null))
         .catch(() => null);
       cache.set(circuitKey, p);
@@ -77,6 +77,7 @@ export default function TrackMap({
   sectors = null,
   onExpand,
   big = false,
+  fit = false,
   className = "",
   label,
 }: {
@@ -90,8 +91,10 @@ export default function TrackMap({
   sectors?: [number, number] | null;
   /** Shows an enlarge button. */
   onExpand?: () => void;
-  /** The enlarged map: finer labels. */
+  /** The enlarged map: finer labels, and the map fits its box both ways. */
   big?: boolean;
+  /** Fit the box both ways (give it a height through className). */
+  fit?: boolean;
   className?: string;
   label?: string;
 }) {
@@ -121,12 +124,23 @@ export default function TrackMap({
   const ends = sectorEnds(snap?.sectorRef) ?? sectors ?? model.sectors ?? null;
 
   // The field is drawn only while a session runs.
-  const cars = useMemo(() => (snap?.running ? estimateCars(snap) : []), [snap]);
+  const cars = useMemo(() => (snap?.running ? estimateCars(snap, model.loops) : []), [snap, model.loops]);
   const focusRow = snap?.rows.find((r) => r.code === focus);
-  const bounds = useMemo(() => (snap ? segmentBounds(snap) : []), [snap]);
+  const bounds = useMemo(() => (snap ? segmentBounds(snap, model.loops) : []), [snap, model.loops]);
   // Mini-sectors light only while the session runs (afterwards they'd show
   // whatever lap each car was on when it came in).
-  const marks = snap?.running ? segmentMarks(focusRow) : [];
+  const marks = useMemo(() => (snap?.running ? segmentMarks(focusRow) : []), [snap?.running, focusRow]);
+
+  // The followed driver's mini-sectors are drawn up to where the car is on
+  // the map — never ahead of it, never trailing it: the frame loop clips the
+  // lit ones at the car and runs a faint trail in the team colour over the
+  // stretch it is driving now (its colour comes when the loop lights).
+  const segRefs = useRef<(SVGPolylineElement | null)[]>([]);
+  const trailRef = useRef<SVGPolylineElement>(null);
+  const overlay = useRef({ focus: null as string | null, marks: [] as SegmentMark[], bounds: [] as { from: number; to: number }[], drawn: "" });
+  useEffect(() => {
+    overlay.current = { focus: snap?.running ? (focus ?? null) : null, marks, bounds, drawn: "" };
+  }, [focus, marks, bounds, snap?.running]);
 
   // ---- the field: driven forward, steered towards each estimate ------------
   const carRefs = useRef(new Map<string, SVGGElement>());
@@ -195,6 +209,31 @@ export default function TrackMap({
         const [x, y] = pointAt(model, at);
         el.setAttribute("transform", `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
       }
+
+      // The followed driver's lit mini-sectors, up to the car.
+      const o = overlay.current;
+      if (o.focus) {
+        const at = carRefs.current.has(o.focus) ? motion.current.get(o.focus) : undefined;
+        // Off the map (in the pits): the lap so far, whole.
+        const f = at === undefined ? 1 : ((at % 1) + 1) % 1;
+        const q = `${Math.round(f * 800)}`;
+        if (q !== o.drawn) {
+          o.drawn = q;
+          let lastLit = 0;
+          o.bounds.forEach((b, i) => {
+            const el = segRefs.current[i];
+            if (!el) return;
+            const lit = o.marks[i] && o.marks[i] !== "none";
+            if (!lit || b.from >= f) {
+              el.setAttribute("points", "");
+              return;
+            }
+            el.setAttribute("points", stretch(model, b.from, Math.min(b.to, f)));
+            if (b.to <= f) lastLit = Math.max(lastLit, b.to);
+          });
+          trailRef.current?.setAttribute("points", at !== undefined && f - lastLit > 0.003 ? stretch(model, lastLit, f) : "");
+        }
+      }
       if (!reduced) raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
@@ -216,7 +255,8 @@ export default function TrackMap({
       <svg
         ref={svgRef}
         viewBox={`0 0 ${model.width} ${model.height}`}
-        className={`block w-full h-auto ${drawn ? "track-drawn" : "track-undrawn"}`}
+        className={`block w-full ${big || fit ? "h-full" : "h-auto"} ${drawn ? "track-drawn" : "track-undrawn"}`}
+        preserveAspectRatio="xMidYMid meet"
         role="img"
         aria-label={label ?? `${model.name} circuit map`}
       >
@@ -232,13 +272,24 @@ export default function TrackMap({
         <path d={model.path} fill="none" stroke="var(--rule)" strokeWidth={30 * scale} strokeLinejoin="round" strokeLinecap="round" />
         <path className="track-line" d={model.path} pathLength={1} fill="none" stroke="var(--ink-soft)" strokeWidth={7 * scale} strokeLinejoin="round" strokeLinecap="round" />
 
-        {/* the followed driver's mini-sectors, lit as the timing screens light them */}
+        {/* the followed driver's mini-sectors, lit as the timing screens light them (points set by the frame loop) */}
         {snap &&
-          bounds.map((b, i) =>
-            marks[i] && marks[i] !== "none" ? (
-              <polyline key={i} points={stretch(model, b.from, b.to)} fill="none" stroke={MARK[marks[i]]} strokeWidth={9 * scale} strokeLinecap="round" strokeLinejoin="round" className="segment-in" />
-            ) : null,
-          )}
+          bounds.map((_, i) => (
+            <polyline
+              key={i}
+              ref={(el) => {
+                segRefs.current[i] = el;
+              }}
+              points=""
+              fill="none"
+              stroke={MARK[marks[i] ?? "none"]}
+              strokeWidth={9 * scale}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ transition: "stroke 0.3s ease" }}
+            />
+          ))}
+        {snap && <polyline ref={trailRef} points="" fill="none" stroke={focusRow?.colour ?? "var(--ink)"} strokeOpacity={0.5} strokeWidth={9 * scale} strokeLinecap="round" strokeLinejoin="round" />}
 
         <g className="track-corner">
           {/* where sectors 2 and 3 begin */}

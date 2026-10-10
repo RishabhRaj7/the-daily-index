@@ -5,9 +5,11 @@ import type { PastMeeting } from "@/lib/live/f1-live";
 
 // Any finished session of the season, from F1's archive: a button that opens
 // the season meeting by meeting (newest first), each with its sessions.
-// Picking one shows it in full on this page; "Latest" goes back.
+// Picking one shows it in full on this page; "Latest" goes back. The choice
+// stays on the button ("Bahrain · Race") and in the address, and reopening
+// the list brings the chosen session into view, marked.
 
-export default function PastSessions({ current, onPick }: { current: string | null; onPick: (path: string | null) => void }) {
+export default function PastSessions({ current, label, onPick }: { current: string | null; label?: string | null; onPick: (path: string | null) => void }) {
   const [open, setOpen] = useState(false);
   const [meetings, setMeetings] = useState<PastMeeting[] | null>(null);
   const box = useRef<HTMLDivElement>(null);
@@ -19,6 +21,12 @@ export default function PastSessions({ current, onPick }: { current: string | nu
       .then(setMeetings)
       .catch(() => setMeetings([]));
   }, [open, meetings]);
+
+  // The chosen session in view when the list opens.
+  useEffect(() => {
+    if (!open || !meetings || !current) return;
+    box.current?.querySelector('[aria-current="true"]')?.scrollIntoView({ block: "center" });
+  }, [open, meetings, current]);
 
   useEffect(() => {
     if (!open) return;
@@ -36,15 +44,24 @@ export default function PastSessions({ current, onPick }: { current: string | nu
 
   return (
     <div ref={box} className="relative">
-      <button type="button" onClick={() => setOpen((v) => !v)} className="chip h-8 text-[12px] gap-1.5" aria-expanded={open}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="chip h-8 text-[12px] gap-1.5 max-w-[11rem] sm:max-w-[16rem]"
+        aria-expanded={open}
+        style={current ? { borderColor: "var(--hue-f1)", color: "var(--ink)" } : undefined}
+      >
         <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
           <circle cx="8" cy="8" r="5.8" />
           <path d="M8 4.8V8l2.2 1.4" />
         </svg>
-        Past sessions
+        <span className="truncate">{current && label ? label : "Past sessions"}</span>
+        <svg viewBox="0 0 12 12" className={`w-2.5 h-2.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+          <path d="M3 4.5 6 7.5l3-3" />
+        </svg>
       </button>
       {open && (
-        <div className="absolute right-0 top-10 z-40 w-[min(92vw,26rem)] max-h-[70vh] overflow-y-auto rounded-2xl border hairline bg-[var(--surface)] shadow-[0_30px_80px_-30px_rgba(0,0,0,0.6)] p-3 animate-[sheet-up_0.3s_var(--ease-out)]">
+        <div className="absolute right-0 top-10 z-50 w-[min(calc(100vw-2rem),26rem)] max-h-[70vh] overflow-y-auto rounded-2xl border hairline bg-[var(--surface)] shadow-[0_30px_80px_-30px_rgba(0,0,0,0.6)] p-3 animate-[sheet-up_0.3s_var(--ease-out)]">
           {current && (
             <button
               type="button"
@@ -78,6 +95,7 @@ export default function PastSessions({ current, onPick }: { current: string | nu
                         <button
                           key={x.path}
                           type="button"
+                          aria-current={on || undefined}
                           onClick={() => {
                             onPick(x.path);
                             setOpen(false);

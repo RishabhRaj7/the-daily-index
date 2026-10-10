@@ -27,10 +27,10 @@ export default function RaceStory({ data, highlight, names }: { data: Story; hig
   const x = (lap: number) => PAD.l + (lap / (laps - 1)) * (W - PAD.l - PAD.r);
   const y = (pos: number) => PAD.t + (pos - 1) * ROW;
   const lifted = hover?.code ?? null;
-  const ordered = [...data].sort((a, b) => rank(a.code) - rank(b.code));
-  function rank(code: string) {
-    return code === lifted ? 2 : highlight.has(code) ? 1 : 0;
-  }
+  // The drawing order never changes with the pointer (re-ordering would
+  // restart the lines' draw-in); the lifted line is drawn again on top.
+  const ordered = [...data].sort((a, b) => Number(highlight.has(a.code)) - Number(highlight.has(b.code)));
+  const liftedData = lifted ? data.find((d) => d.code === lifted) : undefined;
   const ticks = Array.from({ length: laps }, (_, i) => i).filter((i) => i === 0 || (i + 1) % 10 === 0 || i === laps - 1);
 
   // The pointer's lap, and the driver whose line is nearest it there.
@@ -106,7 +106,7 @@ export default function RaceStory({ data, highlight, names }: { data: Story; hig
                 pathLength={1}
                 fill="none"
                 stroke={d.colour}
-                strokeWidth={up ? 3.6 : on ? 3 : 1.4}
+                strokeWidth={on ? 3 : 1.4}
                 strokeOpacity={opacity}
                 strokeLinejoin="round"
                 strokeLinecap="round"
@@ -131,6 +131,17 @@ export default function RaceStory({ data, highlight, names }: { data: Story; hig
             </g>
           );
         })}
+        {liftedData && (
+          <polyline
+            points={liftedData.positions.map((p, i) => `${x(i).toFixed(1)},${y(p).toFixed(1)}`).join(" ")}
+            fill="none"
+            stroke={liftedData.colour}
+            strokeWidth={3.6}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            pointerEvents="none"
+          />
+        )}
         {card && <circle cx={x(card.lap)} cy={y(card.pos)} r="6" fill={card.d.colour} stroke="var(--paper)" strokeWidth="2.5" />}
       </svg>
       {card && (

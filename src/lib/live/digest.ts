@@ -18,7 +18,7 @@
 
 import { createHash } from "node:crypto";
 import { isSponsored } from "./sponsored";
-import { aiEnabled, generateJson, Type, type Schema } from "@/lib/server/gemini";
+import { aiEnabled, generateJson, summaryModels, Type, type Schema } from "@/lib/server/gemini";
 import { dedupeWires } from "./rss";
 import { getWorldIndiaWire, getIndiaWire, getMarketsWire, getMoneyWire } from "./news";
 import { getSignalStories, matchSignal, missingLeads, signalIndex } from "./signals";
@@ -1284,7 +1284,7 @@ export async function generateDigest(
     for (const a of corpus) pools[a.pool] = (pools[a.pool] ?? 0) + 1;
 
     const finish = (result: DigestResult): DigestResult & { report: BuildReport } => {
-      recordExtra({ printed: printedStats(result), ...(result.engine === "ai" ? { model: process.env.GEMINI_MODEL || "default" } : {}) });
+      recordExtra({ printed: printedStats(result), ...(result.engine === "ai" ? { model: summaryModels()[0] } : {}) });
       return { ...result, report: finishReport(collector, { startedAt, engine: result.engine, pools, corpus: corpus.length }) };
     };
 

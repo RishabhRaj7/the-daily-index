@@ -5,11 +5,13 @@ import { rememberSectors } from "./f1-track";
 import type {
   LapMark,
   LiveAnswer,
+  LivePitStop,
   LivePrediction,
   LiveRaceControl,
   LiveRadio,
   LiveRow,
   LiveSnapshot,
+  LiveStats,
   LiveStints,
   SegmentMark,
   TrackTone,
@@ -173,7 +175,7 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
     .map(obj)
     .map((m) => ({ utc: str(m.Utc), lap: m.Lap == null ? null : num(m.Lap), category: str(m.Category), flag: str(m.Flag) || null, message: str(m.Message) }))
     .reverse()
-    .slice(0, 60);
+    .slice(0, 250);
 
   const radio: LiveRadio[] = list(obj(state.TeamRadio).Captures)
     .map(obj)
@@ -184,7 +186,7 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
       return url ? [{ utc: str(c.Utc), number: no, code: r?.code ?? no, colour: r?.colour ?? "#888888", url }] : [];
     })
     .reverse()
-    .slice(0, 30);
+    .slice(0, 90);
 
   const stints: LiveStints[] = rows.map((r) => ({
     number: r.number,
@@ -217,6 +219,41 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
       return { code: r?.code ?? no, colour: r?.colour ?? "#888888", positions: list(obj(v).LapPosition).map(num) };
     })
     .filter((d) => d.positions.length > 1);
+
+  // Each car's bests: speed traps, sectors, lap.
+  const speed = (v: unknown) => {
+    const n = Number(str(obj(v).Value));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+  const stats: LiveStats[] = Object.entries(obj(obj(state.TimingStats).Lines)).flatMap(([no, v]) => {
+    const r = byNo.get(no);
+    if (!r) return [];
+    const l = obj(v);
+    const bs = obj(l.BestSpeeds);
+    const sectors = list(l.BestSectors).map((x) => str(obj(x).Value) || null);
+    return [
+      {
+        code: r.code,
+        colour: r.colour,
+        team: r.team,
+        speeds: { i1: speed(bs.I1), i2: speed(bs.I2), fl: speed(bs.FL), st: speed(bs.ST) },
+        bestSectors: [sectors[0] ?? null, sectors[1] ?? null, sectors[2] ?? null] as [string | null, string | null, string | null],
+        personalBest: str(obj(l.PersonalBestLapTime).Value) || null,
+      },
+    ];
+  });
+
+  // Every pit stop so far: lap, time standing, time in the lane.
+  const pitStops: LivePitStop[] = Object.entries(obj(obj(state.PitStopSeries).PitTimes))
+    .flatMap(([no, v]) => {
+      const r = byNo.get(no);
+      return list(v).map((e) => {
+        const p = obj(obj(e).PitStop);
+        const n = (x: unknown) => (Number.isFinite(Number(str(x))) && str(x) !== "" ? Number(str(x)) : null);
+        return { code: r?.code ?? no, colour: r?.colour ?? "#888888", lap: num(p.Lap), stationary: n(p.PitStopTime), lane: n(p.PitLaneTime), utc: str(obj(e).Timestamp) };
+      });
+    })
+    .sort((a, b) => b.utc.localeCompare(a.utc));
 
   const cp = obj(state.ChampionshipPrediction);
   const teamColour = new Map(rows.map((r) => [r.team, r.colour]));
@@ -267,6 +304,8 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
     prediction,
     photos,
     lapPositions: type === "Race" ? lapPositions : [],
+    stats,
+    pitStops,
   };
 }
 
@@ -307,7 +346,9 @@ async function keepClassification(snap: LiveSnapshot, info: CurrentSessionInfo):
 
 /** Pit wall size: the table and its header, nothing else. */
 export function compact(s: LiveSnapshot): LiveSnapshot {
-  const { raceControl, radio, stints, prediction, photos, lapPositions, transcripts, ...rest } = s;
+  const { raceControl, radio, stints, prediction, photos, lapPositions, transcripts, stats, pitStops, ...rest } = s;
+  void stats;
+  void pitStops;
   void stints;
   void prediction;
   void photos;
@@ -323,7 +364,7 @@ export function compact(s: LiveSnapshot): LiveSnapshot {
 }
 
 /** Development only: a finished session from F1's archive, shown as if it were running. */
-const ARCHIVE_TOPICS = ["SessionInfo", "SessionStatus", "TrackStatus", "LapCount", "ExtrapolatedClock", "DriverList", "TimingData", "TimingAppData", "TimingStats", "RaceControlMessages", "TeamRadio", "WeatherData", "ChampionshipPrediction", "LapSeries"];
+const ARCHIVE_TOPICS = ["SessionInfo", "SessionStatus", "TrackStatus", "LapCount", "ExtrapolatedClock", "DriverList", "TimingData", "TimingAppData", "TimingStats", "RaceControlMessages", "TeamRadio", "WeatherData", "ChampionshipPrediction", "LapSeries", "PitStopSeries"];
 
 const infoFrom = (state: LiveState, fallbackPath?: string): CurrentSessionInfo | null => {
   const si = obj(state.SessionInfo);
@@ -373,7 +414,7 @@ const LAST = "f1:session:last";
 async function keepSession(snap: LiveSnapshot): Promise<void> {
   const store = getStore();
   await rememberSectors(snap.circuitKey, snap.sectorRef);
-  await store.set(`f1:session:v1:${snap.sessionKey}`, snap, { ttlSeconds: SESSION_DAYS * 86_400 }).catch(() => {});
+  await store.set(`f1:session:v2:${snap.sessionKey}`, snap, { ttlSeconds: SESSION_DAYS * 86_400 }).catch(() => {});
   await store.set(LAST, snap.sessionKey, { ttlSeconds: SESSION_DAYS * 86_400 }).catch(() => {});
 }
 
@@ -408,7 +449,7 @@ export async function lastSession(): Promise<LiveSnapshot | null> {
   const [latest, pointer] = await Promise.all([latestFinished(), store.get<number>(LAST).catch(() => null)]);
   const want = latest?.Key ?? pointer;
   if (want) {
-    const kept = await store.get<LiveSnapshot>(`f1:session:v1:${want}`).catch(() => null);
+    const kept = await store.get<LiveSnapshot>(`f1:session:v2:${want}`).catch(() => null);
     if (kept) {
       void rememberSectors(kept.circuitKey, kept.sectorRef);
       return kept;
@@ -422,7 +463,7 @@ export async function lastSession(): Promise<LiveSnapshot | null> {
     }
   }
   // F1 hasn't published the newest yet: the one before, as kept.
-  return pointer ? await store.get<LiveSnapshot>(`f1:session:v1:${pointer}`).catch(() => null) : null;
+  return pointer ? await store.get<LiveSnapshot>(`f1:session:v2:${pointer}`).catch(() => null) : null;
 }
 
 export async function getLive(opts: { fresh?: boolean; withLast?: boolean } = {}): Promise<LiveAnswer> {
@@ -496,7 +537,7 @@ export async function seasonSessions(year = new Date().getUTCFullYear()): Promis
 /** One past session in full: what was kept, else F1's archive (then kept). */
 export async function pastSession(path: string): Promise<LiveSnapshot | null> {
   const store = getStore();
-  const key = `f1:past:v1:${path}`;
+  const key = `f1:past:v2:${path}`;
   const kept = await store.get<LiveSnapshot>(key).catch(() => null);
   if (kept) return kept;
   const built = await archivedSession(path);

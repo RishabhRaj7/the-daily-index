@@ -301,7 +301,7 @@ export default function Season() {
 
   if (failed) return null;
   return (
-    <section id="season" className="mt-12 scroll-mt-32" data-reveal>
+    <section id="season" className="scroll-mt-32">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="font-label text-[10px] text-ink-soft">The season so far</div>

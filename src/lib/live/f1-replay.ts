@@ -24,6 +24,7 @@ const TOPICS = [
   "WeatherData",
   "ChampionshipPrediction",
   "LapSeries",
+  "PitStopSeries",
 ];
 
 interface Event {

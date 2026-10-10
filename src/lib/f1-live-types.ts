@@ -80,6 +80,27 @@ export interface LiveStints {
   stints: { compound: TyreCompound; laps: number; fresh: boolean }[];
 }
 
+/** A car's bests this session (TimingStats): speed traps in km/h, best sectors, best lap. */
+export interface LiveStats {
+  code: string;
+  colour: string;
+  team: string;
+  /** I1 / I2: intermediate traps in sectors 1 and 2; FL: the finish line; ST: the speed trap. */
+  speeds: { i1: number | null; i2: number | null; fl: number | null; st: number | null };
+  bestSectors: [string | null, string | null, string | null];
+  personalBest: string | null;
+}
+
+/** One pit stop (PitStopSeries): lap, time standing still, time in the pit lane. */
+export interface LivePitStop {
+  code: string;
+  colour: string;
+  lap: number;
+  stationary: number | null;
+  lane: number | null;
+  utc: string;
+}
+
 export interface LivePrediction {
   drivers: { code: string; colour: string; position: number; predicted: number; points: number; predictedPoints: number }[];
   teams: { name: string; colour: string; position: number; predicted: number; points: number; predictedPoints: number }[];
@@ -130,6 +151,8 @@ export interface LiveSnapshot {
   prediction?: LivePrediction | null;
   /** Portraits by timing code. */
   photos?: Record<string, string>;
+  stats?: LiveStats[];
+  pitStops?: LivePitStop[];
   /** Races: each driver's position at the end of every lap. */
   lapPositions?: { code: string; colour: string; positions: number[] }[];
   /** Team radio transcripts, by clip address (filled in as they are written). */
@@ -160,4 +183,6 @@ export interface TrackModel {
   pitLoss: number | null;
   /** Where sectors 1 and 2 end, as shares of a lap (remembered from sessions run here). */
   sectors?: [number, number] | null;
+  /** Where each mini-sector really ends, as shares of a lap (measured from F1's archive). */
+  loops?: number[] | null;
 }

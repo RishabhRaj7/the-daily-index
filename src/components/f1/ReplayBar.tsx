@@ -186,7 +186,7 @@ export default function ReplayBar({ replay, onClose }: { replay: Replay; onClose
 
   if (!timeline) {
     return (
-      <div className="fixed inset-x-3 bottom-3 z-40 mx-auto max-w-[min(1200px,calc(100%-1.5rem))] glass border hairline rounded-2xl px-4 py-3 font-mono text-[11px] shimmer-text">
+      <div className="fixed inset-x-3 bottom-[calc(4.6rem+env(safe-area-inset-bottom))] lg:bottom-3 z-40 mx-auto max-w-[min(1200px,calc(100%-1.5rem))] glass border hairline rounded-2xl px-4 py-3 font-mono text-[11px] shimmer-text">
         Fetching the session from F1&rsquo;s archive…
       </div>
     );
@@ -211,7 +211,7 @@ export default function ReplayBar({ replay, onClose }: { replay: Replay; onClose
 
   return (
     <div
-      className="fixed inset-x-3 bottom-3 z-40 mx-auto max-w-[min(1200px,calc(100%-1.5rem))] glass border hairline rounded-2xl shadow-[0_24px_60px_-24px_rgba(0,0,0,0.7)] px-3 sm:px-4 py-2.5 animate-[sheet-up_0.35s_var(--ease-out)]"
+      className="fixed inset-x-3 bottom-[calc(4.6rem+env(safe-area-inset-bottom))] lg:bottom-3 z-40 mx-auto max-w-[min(1200px,calc(100%-1.5rem))] glass border hairline rounded-2xl shadow-[0_24px_60px_-24px_rgba(0,0,0,0.7)] px-3 sm:px-4 py-2.5 animate-[sheet-up_0.35s_var(--ease-out)]"
       role="region"
       aria-label="Replay"
     >

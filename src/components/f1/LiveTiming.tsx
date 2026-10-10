@@ -81,8 +81,13 @@ function Status({ r, race, running }: { r: LiveRow; race: boolean; running: bool
   // knocked out are worth a word.
   if (!running) return r.out ? <span className="font-label text-[8.5px] text-ink-faint">{race ? "DNF" : "Out"}</span> : !race && r.knockedOut ? <span className="font-label text-[8.5px] text-ink-faint">KO</span> : null;
   if (r.out) return <span className="font-label text-[8.5px] text-ink-faint">Out</span>;
-  if (r.inPit) return <span className="rounded px-1 font-label text-[8.5px] text-white" style={{ background: "var(--f1-pit)" }}>Pit</span>;
-  if (r.pitOut) return <span className="font-label text-[8.5px]" style={{ color: "var(--f1-pit)" }}>Out lap</span>;
+  if (r.inPit) return <span className="shrink-0 whitespace-nowrap rounded px-1 font-label text-[8.5px] text-white" style={{ background: "var(--f1-pit)" }}>Pit</span>;
+  if (r.pitOut)
+    return (
+      <span className="shrink-0 whitespace-nowrap rounded px-1 font-label text-[8.5px] border" style={{ color: "var(--f1-pit)", borderColor: "color-mix(in srgb, var(--f1-pit) 45%, transparent)" }} title="On an out-lap">
+        Out
+      </span>
+    );
   if (!race && r.knockedOut) return <span className="font-label text-[8.5px] text-ink-faint">KO</span>;
   return null;
 }
@@ -219,7 +224,7 @@ export default function LiveTiming({
                   <span className="w-[3px] h-3.5 rounded-full shrink-0" style={{ background: r.colour }} />
                   {layout !== "narrow" && <TeamGlyph team={r.team} colour={r.colour} />}
                   <span className="font-sans font-bold tracking-[0.02em]">{r.code}</span>
-                  {showName && <span className="text-ink-soft truncate">{r.name}</span>}
+                  {showName && <span className="text-ink-soft truncate min-w-0">{r.name}</span>}
                   <Status r={r} race={race} running={snap.running} />
                 </span>
                 <span className="font-mono text-[11.5px] tabular-nums text-right" style={!race && r.bestFastest ? { color: "var(--f1-fastest)" } : undefined}>

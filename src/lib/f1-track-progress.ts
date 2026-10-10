@@ -49,9 +49,19 @@ export function sectorEnds(ref: [number, number, number] | null | undefined): [n
   return lap > 0 ? [ref[0] / lap, (ref[0] + ref[1]) / lap] : null;
 }
 
-/** Each mini-sector's start and end as a share of the lap. */
-export function segmentBounds(snap: Pick<LiveSnapshot, "sectorRef" | "rows">): { sector: number; index: number; from: number; to: number }[] {
+/**
+ * Each mini-sector's start and end as a share of the lap: where the circuit's
+ * timing loops really are when they've been measured (`loops`, from F1's
+ * archive), else spread evenly through each sector.
+ */
+export function segmentBounds(snap: Pick<LiveSnapshot, "sectorRef" | "rows">, loops?: number[] | null): { sector: number; index: number; from: number; to: number }[] {
   const counts = [0, 1, 2].map((i) => Math.max(0, ...snap.rows.map((r) => r.sectors[i]?.segments.length ?? 0)));
+  if (loops && loops.length === counts[0] + counts[1] + counts[2]) {
+    const out: { sector: number; index: number; from: number; to: number }[] = [];
+    let k = 0;
+    for (let s = 0; s < 3; s++) for (let i = 0; i < counts[s]; i++, k++) out.push({ sector: s, index: i, from: k ? loops[k - 1] : 0, to: loops[k] });
+    return out;
+  }
   const ref = snap.sectorRef ?? [1, 1, 1];
   const lap = ref[0] + ref[1] + ref[2] || 1;
   const out: { sector: number; index: number; from: number; to: number }[] = [];
@@ -96,8 +106,8 @@ export interface CarEstimate {
   onTrack: boolean;
 }
 
-export function estimateCars(snap: LiveSnapshot): CarEstimate[] {
-  const bounds = segmentBounds(snap);
+export function estimateCars(snap: LiveSnapshot, loops?: number[] | null): CarEstimate[] {
+  const bounds = segmentBounds(snap, loops);
   const total = bounds.length;
   const lapRef = snap.sectorRef ? snap.sectorRef[0] + snap.sectorRef[1] + snap.sectorRef[2] : 100;
 

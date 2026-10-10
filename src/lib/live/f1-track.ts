@@ -272,3 +272,102 @@ export async function rememberSectors(circuitKey: number | null, ref: [number, n
 export async function sectorsFor(circuitKey: number): Promise<[number, number] | null> {
   return getStore().get<[number, number]>(sectorKey(circuitKey)).catch(() => null);
 }
+
+// ---- the timing loops ------------------------------------------------------
+// Each sector is split into mini-sectors by timing loops buried in the track,
+// and they are not evenly spaced: at Sepang the last loop before the line is
+// at the final corner, so the whole main straight is one mini-sector. Placing
+// a car "halfway into its mini-sector" needs to know where each one really
+// starts and ends — so it is measured from F1's archive of a session held
+// here: on every clean lap, the moment each loop lit after the car crossed
+// the line, as a share of that lap (the median across the field). Those
+// shares are on the same clock as the map's (a lap's time at each point), so
+// they place straight onto it. Kept four months per circuit.
+
+const loopKey = (circuitKey: number) => `f1:track:loops:v1:${circuitKey}`;
+
+type Obj = Record<string, unknown>;
+const entries = (v: unknown): [number, unknown][] =>
+  Array.isArray(v) ? v.map((x, i) => [i, x] as [number, unknown]) : v && typeof v === "object" ? Object.entries(v as Obj).map(([k, x]) => [Number(k), x] as [number, unknown]) : [];
+
+/** The share of a lap at which each mini-sector ends, from one archived session. */
+export async function measureLoops(path: string): Promise<number[] | null> {
+  const stream = await text(`${STATIC}/${path}TimingData.jsonStream`);
+  if (!stream) return null;
+  const counts: number[] = [0, 0, 0];
+  const lapStart = new Map<string, number>();
+  const hits = new Map<string, Map<number, number>>();
+  const laps: { duration: number; shares: Map<number, number> }[] = [];
+  for (const line of stream.split(/\r?\n/)) {
+    const m = /^(\d{2}:\d{2}:\d{2}\.\d{3})(.*)$/.exec(line);
+    if (!m) continue;
+    let d: { Lines?: Obj };
+    try {
+      d = JSON.parse(m[2]);
+    } catch {
+      continue;
+    }
+    const t = stampOf(m[1]);
+    for (const [no, raw] of Object.entries(d.Lines ?? {})) {
+      const l = raw as Obj;
+      // Loops lit (the full first state gives the layout: segments per sector).
+      for (const [s, sec] of entries(l.Sectors)) {
+        const segs = entries((sec as Obj)?.Segments);
+        if (s < 3 && segs.length) counts[s] = Math.max(counts[s], ...segs.map(([i]) => i + 1));
+        for (const [i, seg] of segs) {
+          const status = Number((seg as Obj)?.Status ?? 0);
+          if (!status || status === 2064 || !lapStart.has(no)) continue;
+          const k = (s > 0 ? counts[0] : 0) + (s > 1 ? counts[1] : 0) + i;
+          const mine = hits.get(no) ?? new Map<number, number>();
+          if (!mine.has(k)) mine.set(k, t);
+          hits.set(no, mine);
+        }
+      }
+      if (typeof l.NumberOfLaps === "number") {
+        const began = lapStart.get(no);
+        const mine = hits.get(no);
+        if (began !== undefined && mine) {
+          const duration = t - began;
+          const shares = new Map<number, number>();
+          for (const [k, at] of mine) if (at > began + 1500) shares.set(k, (at - began) / duration);
+          laps.push({ duration, shares });
+        }
+        lapStart.set(no, t);
+        hits.set(no, new Map());
+      }
+    }
+  }
+  const total = counts[0] + counts[1] + counts[2];
+  if (total < 6 || laps.length < 5) return null;
+  // Clean laps: within 7% of the quickest (no pit stops, no safety car, no cool-downs).
+  const quickest = Math.min(...laps.map((l) => l.duration).filter((x) => x > 30_000));
+  const clean = laps.filter((l) => l.duration <= quickest * 1.07 && l.shares.size >= total * 0.8);
+  if (clean.length < 3) return null;
+  const ends: number[] = [];
+  for (let k = 0; k < total - 1; k++) {
+    const v = clean.map((l) => l.shares.get(k)).filter((x): x is number => x !== undefined && x > 0 && x < 1).sort((a, b) => a - b);
+    const med = v.length ? v[Math.floor(v.length / 2)] : null;
+    ends.push(med ?? (k + 1) / total);
+  }
+  ends.push(1);
+  // In order, each a sliver at least.
+  for (let k = 1; k < ends.length; k++) ends[k] = Math.max(ends[k], ends[k - 1] + 0.002);
+  ends[ends.length - 1] = 1;
+  return ends.map((x) => Math.round(Math.min(1, x) * 10000) / 10000);
+}
+
+/** Where each mini-sector ends at this circuit (shares of a lap), measured once and kept. */
+export async function loopsFor(circuitKey: number): Promise<number[] | null> {
+  const store = getStore();
+  const kept = await store.get<number[] | "none">(loopKey(circuitKey)).catch(() => null);
+  if (kept) return kept === "none" ? null : kept;
+  if (!(await store.setIfAbsent(`${loopKey(circuitKey)}:lock`, 1, 120).catch(() => true))) return null;
+  let found: number[] | null = null;
+  for (const { path } of (await sessionsAt(circuitKey)).slice(0, 2)) {
+    found = await measureLoops(path).catch(() => null);
+    if (found) break;
+  }
+  // Nothing measurable yet (a new circuit): ask again in a day.
+  await store.set(loopKey(circuitKey), found ?? "none", { ttlSeconds: found ? 120 * 86_400 : 86_400 }).catch(() => {});
+  return found;
+}
