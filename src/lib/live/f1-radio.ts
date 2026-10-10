@@ -11,10 +11,11 @@ import { getStore } from "@/lib/server/store";
 // busy race never eats the morning edition's quota. On the free tier each
 // model has its own daily allowance (about 20 calls), so the pool is four
 // Flash models in turn plus Google's transcribe model — about 100 calls a
-// day: a race's 40–60 clips, most of them listened to twice. Last in line
+// day: a race's 40–60 clips, most of them listened to twice. First in line
 // is gemini-3.1-flash-lite, borrowed from the news (it is the summaries'
 // second model, 500 calls a day) and capped at 60 radio calls a day, so the
-// paper always keeps most of it. A model that
+// paper always keeps most of it; the Flash models take over after that and
+// check its work (the second listen is always a different model). A model that
 // answers "quota spent" is set aside until Google's midnight (Pacific)
 // reset, one that's busy for a minute, one that's overloaded for 30 s.
 //
@@ -39,14 +40,15 @@ interface Slot {
   daily?: number;
 }
 
-/** Models that write a labelled transcript (JSON), best first. */
+/** Models that write a labelled transcript (JSON), in the order they're tried. */
 const WRITERS: Slot[] = [
+  // First (the reader's choice), but it is the summaries' fallback too
+  // (lib/server/gemini.ts), so radio stops at 60 calls of it a day.
+  { model: "gemini-3.1-flash-lite", rpm: 10, daily: 60 },
   { model: "gemini-3.8-flash", rpm: 5 },
   { model: "gemini-3.6-flash", rpm: 5 },
   { model: "gemini-3.5-flash", rpm: 5 },
   { model: "gemini-3.7-flash", rpm: 5 },
-  // The summaries' fallback (lib/server/gemini.ts): last, and capped.
-  { model: "gemini-3.1-flash-lite", rpm: 10, daily: 60 },
 ];
 /**
  * Google's speech-to-text model: plain words, fast, but it drops whole lines

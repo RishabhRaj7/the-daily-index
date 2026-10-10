@@ -506,9 +506,8 @@ edition starts building before the reader is back on the paper.
   shows it (the picker keeps it in the address).
 - Team radio transcripts (`lib/live/f1-radio.ts`, `/api/f1/radio`, three new
   per call, kept 120 days): radio has its own model pool, apart from the
-  news summaries' (`GEMINI_MODEL`, Flash-Lite): gemini-3.8-flash, 3.6-flash,
-  3.5-flash, 3.7-flash (each ~20 free calls a day, 5 a minute), then
-  gemini-3.1-flash-lite capped at 60 radio calls a day (shared with the news), with
+  news summaries' (`GEMINI_MODEL`, Flash-Lite): gemini-3.1-flash-lite first (shared with the news, capped at 60 radio calls a day), then gemini-3.8-flash, 3.6-flash,
+  3.5-flash, 3.7-flash (each ~20 free calls a day, 5 a minute), then with
   gemini-3.5-transcribe as the last resort; `GEMINI_RADIO_MODEL` puts one
   first. Per-minute use is counted in the store; a model that says its day
   is spent is set aside until Google's midnight (Pacific), a busy one for a
