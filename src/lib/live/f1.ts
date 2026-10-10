@@ -658,8 +658,10 @@ async function getMeetingSessions(race: OpenF1Session): Promise<F1Session[]> {
 // every call, never memoized, so countdowns and "next race" stay correct.
 function analyzeSeason(sorted: OpenF1Session[]) {
   const now = Date.now();
+  // A race stays "next" until half an hour after its scheduled end, so the
+  // weekend (and its live timing window) holds through lights out.
   const nextIndex = sorted.findIndex(
-    (session) => new Date(session.date_start).getTime() > now,
+    (session) => Date.parse(session.date_end || session.date_start) + 30 * 60_000 > now,
   );
   const start = nextIndex >= 0 ? nextIndex : sorted.length;
   const nextSession = sorted[Math.min(start, sorted.length - 1)];

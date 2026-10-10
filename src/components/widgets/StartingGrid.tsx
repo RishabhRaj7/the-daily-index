@@ -10,6 +10,8 @@ import { RaceOddsContext } from "@/components/odds/odds-context";
 import { compactMoney } from "@/lib/odds-pick";
 import { F1_DRIVERS } from "@/lib/config/f1-drivers";
 import type { OddsMarket } from "@/lib/types";
+import type { LiveSnapshot } from "@/lib/f1-live-types";
+import LiveCard from "@/components/f1/LiveCard";
 
 function formatCountdown(ms: number) {
   if (ms <= 0) return "Lights out";
@@ -197,7 +199,10 @@ export default function StartingGrid({
   tops = {},
   gridPending = false,
   sprint = false,
+  liveSnap = null,
 }: {
+  /** A session running now (or just ended): the timing card goes live. */
+  liveSnap?: LiveSnapshot | null;
   gridPending?: boolean;
   /** The weekend runs a sprint: the progress marker gains a Sprint step. */
   sprint?: boolean;
@@ -329,7 +334,7 @@ export default function StartingGrid({
             className="rounded-full px-2.5 py-0.5 font-label text-[9px]"
             style={{ background: "var(--section-hue)", color: "var(--paper)" }}
           >
-            {live ? "Live now" : "Next up"} · Round {displayedRace.round}
+            {live || liveSnap?.running ? "Live now" : "Next up"} · Round {displayedRace.round}
           </span>
           <span className="font-label text-[9px] text-ink-soft truncate">{displayedRace.country}</span>
         </div>
@@ -416,7 +421,8 @@ export default function StartingGrid({
       {/* 4. Timing — the slower "session" part streams in behind the rest. No
           refresh here by design: the single control lives in the pit-wall
           header, so the two can never race each other. */}
-      {timingHere && (resultRows.length > 0 || sessionStatus !== "ready" || gridPending) && (
+      {timingHere && liveSnap && <LiveCard snap={liveSnap} />}
+      {timingHere && !liveSnap && (resultRows.length > 0 || sessionStatus !== "ready" || gridPending) && (
         <div className="module self-stretch flex flex-col" data-reveal>
           <div className="flex items-baseline justify-between gap-2">
             <span className="font-label text-[10px] text-ink-soft">

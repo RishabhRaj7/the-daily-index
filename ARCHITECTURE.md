@@ -432,6 +432,25 @@ edition starts building before the reader is back on the paper.
   circuitId); a circuit not there falls back to OpenF1's circuit_image.
   The Pit wall's ↻ Refresh sends `fresh=1`: `withFreshF1` skips the memo and
   Data Cache and walks the same chain.
+- Live timing comes from F1's own feed (SignalR Core at livetiming.formula1.com,
+  no account; telemetry and car positions are the only gated topics and are not
+  used). `lib/live/f1-signalr.ts` connects, subscribes, takes the full state
+  the server answers with, and closes (~1.5 s), so nothing stays connected.
+  `lib/live/f1-live.ts` gates on F1's `static/SessionInfo.json` (live from
+  15 min before a session to 30 min after its end, longer while it runs),
+  parses into `LiveSnapshot` (`lib/f1-live-types.ts`) and shares one read for
+  5 s through the store with a short lock. A finished practice or sprint
+  qualifying is kept under the same `f1:kept:v1:wk:<race day>:<session>` key
+  `getWeekendResult` reads, so OpenF1's lockout no longer hides those times.
+  `/api/f1/live` (compact; `?full=1` for everything). Clients poll every 5 s
+  while visible (`lib/use-f1-live.ts`); the Pit wall only inside a session's
+  window from the weekend timetable. Needs Node 22+ (global WebSocket).
+- During a session the Pit wall's timing card is `components/f1/LiveCard.tsx`
+  (running order, tyres, a moving border; rows glide on overtakes and flash);
+  the top bar's F1 link wears a dot (`html[data-f1-live]`). Everything else
+  lives on `/f1/live` (`LiveCentre`): timing with sectors and mini-sectors,
+  tyre strategy, race control, team radio, F1's projected title standings,
+  weather. In development `?f1replay=<archive path>` plays a finished session.
 - "Last race" is the latest Race session that started ≥ 90 min ago — no
   longer `session_key=latest`, which showed practice on race-weekend Fridays.
 - Market Pulse: one Yahoo `spark` request for all six indices (was six), and

@@ -23,6 +23,7 @@ import type {
 import { teamColor } from "@/lib/personalization";
 import { isFresh, readF1Part, writeF1Part } from "@/lib/f1-cache";
 import StartingGrid from "./StartingGrid";
+import { useF1Live } from "@/lib/use-f1-live";
 import YourPaddock from "./YourPaddock";
 
 // Progressive F1 sidebar.
@@ -431,6 +432,25 @@ export default function F1Sidebar({
     [loadPart, setterFor],
   );
 
+  // Live timing during any session of the weekend (lib/use-f1-live.ts asks
+  // only inside a session's window). When the window closes, the results
+  // part is read again so the card hands over to the settled classification.
+  const { snapshot: liveSnap } = useF1Live({ sessions: map.data?.nextRace.sessions });
+  const wasLive = useRef(false);
+  useEffect(() => {
+    if (wasLive.current && !liveSnap) void loadPart("results", setterFor("results"), true);
+    wasLive.current = !!liveSnap;
+  }, [liveSnap, loadPart, setterFor]);
+  // The top bar's F1 link wears a live dot while a session runs (globals.css).
+  useEffect(() => {
+    const root = document.documentElement;
+    if (liveSnap?.running) root.dataset.f1Live = "1";
+    else delete root.dataset.f1Live;
+    return () => {
+      delete root.dataset.f1Live;
+    };
+  }, [liveSnap?.running]);
+
   const driverRows = standings.data?.standings ?? [];
   const constructorRows = constructors.data?.constructorStandings ?? [];
   const roster: F1RosterEntry[] = drivers.data?.drivers ?? [];
@@ -484,6 +504,7 @@ export default function F1Sidebar({
           stream in behind it, each with its own status. */}
       {map.status === "ready" && map.data ? (
         <StartingGrid
+          liveSnap={liveSnap}
           nextRace={map.data.nextRace}
           upcoming={calendar.data?.upcoming ?? []}
           calendarStatus={calendar.status}
@@ -529,6 +550,7 @@ export default function F1Sidebar({
       {map.status === "ready" && map.data && (
         <StartingGrid
           part="archive"
+          liveSnap={liveSnap}
           nextRace={map.data.nextRace}
           upcoming={calendar.data?.upcoming ?? []}
           calendarStatus={calendar.status}

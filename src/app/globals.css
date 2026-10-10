@@ -49,6 +49,12 @@
   /* Valorant's broadcast pair, used all through the Clutch sheet: teal for won (and defence), red for lost (and attack). */
   --val-teal: #0e9f7e;
   --val-red: #e8364a;
+  /* F1 timing screens: session best, personal best, no improvement, in the pit; a hard tyre's sidewall. */
+  --f1-fastest: #a020c8;
+  --f1-personal: #0a9a4a;
+  --f1-slower: #c89400;
+  --f1-pit: #2f6bff;
+  --tyre-hard: #4a4a52;
 
   /* Fear ⇄ greed zones, red through grey to green. */
   --mood-xfear: #d4002a;
@@ -107,6 +113,11 @@ html[data-edition="evening"] {
   --series-4: #a3a3ad;
   --val-teal: #3edbb5;
   --val-red: #ff4655;
+  --f1-fastest: #c45cff;
+  --f1-personal: #33dd77;
+  --f1-slower: #f2c94c;
+  --f1-pit: #5c8dff;
+  --tyre-hard: #f2f2ef;
 
   --mood-xfear: #ff4d6a;
   --mood-fear: #ff9a4d;
@@ -675,4 +686,67 @@ html[data-why="on"] .why-line { display: block; }
 .why-line {
   border-left: 2px solid var(--section-hue, var(--accent));
   padding-left: 0.85rem;
+}
+
+/* Live timing card: a soft light travels round the border while a session
+   runs — F1 red fading into the card's own hairline. */
+@property --air-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+.on-air {
+  position: relative;
+  border-color: transparent !important;
+  background:
+    linear-gradient(var(--paper), var(--paper)) padding-box,
+    linear-gradient(var(--card-bg), var(--card-bg)) padding-box,
+    conic-gradient(from var(--air-angle), var(--card-border, var(--rule)) 0deg, var(--card-border, var(--rule)) 250deg, color-mix(in srgb, var(--hue-f1) 85%, transparent) 320deg, var(--card-border, var(--rule)) 360deg) border-box;
+  animation: on-air 6s linear infinite;
+}
+@keyframes on-air {
+  to { --air-angle: 360deg; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .on-air { animation: none; }
+}
+
+/* The F1 link in the top bar while a session is live. */
+html[data-f1-live] [data-nav="paddock-notes"]::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--hue-f1);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--hue-f1) 60%, transparent);
+  animation: nav-live 1.8s ease-out infinite;
+}
+@keyframes nav-live {
+  70%, 100% { box-shadow: 0 0 0 6px transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-f1-live] [data-nav="paddock-notes"]::after { animation: none; }
+}
+
+/* Live centre: tyre stints slide in from the left; a radio clip's progress. */
+.stint-in {
+  transform-origin: left center;
+  animation: stint-in 0.5s var(--ease-out) both;
+}
+@keyframes stint-in {
+  from { opacity: 0; transform: translateX(-6px) scaleX(0.96); }
+}
+.radio-progress {
+  width: 100%;
+  transform-origin: left center;
+  animation: radio-progress var(--radio-ms, 8s) linear both;
+}
+@keyframes radio-progress {
+  from { transform: scaleX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stint-in { animation: none; }
 }
