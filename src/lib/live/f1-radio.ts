@@ -11,7 +11,10 @@ import { getStore } from "@/lib/server/store";
 // busy race never eats the morning edition's quota. On the free tier each
 // model has its own daily allowance (about 20 calls), so the pool is four
 // Flash models in turn plus Google's transcribe model — about 100 calls a
-// day: a race's 40–60 clips, most of them listened to twice. A model that
+// day: a race's 40–60 clips, most of them listened to twice. Last in line
+// is gemini-3.1-flash-lite, borrowed from the news (it is the summaries'
+// second model, 500 calls a day) and capped at 60 radio calls a day, so the
+// paper always keeps most of it. A model that
 // answers "quota spent" is set aside until Google's midnight (Pacific)
 // reset, one that's busy for a minute, one that's overloaded for 30 s.
 //
@@ -28,18 +31,28 @@ const KEEP_DAYS = 120;
 const key = (url: string) => `f1:radio:v3:${createHash("sha1").update(url).digest("hex").slice(0, 20)}`;
 const BLOCK = (model: string) => `f1:radio:block:${model}`;
 
-/** Models that write a labelled transcript (JSON), best first, with their per-minute allowance. */
-const WRITERS: { model: string; rpm: number }[] = [
+interface Slot {
+  model: string;
+  /** Calls a minute the free tier allows. */
+  rpm: number;
+  /** Radio's own daily cap, for a model it shares with the news. */
+  daily?: number;
+}
+
+/** Models that write a labelled transcript (JSON), best first. */
+const WRITERS: Slot[] = [
   { model: "gemini-3.8-flash", rpm: 5 },
   { model: "gemini-3.6-flash", rpm: 5 },
   { model: "gemini-3.5-flash", rpm: 5 },
   { model: "gemini-3.7-flash", rpm: 5 },
+  // The summaries' fallback (lib/server/gemini.ts): last, and capped.
+  { model: "gemini-3.1-flash-lite", rpm: 10, daily: 60 },
 ];
 /**
  * Google's speech-to-text model: plain words, fast, but it drops whole lines
  * of a noisy clip, so it only checks when no other Flash model has room.
  */
-const LISTENER = { model: "gemini-3.5-transcribe", rpm: 3 };
+const LISTENER: Slot = { model: "gemini-3.5-transcribe", rpm: 3 };
 
 export interface Transcript {
   /** Speaker turns on their own lines; [unclear]/[bleep] as heard; {{word}} where the second listen differed. */
@@ -80,13 +93,23 @@ function untilPacificMidnight(): number {
   return Math.max(60, 86_400 - (n("hour") * 3600 + n("minute") * 60 + n("second")) + 120);
 }
 
-/** Takes one call's room on `model` if it has any this minute (and isn't set aside). */
-async function claim(model: string, rpm: number): Promise<boolean> {
+/** Takes one call's room on a model if it has any this minute — and today, if radio is capped on it. */
+async function claim({ model, rpm, daily }: Slot): Promise<boolean> {
   const store = getStore();
   if (await store.get(BLOCK(model)).catch(() => null)) return false;
+  if (daily) {
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
+    const usedToday = await store.get<number>(`f1:radio:day:${model}:${today}`).catch(() => 0);
+    if ((usedToday ?? 0) >= daily) return false;
+  }
   const minute = Math.floor(Date.now() / 60_000);
   const used = await store.incr(`f1:radio:rpm:${model}:${minute}`, 90).catch(() => 1);
-  return used <= rpm;
+  if (used > rpm) return false;
+  if (daily) {
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
+    await store.incr(`f1:radio:day:${model}:${today}`, 2 * 86_400).catch(() => 0);
+  }
+  return true;
 }
 
 /** After a refusal: spent for the day, busy for a minute, or gone. */
@@ -98,8 +121,8 @@ async function setAside(model: string, err: unknown) {
   if (seconds) await getStore().set(BLOCK(model), status, { ttlSeconds: seconds }).catch(() => {});
 }
 
-async function pick(pool: { model: string; rpm: number }[], not?: string): Promise<string | null> {
-  for (const p of pool) if (p.model !== not && (await claim(p.model, p.rpm))) return p.model;
+async function pick(pool: Slot[], not?: string): Promise<string | null> {
+  for (const p of pool) if (p.model !== not && (await claim(p))) return p.model;
   return null;
 }
 
@@ -111,7 +134,7 @@ export async function radioPaused(): Promise<boolean> {
   return blocks.size >= WRITERS.length;
 }
 
-function writers() {
+function writers(): Slot[] {
   const own = process.env.GEMINI_RADIO_MODEL;
   return own ? [{ model: own, rpm: 5 }, ...WRITERS.filter((w) => w.model !== own)] : WRITERS;
 }
