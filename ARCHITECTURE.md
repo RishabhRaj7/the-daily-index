@@ -571,10 +571,14 @@ edition starts building before the reader is back on the paper.
   back to the whole circuit). Scroll and pinch zoom the enlarged map; drag
   looks around once zoomed; a mini map shows where the view is. The view is
   written straight onto the SVG; the reader's choices are kept on the device.
-- Telemetry for the followed driver (`lib/live/f1-telemetry.ts`, the Live
-  view's Telemetry panel): speed, revs, gear, throttle, brake and DRS, and
-  the lap drawn out (speed line, throttle band, braking marks; pointing at
-  the lap shows that moment in the readout). Live: the shared read takes
+- Telemetry for the followed driver (`lib/live/f1-telemetry.ts`,
+  `centre/Telemetry.tsx`): a speedometer in the driver's card under the map
+  (speed round the dial in the team colour, throttle and brake on the inner
+  arcs, revs, gear, DRS); a tap opens the detail sheet: the gauges and the
+  lap drawn out (speed line, throttle band, braking marks, a marker where
+  the gauges are; pointing at the lap shows that moment). A finished
+  session plays the fastest lap on a loop; a replay plays the lap in
+  progress (asked a few seconds ahead so the dial moves smoothly). Live: the shared read takes
   CarData.z on a connection of its own (if F1 holds it back, the timing is
   untouched) and carries every car's latest reading as `telemetry`; the page
   keeps the last few minutes of them. Finished sessions: F1's archive (a

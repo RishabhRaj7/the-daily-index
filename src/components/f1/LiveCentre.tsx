@@ -18,7 +18,7 @@ import { LiveDot, SessionClock, TONE, sessionLine } from "./LiveCard";
 import Feed from "./centre/Feed";
 import Analysis, { type Sub } from "./centre/Analysis";
 import Weekend from "./centre/Weekend";
-import Telemetry, { telemetryMeta } from "./centre/Telemetry";
+import { Speedometer, TelemetrySheet, useTelemetry } from "./centre/Telemetry";
 import { Panel, Tile } from "./centre/ui";
 
 // /f1/live — a session, spread over five views rather than one long page:
@@ -144,8 +144,12 @@ function pitWindow(snap: LiveSnapshot, row: LiveRow, track: TrackModel | null): 
   };
 }
 
-function FocusCard({ row, photo, snap, track }: { row: LiveRow; photo: string | null; snap: LiveSnapshot; track: TrackModel | null }) {
+function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; photo: string | null; snap: LiveSnapshot; track: TrackModel | null; live: boolean; replayT: number | null }) {
   const stop = pitWindow(snap, row, track);
+  // The speedometer beside the driver; a tap opens the telemetry in detail.
+  const telemetry = useTelemetry(snap, row.code, live, replayT);
+  const [detail, setDetail] = useState(false);
+  const hasTelemetry = !!telemetry.now || telemetry.samples.length > 1 || (!live && !!snap.path);
   return (
     <div className="mt-4 pt-4 border-t hairline">
       <div className="flex items-center gap-3">
@@ -174,7 +178,10 @@ function FocusCard({ row, photo, snap, track }: { row: LiveRow; photo: string | 
           </span>
         )}
       </div>
-      <button type="button" onClick={() => openDriver(row.code)} className="mt-2.5 font-sans text-[12px] font-semibold text-ink-soft hover:text-ink">
+      <div className={`mt-3 grid gap-3 items-start ${hasTelemetry ? "grid-cols-1 sm:grid-cols-[13.5rem_minmax(0,1fr)]" : ""}`}>
+      {hasTelemetry && <Speedometer now={telemetry.now} colour={row.colour} code={row.code} source={telemetry.source} onOpen={() => setDetail(true)} />}
+      <div className="min-w-0">
+      <button type="button" onClick={() => openDriver(row.code)} className="font-sans text-[12px] font-semibold text-ink-soft hover:text-ink text-left">
         {row.name || row.code}&rsquo;s season, round by round →
       </button>
       {stop && (
@@ -198,6 +205,9 @@ function FocusCard({ row, photo, snap, track }: { row: LiveRow; photo: string | 
           </div>
         </div>
       )}
+      </div>
+      </div>
+      {detail && <TelemetrySheet t={telemetry} code={row.code} name={row.name} colour={row.colour} onClose={() => setDetail(false)} />}
     </div>
   );
 }
@@ -285,7 +295,7 @@ function LiveView({ snap, live, replay, replayT }: { snap: LiveSnapshot; live: b
   const photos = snap.photos ?? {};
   const race = snap.type === "Race";
 
-  // A phone reads down: the map, the order, the telemetry, the feed. A wide screen puts the
+  // A phone reads down: the map, the order, the feed. A wide screen puts the
   // order and the map side by side (sized so the two come out about as tall)
   // and the feed across the full width beneath them, its filters down the
   // left and its list scrolling inside.
@@ -295,7 +305,7 @@ function LiveView({ snap, live, replay, replayT }: { snap: LiveSnapshot; live: b
         <Panel id="track" label={track.name || "Track"} meta={live || replay ? "Cars placed from the timing loops" : track.corners.length ? `${track.corners.length} corners` : undefined} className="order-1 lg:col-start-2 lg:row-start-1">
           <TrackMap model={track} snap={snap} focus={focus} onFocus={setPicked} onExpand={() => setEnlarged(true)} fit controls className="h-[42vh] max-h-[26rem] lg:h-auto lg:max-h-none" />
           {enlarged && <MapSheet model={track} snap={snap} focus={focus} onFocus={setPicked} onClose={() => setEnlarged(false)} />}
-          {focusRow && <FocusCard row={focusRow} photo={photos[focusRow.code] ?? driverPhotoByCode(focusRow.code, focusRow.team)} snap={snap} track={track} />}
+          {focusRow && <FocusCard row={focusRow} photo={photos[focusRow.code] ?? driverPhotoByCode(focusRow.code, focusRow.team)} snap={snap} track={track} live={live && !replay} replayT={replay ? replayT : null} />}
           {focusRow && snap.running && (
             <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 font-mono text-[9.5px] text-ink-faint">
               <span>{focusRow.code}&rsquo;s mini-sectors:</span>
@@ -308,13 +318,7 @@ function LiveView({ snap, live, replay, replayT }: { snap: LiveSnapshot; live: b
       ) : (
         <div className="order-1 lg:col-start-2 lg:row-start-1 rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] aspect-[4/3] animate-pulse" />
       )}
-      {/* the followed driver's telemetry (live only when F1 sends car data) */}
-      {focus && (!live || snap.telemetry) && (
-        <Panel id="telemetry" label="Telemetry" meta={telemetryMeta(live, replay, focus)} className="order-3 lg:col-span-2">
-          <Telemetry snap={snap} code={focus} live={live && !replay} replayT={replay ? replayT : null} />
-        </Panel>
-      )}
-      <Panel id="feed" label="Feed" meta="Race control · radio · pits" className="order-4 lg:col-span-2 h-[78vh] max-h-[40rem] lg:h-[34rem]">
+      <Panel id="feed" label="Feed" meta="Race control · radio · pits" className="order-3 lg:col-span-2 h-[78vh] max-h-[40rem] lg:h-[34rem]">
         <Feed snap={snap} mine={fav.codes} photos={photos} page={20} pinned />
       </Panel>
       <Panel

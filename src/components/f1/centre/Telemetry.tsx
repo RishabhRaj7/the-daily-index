@@ -1,25 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type { CarNow, LapTrace, LiveSnapshot } from "@/lib/f1-live-types";
 import { Empty } from "./ui";
 
-// The followed driver's telemetry, beside the map: speed, gear, revs,
-// throttle, brake and DRS now, and the lap drawn out — speed as a line, the
-// throttle as a band beneath it, braking marked in red.
+// The followed driver's telemetry. Under the map, a speedometer in the
+// driver's card (speed on the dial, throttle and brake on the inner arcs,
+// revs, gear, DRS); a tap opens the detail: every reading as a gauge and the
+// lap drawn out — speed as a line, the throttle as a band beneath it,
+// braking marked in red.
 //
-//   replay    the lap in progress at the replay's moment (F1's archive,
-//             /api/f1/telemetry), redrawn as it plays
-//   finished  their fastest lap of the session
+//   replay    the lap in progress, played with the replay (F1's archive,
+//             /api/f1/telemetry, asked a few seconds ahead)
+//   finished  their fastest lap of the session, played on a loop
 //   live      F1's latest reading with each 5-second read, and the last few
 //             minutes of those readings as the line
 
 type Sample = number[]; // [s, km/h, throttle %, brake 0/1, gear, rpm, drs 0/1]
+const AHEAD = 4;
 
 function useTrace(path: string | null, code: string | null, t: number | null): LapTrace | null {
   const [trace, setTrace] = useState<{ key: string; trace: LapTrace | null } | null>(null);
-  // A replay asks again every couple of seconds of session time.
-  const step = t === null ? null : Math.floor(t / 2) * 2;
+  // A replay asks again every couple of seconds of session time, for a few
+  // seconds ahead, so the gauge can play on smoothly until the next answer.
+  const step = t === null ? null : Math.floor(t / 2) * 2 + AHEAD;
   const key = `${path}|${code}|${step}`;
   useEffect(() => {
     if (!path || !code) return;
@@ -90,7 +95,7 @@ function Readout({ now, colour }: { now: CarNow; colour: string }) {
   );
 }
 
-function Chart({ samples, colour, axis, hover, setHover }: { samples: Sample[]; colour: string; axis: string; hover: number | null; setHover: (i: number | null) => void }) {
+function Chart({ samples, colour, axis, hover, setHover, playhead = null }: { samples: Sample[]; colour: string; axis: string; hover: number | null; setHover: (i: number | null) => void; playhead?: number | null }) {
   const W = 720;
   const H = 210;
   const pad = { l: 34, r: 8, t: 8, b: 22 };
@@ -153,6 +158,10 @@ function Chart({ samples, colour, axis, hover, setHover }: { samples: Sample[]; 
       <text x={W - pad.r} y={H - 4} textAnchor="end" fontSize="10" fontFamily="var(--font-mono)" fill="var(--ink-faint)">
         {axis}
       </text>
+      {/* where the gauges are in the lap */}
+      {!h && playhead !== null && playhead <= end && (
+        <line x1={x(playhead)} x2={x(playhead)} y1={pad.t} y2={brakeY + band} stroke={colour} strokeWidth="1.5" strokeOpacity="0.8" pointerEvents="none" />
+      )}
       {h && (
         <g pointerEvents="none">
           <line x1={x(h[0])} x2={x(h[0])} y1={pad.t} y2={brakeY + band} stroke="var(--ink)" strokeOpacity="0.4" />
@@ -175,33 +184,244 @@ function Chart({ samples, colour, axis, hover, setHover }: { samples: Sample[]; 
   );
 }
 
-export default function Telemetry({ snap, code, live, replayT }: { snap: LiveSnapshot; code: string | null; live: boolean; replayT: number | null }) {
-  const row = snap.rows.find((r) => r.code === code);
-  const colour = row?.colour ?? "var(--ink)";
+const toNow = (s: Sample): CarNow => ({ speed: s[1], throttle: s[2], brake: !!s[3], gear: s[4], rpm: s[5], drs: s[6] ? "open" : "off" });
+
+/** The sample at `at` seconds into the lap (the last one before it). */
+function sampleAt(samples: Sample[], at: number): Sample | null {
+  let lo = 0;
+  let hi = samples.length - 1;
+  if (hi < 0) return null;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (samples[mid][0] <= at) lo = mid;
+    else hi = mid - 1;
+  }
+  return samples[lo];
+}
+
+export interface Telemetry {
+  now: CarNow | null;
+  /** The lap so far (or the last few minutes, live). */
+  samples: Sample[];
+  axis: string;
+  /** Where the readings come from, for the header. */
+  source: string;
+  /** Seconds into the lap the gauges show (a replay or the looping fastest lap). */
+  at: number | null;
+}
+
+/** The followed driver's telemetry, wherever the page is: live, a replay, or a finished session. */
+export function useTelemetry(snap: LiveSnapshot, code: string | null, live: boolean, replayT: number | null): Telemetry {
   const archived = !live && !!snap.path;
   const trace = useTrace(archived ? snap.path : null, code, archived ? replayT : null);
   const history = useLiveHistory(snap, live ? code : null);
-  const [hover, setHover] = useState<number | null>(null);
-  if (!code || !row) return <Empty>Pick a driver in the order to see their telemetry.</Empty>;
+  // A finished session plays the fastest lap on a loop, a tenth of a second at a time.
+  const looping = archived && replayT === null && !!trace;
+  const [clock, setClock] = useState(0);
+  useEffect(() => {
+    if (!looping) return;
+    const start = Date.now();
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") setClock(Date.now() - start);
+    }, 100);
+    return () => clearInterval(id);
+  }, [looping, trace]);
 
-  const samples: Sample[] = live ? history : (trace?.samples ?? []);
-  // Pointing at the lap shows that moment in the readout; otherwise, the latest.
-  const at = hover !== null ? samples[hover] : null;
-  const latest: CarNow | null = live ? (snap.telemetry?.[code] ?? null) : (trace?.now ?? null);
-  const now: CarNow | null = at ? { speed: at[1], throttle: at[2], brake: !!at[3], gear: at[4], rpm: at[5], drs: at[6] ? "open" : "off" } : latest;
-  const axis = live ? "seconds, the last few minutes (a reading every 5 s)" : `seconds into the lap${trace?.lapTime ? ` · ${trace.lapTime}` : ""}`;
+  if (live) {
+    return { now: code ? (snap.telemetry?.[code] ?? null) : null, samples: history, axis: "seconds, the last few minutes (a reading every 5 s)", source: "live · a reading every 5 s", at: null };
+  }
+  const all = trace?.samples ?? [];
+  const end = all.at(-1)?.[0] ?? 0;
+  if (replayT !== null) {
+    // The answer runs a few seconds ahead of the replay: play up to where the replay is.
+    const asked = Math.floor(replayT / 2) * 2 + AHEAD;
+    const at = Math.max(0, end - (asked - replayT));
+    const s = sampleAt(all, at);
+    return { now: s ? toNow(s) : (trace?.now ?? null), samples: all.filter((x) => x[0] <= at), axis: "seconds into the lap", source: `lap ${trace?.lap ?? "—"}, as it's driven`, at };
+  }
+  const loopAt = end > 0 ? (clock / 1000) % end : null;
+  const s = loopAt !== null ? sampleAt(all, loopAt) : null;
+  return {
+    at: loopAt,
+    now: s ? toNow(s) : (trace?.now ?? null),
+    samples: all,
+    axis: `seconds into the lap${trace?.lapTime ? ` · ${trace.lapTime}` : ""}`,
+    source: trace ? `fastest lap, lap ${trace.lap}${trace.lapTime ? ` · ${trace.lapTime}` : ""}` : "fastest lap",
+  };
+}
 
-  if (!now && samples.length < 2) return <Empty>{live ? "F1 isn't sending car data for this session yet." : "Reading the car data…"}</Empty>;
-  return (
-    <div className="grid lg:grid-cols-[15rem_minmax(0,1fr)] gap-4 items-start">
-      {now && <Readout now={now} colour={colour} />}
-      {samples.length >= 2 ? <Chart samples={samples} colour={colour} axis={axis} hover={hover} setHover={setHover} /> : <Empty>The lap draws as readings come in.</Empty>}
-    </div>
+// ---- the speedometer -----------------------------------------------------------
+
+const TOP = 360;
+// Angles in degrees, clockwise from pointing right (the screen's y runs down):
+// the dial sweeps from bottom left (135) over the top to bottom right (405).
+const polar = (cx: number, cy: number, r: number, deg: number) => [cx + r * Math.cos((deg * Math.PI) / 180), cy + r * Math.sin((deg * Math.PI) / 180)] as const;
+function arc(cx: number, cy: number, r: number, from: number, to: number) {
+  const [x0, y0] = polar(cx, cy, r, from);
+  const [x1, y1] = polar(cx, cy, r, to);
+  return `M${x0.toFixed(1)},${y0.toFixed(1)}A${r},${r} 0 ${Math.abs(to - from) > 180 ? 1 : 0} 1 ${x1.toFixed(1)},${y1.toFixed(1)}`;
+}
+
+/** A speedometer: speed round the dial in the team's colour, throttle and brake on the inner arcs. */
+export function Speedometer({ now, colour, code, onOpen, source }: { now: CarNow | null; colour: string; code: string; onOpen?: () => void; source: string }) {
+  const cx = 110;
+  const cy = 98;
+  const R = 82;
+  const r = 62;
+  const v = now?.speed ?? 0;
+  const at = 135 + (Math.min(TOP, v) / TOP) * 270;
+  const thr = now?.throttle ?? 0;
+  const id = `speedo-${code}-${onOpen ? "card" : "sheet"}`;
+  const body = (
+    <svg viewBox="0 0 220 168" className="block w-full max-w-[17rem] mx-auto h-auto" role="img" aria-label={now ? `${code}: ${v} km/h, gear ${now.gear}, throttle ${thr}%${now.brake ? ", braking" : ""}` : `${code}: no reading yet`}>
+      <defs>
+        <path id={`${id}-thr`} d={arc(cx, cy, r - 13, 150, 250)} />
+        <path id={`${id}-brk`} d={arc(cx, cy, r - 13, 290, 390)} />
+      </defs>
+      {/* the dial and its scale */}
+      <path d={arc(cx, cy, R, 135, 405)} fill="none" stroke="var(--rule)" strokeWidth="11" strokeLinecap="round" />
+      {now && v > 0 && <path d={arc(cx, cy, R, 135, at)} fill="none" stroke={colour} strokeWidth="11" strokeLinecap="round" />}
+      {[0, 60, 120, 180, 240, 300, 360].map((k) => {
+        const a = 135 + (k / TOP) * 270;
+        const [x1, y1] = polar(cx, cy, R + 8, a);
+        const [x2, y2] = polar(cx, cy, R + 12, a);
+        const [tx, ty] = polar(cx, cy, R - 17, a);
+        return (
+          <g key={k}>
+            <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="var(--ink-faint)" strokeWidth="1.2" />
+            <text x={tx} y={ty} dy="0.35em" textAnchor="middle" fontSize="8.5" fontFamily="var(--font-mono)" fill="var(--ink-faint)">
+              {k}
+            </text>
+          </g>
+        );
+      })}
+      {/* throttle (left) and brake (right) */}
+      <path d={arc(cx, cy, r - 2, 150, 250)} fill="none" stroke="var(--rule)" strokeWidth="6" strokeLinecap="round" />
+      {thr > 0 && <path d={arc(cx, cy, r - 2, 150, 150 + thr)} fill="none" stroke="var(--f1-personal)" strokeWidth="6" strokeLinecap="round" />}
+      <path d={arc(cx, cy, r - 2, 290, 390)} fill="none" stroke={now?.brake ? "var(--down)" : "var(--rule)"} strokeWidth="6" strokeLinecap="round" />
+      <text fontSize="7.5" fontWeight="700" letterSpacing="1.5" fontFamily="var(--font-sans)" fill="var(--ink-faint)">
+        <textPath href={`#${id}-thr`} startOffset="50%" textAnchor="middle">
+          THROTTLE
+        </textPath>
+      </text>
+      <text fontSize="7.5" fontWeight="700" letterSpacing="1.5" fontFamily="var(--font-sans)" fill={now?.brake ? "var(--down)" : "var(--ink-faint)"}>
+        <textPath href={`#${id}-brk`} startOffset="50%" textAnchor="middle">
+          BRAKE
+        </textPath>
+      </text>
+      {/* the numbers */}
+      <text x={cx} y={cy - 6} textAnchor="middle" fontSize="34" fontWeight="800" fontFamily="var(--font-display)" fill="var(--ink)">
+        {now ? v : "—"}
+      </text>
+      <text x={cx} y={cy + 9} textAnchor="middle" fontSize="8" letterSpacing="1.2" fontFamily="var(--font-mono)" fill="var(--ink-soft)">
+        KM/H
+      </text>
+      <text x={cx} y={cy + 27} textAnchor="middle" fontSize="12" fontWeight="700" fontFamily="var(--font-mono)" fill="var(--ink)">
+        {now ? now.rpm.toLocaleString("en-GB") : "—"}
+        <tspan fontSize="7.5" fontWeight="400" fill="var(--ink-soft)">
+          {" "}
+          RPM
+        </tspan>
+      </text>
+      <g transform={`translate(${cx} ${cy + 52})`}>
+        <text x={-8} textAnchor="end" dy="0.35em" fontSize="8" letterSpacing="1.2" fontFamily="var(--font-mono)" fill="var(--ink-soft)">
+          GEAR
+        </text>
+        <text x={-2} dy="0.36em" fontSize="18" fontWeight="800" fontFamily="var(--font-display)" fill="var(--ink)">
+          {now ? now.gear || "N" : "—"}
+        </text>
+        <rect
+          x={20}
+          y={-7}
+          width={30}
+          height={14}
+          rx={7}
+          fill={now?.drs === "open" ? "var(--f1-personal)" : "none"}
+          stroke={now?.drs === "open" ? "none" : now?.drs === "eligible" ? "var(--f1-slower)" : "var(--rule)"}
+        />
+        <text
+          x={35}
+          dy="0.35em"
+          textAnchor="middle"
+          fontSize="7.5"
+          fontWeight="700"
+          fontFamily="var(--font-sans)"
+          fill={now?.drs === "open" ? "var(--paper)" : now?.drs === "eligible" ? "var(--f1-slower)" : "var(--ink-faint)"}
+        >
+          DRS
+        </text>
+      </g>
+    </svg>
+  );
+  return onOpen ? (
+    <button type="button" onClick={onOpen} className="group block w-full rounded-2xl border hairline px-3 pt-3 pb-2 text-left hover:border-[color:var(--ink-faint)] transition-colors" title={`${code}'s telemetry in detail`}>
+      <span className="flex items-baseline justify-between gap-2 font-label text-[8.5px] text-ink-faint">
+        <span>Telemetry</span>
+        <span className="group-hover:text-ink transition-colors">Detail →</span>
+      </span>
+      {body}
+      <span className="block text-center font-mono text-[9px] text-ink-faint truncate">{source}</span>
+    </button>
+  ) : (
+    body
   );
 }
 
-/** What the panel's header says about where the numbers come from. */
-export function telemetryMeta(live: boolean, replay: boolean, code: string | null): string {
-  if (!code) return "";
-  return live ? `${code} · live, every 5 s` : replay ? `${code} · the lap in progress` : `${code} · fastest lap of the session`;
+// ---- the detail ------------------------------------------------------------------
+
+export function TelemetrySheet({ t, code, name, colour, onClose }: { t: Telemetry; code: string; name: string; colour: string; onClose: () => void }) {
+  const [hover, setHover] = useState<number | null>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = overflow;
+    };
+  }, [onClose]);
+  // Pointing at the lap shows that moment; otherwise, now.
+  const at = hover !== null ? t.samples[hover] : null;
+  const now = at ? toNow(at) : t.now;
+  return createPortal(
+    <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm animate-[fade-in_0.2s_ease] sm:p-5 flex items-end sm:items-center" onClick={onClose} role="dialog" aria-modal="true" aria-label={`${name}'s telemetry`}>
+      <div
+        className="relative w-full max-w-[980px] mx-auto max-h-[92vh] rounded-t-3xl sm:rounded-3xl border hairline bg-[var(--surface)] text-ink overflow-hidden flex flex-col animate-[sheet-up_0.4s_var(--ease-out)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="flex items-center gap-4 px-5 py-4 border-b hairline" style={{ background: `linear-gradient(90deg, color-mix(in srgb, ${colour} 22%, transparent), transparent 70%)` }}>
+          <div className="min-w-0 flex-1">
+            <div className="font-label text-[9.5px] text-ink-soft">Telemetry · {t.source}</div>
+            <div className="font-display font-extrabold uppercase text-[1.6rem] leading-none mt-1 truncate">{name || code}</div>
+          </div>
+          <button type="button" onClick={onClose} className="icon-btn" aria-label="Close">
+            <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+              <path d="M4 4l8 8M12 4l-8 8" />
+            </svg>
+          </button>
+        </header>
+        <div className="overflow-y-auto overscroll-contain p-4 sm:p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+          {!now && t.samples.length < 2 ? (
+            <Empty>Reading the car data…</Empty>
+          ) : (
+            <div className="grid md:grid-cols-[17rem_minmax(0,1fr)] gap-5 items-start">
+              <div className="space-y-3">
+                <Speedometer now={now} colour={colour} code={code} source={t.source} />
+                {now && <Readout now={now} colour={colour} />}
+              </div>
+              <div>
+                {t.samples.length >= 2 ? <Chart samples={t.samples} colour={colour} axis={t.axis} hover={hover} setHover={setHover} playhead={t.at} /> : <Empty>The lap draws as readings come in.</Empty>}
+                <p className="font-mono text-[9.5px] text-ink-faint mt-2 leading-relaxed">
+                  Speed is the line; the green band is the throttle, the red marks braking. Point at the lap to see that moment in the gauges. From F1&rsquo;s car data, about four readings a second
+                  {t.source.startsWith("live") ? " (live: one every 5 s)" : ""}.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
 }
