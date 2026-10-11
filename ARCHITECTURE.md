@@ -609,9 +609,13 @@ edition starts building before the reader is back on the paper.
   round dark tarmac (`--track-edge`, `--track-tarmac`), the edge tinted by
   sector (S1 red, S2 blue, S3 yellow, each with a coloured badge where it
   begins), corner numbers in round badges just off the track, a dashed pit
-  lane (`f1:track:v6`). The home page's next-race map is `minimal` (just
-  the circuit), turning slowly in 3D (`.track-turn`), and links to
-  /f1/live; a Live centre row sits under the countdown.
+  lane (`f1:track:v6`). Map options switches sector numbers, sector-coloured
+  edges (both on at first) and corner numbers (off at first). Badges are
+  placed along the track's normal, out as far as it takes to clear the
+  track, the pit lane, the start line and the badges already placed. The
+  home page's next-race map is `minimal` (just the circuit), turning slowly
+  in 3D (`.track-turn`); the live centre opens, unmarked, from a tap on the
+  home page's grid/results table.
 - A driver's name opens their season (`components/f1/DriverLink.tsx`:
   `DriverName`, `openDriver`, one `DriverSheetHost` in the root layout)
   where the whole season is what a reader wants: the home page's

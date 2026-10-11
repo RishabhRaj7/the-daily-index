@@ -364,6 +364,13 @@ export default function TrackMap({
   const fav = useF1Favourites();
   const [codes, setCodes] = useStoredChoice<"all" | "yours" | "off">("f1-map-codes", "all", ["all", "yours", "off"]);
   const [paint, setPaint] = useStoredChoice<"team" | "tyre">("f1-map-paint", "team", ["team", "tyre"]);
+  // What the map carries (the live maps): corner numbers off at first, the sectors on.
+  const [cornerPick, setCornerPick] = useStoredChoice<"on" | "off">("f1-map-corners", "off", ["on", "off"]);
+  const [sectorPick, setSectorPick] = useStoredChoice<"on" | "off">("f1-map-sectors", "on", ["on", "off"]);
+  const [edgePick, setEdgePick] = useStoredChoice<"on" | "off">("f1-map-edges", "on", ["on", "off"]);
+  const showCorners = corners && (!controls || cornerPick === "on");
+  const showSectors = !controls || sectorPick === "on";
+  const showEdges = !controls || edgePick === "on";
   const tyreOf = new Map((snap?.rows ?? []).map((row) => [row.code, row.tyre?.compound ?? null]));
   const fill = (code: string, colour: string) => {
     const t = paint === "tyre" ? tyreOf.get(code) : null;
@@ -400,6 +407,79 @@ export default function TrackMap({
 
   // The sectors, each its own colour along the track's edge and on its label.
   const sectorRanges: [number, number][] | null = ends ? [[0, ends[0]], [ends[0], ends[1]], [ends[1], 1]] : null;
+
+  // Badges sit beside the track, never on it: from the point, out along the
+  // track's normal (the side away from the middle first), as far as it takes
+  // to clear every part of the circuit — a hairpin's other leg, the pit lane,
+  // the start line and the badges already placed included.
+  const spots = useMemo(() => {
+    const pts = model.points;
+    const lanePts = model.pit ?? [];
+    const half = 14 * scale;
+    const placed: { x: number; y: number; r: number }[] = [];
+    const clearance = (px: number, py: number) => {
+      let m = Infinity;
+      for (const [qx, qy] of pts) m = Math.min(m, (qx - px) ** 2 + (qy - py) ** 2);
+      let d = Math.sqrt(m);
+      // the pit lane is narrower than the track
+      for (const [qx, qy] of lanePts) d = Math.min(d, Math.hypot(qx - px, qy - py) + half * 0.45);
+      for (const b of placed) d = Math.min(d, Math.hypot(b.x - px, b.y - py) - b.r + half);
+      return d;
+    };
+    const place = (x: number, y: number, nx: number, ny: number, size: number): [number, number] => {
+      const need = half + size + 3 * scale;
+      const away = nx * (x - model.width / 2) + ny * (y - model.height / 2) >= 0 ? 1 : -1;
+      let best: [number, number] = [x + away * nx * need, y + away * ny * need];
+      let bestD = -1;
+      search: for (const k of [1, 1.3, 1.7, 2.2, 2.9, 3.8, 5])
+        for (const side of [away, -away]) {
+          const p: [number, number] = [x + side * nx * need * k, y + side * ny * need * k];
+          const d = clearance(p[0], p[1]);
+          if (d >= need - 0.5) {
+            best = p;
+            break search;
+          }
+          if (d > bestD) {
+            bestD = d;
+            best = p;
+          }
+        }
+      placed.push({ x: best[0], y: best[1], r: size + 2 * scale });
+      return best;
+    };
+    const normalAt = (x: number, y: number): [number, number] => {
+      let i = 0;
+      let m = Infinity;
+      pts.forEach(([qx, qy], k) => {
+        const d = (qx - x) ** 2 + (qy - y) ** 2;
+        if (d < m) {
+          m = d;
+          i = k;
+        }
+      });
+      const a = pts[(i - 1 + pts.length) % pts.length];
+      const b = pts[(i + 1) % pts.length];
+      const tx = b[0] - a[0];
+      const ty = b[1] - a[1];
+      const n = Math.hypot(tx, ty) || 1;
+      return [-ty / n, tx / n];
+    };
+    const line = across(model, 0, 30 * scale);
+    placed.push({ x: line.x1, y: line.y1, r: 6 * scale }, { x: line.x2, y: line.y2, r: 6 * scale });
+    const sector = (sectorRanges ?? []).map(([from]) => {
+      const a = across(model, from, 1);
+      const n = Math.hypot(a.x2 - a.x1, a.y2 - a.y1) || 1;
+      return place(a.x, a.y, (a.x2 - a.x1) / n, (a.y2 - a.y1) / n, 16 * scale * inv);
+    });
+    const corner = new Map(
+      model.corners.map((c) => {
+        const [nx, ny] = normalAt(c.x, c.y);
+        return [c.number, place(c.x, c.y, nx, ny, 12 * scale * inv)] as const;
+      }),
+    );
+    return { corner, sector };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [model, scale, inv, ends?.[0], ends?.[1]]);
 
   return (
     <div className={`relative ${className}`}>
@@ -446,6 +526,7 @@ export default function TrackMap({
         {/* the edge (in each sector's colour), then the tarmac, which draws itself */}
         <path d={model.path} fill="none" stroke="var(--track-edge)" strokeWidth={28 * scale} strokeLinejoin="round" strokeLinecap="round" />
         {!minimal &&
+          showEdges &&
           sectorRanges?.map(([from, to], i) => (
             <polyline key={i} className="track-corner" points={stretch(model, from, to)} fill="none" stroke={SECTOR_COLOUR[i]} strokeOpacity={0.55} strokeWidth={28 * scale} strokeLinejoin="round" />
           ))}
@@ -473,9 +554,10 @@ export default function TrackMap({
         {!minimal && (
           <g className="track-corner">
             {/* where each sector begins: a tick across in its colour, and its badge */}
-            {sectorRanges?.map(([from], i) => {
+            {showSectors &&
+              sectorRanges?.map(([from], i) => {
               const a = across(model, from, 18 * scale);
-              const [lx, ly] = out(a.x, a.y, (i === 0 ? 70 : 52) * scale);
+              const [lx, ly] = spots.sector[i] ?? out(a.x, a.y, 52 * scale);
               const w = 30 * scale * inv;
               const h = 17 * scale * inv;
               return (
@@ -490,9 +572,9 @@ export default function TrackMap({
             })}
 
             {/* the corners, numbered in badges just off the track */}
-            {corners &&
+            {showCorners &&
               model.corners.map((c) => {
-                const [x, y] = out(c.x, c.y, 36 * scale);
+                const [x, y] = spots.corner.get(c.number) ?? out(c.x, c.y, 36 * scale);
                 const rr = 11 * scale * inv;
                 return (
                   <g key={c.number}>
@@ -580,6 +662,8 @@ export default function TrackMap({
       </svg>
       {controls && snap && (
         <MapTools
+          layers={{ corners: cornerPick === "on", sectors: sectorPick === "on", edges: edgePick === "on" }}
+          onLayer={(k, on) => (k === "corners" ? setCornerPick : k === "sectors" ? setSectorPick : setEdgePick)(on ? "on" : "off")}
           codes={codes}
           onCodes={setCodes}
           paint={paint}
@@ -702,6 +786,8 @@ function MapTools(p: {
   onZoom: (factor: number) => void;
   onReset: () => void;
   tyres: readonly ("SOFT" | "MEDIUM" | "HARD" | "INTERMEDIATE" | "WET")[];
+  layers: { corners: boolean; sectors: boolean; edges: boolean };
+  onLayer: (k: "corners" | "sectors" | "edges", on: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -765,6 +851,32 @@ function MapTools(p: {
                 ["tyre", "Tyre"],
               ]}
             />
+            <div>
+              <div className="font-label text-[8.5px] text-ink-faint mb-1.5">On the map</div>
+              <div className="space-y-1">
+                {(
+                  [
+                    ["sectors", "Sector numbers"],
+                    ["edges", "Edges coloured by sector"],
+                    ["corners", "Corner numbers"],
+                  ] as const
+                ).map(([k, text]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    role="switch"
+                    aria-checked={p.layers[k]}
+                    onClick={() => p.onLayer(k, !p.layers[k])}
+                    className="w-full flex items-center justify-between gap-3 h-8 px-1 rounded-md font-sans text-[12px] text-ink-soft hover:text-ink"
+                  >
+                    {text}
+                    <span className="relative w-8 h-[18px] rounded-full transition-colors shrink-0" style={{ background: p.layers[k] ? "var(--hue-f1)" : "var(--rule)" }}>
+                      <span className="absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow transition-[left]" style={{ left: p.layers[k] ? "16px" : "2px" }} />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
             <p className="font-mono text-[9.5px] text-ink-faint leading-relaxed">The followed driver always keeps their name. Drag to look around once zoomed{" "}in.</p>
           </div>
         )}
