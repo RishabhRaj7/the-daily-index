@@ -8,6 +8,7 @@ import ReadingProgressBar from "@/components/chrome/ReadingProgressBar";
 import MotionRuntime from "@/components/chrome/MotionRuntime";
 import OnboardingGate from "@/components/onboarding/OnboardingGate";
 import { DriverSheetHost } from "@/components/f1/DriverLink";
+import SyncRuntime from "@/components/chrome/SyncRuntime";
 import { getF1Roster } from "@/lib/live/f1";
 
 // Four voices, one job each:
@@ -74,6 +75,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           {children}
           <OnboardingGate f1Roster={f1Roster} />
           <DriverSheetHost />
+          <SyncRuntime />
         </EditionProvider>
       </body>
     </html>

@@ -379,7 +379,7 @@ The digest is no longer generated per browser visit. The server builds one
 
 ## Settings (current)
 
-Four short tabs with one Save bar: **News** (always prioritise / never show
+Five short tabs with one Save bar: **News** (always prioritise / never show
 me tags, summary length and voice presets), **Sections** (one collapsed card
 per section — name + a one-line summary; "Edit" expands it: story count or
 countries, watched entities, note to the editor; "+ Add a section" makes a
@@ -387,7 +387,42 @@ free-text section; raw JSON under "Advanced"), **Sports** and
 **Page & Reddit** (the `PersonalizationForm` chapters, via its `parts` prop —
 onboarding still renders all chapters). `/settings#sections` deep-links a tab.
 Save writes both preference stores and POSTs `/api/edition` so the new
-edition starts building before the reader is back on the paper.
+edition starts building before the reader is back on the paper. Save writes
+only the fields edited on the page, over the settings as they are now (sync
+may have brought changes while it was open). A fifth tab, **Devices**, holds
+sync.
+
+## Sync across devices (current)
+
+The reader's choices live in localStorage on each device; sync keeps them in
+step without an account (`lib/sync.ts` in the browser, `app/api/sync` on the
+server, shapes in `lib/sync-shared.ts`, mounted by `components/chrome/
+SyncRuntime.tsx`, controls in `components/settings/SyncCard.tsx`).
+
+- What syncs: personalization (paddock, favourites, watchlist, topics,
+  section order …) and digest preferences, field by field; the puzzles,
+  whole; reading memory, merged (union of visits, issues and stories read;
+  the larger tally per affinity). What doesn't: the morning/evening override,
+  the map's choices, travel mode (where this device is), the cached edition,
+  the Reddit connection.
+- Linking: "Turn on sync" makes a 192-bit key; another device joins with
+  `/settings#sync=<key>` (QR code or link; the key rides in the fragment,
+  never sent to a server by the browser). Joining replaces that device's
+  settings with the synced ones; its reading history is merged in.
+- The server keeps one profile per key, stored under the key's SHA-256
+  (`sync:v1:<hash>`), for 400 days from its last change, at most 512 KB. One
+  POST does both directions: the device sends the fields it changed (the
+  server stamps each as it arrives) and gets the whole profile back. The
+  newest stamp wins per field; a field changed here and not yet sent always
+  wins locally. DELETE removes the profile.
+- The browser side watches localStorage rather than the code that writes it:
+  every 4 s it compares each document with what was last synced and sends
+  what changed (in view or not); it also syncs on load, on coming back into
+  view, every 2 minutes while in view, and as the page is hidden (keepalive).
+  Values that arrive go through the paper's own save functions, so the page
+  updates and the sports/Reddit cookies are rewritten.
+- Concurrent writes to one profile can still race (read-modify-write in the
+  store); for one reader's devices that is rare and the next change heals it.
 
 ## Stable summaries and live updates
 

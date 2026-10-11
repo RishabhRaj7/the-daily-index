@@ -6,15 +6,18 @@ import type { F1RosterEntry, Personalization } from "@/lib/types";
 import {
   DEFAULT_PERSONALIZATION,
   loadPersonalization,
+  PERSONALIZATION_CHANGED_EVENT,
   savePersonalization,
 } from "@/lib/personalization";
-import { loadDigestPreferences, saveDigestPreferences } from "@/lib/preferences/storage";
+import { loadDigestPreferences, PREFERENCES_CHANGED_EVENT, saveDigestPreferences } from "@/lib/preferences/storage";
 import type { DigestPreferences } from "@/lib/preferences/types";
 import { withSportsSettings } from "@/lib/preferences/paper";
 import { requestEdition } from "@/lib/edition-client";
 import PersonalizationForm from "@/components/onboarding/PersonalizationForm";
 import DigestPreferencesEditor from "@/components/settings/DigestPreferencesEditor";
 import RedditConnect from "@/components/settings/RedditConnect";
+import SyncCard from "@/components/settings/SyncCard";
+import { loadSync } from "@/lib/sync";
 import Link from "next/link";
 import TopBar from "@/components/chrome/TopBar";
 import { RisingWords } from "@/components/story/SectionHeader";
@@ -31,6 +34,7 @@ const TABS = [
   { key: "sections", label: "Sections", blurb: "What each section of the paper is filled with. Tap one to edit it." },
   { key: "sports", label: "Sports", blurb: "Which sports get a page, whose stories lead it, and your rivals." },
   { key: "page", label: "Page & Reddit", blurb: "Your city, the order pages print in, and the Reddit column." },
+  { key: "devices", label: "Devices", blurb: "The same paper on every device you read on." },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
@@ -43,6 +47,7 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
   const [memoryCount, setMemoryCount] = useState<number>(0);
   const [forgot, setForgot] = useState(false);
   const [tab, setTab] = useState<TabKey>("news");
+  const [syncOn, setSyncOn] = useState(false);
 
   useEffect(() => {
     const paper = loadPersonalization();
@@ -53,9 +58,11 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
     setNews(prefs);
     setBaseline({ paper: JSON.stringify(paper), news: JSON.stringify(prefs) });
     setMemoryCount(loadMemory().visits.length);
+    setSyncOn(!!loadSync());
     // Deep links like /settings#sections open that tab.
     const fromHash = window.location.hash.slice(1);
     if (TABS.some((t) => t.key === fromHash)) setTab(fromHash as TabKey);
+    if (fromHash.startsWith("sync=")) setTab("devices");
   }, []);
 
   const selectTab = (key: TabKey) => {
@@ -74,6 +81,23 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
   );
   const dirty = paperDirty || newsDirty;
 
+  useEffect(() => {
+    const fresh = () => {
+      if (dirty || saved) return;
+      const paper = loadPersonalization();
+      const prefs = loadDigestPreferences();
+      setDraft(paper);
+      setNews(prefs);
+      setBaseline({ paper: JSON.stringify(paper), news: JSON.stringify(prefs) });
+    };
+    window.addEventListener(PERSONALIZATION_CHANGED_EVENT, fresh);
+    window.addEventListener(PREFERENCES_CHANGED_EVENT, fresh);
+    return () => {
+      window.removeEventListener(PERSONALIZATION_CHANGED_EVENT, fresh);
+      window.removeEventListener(PREFERENCES_CHANGED_EVENT, fresh);
+    };
+  }, [dirty, saved]);
+
   // Discard the draft and close settings. Going *back* restores the paper
   // from the router's cache instantly; pushing "/" would re-run the whole
   // server render (fetching every feed again), which reads like a reload.
@@ -88,7 +112,13 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
   };
 
   const handleSave = () => {
-    const paper = { ...draft, onboarded: true };
+    // Only the fields edited here, laid over the settings as they are now: a
+    // device that synced while this page was open keeps what arrived.
+    const was = JSON.parse(baseline.paper || "{}") as Record<string, unknown>;
+    const edited = Object.fromEntries(
+      Object.entries(draft).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(was[k])),
+    ) as Partial<Personalization>;
+    const paper = { ...loadPersonalization(), ...edited, onboarded: true };
     if (paperDirty) savePersonalization(paper);
     if (news && (newsDirty || paperDirty)) {
       saveDigestPreferences(withSportsSettings(news, paper));
@@ -122,7 +152,9 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
           <RisingWords text="Make it yours" />
         </span>
       </h1>
-      <p className="font-headline italic text-ink-soft mt-4 mb-8 text-lg">Saved on this device. Nothing leaves it until you save.</p>
+      <p className="font-headline italic text-ink-soft mt-4 mb-8 text-lg">
+        {syncOn ? "Saved on this device, and synced to your others when you save." : "Saved on this device. Nothing leaves it until you save."}
+      </p>
 
       <div
         role="tablist"
@@ -196,12 +228,14 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
         />
       )}
 
+      {tab === "devices" && <SyncCard />}
+
       {tab === "page" && (
       <section className="mt-10 module">
         <div className="font-label text-[10px] text-accent mb-1">What the paper remembers</div>
         <p className="font-body text-sm text-ink-soft leading-relaxed">
           Your reading streak, which editions you opened, and which stories you unfolded are kept in
-          this browser only — never uploaded. They power the Editor&rsquo;s Desk note, the gentle
+          this browser{syncOn ? ", and shared with your other devices through sync" : " only — never uploaded"}. They power the Editor&rsquo;s Desk note, the gentle
           story re-ranking, and{" "}
           <Link href="/archive" className="text-accent underline underline-offset-2">
             the Archive
