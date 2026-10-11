@@ -215,7 +215,7 @@ export interface TrackModel {
   /** Where each mini-sector really ends, as shares of a lap (measured from F1's archive). */
   loops?: number[] | null;
   /** How F1's coordinates map onto the model's box (to place anything else traced from F1's data). */
-  frame?: { cx: number; cy: number; rotation: number; minX: number; minY: number; k: number };
+  frame?: { cx: number; cy: number; rotation: number; minX: number; minY: number; k: number; flip?: boolean };
   /** The pit lane, entry to exit, in the model's box (traced from a real stop: /api/f1/track). */
   pit?: [number, number][] | null;
 }
