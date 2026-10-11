@@ -47,9 +47,9 @@ export default function PastSessions({ current, label, onPick }: { current: stri
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="chip h-8 text-[12px] gap-1.5 max-w-[11rem] sm:max-w-[16rem]"
+        className={`chip h-8 text-[12px] gap-1.5 max-w-[11rem] sm:max-w-[16rem] ${current ? "text-ink hover:text-[color:var(--paper)]" : ""}`}
         aria-expanded={open}
-        style={current ? { borderColor: "var(--hue-f1)", color: "var(--ink)" } : undefined}
+        style={current ? { borderColor: "var(--hue-f1)" } : undefined}
       >
         <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
           <circle cx="8" cy="8" r="5.8" />

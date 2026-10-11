@@ -87,7 +87,7 @@ function Status({ r, race, running }: { r: LiveRow; race: boolean; running: bool
   if (r.pitOut)
     return (
       <span className="shrink-0 whitespace-nowrap rounded px-1 font-label text-[8.5px] border" style={{ color: "var(--f1-pit)", borderColor: "color-mix(in srgb, var(--f1-pit) 45%, transparent)" }} title="On an out-lap">
-        Out
+        Out lap
       </span>
     );
   if (!race && r.knockedOut) return <span className="font-label text-[8.5px] text-ink-faint">KO</span>;

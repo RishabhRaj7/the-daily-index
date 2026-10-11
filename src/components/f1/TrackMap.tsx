@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LiveSnapshot, SegmentMark, TrackModel } from "@/lib/f1-live-types";
 import { estimateCars, headingAt, pointAt, sectorEnds, segmentBounds, segmentMarks } from "@/lib/f1-track-progress";
+import dynamic from "next/dynamic";
+import type { CityApi, CityBadge, CityCar } from "./City3D";
 import { useF1Favourites } from "./LiveTiming";
 import { TYRE } from "./TyreIcon";
 
@@ -24,6 +26,10 @@ import { TYRE } from "./TyreIcon";
 
 const cache = new Map<number, Promise<TrackModel | null>>();
 
+// The 3D city view (Mapbox), loaded only when the reader picks it and a token is set.
+const City3D = dynamic(() => import("./City3D"), { ssr: false });
+const HAS_MAPBOX = !!process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+
 /** Sector colours: S1 red, S2 blue, S3 yellow (as the broadcast's sector boards). */
 const SECTOR_COLOUR = ["#ff3b4a", "#3b9dff", "#ffcf3a"];
 
@@ -34,7 +40,7 @@ export function useTrack(circuitKey: number | null | undefined): TrackModel | nu
     let live = true;
     let p = cache.get(circuitKey);
     if (!p) {
-      p = fetch(`/api/f1/track?key=${circuitKey}&v=5`)
+      p = fetch(`/api/f1/track?key=${circuitKey}&v=6`)
         .then((r) => (r.ok ? (r.json() as Promise<TrackModel>) : null))
         .catch(() => null);
       cache.set(circuitKey, p);
@@ -56,14 +62,21 @@ const MARK: Record<SegmentMark, string> = {
 };
 
 /** The points of the track between two shares of the lap. */
-function stretch(model: TrackModel, from: number, to: number): string {
+function stretchPts(model: TrackModel, from: number, to: number): [number, number][] {
   const pts: [number, number][] = [pointAt(model, from)];
   for (let i = 0; i < model.points.length; i++) {
     const f = model.fraction[i];
     if (f > from && f < to) pts.push(model.points[i]);
   }
   pts.push(pointAt(model, to));
-  return pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  return pts;
+}
+
+/** The same, as an SVG points list. */
+function stretch(model: TrackModel, from: number, to: number): string {
+  return stretchPts(model, from, to)
+    .map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`)
+    .join(" ");
 }
 
 /** A short line across the track at `f`, `half` long each side. */
@@ -155,6 +168,8 @@ export default function TrackMap({
 
   // ---- the field: driven forward, steered towards each estimate ------------
   const carRefs = useRef(new Map<string, SVGGElement>());
+  /** Where each car is drawn now (the 3D view reads it every frame). */
+  const placedRef = useRef(new Map<string, [number, number, number]>());
   const motion = useRef(new Map<string, number>());
   /** Each car's recent estimates (read time, laps travelled), for its speed. */
   const seen = useRef(new Map<string, { t: number; d: number }[]>());
@@ -192,7 +207,33 @@ export default function TrackMap({
     }
   }, [cars, readAt, rate]);
 
-  // ---- the camera: zoom, pan, follow -------------------------------------------
+  // ---- the camera: turn, zoom, pan, follow --------------------------------------
+  // The reader can turn the circuit in steps of 45°. The drawing turns inside
+  // a box that fits it turned; labels and badges stay upright.
+  const [turn, setTurn] = useState(0);
+  const turnRef = useRef(0);
+  const base = useMemo(() => {
+    if (!turn) return { x: 0, y: 0, w: model.width, h: model.height };
+    const a = (turn * Math.PI) / 180;
+    const [c, s] = [Math.cos(a), Math.sin(a)];
+    const [mx, my] = [model.width / 2, model.height / 2];
+    const xs = model.points.map(([x, y]) => mx + (x - mx) * c - (y - my) * s);
+    const ys = model.points.map(([x, y]) => my + (x - mx) * s + (y - my) * c);
+    const pad = 70 * (Math.max(model.width, model.height) / 1000);
+    const [x0, y0] = [Math.min(...xs) - pad, Math.min(...ys) - pad];
+    return { x: x0, y: y0, w: Math.max(...xs) + pad - x0, h: Math.max(...ys) + pad - y0 };
+  }, [model, turn]);
+  /** A point of the model where it is drawn, turned. */
+  const spin = useCallback(
+    (x: number, y: number): [number, number] => {
+      const t = turnRef.current;
+      if (!t) return [x, y];
+      const a = (t * Math.PI) / 180;
+      const [mx, my] = [model.width / 2, model.height / 2];
+      return [mx + (x - mx) * Math.cos(a) - (y - my) * Math.sin(a), my + (x - mx) * Math.sin(a) + (y - my) * Math.cos(a)];
+    },
+    [model],
+  );
   // The view is a window on the model's box, kept in refs and written straight
   // onto the SVG (the frame loop moves it every frame while following a car),
   // so panning and following never re-render the map.
@@ -201,19 +242,23 @@ export default function TrackMap({
   const zoomRef = useRef(1);
   const followRef = useRef<string | null>(null);
   const centre = useRef({ x: model.width / 2, y: model.height / 2 });
+  useEffect(() => {
+    turnRef.current = turn;
+  }, [turn]);
   const miniRef = useRef<SVGRectElement>(null);
   const applyView = useCallback(() => {
     const z = zoomRef.current;
-    const w = model.width / z;
-    const h = model.height / z;
+    const b = base;
+    const w = b.w / z;
+    const h = b.h / z;
     const c = centre.current;
-    c.x = z <= 1 ? model.width / 2 : Math.min(model.width - w / 2, Math.max(w / 2, c.x));
-    c.y = z <= 1 ? model.height / 2 : Math.min(model.height - h / 2, Math.max(h / 2, c.y));
+    c.x = z <= 1 ? b.x + b.w / 2 : Math.min(b.x + b.w - w / 2, Math.max(b.x + w / 2, c.x));
+    c.y = z <= 1 ? b.y + b.h / 2 : Math.min(b.y + b.h - h / 2, Math.max(b.y + h / 2, c.y));
     const box = [c.x - w / 2, c.y - h / 2, w, h].map((v) => v.toFixed(1));
     svgRef.current?.setAttribute("viewBox", box.join(" "));
     const m = miniRef.current;
     if (m) ["x", "y", "width", "height"].forEach((k, i) => m.setAttribute(k, box[i]));
-  }, [model]);
+  }, [base]);
   useEffect(() => {
     zoomRef.current = zoom;
     applyView();
@@ -319,11 +364,11 @@ export default function TrackMap({
         else at += ((dt * r) / pace) * Math.min(2.5, Math.max(0, 1 + err * 12));
         motion.current.set(c.code, at);
         const [x, y] = pointAt(model, at);
+        placedRef.current.set(c.code, [x, y, ((at % 1) + 1) % 1]);
         el.setAttribute("transform", `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
         // The camera rides with the followed car (zoomed in a little if it wasn't).
         if (followRef.current === c.code) {
-          centre.current.x = x;
-          centre.current.y = y;
+          [centre.current.x, centre.current.y] = spin(x, y);
           applyView();
         }
       }
@@ -356,10 +401,12 @@ export default function TrackMap({
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [hasSnap, model, applyView]);
+  }, [hasSnap, model, applyView, spin]);
 
   // Zoomed in, the cars and their codes grow a little, not as much as the track.
   const inv = 1 / Math.sqrt(zoom);
+  /** Keeps a label upright at (x, y) when the circuit is turned. */
+  const upright = (x = 0, y = 0) => (turn ? `rotate(${-turn} ${x} ${y})` : undefined);
   const r = (big ? 10 : 13) * scale * inv;
   const fav = useF1Favourites();
   const [codes, setCodes] = useStoredChoice<"all" | "yours" | "off">("f1-map-codes", "all", ["all", "yours", "off"]);
@@ -371,6 +418,11 @@ export default function TrackMap({
   const showCorners = corners && (!controls || cornerPick === "on");
   const showSectors = !controls || sectorPick === "on";
   const showEdges = !controls || edgePick === "on";
+  // Basic (the drawing) or 3D (the city around the circuit), where the circuit has been placed on Earth.
+  const [view, setView] = useStoredChoice<"basic" | "3d">("f1-map-view", "basic", ["basic", "3d"]);
+  const can3d = controls && !minimal && HAS_MAPBOX && !!model.geo;
+  const city = can3d && view === "3d";
+  const cityApi = useRef<CityApi | null>(null);
   const tyreOf = new Map((snap?.rows ?? []).map((row) => [row.code, row.tyre?.compound ?? null]));
   const fill = (code: string, colour: string) => {
     const t = paint === "tyre" ? tyreOf.get(code) : null;
@@ -480,12 +532,54 @@ export default function TrackMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model, scale, inv, ends?.[0], ends?.[1]]);
 
+  const cityCars: CityCar[] = city
+    ? [
+        ...cars
+          .filter((c) => c.onTrack)
+          .map((c) => ({ code: c.code, colour: c.colour, fill: fill(c.code, c.colour), ring: paint === "tyre" ? c.colour : "#0b0e17", mine: c.code === focus, label: showCode(c.code) })),
+        ...pitted.map((row, i) => ({
+          code: row.code,
+          colour: row.colour,
+          fill: fill(row.code, row.colour),
+          ring: "var(--f1-pit)",
+          mine: row.code === focus,
+          label: (pitted.length <= 6 || row.code === focus) && showCode(row.code),
+          pit: laneAt!(pitted.length === 1 ? 0.5 : 0.25 + (0.5 * i) / (pitted.length - 1)),
+        })),
+      ]
+    : [];
+  const cityBadges: CityBadge[] = city
+    ? [
+        ...(showSectors ? (sectorRanges ?? []).map((_, i) => ({ key: `s${i}`, x: spots.sector[i][0], y: spots.sector[i][1], text: `S${i + 1}`, colour: SECTOR_COLOUR[i], ink: "#111", round: false })) : []),
+        ...(showCorners ? model.corners.map((c) => ({ key: `c${c.number}`, x: (spots.corner.get(c.number) ?? [c.x, c.y])[0], y: (spots.corner.get(c.number) ?? [c.x, c.y])[1], text: String(c.number), colour: "rgba(20,22,30,.9)", ink: "#fff", round: true })) : []),
+      ]
+    : [];
+
   return (
     <div className={`relative ${className}`}>
+      {city && model.geo && (
+        <City3D
+          model={model}
+          geo={model.geo}
+          cars={cityCars}
+          spots={placedRef}
+          badges={cityBadges}
+          edges={showEdges && sectorRanges ? sectorRanges.map(([from, to], i) => ({ pts: stretchPts(model, from, to), colour: SECTOR_COLOUR[i] })) : null}
+          follow={followRef}
+          onFocus={onFocus}
+          onLeaveFollow={() => {
+            setFollow(false);
+            followRef.current = null;
+          }}
+          api={cityApi}
+          big={big}
+          turn={turn}
+        />
+      )}
       <svg
         ref={svgRef}
-        viewBox={`0 0 ${model.width} ${model.height}`}
-        className={`relative block w-full ${big || fit ? "h-full" : "h-auto"} ${drawn ? "track-drawn" : "track-undrawn"}`}
+        viewBox={`${base.x} ${base.y} ${base.w} ${base.h}`}
+        className={`relative block w-full ${big || fit ? "h-full" : "h-auto"} ${drawn ? "track-drawn" : "track-undrawn"} ${city ? "invisible" : ""}`}
         preserveAspectRatio="xMidYMid meet"
         onPointerDown={controls ? onPointerDown : undefined}
         onPointerMove={controls ? onPointerMove : undefined}
@@ -502,6 +596,7 @@ export default function TrackMap({
             <rect x={4 * scale} y={4 * scale} width={4 * scale} height={4 * scale} fill="#111" />
           </pattern>
         </defs>
+        <g transform={turn ? `rotate(${turn} ${cx} ${cy})` : undefined}>
 
         {/* the pit lane, under the track: a narrow lane, dashed down the middle */}
         {lane && (
@@ -562,10 +657,12 @@ export default function TrackMap({
               return (
                 <g key={i}>
                   {i > 0 && <line x1={a.x1} y1={a.y1} x2={a.x2} y2={a.y2} stroke={SECTOR_COLOUR[i]} strokeWidth={4 * scale} strokeLinecap="round" />}
-                  <rect x={lx - w / 2} y={ly - h / 2} width={w} height={h} rx={h / 2} fill={SECTOR_COLOUR[i]} />
-                  <text x={lx} y={ly} dy="0.36em" textAnchor="middle" fontSize={11 * scale * inv} fontWeight={800} fontFamily="var(--font-sans)" fill="#111">
-                    S{i + 1}
-                  </text>
+                  <g transform={upright(lx, ly)}>
+                    <rect x={lx - w / 2} y={ly - h / 2} width={w} height={h} rx={h / 2} fill={SECTOR_COLOUR[i]} />
+                    <text x={lx} y={ly} dy="0.36em" textAnchor="middle" fontSize={11 * scale * inv} fontWeight={800} fontFamily="var(--font-sans)" fill="#111">
+                      S{i + 1}
+                    </text>
+                  </g>
                 </g>
               );
             })}
@@ -578,7 +675,7 @@ export default function TrackMap({
                 return (
                   <g key={c.number}>
                     <circle cx={x} cy={y} r={rr} fill="var(--track-badge)" stroke="var(--ink)" strokeOpacity={0.85} strokeWidth={1.6 * scale * inv} />
-                    <text x={x} y={y} dy="0.36em" textAnchor="middle" fontSize={(c.number > 9 ? 10 : 11) * scale * inv} fontWeight={700} fontFamily="var(--font-sans)" fill="var(--ink)">
+                    <text x={x} y={y} transform={upright(x, y)} dy="0.36em" textAnchor="middle" fontSize={(c.number > 9 ? 10 : 11) * scale * inv} fontWeight={700} fontFamily="var(--font-sans)" fill="var(--ink)">
                       {c.number}
                     </text>
                   </g>
@@ -599,12 +696,14 @@ export default function TrackMap({
             return (
               <g key={`pit-${row.code}`} transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`} onClick={onFocus ? () => onFocus(row.code) : undefined} style={onFocus ? { cursor: "pointer" } : undefined}>
                 <title>{`${row.code} in the pits`}</title>
+                <g transform={upright()}>
                 <circle r={(mine ? 1.1 : 0.85) * r} fill={fill(row.code, row.colour)} stroke="var(--f1-pit)" strokeWidth={3 * scale * inv} />
                 {(pitted.length <= 6 || mine) && showCode(row.code) && (
                   <text x={r * 1.3} y={-r} fontSize={(mine ? 20 : 15) * scale * inv} fontWeight={700} fontFamily="var(--font-sans)" fill="var(--ink-soft)" stroke="var(--paper)" strokeWidth={5 * scale} paintOrder="stroke">
                     {row.code}
                   </text>
                 )}
+                </g>
               </g>
             );
           })}
@@ -633,6 +732,7 @@ export default function TrackMap({
                 onClick={onFocus ? () => onFocus(c.code) : undefined}
                 style={onFocus ? { cursor: "pointer" } : undefined}
               >
+                <g transform={upright()}>
                 {mine && <circle r={r * 1.9} fill={c.colour} opacity={0.22} className="car-pulse" />}
                 <circle r={mine ? r * 1.25 : r} fill={fill(c.code, c.colour)} stroke={paint === "tyre" ? c.colour : "var(--paper)"} strokeWidth={(paint === "tyre" ? 4.5 : 3.5) * scale * inv} />
                 {showCode(c.code) && (
@@ -650,12 +750,20 @@ export default function TrackMap({
                     {c.code}
                   </text>
                 )}
+                </g>
               </g>
             );
           })}
+        </g>
       </svg>
       {controls && snap && (
         <MapTools
+          view={can3d ? view : null}
+          onView={(v) => {
+            setView(v);
+            setFollow(false);
+            followRef.current = null;
+          }}
           layers={{ corners: cornerPick === "on", sectors: sectorPick === "on", edges: edgePick === "on" }}
           onLayer={(k, on) => (k === "corners" ? setCornerPick : k === "sectors" ? setSectorPick : setEdgePick)(on ? "on" : "off")}
           codes={codes}
@@ -665,25 +773,36 @@ export default function TrackMap({
           follow={follow}
           onFollow={(on) => {
             setFollow(on);
-            if (on && zoomRef.current < 2.5) zoomBy(2.5 / zoomRef.current);
+            if (city) {
+              followRef.current = on && focus ? focus : null;
+              if (on && focus) cityApi.current?.closeIn(focus);
+            } else if (on && zoomRef.current < 2.5) zoomBy(2.5 / zoomRef.current);
           }}
           canFollow={!!focus && snap.running}
-          zoom={zoom}
-          onZoom={(f) => zoomBy(f)}
+          onRotate={(dir) => {
+            if (city) cityApi.current?.rotate(dir);
+            setTurn((t) => (t + dir * 45 + 360) % 360);
+          }}
+          zoom={city ? 2 : zoom}
+          onZoom={(f) => (city ? cityApi.current?.zoomBy(f) : zoomBy(f))}
           tyres={paint === "tyre" && snap.running ? (["SOFT", "MEDIUM", "HARD", "INTERMEDIATE", "WET"] as const).filter((t) => [...tyreOf.values()].includes(t)) : []}
           onReset={() => {
             setFollow(false);
             followRef.current = null;
+            if (city) {
+              cityApi.current?.reset();
+              return;
+            }
             zoomRef.current = 1;
             setZoom(1);
             applyView();
           }}
         />
       )}
-      {controls && zoom > 1 && (
+      {controls && zoom > 1 && !city && (
         // Where the zoomed view is on the whole circuit.
-        <svg viewBox={`0 0 ${model.width} ${model.height}`} className="absolute left-0 bottom-0 w-20 sm:w-24 h-auto rounded-lg border hairline bg-[var(--surface)] opacity-90 pointer-events-none" aria-hidden="true">
-          <path d={model.path} fill="none" stroke="var(--ink-faint)" strokeWidth={14 * scale} strokeLinejoin="round" />
+        <svg viewBox={`${base.x} ${base.y} ${base.w} ${base.h}`} className="absolute left-0 bottom-0 w-20 sm:w-24 h-auto rounded-lg border hairline bg-[var(--surface)] opacity-90 pointer-events-none" aria-hidden="true">
+          <path d={model.path} transform={turn ? `rotate(${turn} ${cx} ${cy})` : undefined} fill="none" stroke="var(--ink-faint)" strokeWidth={14 * scale} strokeLinejoin="round" />
           <rect ref={miniRef} fill="color-mix(in srgb, var(--hue-f1) 18%, transparent)" stroke="var(--hue-f1)" strokeWidth={8 * scale} rx={10 * scale} />
         </svg>
       )}
@@ -769,6 +888,9 @@ function Choice<T extends string>({ label, value, options, onChange }: { label: 
  * back to the whole circuit.
  */
 function MapTools(p: {
+  /** Basic or 3D (null: no 3D for this circuit). */
+  view: "basic" | "3d" | null;
+  onView: (v: "basic" | "3d") => void;
   codes: "all" | "yours" | "off";
   onCodes: (v: "all" | "yours" | "off") => void;
   paint: "team" | "tyre";
@@ -776,6 +898,7 @@ function MapTools(p: {
   follow: boolean;
   onFollow: (on: boolean) => void;
   canFollow: boolean;
+  onRotate: (dir: 1 | -1) => void;
   zoom: number;
   onZoom: (factor: number) => void;
   onReset: () => void;
@@ -826,6 +949,17 @@ function MapTools(p: {
         )}
         {open && (
           <div className="absolute left-0 top-10 w-60 rounded-2xl border hairline bg-[var(--surface)] shadow-xl p-3.5 space-y-3.5 animate-[fade-in_0.15s_ease]">
+            {p.view && (
+              <Choice
+                label="View"
+                value={p.view}
+                onChange={p.onView}
+                options={[
+                  ["basic", "Basic"],
+                  ["3d", "3D city"],
+                ]}
+              />
+            )}
             <Choice
               label="Driver names on the map"
               value={p.codes}
@@ -871,16 +1005,33 @@ function MapTools(p: {
                 ))}
               </div>
             </div>
-            <p className="font-mono text-[9.5px] text-ink-faint leading-relaxed">The followed driver always keeps their name. Drag to look around once zoomed{" "}in.</p>
+            <p className="font-mono text-[9.5px] text-ink-faint leading-relaxed">The followed driver always keeps their name. {p.view === "3d" ? "Drag to move; right-drag or two fingers to tilt and turn." : <>Drag to look around once zoomed{" "}in.</>}</p>
           </div>
         )}
       </div>
       <div className="absolute right-0 bottom-0 z-10 glass border hairline rounded-2xl overflow-hidden flex flex-col divide-y divide-[var(--rule)]">
+        {p.view && (
+          <MapButton on={p.view === "3d"} onClick={() => p.onView(p.view === "3d" ? "basic" : "3d")} label={p.view === "3d" ? "Back to the basic map" : "Show the circuit in 3D"}>
+            <span className="font-sans text-[10.5px] font-extrabold tracking-tight">3D</span>
+          </MapButton>
+        )}
         <MapButton on={p.follow} onClick={() => p.onFollow(!p.follow)} disabled={!p.canFollow} label={p.follow ? "Stop following the car" : "Follow the chosen car"}>
           <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
             <circle cx="8" cy="8" r="4" />
             <circle cx="8" cy="8" r="1.2" fill="currentColor" />
             <path d="M8 1.5V4M8 12v2.5M1.5 8H4M12 8h2.5" />
+          </svg>
+        </MapButton>
+        <MapButton onClick={() => p.onRotate(-1)} label="Turn the map anticlockwise">
+          <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M3.5 8a4.5 4.5 0 1 0 1.4-3.3" />
+            <path d="M3.2 2.6v2.6h2.6" />
+          </svg>
+        </MapButton>
+        <MapButton onClick={() => p.onRotate(1)} label="Turn the map clockwise">
+          <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12.5 8a4.5 4.5 0 1 1-1.4-3.3" />
+            <path d="M12.8 2.6v2.6h-2.6" />
           </svg>
         </MapButton>
         <MapButton onClick={() => p.onZoom(1.6)} disabled={p.zoom >= 8} label="Zoom in">

@@ -616,6 +616,35 @@ edition starts building before the reader is back on the paper.
   home page's next-race map is `minimal` (just the circuit), turning slowly
   in 3D (`.track-turn`); the live centre opens, unmarked, from a tap on the
   home page's grid/results table.
+- The live map's 3D city view (`components/f1/City3D.tsx`, the 3D button
+  or Map options → View; Basic at first, remembered as `f1-map-view`):
+  Mapbox's Standard map at night with its 3D buildings, tilted, the track
+  laid where it really runs. Each circuit is placed on Earth by fitting its
+  outline to its GPS racing line (`lib/live/f1-geo.ts`, bacinger/f1-circuits;
+  kept as `f1:track:geo:v2:<key>:<year>`, returned with the track as `geo`).
+  The track is map lines (buildings in front hide it); cars and badges are
+  markers, moved every frame from where TrackMap's loop puts them (the
+  drawing stays, unseen, sizing the box and running the cars). The map undoes
+  `.page-scale`'s zoom, which Mapbox doesn't allow for. Needs
+  `NEXT_PUBLIC_MAPBOX_TOKEN` (a public pk. token; free up to 50,000 map loads
+  a month); without it, or for a circuit that can't be placed, there's no 3D
+  button.
+- Bridges and tunnels in the 3D view (`lib/f1-cover.ts`): Mapbox Streets
+  says which roads are bridges or tunnels (`structure`), not how high they
+  stand. A bridge running along the track (within 18 m for over half its
+  length) is the circuit's own; any other that crosses it at more than ~20°
+  passes over, is drawn again above the track, and covers it for its width
+  across the crossing. A tunnel along the track counts only where no ground
+  road runs the same way (so Singapore's expressway tunnels beneath don't,
+  Monaco's does); gaps under 100 m are joined, stretches under 50 m dropped.
+  A car on a covered stretch is dimmed (not hidden) until it comes out. So
+  is a car the map draws a building over: a raised walkway mapped as a
+  building (Singapore's turn 6), or a tower between the camera and the
+  track — asked of the map (`queryRenderedFeatures` on the basemap's
+  `buildings` featureset at the car's spot) four times a second.
+- Turning the map: two buttons turn it 45° at a time. The basic map turns
+  the drawing inside a box fitted to it turned, labels kept upright; the 3D
+  view turns its camera (and starts from the basic map's turn).
 - A driver's name opens their season (`components/f1/DriverLink.tsx`:
   `DriverName`, `openDriver`, one `DriverSheetHost` in the root layout)
   where the whole season is what a reader wants: the home page's

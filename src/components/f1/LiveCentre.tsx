@@ -242,7 +242,14 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
           {stints.length > 0 && (
             <div className="rounded-xl border hairline px-3 pt-2 pb-1">
               <div className="flex items-baseline justify-between font-label text-[8px] text-ink-faint">
-                <span>Tyres</span>
+                <span className="flex items-center gap-1.5">
+                  Tyres
+                  {stints.some((x) => !x.fresh) && (
+                    <span className="flex items-center gap-1 text-ink-faint/80" title="A dashed stint ran on a used set; a solid one on new tyres">
+                      · <span className="inline-block w-3 h-[2px]" style={{ background: "repeating-linear-gradient(90deg, currentColor 0 3px, transparent 3px 5px)" }} /> used set
+                    </span>
+                  )}
+                </span>
                 <span>
                   {row.stops} stop{row.stops === 1 ? "" : "s"}
                   {total ? ` · ${total} laps` : ""}
