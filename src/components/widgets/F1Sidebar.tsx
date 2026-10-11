@@ -549,7 +549,7 @@ export default function F1Sidebar({
 
       </div>
 
-      <div className="grid md:grid-cols-2 gap-4 items-start lg:col-span-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start lg:col-span-2">
       {/* Last race and the calendar run full width, beside each other, so the
           desk column stays shorter than the stories. */}
       {map.status === "ready" && map.data && (

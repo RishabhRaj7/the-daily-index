@@ -50,11 +50,11 @@ function PickItem({ pick, index }: { pick: EditorsPick; index: number }) {
         </p>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
           {pick.personal && (
-            <span className="font-label text-[9px] text-accent">
+            <span className="font-label text-[10px] text-accent">
               For you{pick.matchedInterest ? ` · ${pick.matchedInterest}` : ""}
             </span>
           )}
-          <span className="font-label text-[9px] text-ink-soft">{pick.pool} wire</span>
+          <span className="font-label text-[10px] text-ink-soft">{pick.pool} wire</span>
           <span className="font-mono text-[10px] text-ink-soft">
             {pick.domain} · {pick.postedAgo}
           </span>
@@ -139,7 +139,7 @@ export default function GrapevineSection({
 
       <SearchBar headlines={headlines} />
 
-      <div className="grid md:grid-cols-2 gap-y-12">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-y-12">
         <div className="md:pr-10 md:border-r hairline">
           <ColumnHead
             title="You Should See This"

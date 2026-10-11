@@ -199,13 +199,13 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
           {/* last and best, against the session's fastest */}
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-xl border hairline px-3 py-2">
-              <div className="font-label text-[8px] text-ink-faint">Last lap</div>
+              <div className="font-label text-[9px] text-ink-faint">Last lap</div>
               <div className="font-mono text-[15px] font-semibold tabular-nums mt-1" style={{ color: MARK_COLOUR[row.lastMark] }}>
                 {row.last || "—"}
               </div>
             </div>
             <div className="rounded-xl border hairline px-3 py-2" style={row.bestFastest ? { borderColor: "var(--f1-fastest)" } : undefined}>
-              <div className="font-label text-[8px] text-ink-faint">{row.bestFastest ? "Best · fastest of all" : "Best lap"}</div>
+              <div className="font-label text-[9px] text-ink-faint">{row.bestFastest ? "Best · fastest of all" : "Best lap"}</div>
               <div className="font-mono text-[15px] font-semibold tabular-nums mt-1" style={{ color: row.bestFastest ? "var(--f1-fastest)" : undefined }}>
                 {row.best || "—"}
                 {off !== null && off > 0 && <span className="font-normal text-[10px] text-ink-faint ml-1.5">+{off.toFixed(3)}</span>}
@@ -220,7 +220,7 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
                 const s = row.sectors[i];
                 return (
                   <div key={i} className="min-w-0">
-                    <div className="font-label text-[8px] text-ink-faint">S{i + 1}</div>
+                    <div className="font-label text-[9px] text-ink-faint">S{i + 1}</div>
                     <div className="font-mono text-[13px] font-semibold tabular-nums mt-0.5" style={{ color: s ? MARK_COLOUR[s.mark] : undefined }}>
                       {s?.value || "—"}
                     </div>
@@ -231,7 +231,7 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
                         ))}
                       </div>
                     )}
-                    {stats?.bestSectors[i] && <div className="font-mono text-[9.5px] text-ink-faint mt-1 tabular-nums">best {stats.bestSectors[i]}</div>}
+                    {stats?.bestSectors[i] && <div className="font-mono text-[10.5px] text-ink-faint mt-1 tabular-nums">Best {stats.bestSectors[i]}</div>}
                   </div>
                 );
               })}
@@ -241,7 +241,7 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
           {/* the race in tyres */}
           {stints.length > 0 && (
             <div className="rounded-xl border hairline px-3 pt-2 pb-1">
-              <div className="flex items-baseline justify-between font-label text-[8px] text-ink-faint">
+              <div className="flex items-baseline justify-between font-label text-[9px] text-ink-faint">
                 <span className="flex items-center gap-1.5">
                   Tyres
                   {stints.some((x) => !x.fresh) && (
@@ -264,8 +264,8 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
           {stop && (
             <div className="rounded-xl border hairline px-3 py-2.5">
               <div className="flex items-baseline justify-between gap-2">
-                <span className="font-label text-[8.5px] text-ink-faint">A stop now</span>
-                <span className="font-mono text-[9.5px] text-ink-faint">costs ~{stop.loss.toFixed(0)} s</span>
+                <span className="font-label text-[9.5px] text-ink-faint">A stop now</span>
+                <span className="font-mono text-[10.5px] text-ink-faint">costs ~{stop.loss.toFixed(0)} s</span>
               </div>
               <div className="text-[12.5px] mt-1 leading-snug">
                 Out in <b className="font-display text-[1.05rem]">P{stop.pos}</b>
@@ -319,9 +319,9 @@ function TitleRow({ label, team, colour, position, predicted, points, predictedP
 
 function Title({ p, fav }: { p: LivePrediction; fav: Set<string> }) {
   return (
-    <div className="grid sm:grid-cols-2 gap-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
       <div>
-        <div className="font-label text-[9px] text-ink-faint mb-2">Drivers</div>
+        <div className="font-label text-[10px] text-ink-faint mb-2">Drivers</div>
         <ol>
           {p.drivers.slice(0, 10).map((d) => (
             <TitleRow key={d.code} label={d.code} {...d} mine={fav.has(d.code)} />
@@ -329,7 +329,7 @@ function Title({ p, fav }: { p: LivePrediction; fav: Set<string> }) {
         </ol>
       </div>
       <div>
-        <div className="font-label text-[9px] text-ink-faint mb-2">Constructors</div>
+        <div className="font-label text-[10px] text-ink-faint mb-2">Constructors</div>
         <ol>
           {p.teams.slice(0, 10).map((t) => (
             <TitleRow key={t.name} label={t.name} team={t.name} {...t} />
@@ -347,7 +347,7 @@ function NextUp({ race, next }: { race: F1Race | null; next: string | null }) {
   const at = first ? new Date(first.start) : next ? new Date(next) : null;
   return (
     <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-3.5 sm:px-5 flex flex-wrap items-center gap-x-4 gap-y-1">
-      <span className="flex items-center gap-2 font-label text-[9.5px] text-ink-soft">
+      <span className="flex items-center gap-2 font-label text-[10.5px] text-ink-soft">
         <LiveDot running={false} /> Nothing on track
       </span>
       <span className="font-headline text-[15px] leading-snug">
@@ -377,14 +377,14 @@ function LiveView({ snap, live, replay, replayT }: { snap: LiveSnapshot; live: b
   // and the feed across the full width beneath them, its filters down the
   // left and its list scrolling inside.
   return (
-    <div className="grid lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-5 lg:gap-6 items-stretch">
+    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-5 lg:gap-6 items-stretch">
       {track ? (
         <Panel id="track" label={track.name || "Track"} meta={live || replay ? "Cars placed from the timing loops" : track.corners.length ? `${track.corners.length} corners` : undefined} className="order-1 lg:col-start-2 lg:row-start-1">
           <TrackMap model={track} snap={snap} focus={focus} onFocus={setPicked} onExpand={() => setEnlarged(true)} fit controls className="h-[42vh] max-h-[26rem] lg:h-[31rem] lg:max-h-none" />
           {enlarged && <MapSheet model={track} snap={snap} focus={focus} onFocus={setPicked} onClose={() => setEnlarged(false)} />}
           {focusRow && <FocusCard row={focusRow} photo={photos[focusRow.code] ?? driverPhotoByCode(focusRow.code, focusRow.team)} snap={snap} track={track} live={live && !replay} replayT={replay ? replayT : null} />}
           {focusRow && snap.running && (
-            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 font-mono text-[9.5px] text-ink-faint">
+            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 font-mono text-[10.5px] text-ink-faint">
               <span>{focusRow.code}&rsquo;s mini-sectors:</span>
               <span style={{ color: "var(--f1-fastest)" }}>■ session best</span>
               <span style={{ color: "var(--f1-personal)" }}>■ personal best</span>
@@ -405,7 +405,7 @@ function LiveView({ snap, live, replay, replayT }: { snap: LiveSnapshot; live: b
         className="order-2 lg:col-start-1 lg:row-start-1"
       >
         <LiveTiming snap={snap} wide focus={focus} onFocus={setPicked} />
-        <div className="mt-auto pt-5 flex flex-wrap items-center gap-x-4 gap-y-1.5 font-mono text-[9.5px] text-ink-faint">
+        <div className="mt-auto pt-5 flex flex-wrap items-center gap-x-4 gap-y-1.5 font-mono text-[10.5px] text-ink-faint">
           <span style={{ color: "var(--f1-fastest)" }}>■ fastest in the session</span>
           <span style={{ color: "var(--f1-personal)" }}>■ personal best</span>
           <span style={{ color: "var(--f1-slower)" }}>■ slower</span>
@@ -521,7 +521,7 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
             </button>
           )}
           {snap && (
-            <span className="hidden sm:flex items-center gap-2 rounded-full border hairline h-8 px-3 font-label text-[9.5px] shrink-0">
+            <span className="hidden sm:flex items-center gap-2 rounded-full border hairline h-8 px-3 font-label text-[10.5px] shrink-0">
               <LiveDot running={(live || replaying) && snap.running} />
               <span style={{ color: (live || replaying) && snap.running ? "var(--hue-f1)" : undefined }}>
                 {replaying ? "Replay" : live ? (snap.running ? "Live" : snap.status === "Inactive" ? "Starting soon" : "Chequered flag") : past ? "Archive" : "Final"}

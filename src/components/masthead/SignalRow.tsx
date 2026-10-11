@@ -50,7 +50,7 @@ function Card({
       className="group relative flex flex-col gap-1.5 rounded-2xl border px-4 py-3.5 min-w-0 overflow-hidden transition-transform duration-300 hover:-translate-y-0.5"
     >
       <span className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full" style={{ background: hue }} />
-      <span className="flex items-center justify-between font-label text-[9px]" style={{ color: hue }}>
+      <span className="flex items-center justify-between font-label text-[10px]" style={{ color: hue }}>
         {label}
         <span className="text-ink-faint transition-transform duration-300 group-hover:translate-y-0.5" aria-hidden="true">
           ↓

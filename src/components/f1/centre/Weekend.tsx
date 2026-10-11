@@ -92,7 +92,7 @@ function SessionCard({ s, on, onOpen }: { s: WeekendSession; on: boolean; onOpen
           </li>
         ))}
       </ol>
-      <div className="mt-auto pt-2 border-t hairline flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[9.5px] text-ink-faint">
+      <div className="mt-auto pt-2 border-t hairline flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10.5px] text-ink-faint">
         {s.fastest && (
           <span>
             <span style={{ color: "var(--f1-fastest)" }}>■</span> {s.fastest.code} {s.fastest.time}
@@ -104,7 +104,7 @@ function SessionCard({ s, on, onOpen }: { s: WeekendSession; on: boolean; onOpen
             {s.air.toFixed(0)}° air · {s.track?.toFixed(0)}° track
           </span>
         )}
-        <span className="ml-auto font-label text-[8px]" style={{ color: on ? "var(--hue-f1)" : undefined }}>
+        <span className="ml-auto font-label text-[9px]" style={{ color: on ? "var(--hue-f1)" : undefined }}>
           {on ? "On show" : "Open →"}
         </span>
       </div>
@@ -122,7 +122,7 @@ function Form({ sessions, onDriver }: { sessions: WeekendSession[]; onDriver: (c
     <div className="overflow-x-auto -mx-1 px-1">
       <table className="border-separate border-spacing-[3px] text-[11.5px] tabular-nums">
         <thead>
-          <tr className="font-label text-[8.5px] text-ink-faint">
+          <tr className="font-label text-[9.5px] text-ink-faint">
             <th className="text-left font-normal px-1 min-w-[8.5rem]">Driver</th>
             {sessions.map((s) => (
               <th key={s.path} className="font-normal min-w-[3.4rem]">
@@ -185,9 +185,9 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
   return (
     <div className="space-y-6">
       {/* the round */}
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] gap-6">
         <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 sm:p-6 flex flex-col">
-          <div className="font-label text-[9.5px] text-ink-soft">
+          <div className="font-label text-[10.5px] text-ink-soft">
             {data?.round ? `Round ${data.round} · ` : ""}
             {first && last ? `${new Date(first).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} – ${new Date(last).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}
             {sprint ? " · sprint weekend" : ""}
@@ -198,13 +198,13 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
             {[
               { k: "Corners", v: track?.corners.length ? String(track.corners.length) : "—" },
               { k: "A pit stop costs", v: track?.pitLoss ? `~${Math.round(track.pitLoss)} s` : "—" },
-              { k: "Grands Prix here", v: h ? String(h.races) : "—", sub: h?.firstYear ? `since ${h.firstYear}` : undefined },
+              { k: "Grands Prix here", v: h ? String(h.races) : "—", sub: h?.firstYear ? `Since ${h.firstYear}` : undefined },
               { k: "Most wins here", v: h?.mostWins ? String(h.mostWins.wins) : "—", sub: h?.mostWins?.name },
             ].map((x) => (
               <div key={x.k} className="rounded-xl border hairline px-3 py-2.5 min-w-0">
-                <dt className="font-label text-[8px] text-ink-faint truncate">{x.k}</dt>
+                <dt className="font-label text-[9px] text-ink-faint truncate">{x.k}</dt>
                 <dd className="font-display font-extrabold text-[1.45rem] leading-none mt-1.5">{x.v}</dd>
-                {x.sub && <dd className="font-mono text-[9.5px] text-ink-faint mt-1 truncate">{x.sub}</dd>}
+                {x.sub && <dd className="font-mono text-[10.5px] text-ink-faint mt-1 truncate">{x.sub}</dd>}
               </div>
             ))}
           </dl>
@@ -225,7 +225,7 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
           )}
         </div>
         {data === undefined ? (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className="h-44 rounded-2xl bg-[var(--card-bg)] border border-[var(--card-border)] animate-pulse" />
             ))}
@@ -258,7 +258,7 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
         </Panel>
       )}
 
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] gap-6 items-start">
         <Panel label="Recent years here" meta={h ? `${h.races} Grands Prix since ${h.firstYear}` : undefined}>
           {!h ? (
             <p className="font-mono text-[11px] text-ink-faint">{data === undefined ? "Reading…" : "No history: a new venue."}</p>
@@ -266,7 +266,7 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
             <div className="overflow-x-auto -mx-1 px-1">
               <table className="w-full text-[12px] min-w-[28rem]">
                 <thead>
-                  <tr className="font-label text-[8.5px] text-ink-faint text-left">
+                  <tr className="font-label text-[9.5px] text-ink-faint text-left">
                     <th className="font-normal py-1.5">Year</th>
                     <th className="font-normal">Winner</th>
                     <th className="font-normal">Pole</th>
@@ -306,10 +306,10 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
 
       {after.length > 0 && (
         <Panel label="After this">
-          <ol className="grid sm:grid-cols-3 gap-3">
+          <ol className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {after.map((r) => (
               <li key={r.round} className="rounded-xl border hairline px-3.5 py-3">
-                <div className="font-label text-[8.5px] text-ink-faint">Round {r.round}</div>
+                <div className="font-label text-[9.5px] text-ink-faint">Round {r.round}</div>
                 <div className="font-display font-extrabold uppercase text-[1.25rem] leading-none mt-1.5">{r.name}</div>
                 <div className="font-mono text-[10.5px] text-ink-soft mt-1.5">
                   {new Date(r.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}

@@ -123,11 +123,11 @@ function Speeds({ stats, mine }: { stats: LiveStats[]; mine: Set<string> }) {
             <span className="h-[8px] rounded-full bg-[var(--rule)] overflow-hidden">
               <span className="block h-full rounded-full" style={{ width: `${Math.max(4, ((s.speeds[trap]! - floor) / (top - floor)) * 100)}%`, background: s.colour, opacity: mine.has(s.code) ? 1 : 0.75 }} />
             </span>
-            <span className="font-mono tabular-nums text-right">{s.speeds[trap]} <span className="text-ink-faint text-[9.5px]">km/h</span></span>
+            <span className="font-mono tabular-nums text-right">{s.speeds[trap]} <span className="text-ink-faint text-[10.5px]">km/h</span></span>
           </li>
         ))}
       </ol>
-      <p className="font-mono text-[9.5px] text-ink-faint mt-3">Each car&rsquo;s best this session. Bars start at {floor} km/h. Int. 1 and 2 are the intermediate traps in sectors 1 and 2.</p>
+      <p className="font-mono text-[10.5px] text-ink-faint mt-3">Each car&rsquo;s best this session. Bars start at {floor} km/h. Int. 1 and 2 are the intermediate traps in sectors 1 and 2.</p>
     </>
   );
 }
@@ -156,7 +156,7 @@ function Ideal({ stats, mine }: { stats: LiveStats[]; mine: Set<string> }) {
       <div className="overflow-x-auto -mx-1 px-1">
         <table className="w-full text-[12px] tabular-nums min-w-[26rem]">
           <thead>
-            <tr className="font-label text-[8.5px] text-ink-faint text-right">
+            <tr className="font-label text-[9.5px] text-ink-faint text-right">
               <th className="text-left font-normal py-1">Driver</th>
               <th className="font-normal">S1</th>
               <th className="font-normal">S2</th>
@@ -219,7 +219,7 @@ export function Benchmarks({ snap }: { snap: LiveSnapshot }) {
   return (
     <div className="flex flex-col gap-2.5">
       <div className="rounded-xl px-3.5 py-3" style={{ background: "color-mix(in srgb, var(--f1-fastest) 13%, transparent)" }}>
-        <div className="font-label text-[8.5px] text-ink-faint">{snap.type === "Race" ? "Fastest lap" : "Session best"}</div>
+        <div className="font-label text-[9.5px] text-ink-faint">{snap.type === "Race" ? "Fastest lap" : "Session best"}</div>
         <div className="flex items-end justify-between gap-3 mt-1">
           <span className="font-mono font-semibold text-[1.55rem] leading-none tabular-nums" style={{ color: "var(--f1-fastest)" }}>
             {best?.best ?? "—"}
@@ -242,7 +242,7 @@ export function Benchmarks({ snap }: { snap: LiveSnapshot }) {
           const gap = mine !== null && ref !== null ? mine - ref : null;
           return (
             <div key={b.label} className="rounded-xl border hairline px-3.5 py-2.5">
-              <div className="font-label text-[8.5px] text-ink-faint">{b.label}</div>
+              <div className="font-label text-[9.5px] text-ink-faint">{b.label}</div>
               <div className="flex items-baseline justify-between gap-3 mt-1">
                 <span className="font-mono font-semibold text-[1.05rem] tabular-nums">{b.time}</span>
                 {gap !== null && (
@@ -280,7 +280,7 @@ function CaseRow({ c }: { c: StewardsCase }) {
         {c.where ? `${c.where}: ` : ""}
         {c.reason}
       </div>
-      <div className="mt-1 font-label text-[8.5px]" style={{ color: c.penalty ? "var(--down)" : c.decided ? "var(--f1-personal)" : "#c084fc" }}>
+      <div className="mt-1 font-label text-[9.5px]" style={{ color: c.penalty ? "var(--down)" : c.decided ? "var(--f1-personal)" : "#c084fc" }}>
         {c.status}
       </div>
     </li>
@@ -294,7 +294,7 @@ function Stewards({ snap }: { snap: LiveSnapshot }) {
   const open = cases.filter((c) => !c.decided);
   const decided = cases.filter((c) => c.decided);
   return (
-    <div className="grid lg:grid-cols-2 gap-6 items-start">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
       <div className="space-y-6">
         <Panel label="Open cases" meta={`${open.length}`}>
           {open.length ? <ol>{open.map((c, i) => <CaseRow key={i} c={c} />)}</ol> : <Empty>Nothing open with the stewards.</Empty>}
@@ -317,7 +317,7 @@ function Stewards({ snap }: { snap: LiveSnapshot }) {
                       <span key={i} className="w-5 h-2 rounded-full" style={{ background: i < d.limits ? (i >= 3 ? "var(--down)" : i === 2 ? "var(--ink)" : "#fb923c") : "var(--rule)" }} />
                     ))}
                   </span>
-                  {d.blackAndWhite && <span className="font-label text-[8px] rounded px-1 py-[1px] border hairline">B/W flag</span>}
+                  {d.blackAndWhite && <span className="font-label text-[9px] rounded px-1 py-[1px] border hairline">B/W flag</span>}
                   <span className="ml-auto font-mono text-[11px] text-ink-soft">{d.laps.length}</span>
                 </div>
                 <div className="font-mono text-[10px] text-ink-faint mt-1 leading-relaxed">{d.laps.join(" · ")}</div>
@@ -348,7 +348,7 @@ export default function Analysis({ snap, sub, onSub, highlight, mine }: { snap: 
         <Seg label="Analysis" value={cur} onChange={onSub} options={subs} />
       </div>
       {cur === "tyres" && (
-        <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] gap-6 items-start">
           <Panel label="Tyre strategy" meta={race && snap.lap ? `${snap.lap.total} laps` : "Laps on each set"}>
             {snap.stints?.some((d) => d.stints.length) ? <Strategy stints={snap.stints} total={race ? (snap.lap?.total ?? 0) : 0} highlight={highlight} running={snap.running} /> : <Empty>No stints yet.</Empty>}
           </Panel>
@@ -363,7 +363,7 @@ export default function Analysis({ snap, sub, onSub, highlight, mine }: { snap: 
         </Panel>
       )}
       {cur === "pace" && (
-        <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-6 items-start">
           <Panel label="Speed traps">{snap.stats?.length ? <Speeds stats={snap.stats} mine={mine} /> : <Empty>No speeds yet.</Empty>}</Panel>
           <div className="space-y-6 min-w-0">
             <Panel label="Lap benchmarks" meta={snap.meeting.replace(/ Grand Prix$/, "")}>

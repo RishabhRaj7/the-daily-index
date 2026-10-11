@@ -198,7 +198,7 @@ export default function EditionPrepOverlay({
                     style={{ width: `${pct}%`, transition: leaving ? "width 0.35s ease-out" : "width 0.65s ease-out" }}
                   />
                 </div>
-                <div className="flex items-center justify-between font-label text-[9px] text-ink-soft mt-2.5">
+                <div className="flex items-center justify-between font-label text-[10px] text-ink-soft mt-2.5">
                   <span>RSS</span>
                   <span className="prep-dot" aria-hidden="true">•</span>
                   <span>AI summary</span>

@@ -155,7 +155,7 @@ export default function PaddockNotesSection({
 
           return (
             <>
-              <div className="grid lg:grid-cols-[minmax(0,1fr)_340px] gap-10">
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-10">
                 <div className="min-w-0 lg:col-start-1 lg:row-start-1">
                   {stories.length > 0 && (
                     <div className="story-grid">
@@ -215,7 +215,7 @@ export default function PaddockNotesSection({
                   )}
                 </div>
 
-                <div className="grid lg:grid-cols-[minmax(0,1fr)_340px] gap-10">
+                <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-10">
                   <div className="min-w-0 lg:col-start-1 lg:row-start-1">
                     {stories.length > 0 && (
                       <div className="story-grid">

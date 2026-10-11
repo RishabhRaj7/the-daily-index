@@ -23,7 +23,7 @@ type Show = "points" | "position";
 function Seg<T extends string>({ value, options, onChange, label }: { value: T; options: [T, string][]; onChange: (v: T) => void; label: string }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="font-label text-[8.5px] text-ink-faint">{label}</span>
+      <span className="font-label text-[9.5px] text-ink-faint">{label}</span>
       <div className="flex rounded-full border hairline p-0.5" role="radiogroup" aria-label={label}>
         {options.map(([v, text]) => (
           <button
@@ -80,7 +80,7 @@ function Split({ title, unit, pair }: { title: string; unit: string; pair: { dri
           const l = pair[k];
           return (
             <div key={k} className={`px-4 py-3.5 min-w-0 ${k === "team" ? "border-l hairline" : ""}`}>
-              <div className="font-label text-[8.5px] text-ink-faint">{k === "driver" ? "Driver" : "Constructor"}</div>
+              <div className="font-label text-[9.5px] text-ink-faint">{k === "driver" ? "Driver" : "Constructor"}</div>
               {l ? (
                 <>
                   <div className="mt-2">
@@ -156,7 +156,7 @@ const I = {
 
 function Records({ stats }: { stats: SeasonStats }) {
   return (
-    <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
       <Split title="Most wins" unit="wins" pair={stats.wins} />
       <Split title="Most podiums" unit="podiums" pair={stats.podiums} />
       <Split title="Most poles" unit="poles" pair={stats.poles} />
@@ -212,14 +212,14 @@ function Grid({ data, onDriver }: { data: SeasonData; onDriver: (code: string) =
       <div className="overflow-x-auto -mx-4 sm:-mx-5 px-4 sm:px-5 [scrollbar-width:thin]">
         <table className="border-separate border-spacing-[3px] text-[11.5px] tabular-nums min-w-full">
           <thead>
-            <tr className="font-label text-[8.5px] text-ink-faint">
+            <tr className="font-label text-[9.5px] text-ink-faint">
               <th className="sticky left-0 z-10 bg-[var(--surface)] text-left font-normal px-1 w-7">Pos</th>
               <th className="sticky left-7 z-10 bg-[var(--surface)] text-left font-normal px-1 min-w-[8.5rem]">Driver</th>
               <th className="text-right font-normal px-2">Pts</th>
               {cols.map(({ r }) => (
                 <th key={r.round} className="font-normal px-0 min-w-[2.6rem]" title={`${r.name} · ${new Date(r.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`}>
                   <div>R{r.round}</div>
-                  <div className="font-mono normal-case tracking-normal text-[8.5px] truncate max-w-[2.6rem] mx-auto opacity-80">{r.name.slice(0, 3).toUpperCase()}</div>
+                  <div className="font-mono normal-case tracking-normal text-[9.5px] truncate max-w-[2.6rem] mx-auto opacity-80">{r.name.slice(0, 3).toUpperCase()}</div>
                 </th>
               ))}
             </tr>
@@ -322,7 +322,7 @@ export default function Season() {
           <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 sm:p-5 mt-6">
             <Grid data={data} onDriver={openDriver} />
           </div>
-          <p className="font-mono text-[9.5px] text-ink-faint mt-3">Tap a driver for their season round by round · from Jolpica (the Ergast archive) · results land there a few hours after each race.</p>
+          <p className="font-mono text-[10.5px] text-ink-faint mt-3">Tap a driver for their season round by round · from Jolpica (the Ergast archive) · results land there a few hours after each race.</p>
         </>
       )}
     </section>

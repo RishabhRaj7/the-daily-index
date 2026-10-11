@@ -603,13 +603,19 @@ edition starts building before the reader is back on the paper.
   `/api/f1/telemetry?session=&code=[&t=]` cuts out the lap in progress at
   the replay's moment, or the driver's fastest lap. Lap boundaries come from
   TimingData's lap counts on the same feed clock.
+- A circuit's lap shares (where on the map each share of a lap falls,
+  which places the sector marks, mini-sectors and cars) are counted from
+  the reference lap's own first point: MultiViewer's clock starts at the
+  session time for some circuits (Monaco, Red Bull Ring, Baku, Miami,
+  Silverstone, Imola), and divided as it came every share fell near the line.
+  A clock that runs backwards or is far short of a lap falls back to distance.
 - The track map is drawn like the broadcast-style dashboards: F1's
   coordinates unturned with y flipped to run down the screen (drawn straight
   they were mirror images; checked against GPS racing lines), a light edge
   round dark tarmac (`--track-edge`, `--track-tarmac`), the edge tinted by
   sector (S1 red, S2 blue, S3 yellow, each with a coloured badge where it
   begins), corner numbers in round badges just off the track, a dashed pit
-  lane (`f1:track:v6`). Map options switches sector numbers (on at first),
+  lane (`f1:track:v7`). Map options switches sector numbers (on at first),
   sector-coloured edges and corner numbers (both off at first). Badges are
   placed along the track's normal, out as far as it takes to clear the
   track, the pit lane, the start line and the badges already placed. The

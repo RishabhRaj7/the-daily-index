@@ -78,7 +78,7 @@ export default function HeroStory({ story }: { story: Story }) {
         )}
         {story.why && (
           <p className="why-line font-headline italic text-[17px] leading-snug text-ink mt-4">
-            <span className="font-label not-italic text-[9px] text-ink-soft block mb-0.5">Why it matters</span>
+            <span className="font-label not-italic text-[10px] text-ink-soft block mb-0.5">Why it matters</span>
             {story.why}
           </p>
         )}

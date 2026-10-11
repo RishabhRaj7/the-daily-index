@@ -90,7 +90,7 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
         </p>
       </header>
 
-      <div className="grid md:grid-cols-[minmax(0,1fr)_300px] gap-12">
+      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_300px] gap-12">
         <div className="space-y-16 min-w-0">
           {digest.atAGlance && digest.atAGlance.length > 0 && (
             <section>

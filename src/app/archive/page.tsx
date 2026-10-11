@@ -178,7 +178,7 @@ function LatestIssue({ issue }: { issue: Issue }) {
       className="group block mt-12 rounded-3xl border hairline p-6 sm:p-9 transition-colors hover:border-[color:var(--accent)]"
       data-reveal
     >
-      <div className="grid md:grid-cols-[auto_minmax(0,1fr)] gap-x-10 gap-y-5">
+      <div className="grid grid-cols-1 md:grid-cols-[auto_minmax(0,1fr)] gap-x-10 gap-y-5">
         <div>
           <div className="font-label text-[10px] text-accent">Latest edition</div>
           <div className="font-display font-extrabold text-[6rem] leading-[0.78] mt-3">
@@ -256,7 +256,7 @@ function CalendarMonth({
       </div>
       <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
         {WEEKDAYS.map((d) => (
-          <div key={d} className="font-label text-[9px] text-ink-soft text-center pb-1">
+          <div key={d} className="font-label text-[10px] text-ink-soft text-center pb-1">
             {d}
           </div>
         ))}
@@ -305,7 +305,7 @@ function CalendarMonth({
                   {issue.lead.title}
                 </span>
               )}
-              <span className="hidden sm:block mt-auto pt-1 font-mono text-[9px] text-ink-faint group-hover:text-accent-ink">
+              <span className="hidden sm:block mt-auto pt-1 font-mono text-[10px] text-ink-faint group-hover:text-accent-ink">
                 {issue.total} STORIES
               </span>
             </Link>

@@ -76,7 +76,7 @@ function VersusBar({ label, pair, colours }: { label: string; pair: [number, num
       <span className="relative h-[18px] rounded-md overflow-hidden flex gap-[2px] bg-[color:var(--rule)]">
         <span className="h-full bar-grow rounded-l-md" style={{ width: `${(pair[0] / total) * 100}%`, background: colours[0] }} />
         <span className="h-full flex-1 rounded-r-md" style={{ background: `color-mix(in srgb, ${colours[1]} 55%, transparent)` }} />
-        <span className="absolute inset-0 grid place-items-center font-label text-[8px] mix-blend-difference text-white">{label}</span>
+        <span className="absolute inset-0 grid place-items-center font-label text-[9px] mix-blend-difference text-white">{label}</span>
       </span>
       <span className="font-mono text-[12px] tabular-nums font-semibold">{pair[1]}</span>
     </div>
@@ -95,7 +95,7 @@ function Versus({ options }: { options: { id: string; label: string; query: stri
   return (
     <div className="rounded-xl border hairline p-3">
       <div className="flex items-center justify-between gap-2 mb-3">
-        <span className="font-label text-[8.5px] text-ink-faint">Head to head{h ? ` · ${h.rounds} rounds` : ""}</span>
+        <span className="font-label text-[9.5px] text-ink-faint">Head to head{h ? ` · ${h.rounds} rounds` : ""}</span>
         {options.length > 1 && (
           <span className="flex rounded-full border hairline p-0.5" role="tablist" aria-label="Who to compare">
             {options.map((o) => (
@@ -146,7 +146,7 @@ function Versus({ options }: { options: { id: string; label: string; query: stri
 function Stat({ label, value, tone }: { label: string; value: string; tone?: "up" | "down" }) {
   return (
     <div className="min-w-0">
-      <div className="font-label text-[8px] text-ink-soft truncate">{label}</div>
+      <div className="font-label text-[9px] text-ink-soft truncate">{label}</div>
       <div className={`font-mono text-[14px] tabular-nums mt-0.5 ${tone === "up" ? "text-up" : tone === "down" ? "text-down" : ""}`}>
         {value}
       </div>
@@ -199,94 +199,98 @@ function PaddockPicker({ roster, onClose }: { roster: F1RosterEntry[]; onClose: 
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-black/55 backdrop-blur-sm animate-[fade-in_0.25s_ease]"
+      className="sheet-scale fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-black/55 backdrop-blur-sm animate-[fade-in_0.25s_ease]"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label="Choose your team and drivers"
     >
       <div
-        className="relative w-full sm:max-w-[720px] max-h-[92vh] overflow-y-auto bg-surface text-ink rounded-t-3xl sm:rounded-3xl border hairline shadow-[0_40px_120px_-30px_rgba(0,0,0,0.6)] p-5 sm:p-7 animate-[sheet-up_0.45s_var(--ease-out)]"
+        className="sheet-panel relative w-full sm:max-w-[720px] flex flex-col overflow-hidden bg-surface text-ink rounded-t-3xl sm:rounded-3xl border hairline shadow-[0_40px_120px_-30px_rgba(0,0,0,0.6)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4 mb-6">
-          <div>
-            <h2 className="font-display font-extrabold text-[2rem] leading-none">Your paddock</h2>
-            <p className="font-sans text-[13px] text-ink-soft mt-2">One team and up to two drivers. Their numbers lead the F1 section.</p>
+        <div className="shrink-0 px-5 sm:px-7 pt-6 sm:pt-7 pb-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="font-display font-extrabold text-[2rem] leading-none">Your paddock</h2>
+              <p className="font-sans text-[13px] text-ink-soft mt-2">One team and up to two drivers. Their numbers lead the F1 section.</p>
+            </div>
+            <button type="button" onClick={onClose} className="icon-btn" aria-label="Close">
+              <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+                <path d="M4 4l8 8M12 4l-8 8" />
+              </svg>
+            </button>
           </div>
-          <button type="button" onClick={onClose} className="icon-btn" aria-label="Close">
-            <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
-              <path d="M4 4l8 8M12 4l-8 8" />
-            </svg>
-          </button>
         </div>
+        <div className="min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-7 pb-5 sm:pb-7">
 
-        <div className="font-label text-[10px] text-ink-soft mb-2">Team</div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {teams.map((t) => {
-            const on = team === t;
-            return (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTeam(on ? "" : t)}
-                aria-pressed={on}
-                className="flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-[13px] transition-colors"
-                style={{
-                  borderColor: on ? F1_TEAM_COLORS[t] : "var(--rule)",
-                  background: on ? `color-mix(in srgb, ${F1_TEAM_COLORS[t]} 16%, var(--surface))` : undefined,
-                }}
-              >
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: F1_TEAM_COLORS[t] }} />
-                <span className="truncate">{t}</span>
-              </button>
-            );
-          })}
-        </div>
+          <div className="font-label text-[10px] text-ink-soft mb-2">Team</div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {teams.map((t) => {
+              const on = team === t;
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTeam(on ? "" : t)}
+                  aria-pressed={on}
+                  className="flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-[13px] transition-colors"
+                  style={{
+                    borderColor: on ? F1_TEAM_COLORS[t] : "var(--rule)",
+                    background: on ? `color-mix(in srgb, ${F1_TEAM_COLORS[t]} 16%, var(--surface))` : undefined,
+                  }}
+                >
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: F1_TEAM_COLORS[t] }} />
+                  <span className="truncate">{t}</span>
+                </button>
+              );
+            })}
+          </div>
 
-        <div className="flex items-baseline justify-between mt-7 mb-2">
-          <span className="font-label text-[10px] text-ink-soft">Drivers</span>
-          <span className="font-mono text-[10px] text-ink-faint">
-            {drivers.length}/{MAX_DRIVERS} picked
-          </span>
-        </div>
-        {roster.length === 0 ? (
-          <p className="font-sans text-[13px] text-ink-soft">The driver list is still loading…</p>
-        ) : (
-          <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3">
-            {grouped.map((g) => (
-              <div key={g.team}>
-                <div className="font-mono text-[10px] text-ink-faint mb-1">{g.team}</div>
-                <div className="flex flex-wrap gap-2">
-                  {g.list.map((d) => {
-                    const on = drivers.includes(d.id);
-                    const c = F1_TEAM_COLORS[g.team];
-                    return (
-                      <button
-                        key={d.id}
-                        type="button"
-                        onClick={() => toggleDriver(d.id)}
-                        aria-pressed={on}
-                        className="chip h-8 text-[12px]"
-                        style={on ? { background: c, borderColor: c, color: isLightTeamColor(c) ? "#111" : "#fff" } : undefined}
-                      >
-                        <span className="font-mono text-[10px] opacity-70">{d.code}</span> {d.name}
-                      </button>
-                    );
-                  })}
+          <div className="flex items-baseline justify-between mt-7 mb-2">
+            <span className="font-label text-[10px] text-ink-soft">Drivers</span>
+            <span className="font-mono text-[10px] text-ink-faint">
+              {drivers.length}/{MAX_DRIVERS} picked
+            </span>
+          </div>
+          {roster.length === 0 ? (
+            <p className="font-sans text-[13px] text-ink-soft">The driver list is still loading…</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+              {grouped.map((g) => (
+                <div key={g.team}>
+                  <div className="font-mono text-[10px] text-ink-faint mb-1">{g.team}</div>
+                  <div className="flex flex-wrap gap-2">
+                    {g.list.map((d) => {
+                      const on = drivers.includes(d.id);
+                      const c = F1_TEAM_COLORS[g.team];
+                      return (
+                        <button
+                          key={d.id}
+                          type="button"
+                          onClick={() => toggleDriver(d.id)}
+                          aria-pressed={on}
+                          className="chip h-8 text-[12px]"
+                          style={on ? { background: c, borderColor: c, color: isLightTeamColor(c) ? "#111" : "#fff" } : undefined}
+                        >
+                          <span className="font-mono text-[10px] opacity-70">{d.code}</span> {d.name}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
 
-        <div className="sticky bottom-0 -mx-5 sm:-mx-7 -mb-5 sm:-mb-7 mt-7 px-5 sm:px-7 py-4 bg-surface border-t hairline flex items-center justify-end gap-2">
-          <button type="button" className="chip" onClick={onClose}>
-            Cancel
-          </button>
-          <button type="button" className="chip chip-signal" onClick={save}>
-            Save paddock
-          </button>
+          <div className="sticky bottom-0 -mx-5 sm:-mx-7 -mb-5 sm:-mb-7 mt-7 px-5 sm:px-7 py-4 bg-surface border-t hairline flex items-center justify-end gap-2">
+            <button type="button" className="chip" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="button" className="chip chip-signal" onClick={save}>
+              Save paddock
+            </button>
+          </div>
         </div>
       </div>
     </div>,

@@ -1088,7 +1088,7 @@ export default function EditionView({
             On a phone the briefing comes first: the whole day in a minute. */}
         {hero && (
           <>
-            <div className="grid gap-y-12 pt-10 md:pt-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,2.6fr)] uw:grid-cols-[minmax(0,1fr)_minmax(0,2.6fr)_minmax(0,1fr)]">
+            <div className="grid grid-cols-1 gap-y-12 pt-10 md:pt-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,2.6fr)] uw:grid-cols-[minmax(0,1fr)_minmax(0,2.6fr)_minmax(0,1fr)]">
               <div className="order-1 lg:pr-8 lg:border-r hairline">
                 <Briefing
                   brief={brief ?? (prepBlocking ? null : fallbackBrief)}

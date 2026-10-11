@@ -144,7 +144,7 @@ export default function MarketChartSheet({ target, onClose }: { target: ChartTar
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
         <div>
           {data?.reference && (
-            <div className="font-label text-[9px] text-ink-soft mb-1">{hover ? "On the chart" : "Live estimate"}</div>
+            <div className="font-label text-[10px] text-ink-soft mb-1">{hover ? "On the chart" : "Live estimate"}</div>
           )}
           <div className="font-display font-extrabold text-[clamp(2.2rem,6vw,3.2rem)] leading-none tabular-nums">
             {shown ? fmt(shown.c, prefix) : "—"}
@@ -159,7 +159,7 @@ export default function MarketChartSheet({ target, onClose }: { target: ChartTar
         </div>
         {data?.reference && (
           <div className="rounded-lg border border-dashed px-3 py-2 mr-auto" style={{ borderColor: "var(--hue-poll)" }}>
-            <div className="flex items-center gap-1.5 font-label text-[9px] text-ink-soft">
+            <div className="flex items-center gap-1.5 font-label text-[10px] text-ink-soft">
               <span className="w-4 border-t-2 border-dotted" style={{ borderColor: "var(--hue-poll)" }} />
               {data.reference.label}
             </div>
@@ -254,7 +254,7 @@ export default function MarketChartSheet({ target, onClose }: { target: ChartTar
             stats.volume !== null ? ["Volume", compact(stats.volume)] : ["Bars", String(bars.length)],
           ].map(([label, value]) => (
             <div key={label} className="min-w-0">
-              <dt className="font-label text-[9px] text-ink-soft">{label}</dt>
+              <dt className="font-label text-[10px] text-ink-soft">{label}</dt>
               <dd className="font-mono text-[14px] tabular-nums mt-0.5 truncate">{value}</dd>
             </div>
           ))}
@@ -263,7 +263,7 @@ export default function MarketChartSheet({ target, onClose }: { target: ChartTar
       {longView && (
         <div className="mt-6 pt-4 border-t hairline">
           <div className="flex items-baseline justify-between gap-3">
-            <span className="font-label text-[9px] text-ink-soft">52 weeks</span>
+            <span className="font-label text-[10px] text-ink-soft">52 weeks</span>
             <span className="font-mono text-[11px] text-ink-soft">
               {((longView.last / longView.hi - 1) * 100).toFixed(1)}% from the high
             </span>
@@ -286,7 +286,7 @@ export default function MarketChartSheet({ target, onClose }: { target: ChartTar
             {([["50-day average", longView.dma50], ["200-day average", longView.dma200]] as const).map(([label, v]) =>
               v == null ? null : (
                 <div key={label}>
-                  <dt className="font-label text-[9px] text-ink-soft">{label}</dt>
+                  <dt className="font-label text-[10px] text-ink-soft">{label}</dt>
                   <dd className="font-mono text-[14px] tabular-nums mt-0.5">
                     {fmt(v, prefix)}{" "}
                     <span className={longView.last >= v ? "text-up" : "text-down"}>

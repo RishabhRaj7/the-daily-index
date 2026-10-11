@@ -6,10 +6,10 @@ import WeatherIcon from "./WeatherIcon";
 // umbrella this evening?".
 
 function rainWord(pct: number): string {
-  if (pct < 15) return "dry";
-  if (pct < 40) return "slight chance";
-  if (pct < 70) return "likely";
-  return "rain expected";
+  if (pct < 15) return "Dry";
+  if (pct < 40) return "Slight chance";
+  if (pct < 70) return "Likely";
+  return "Rain expected";
 }
 
 export default function WeatherBlocks({ blocks, compact = false }: { blocks: WeatherBlock[]; compact?: boolean }) {
@@ -39,7 +39,7 @@ export default function WeatherBlocks({ blocks, compact = false }: { blocks: Wea
           </span>
           <span className="flex flex-col min-w-0 flex-1">
             <span className="flex items-center justify-between gap-2">
-              <span className="font-label text-[9px] text-ink-soft truncate">
+              <span className="font-label text-[10px] text-ink-soft truncate">
                 {compact ? b.label.replace(/^This /, "") : b.label}
               </span>
               <span style={{ color: "var(--section-hue, var(--accent))" }}>

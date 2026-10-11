@@ -81,16 +81,16 @@ function useLayoutFor(ref: React.RefObject<HTMLDivElement | null>, allowWide: bo
 function Status({ r, race, running }: { r: LiveRow; race: boolean; running: boolean }) {
   // Once the flag has fallen everyone is in the pits; only the out and the
   // knocked out are worth a word.
-  if (!running) return r.out ? <span className="font-label text-[8.5px] text-ink-faint">{race ? "DNF" : "Out"}</span> : !race && r.knockedOut ? <span className="font-label text-[8.5px] text-ink-faint">KO</span> : null;
-  if (r.out) return <span className="font-label text-[8.5px] text-ink-faint">Out</span>;
-  if (r.inPit) return <span className="shrink-0 whitespace-nowrap rounded px-1 font-label text-[8.5px] text-white" style={{ background: "var(--f1-pit)" }}>Pit</span>;
+  if (!running) return r.out ? <span className="font-label text-[9.5px] text-ink-faint">{race ? "DNF" : "Out"}</span> : !race && r.knockedOut ? <span className="font-label text-[9.5px] text-ink-faint">KO</span> : null;
+  if (r.out) return <span className="font-label text-[9.5px] text-ink-faint">Out</span>;
+  if (r.inPit) return <span className="shrink-0 whitespace-nowrap rounded px-1 font-label text-[9.5px] text-white" style={{ background: "var(--f1-pit)" }}>Pit</span>;
   if (r.pitOut)
     return (
-      <span className="shrink-0 whitespace-nowrap rounded px-1 font-label text-[8.5px] border" style={{ color: "var(--f1-pit)", borderColor: "color-mix(in srgb, var(--f1-pit) 45%, transparent)" }} title="On an out-lap">
+      <span className="shrink-0 whitespace-nowrap rounded px-1 font-label text-[9.5px] border" style={{ color: "var(--f1-pit)", borderColor: "color-mix(in srgb, var(--f1-pit) 45%, transparent)" }} title="On an out-lap">
         Out lap
       </span>
     );
-  if (!race && r.knockedOut) return <span className="font-label text-[8.5px] text-ink-faint">KO</span>;
+  if (!race && r.knockedOut) return <span className="font-label text-[9.5px] text-ink-faint">KO</span>;
   return null;
 }
 
@@ -282,7 +282,7 @@ export default function LiveTiming({
           </div>
         </div>
       )}
-      <div className={`grid ${gapX} items-center font-label text-[8.5px] text-ink-faint pb-1.5 px-2.5`} style={{ gridTemplateColumns: cols }}>
+      <div className={`grid ${gapX} items-center font-label text-[9.5px] text-ink-faint pb-1.5 px-2.5`} style={{ gridTemplateColumns: cols }}>
         <span>P</span>
         <span>Driver</span>
         {columns.map((c) => (
@@ -327,7 +327,7 @@ export default function LiveTiming({
               </div>
               {snap.cutoff !== null && r.position === snap.cutoff && (
                 <div className="relative h-0 border-t border-dashed" style={{ borderColor: "var(--down)" }}>
-                  <span className="absolute right-0 -top-[7px] font-label text-[8px] px-1 bg-[var(--paper)]" style={{ color: "var(--down)" }}>
+                  <span className="absolute right-0 -top-[7px] font-label text-[9px] px-1 bg-[var(--paper)]" style={{ color: "var(--down)" }}>
                     Drop zone
                   </span>
                 </div>

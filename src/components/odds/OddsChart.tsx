@@ -90,7 +90,8 @@ export default function OddsChart({
 
   const onMove = (e: React.PointerEvent<SVGSVGElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
-    const px = e.clientX - r.left;
+    // In the chart's own units: on big screens the page is zoomed (.page-scale), so screen pixels aren't them.
+    const px = ((e.clientX - r.left) / (r.width || 1)) * width;
     const f = Math.min(1, Math.max(0, (px - PAD.left) / (width - PAD.left - PAD.right)));
     setHover(t0 + f * (t1 - t0));
   };
@@ -122,13 +123,13 @@ export default function OddsChart({
         {ticks.map((v) => (
           <g key={v}>
             <line x1={PAD.left} x2={width - PAD.right} y1={y(v)} y2={y(v)} stroke="var(--rule)" strokeDasharray={v === 50 ? "0" : "2 4"} />
-            <text x={PAD.left - 6} y={y(v) + 3} textAnchor="end" className="fill-[color:var(--ink-faint)] font-mono" fontSize={9}>
+            <text x={PAD.left - 6} y={y(v) + 3} textAnchor="end" className="fill-[color:var(--ink-faint)] font-mono" fontSize={10}>
               {v}%
             </text>
           </g>
         ))}
         {xTicks.map((t, i) => (
-          <text key={i} x={x(t)} y={height - 6} textAnchor={i === 0 ? "start" : i === 3 ? "end" : "middle"} className="fill-[color:var(--ink-faint)] font-mono" fontSize={9}>
+          <text key={i} x={x(t)} y={height - 6} textAnchor={i === 0 ? "start" : i === 3 ? "end" : "middle"} className="fill-[color:var(--ink-faint)] font-mono" fontSize={10}>
             {fmtT(t)}
           </text>
         ))}

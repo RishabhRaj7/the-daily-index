@@ -33,6 +33,18 @@ function since(iso: string | null, now: number): string {
   return h < 1 ? `${Math.max(1, Math.round(h * 60))}m` : h < 48 ? `${Math.round(h)}h` : `${Math.round(h / 24)}d`;
 }
 
+// Google hands search terms over as typed, mostly in lower case; shown as a
+// title would be ("Man Utd vs Spurs", "Inter Miami vs D.C. United"). A term
+// with any capital in it is left as it is.
+const SMALL = new Set(["vs", "v", "of", "and", "the", "in", "on", "at", "for", "to", "a"]);
+function termCase(term: string): string {
+  if (term !== term.toLowerCase()) return term;
+  return term
+    .split(" ")
+    .map((w, i) => (i > 0 && SMALL.has(w) ? w : /^([a-z]\.)+$/.test(w) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(" ");
+}
+
 function Row({ t, i, max, inPaper, now }: { t: TrendItem; i: number; max: number; inPaper: boolean; now: number }) {
   const story = t.news[0];
   const width = max > 0 ? Math.max(6, (Math.log10(t.volume + 1) / Math.log10(max + 1)) * 100) : 6;
@@ -47,7 +59,7 @@ function Row({ t, i, max, inPaper, now }: { t: TrendItem; i: number; max: number
             rel="noopener noreferrer"
             className="font-headline text-[1.05rem] leading-snug truncate hover:underline decoration-dotted underline-offset-2"
           >
-            {t.term}
+            {termCase(t.term)}
           </a>
           <span className="font-mono text-[10px] text-ink-soft shrink-0 tabular-nums" title="Roughly how many searched">
             {t.traffic}
@@ -68,7 +80,7 @@ function Row({ t, i, max, inPaper, now }: { t: TrendItem; i: number; max: number
         {story && (
           <a href={story.url} target="_blank" rel="noopener noreferrer" className="block font-sans text-[12px] text-ink-soft mt-1 truncate hover:text-ink">
             {inPaper && (
-              <span className="font-label text-[8px] mr-1.5 align-[1px]" style={{ color: "var(--section-hue)" }}>
+              <span className="font-label text-[9px] mr-1.5 align-[1px]" style={{ color: "var(--section-hue)" }}>
                 In today&rsquo;s paper
               </span>
             )}

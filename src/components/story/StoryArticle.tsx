@@ -90,7 +90,7 @@ export default function StoryArticle({
         <p className={lead ? "drop-cap" : undefined}>{firstParagraph}</p>
         {story.why && (
           <p className="why-line font-headline italic text-[15px] leading-snug text-ink break-inside-avoid-column">
-            <span className="font-label not-italic text-[9px] text-ink-soft block mb-0.5">Why it matters</span>
+            <span className="font-label not-italic text-[10px] text-ink-soft block mb-0.5">Why it matters</span>
             {story.why}
           </p>
         )}

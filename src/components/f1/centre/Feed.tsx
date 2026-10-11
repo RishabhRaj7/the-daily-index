@@ -70,7 +70,7 @@ function RcRow({ it }: { it: RcItem }) {
   const c = TONE_COLOUR[it.tone];
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-0.5">
-      <span className="flex items-center gap-1.5 font-label text-[8.5px]" style={{ color: it.tone === "info" ? "var(--ink-faint)" : c }}>
+      <span className="flex items-center gap-1.5 font-label text-[9.5px]" style={{ color: it.tone === "info" ? "var(--ink-faint)" : c }}>
         <span className={`w-1.5 h-1.5 ${it.tone === "chequered" ? "rounded-[1px]" : "rounded-full"}`} style={{ background: c }} />
         {it.tone === "penalty" ? "Penalty" : it.tone === "sc" ? "Safety car" : KIND_LABEL[it.kind]}
       </span>
@@ -86,7 +86,7 @@ function PitRow({ p, tyre }: { p: LivePitStop; tyre: { compound: keyof typeof TY
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-center">
       <span className="min-w-0">
-        <span className="flex items-center gap-1.5 font-label text-[8.5px]" style={{ color: "var(--f1-pit)" }}>
+        <span className="flex items-center gap-1.5 font-label text-[9.5px]" style={{ color: "var(--f1-pit)" }}>
           <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--f1-pit)" }} /> Pit stop
         </span>
         <span className="block text-[13px] leading-snug">
@@ -165,7 +165,7 @@ export default function Feed({
         return (
           <button key={o.value} type="button" role="tab" aria-selected={on} onClick={() => setFilter(o.value)} className={chip(on)} style={on ? { background: "var(--ink)" } : undefined}>
             {o.label}
-            {o.count !== undefined && <span className={`font-mono text-[9.5px] tabular-nums ${on ? "opacity-70" : "text-ink-faint"}`}>{o.count}</span>}
+            {o.count !== undefined && <span className={`font-mono text-[10.5px] tabular-nums ${on ? "opacity-70" : "text-ink-faint"}`}>{o.count}</span>}
           </button>
         );
       })}

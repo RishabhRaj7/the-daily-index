@@ -5,7 +5,7 @@ import StaleTag from "./StaleTag";
 function Pct({ label, value }: { label: string; value: number | null }) {
   return (
     <div className="flex flex-col">
-      <span className="font-label text-[8px] text-ink-faint">{label}</span>
+      <span className="font-label text-[9px] text-ink-faint">{label}</span>
       {value == null ? (
         <span className="font-mono text-xs text-ink-soft">—</span>
       ) : (
@@ -54,7 +54,7 @@ export default function MarketIndexCard({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="font-label text-[9px] text-ink-soft">{index.market}</div>
+          <div className="font-label text-[10px] text-ink-soft">{index.market}</div>
           <div className="font-sans font-semibold text-[15px] leading-tight truncate">{index.name}</div>
         </div>
         <span

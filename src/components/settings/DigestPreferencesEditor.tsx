@@ -244,7 +244,7 @@ export default function DigestPreferencesEditor({
             placeholder="e.g. horoscope, celebrity gossip"
           />
         </div>
-        <div className="grid sm:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           <div>
             <span className={labelCls}>Summary length</span>
             <Choice
@@ -378,7 +378,7 @@ export default function DigestPreferencesEditor({
               )}
 
               {section.type === "grouped" ? (
-                <div className="grid sm:grid-cols-[auto_1fr] gap-4 items-start">
+                <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-4 items-start">
                   <div>
                     <span className={labelCls}>Stories per {section.groupBy}</span>
                     <Stepper

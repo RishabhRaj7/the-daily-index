@@ -88,7 +88,7 @@ function TeamPicker({ teams, onClose }: { teams: ValTeam[]; onClose: () => void 
       <p className="font-sans text-[13px] text-ink-soft -mt-2 mb-5">
         Up to {MAX_TEAMS} teams from the VCT leagues. Their matches, results and odds lead the section.
       </p>
-      <div className="grid sm:grid-cols-2 gap-x-6 gap-y-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
         {regions.map((region) => (
           <div key={region}>
             <div className="font-label text-[10px] text-ink-soft mb-2">{region}</div>
@@ -181,7 +181,7 @@ function TeamCard({ team, data, open }: { team: ValTeam; data: ValorantData; ope
         {chance && (
           <div className="text-right shrink-0" title={`${data.featured!.odds!.title} · Polymarket`}>
             <div className="font-display font-bold text-[1.35rem] leading-none tabular-nums">{Math.round(chance.prob)}%</div>
-            <div className="font-label text-[7px] text-ink-faint mt-0.5">to win it</div>
+            <div className="font-label text-[9px] text-ink-faint mt-0.5">to win it</div>
           </div>
         )}
       </button>
@@ -418,7 +418,7 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
     return (
       <section id="clutch">
         <SectionHeader sectionKey="clutch" folio="Off-season" />
-        <div className="grid md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-6 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-6 items-start">
           <div className="module">
             <div className="flex items-center justify-between gap-3">
               <span className="font-label text-[10px] text-ink-soft">Between events</span>
@@ -465,7 +465,7 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
         }
       />
       {/* Three cards of one height: the tallest sets the row. */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,0.95fr)] items-stretch">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,0.95fr)] items-stretch">
         <div className="module h-full" data-reveal>
           <div className="flex items-center justify-between gap-3 mb-3">
             <span className="font-label text-[10px] text-ink-soft">Your teams</span>

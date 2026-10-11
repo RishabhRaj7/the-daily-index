@@ -128,7 +128,7 @@ export default function OddsSheet({ market: m, why, watched = false, onClose }: 
       {/* Every contender over time. */}
       <div className="mt-6">
         <div className="flex items-center justify-between gap-3 mb-2">
-          <span className="font-label text-[9px] text-ink-soft">{m.binary ? "The chance" : m.hit ? "The closest calls" : "The front-runners"} over time</span>
+          <span className="font-label text-[10px] text-ink-soft">{m.binary ? "The chance" : m.hit ? "The closest calls" : "The front-runners"} over time</span>
           <span className="flex gap-1">
             {(["1d", "1w", "1m", "all"] as const).map((r) => (
               <button
@@ -157,7 +157,7 @@ export default function OddsSheet({ market: m, why, watched = false, onClose }: 
 
       {/* Why it moved. */}
       <div className="mt-6">
-        <div className="font-label text-[9px] text-ink-soft mb-2">{bigMove ? "Why it moved" : "In the news"}</div>
+        <div className="font-label text-[10px] text-ink-soft mb-2">{bigMove ? "Why it moved" : "In the news"}</div>
         {news === null ? (
           <div className="space-y-2 animate-pulse">
             <div className="h-4 w-3/4 rounded bg-card-bg" />
@@ -206,7 +206,7 @@ export default function OddsSheet({ market: m, why, watched = false, onClose }: 
 
       {/* The field. */}
       <div className="mt-6">
-        <div className="font-label text-[9px] text-ink-soft mb-2">{m.hit ? "Every level" : "The field"}</div>
+        <div className="font-label text-[10px] text-ink-soft mb-2">{m.hit ? "Every level" : "The field"}</div>
         {m.hit ? (
           <HitLadder m={m} rows={10} size="lg" />
         ) : (
@@ -249,7 +249,7 @@ export default function OddsSheet({ market: m, why, watched = false, onClose }: 
           ["Price gap", m.spread != null ? `${m.spread} pts` : "—"],
         ].map(([k, v]) => (
           <div key={k}>
-            <dt className="font-label text-[9px] text-ink-soft">{k}</dt>
+            <dt className="font-label text-[10px] text-ink-soft">{k}</dt>
             <dd className="font-mono text-[14px] tabular-nums mt-0.5">{v}</dd>
           </div>
         ))}
@@ -266,7 +266,7 @@ export default function OddsSheet({ market: m, why, watched = false, onClose }: 
       )}
       {m.rules && (
         <details className="mt-5 group">
-          <summary className="font-label text-[9px] text-ink-soft cursor-pointer">How it&rsquo;s decided</summary>
+          <summary className="font-label text-[10px] text-ink-soft cursor-pointer">How it&rsquo;s decided</summary>
           <p className="font-sans text-[13px] text-ink-soft leading-relaxed mt-2">
             {m.rules}
             {m.rules.length >= 400 ? "…" : ""}

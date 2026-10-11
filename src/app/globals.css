@@ -12,8 +12,8 @@
   --paper: #f4f3ef;
   --surface: #ffffff;
   --ink: #111113;
-  --ink-soft: #5d5d66;
-  --ink-faint: #8d8d96;
+  --ink-soft: #4f4f58;
+  --ink-faint: #707079;
   --rule: rgba(17, 17, 19, 0.12);
   --rule-strong: rgba(17, 17, 19, 0.85);
   --accent: #5200ff;
@@ -82,8 +82,8 @@ html[data-edition="evening"] {
   --paper: #0d0d0f;
   --surface: #151518;
   --ink: #f2f2ef;
-  --ink-soft: #a0a0a8;
-  --ink-faint: #6b6b73;
+  --ink-soft: #b4b4bc;
+  --ink-faint: #8b8b94;
   --rule: rgba(255, 255, 255, 0.11);
   --rule-strong: rgba(255, 255, 255, 0.8);
   --accent: #3cffd0;
@@ -206,12 +206,12 @@ html.theme-transition *::after {
 .font-label {
   font-family: var(--font-label);
   text-transform: uppercase;
-  letter-spacing: 0.11em;
+  letter-spacing: 0.08em;
   font-weight: 600;
 }
 .font-display {
   font-family: var(--font-display);
-  font-variation-settings: "opsz" 72;
+  font-optical-sizing: auto;
   text-transform: uppercase;
   letter-spacing: -0.005em;
   line-height: 0.86;
@@ -225,22 +225,27 @@ html.theme-transition *::after {
    holds), and the design width only widens a little with it. The steps read
    the window's height too, so a wide but short window isn't blown up; an
    ultrawide keeps margins rather than dragging lines and images across it.
-   Pop-up sheets render outside the page and keep their own size. */
+   Pop-up sheets render outside the page (portals) and take the same step
+   through .sheet-scale; a height in vh inside one is divided by the step
+   (zoom multiplies vh too), so a sheet still fits the window. */
+:root { --page-zoom: 1; }
+.page-scale,
+.sheet-scale { zoom: var(--page-zoom); }
 .page-wrap { width: 100%; max-width: 1240px; margin-inline: auto; }
 @media (min-width: 1600px) and (min-height: 860px) {
-  .page-scale { zoom: 1.15; }
+  :root { --page-zoom: 1.15; }
   .page-scale .page-wrap { max-width: 1340px; }
 }
 @media (min-width: 1850px) and (min-height: 900px) {
-  .page-scale { zoom: 1.25; }
+  :root { --page-zoom: 1.25; }
   .page-scale .page-wrap { max-width: 1380px; }
 }
 @media (min-width: 2400px) and (min-height: 1150px) {
-  .page-scale { zoom: 1.4; }
+  :root { --page-zoom: 1.4; }
   .page-scale .page-wrap { max-width: 1500px; }
 }
 @media (min-width: 3000px) and (min-height: 1150px) {
-  .page-scale { zoom: 1.45; }
+  :root { --page-zoom: 1.45; }
   .page-scale .page-wrap { max-width: 1680px; }
 }
 /* Ultrawide (21:9 and wider): not a bigger page but a spread. The design
@@ -249,7 +254,7 @@ html.theme-transition *::after {
    layout it was designed at. The front page gains a third column for the
    day's extras. Other screens let the row wrappers step aside. */
 @media (min-width: 2800px) and (min-aspect-ratio: 2/1) {
-  .page-scale { zoom: 1.3; }
+  :root { --page-zoom: 1.3; }
   .page-scale .page-wrap { max-width: 2480px; }
   .page-scale .edition-body { display: block; }
   .edition-body .spread-row {
@@ -370,12 +375,19 @@ html.js .mask-rise > span {
 html.js .is-in .mask-rise > span { transform: none; }
 
 /* SVG strokes that draw on reveal (sparklines, gauges). */
+/* The dash pattern lives only while the line draws: left on, a stretched
+   line (preserveAspectRatio="none" with a non-scaling stroke) measures its
+   dashes wrong and shows gaps along it. */
 html.js .stroke-draw {
   stroke-dasharray: var(--len, 400);
   stroke-dashoffset: var(--len, 400);
-  transition: stroke-dashoffset 1.6s var(--ease-out) 0.2s;
 }
-html.js .is-in .stroke-draw { stroke-dashoffset: 0; }
+html.js .is-in .stroke-draw { animation: stroke-draw 1.6s var(--ease-out) 0.2s both; }
+@keyframes stroke-draw {
+  0% { stroke-dasharray: var(--len, 400); stroke-dashoffset: var(--len, 400); }
+  99% { stroke-dasharray: var(--len, 400); stroke-dashoffset: 0; }
+  100% { stroke-dasharray: none; stroke-dashoffset: 0; }
+}
 
 /* Bars that grow from zero on reveal (standings, gaps). */
 html.js .bar-grow {
@@ -538,7 +550,7 @@ article[id] { scroll-margin-top: 5rem; }
     transform: none !important;
     transition: none !important;
   }
-  html.js .stroke-draw { stroke-dashoffset: 0; transition: none; }
+  html.js .stroke-draw { stroke-dasharray: none; stroke-dashoffset: 0; animation: none; }
   .marquee-track,
   .ink-stamp,
   .prep-dot,
@@ -686,6 +698,47 @@ html[data-edition="evening"] .invert-evening { filter: invert(1) hue-rotate(180d
   to { opacity: 1; transform: none; }
 }
 
+/* Every pop-up's panel. On a desktop it sits centred and rises a little; on
+   a phone it slides up from the bottom edge and stops short of the top (88 %
+   of the visible screen, so the page shows above it and a tap there closes
+   it), with a grip on top. Its header and close button stay put; only the
+   content under them scrolls. */
+.sheet-panel {
+  max-height: calc(92vh / var(--page-zoom));
+  animation: sheet-up 0.45s var(--ease-out);
+}
+@keyframes sheet-rise {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+@media (max-width: 639.98px) {
+  .sheet-panel {
+    max-height: 88vh;
+    max-height: 88dvh;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    animation: sheet-rise 0.38s var(--ease-out);
+  }
+  .sheet-panel::before {
+    content: "";
+    position: absolute;
+    top: 7px;
+    left: 50%;
+    width: 36px;
+    height: 4px;
+    margin-left: -18px;
+    border-radius: 999px;
+    background: var(--rule-strong);
+    opacity: 0.35;
+    z-index: 2;
+    pointer-events: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet-panel { animation: none; }
+}
+
 /* "Why it matters": the one line after a summary. Hidden unless the
    reader turned it on in Settings (EditionView sets data-why on <html>). */
 .why-line { display: none; }
@@ -795,8 +848,6 @@ html[data-edition="evening"] .f1-logo { filter: none; }
 
 /* A driver's name that opens their season (components/f1/DriverLink.tsx). */
 .driver-link {
-  font: inherit;
-  color: inherit;
   cursor: pointer;
   text-decoration-line: underline;
   text-decoration-style: dotted;

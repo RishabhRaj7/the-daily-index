@@ -13,7 +13,7 @@ function Movers({ indices }: { indices: MarketIndex[] }) {
   const max = Math.max(...indices.map((i) => Math.abs(i.changePct)), 0.01);
   return (
     <div className="mt-6">
-      <div className="font-label text-[9px] text-ink-soft mb-3">Today&rsquo;s moves</div>
+      <div className="font-label text-[10px] text-ink-soft mb-3">Today&rsquo;s moves</div>
       <ul className="space-y-2">
         {indices.map((idx, i) => {
           const up = idx.changePct >= 0;
@@ -53,11 +53,11 @@ function Breadth({ b }: { b: NonNullable<MarketMood["breadth"]> }) {
     ...Array.from({ length: flat }, () => "var(--ink-faint)"),
     ...Array.from({ length: b.down }, () => "var(--down)"),
   ];
-  const verdict = b.up >= b.total * 0.7 ? "a broad rise" : b.down >= b.total * 0.7 ? "a broad fall" : b.up > b.down ? "more up than down" : b.down > b.up ? "more down than up" : "evenly split";
+  const verdict = b.up >= b.total * 0.7 ? "A broad rise" : b.down >= b.total * 0.7 ? "A broad fall" : b.up > b.down ? "More up than down" : b.down > b.up ? "More down than up" : "Evenly split";
   return (
     <div className="mt-5" title={`${b.up} of the ${b.index}'s ${b.total} shares rose, ${b.down} fell`}>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="font-label text-[9px] text-ink-soft">{b.index} breadth</span>
+        <span className="font-label text-[10px] text-ink-soft">{b.index} breadth</span>
         <span className="font-mono text-[10px] text-ink-soft">{verdict}</span>
       </div>
       <div className="flex gap-[2px] mt-2 h-3.5" aria-hidden="true">
@@ -122,7 +122,7 @@ export default function MoodGauge({
         <span className="font-display font-extrabold text-[2.6rem] leading-[0.85]" style={lit.label === "Neutral" ? undefined : { color: lit.color }}>{mood.label}</span>
         <span className="font-mono text-sm text-ink-soft">{mood.score}/100</span>
       </div>
-      <div className="flex justify-between font-label text-[8px] text-ink-faint mt-3">
+      <div className="flex justify-between font-label text-[9px] text-ink-faint mt-3">
         <span>Fear</span>
         <span>Neutral</span>
         <span>Greed</span>
@@ -132,7 +132,7 @@ export default function MoodGauge({
       <dl className="mt-auto pt-5 space-y-2 border-t hairline">
         {mood.inputs.map((i) => (
           <div key={i.label} className="flex justify-between text-xs gap-2">
-            <dt className="text-ink-soft">{i.label}</dt>
+            <dt className="font-sans text-ink-soft">{i.label}</dt>
             <dd className="font-mono text-right">{i.value}</dd>
           </div>
         ))}

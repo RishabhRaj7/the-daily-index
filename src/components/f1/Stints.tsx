@@ -16,7 +16,7 @@ export function LapAxis({ total }: { total: number }) {
   const step = total > 40 ? 10 : 5;
   const marks = Array.from({ length: Math.floor(total / step) + 1 }, (_, i) => i * step);
   return (
-    <div className="relative h-4 font-mono text-[9.5px] text-ink-faint">
+    <div className="relative h-4 font-mono text-[10.5px] text-ink-faint">
       {marks.map((m) => (
         <span key={m} className="absolute -translate-x-1/2" style={{ left: `${(m / total) * 100}%` }}>
           {m}
@@ -48,7 +48,7 @@ export function StintLine({ stints, total, running = true, delay = 0 }: { stints
             />
             {/* laps on the stint, along it */}
             {to - from >= scale * 0.07 && (
-              <span className="absolute left-1/2 -translate-x-1/2 -top-[13px] font-mono text-[9px] tabular-nums" style={{ color: t.colour }}>
+              <span className="absolute left-1/2 -translate-x-1/2 -top-[13px] font-mono text-[10px] tabular-nums" style={{ color: t.colour }}>
                 {s.laps}
               </span>
             )}
@@ -64,7 +64,7 @@ export function StintLine({ stints, total, running = true, delay = 0 }: { stints
       {/* now: laps on the current set */}
       {last && running && (
         <span
-          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 min-w-[18px] h-[18px] px-1 rounded-full grid place-items-center font-mono text-[9.5px] font-bold"
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 min-w-[18px] h-[18px] px-1 rounded-full grid place-items-center font-mono text-[10.5px] font-bold"
           style={{ left: pct(last.to), background: TYRE[last.s.compound].colour, color: "#111" }}
           title={`${last.s.laps} laps on this set`}
         >

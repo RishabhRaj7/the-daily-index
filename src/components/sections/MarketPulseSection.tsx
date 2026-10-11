@@ -131,7 +131,7 @@ function PriceTile({
         <span className="flex items-start justify-between gap-2 w-full">
           <span className="min-w-0">
             <span className="block font-sans font-semibold text-[14px] leading-tight">{name}</span>
-            <span className="block font-label text-[8px] text-ink-faint mt-0.5">
+            <span className="block font-label text-[9px] text-ink-faint mt-0.5">
               {unit}
               {source ? ` · ${source}` : ""}
             </span>
@@ -237,7 +237,7 @@ export default function MarketPulseSection({
             ))}
           </div>
 
-          <ul key={active} role="tabpanel" aria-label={`${active} markets`} className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-5">
+          <ul key={active} role="tabpanel" aria-label={`${active} markets`} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-5">
             {activeMood && (
               <li className="sm:col-span-2 lg:col-span-1 lg:row-span-2">
                 <MoodGauge mood={activeMood} indices={activeIndices} title={`${active} mood`} />

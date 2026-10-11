@@ -13,7 +13,7 @@ export default function InBrief({ items }: { items: BriefItem[] }) {
         </span>
         <span className="h-px flex-1 bg-[color:var(--rule)]" />
       </div>
-      <ul className="grid md:grid-cols-2 gap-x-8">
+      <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
         {items.map((b) => (
           <li key={b.url} className="py-3 border-b hairline">
             <a href={b.url} target="_blank" rel="noopener noreferrer" className="group block">

@@ -121,7 +121,7 @@ export default function OnboardingGate({ f1Roster }: { f1Roster: F1RosterEntry[]
                 className="h-full"
               />
             </div>
-            <div className="grid md:grid-cols-[1.2fr_1fr] gap-10 mt-10 items-end">
+            <div className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr] gap-10 mt-10 items-end">
               <div data-reveal="fade">
                 <h2 className="font-display font-extrabold text-[clamp(2.8rem,8vw,5.5rem)] leading-[0.84]">
                   <RisingWords text="This paper is yours." />

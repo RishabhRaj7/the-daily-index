@@ -40,7 +40,7 @@ export function useTrack(circuitKey: number | null | undefined): TrackModel | nu
     let live = true;
     let p = cache.get(circuitKey);
     if (!p) {
-      p = fetch(`/api/f1/track?key=${circuitKey}&v=6`)
+      p = fetch(`/api/f1/track?key=${circuitKey}&v=7`)
         .then((r) => (r.ok ? (r.json() as Promise<TrackModel>) : null))
         .catch(() => null);
       cache.set(circuitKey, p);
@@ -861,7 +861,7 @@ function MapButton({ on, onClick, label, children, disabled }: { on?: boolean; o
 function Choice<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: [T, string][]; onChange: (v: T) => void }) {
   return (
     <div>
-      <div className="font-label text-[8.5px] text-ink-faint mb-1.5">{label}</div>
+      <div className="font-label text-[9.5px] text-ink-faint mb-1.5">{label}</div>
       <div className="grid rounded-lg border hairline p-0.5 gap-0.5" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }} role="radiogroup" aria-label={label}>
         {options.map(([v, text]) => (
           <button
@@ -938,7 +938,7 @@ function MapTools(p: {
           Map options
         </button>
         {p.tyres.length > 0 && !open && (
-          <span className="glass border hairline rounded-full h-8 px-3 flex items-center gap-2.5 font-mono text-[9.5px] text-ink-soft">
+          <span className="glass border hairline rounded-full h-8 px-3 flex items-center gap-2.5 font-mono text-[10.5px] text-ink-soft">
             {p.tyres.map((t) => (
               <span key={t} className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full" style={{ background: TYRE[t].colour }} />
@@ -980,7 +980,7 @@ function MapTools(p: {
               ]}
             />
             <div>
-              <div className="font-label text-[8.5px] text-ink-faint mb-1.5">On the map</div>
+              <div className="font-label text-[9.5px] text-ink-faint mb-1.5">On the map</div>
               <div className="space-y-1">
                 {(
                   [
@@ -1005,7 +1005,7 @@ function MapTools(p: {
                 ))}
               </div>
             </div>
-            <p className="font-mono text-[9.5px] text-ink-faint leading-relaxed">The followed driver always keeps their name. {p.view === "3d" ? "Drag to move; right-drag or two fingers to tilt and turn." : <>Drag to look around once zoomed{" "}in.</>}</p>
+            <p className="font-mono text-[10.5px] text-ink-faint leading-relaxed">The followed driver always keeps their name. {p.view === "3d" ? "Drag to move; right-drag or two fingers to tilt and turn." : <>Drag to look around once zoomed{" "}in.</>}</p>
           </div>
         )}
       </div>

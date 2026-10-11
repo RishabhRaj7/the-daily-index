@@ -28,7 +28,7 @@ export default function StoryOdds({ headline }: { headline: string }) {
         style={{ borderColor: "color-mix(in srgb, var(--hue-poll) 45%, transparent)" }}
         data-clip-ignore="true"
       >
-        <span className="font-label text-[9px] shrink-0" style={{ color: "var(--hue-poll)" }}>
+        <span className="font-label text-[10px] shrink-0" style={{ color: "var(--hue-poll)" }}>
           Markets
         </span>
         <span className="font-display font-bold text-[1rem] tabular-nums shrink-0">{Math.round(m.lead.prob)}%</span>

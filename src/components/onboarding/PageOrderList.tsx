@@ -95,7 +95,7 @@ export default function PageOrderList({
               <span className={`block font-headline text-[15px] leading-tight ${active ? "font-semibold" : "text-ink-soft italic"}`}>
                 {meta.name}
               </span>
-              <span className="block font-label text-[9px] text-ink-soft mt-0.5">{meta.kicker}</span>
+              <span className="block font-label text-[10px] text-ink-soft mt-0.5">{meta.kicker}</span>
             </span>
             {active && (
               <span className="flex gap-1">

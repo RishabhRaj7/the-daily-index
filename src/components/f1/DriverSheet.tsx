@@ -35,9 +35,9 @@ const classified = (c: SeasonCell | null) => !!c && /^\d+$/.test(c.text);
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="rounded-xl border hairline px-3 py-2.5 min-w-0">
-      <div className="font-label text-[8px] text-ink-faint truncate">{label}</div>
+      <div className="font-label text-[9px] text-ink-faint truncate">{label}</div>
       <div className="font-display font-extrabold text-[1.5rem] leading-none mt-1.5 tabular-nums">{value}</div>
-      {sub && <div className="font-mono text-[9.5px] text-ink-faint mt-1 truncate">{sub}</div>}
+      {sub && <div className="font-mono text-[10.5px] text-ink-faint mt-1 truncate">{sub}</div>}
     </div>
   );
 }
@@ -125,8 +125,8 @@ function Body({ season, d }: { season: Season; d: SeasonDriver }) {
 
       <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-3 sm:p-4 mt-4">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-          <span className="font-label text-[9.5px]">Round by round</span>
-          <span className="flex gap-3 font-mono text-[9.5px] text-ink-faint">
+          <span className="font-label text-[10.5px]">Round by round</span>
+          <span className="flex gap-3 font-mono text-[10.5px] text-ink-faint">
             <span>○ qualified</span>
             <span style={{ color: d.colour }}>● finished</span>
             <span style={{ color: "var(--down)" }}>✕ retired</span>
@@ -137,7 +137,7 @@ function Body({ season, d }: { season: Season; d: SeasonDriver }) {
 
       {mate && (
         <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-3 sm:p-4 mt-4 grid sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-4 items-center">
-          <span className="font-label text-[9.5px]">
+          <span className="font-label text-[10.5px]">
             Against{" "}
             <DriverName code={mate.code} className="font-label">
               {mate.name}
@@ -166,7 +166,7 @@ function Body({ season, d }: { season: Season; d: SeasonDriver }) {
       <div className="overflow-x-auto mt-4 -mx-1 px-1">
         <table className="w-full text-[12px] tabular-nums min-w-[34rem]">
           <thead>
-            <tr className="font-label text-[8.5px] text-ink-faint text-left">
+            <tr className="font-label text-[9.5px] text-ink-faint text-left">
               <th className="font-normal py-1.5">Round</th>
               <th className="font-normal">Quali</th>
               <th className="font-normal">Grid</th>
@@ -246,9 +246,9 @@ export default function DriverSheet({ code, onClose }: { code: string; onClose: 
   const photo = d ? driverPhotoByCode(d.code, d.team, 200) : null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm animate-[fade-in_0.2s_ease] sm:p-5 flex items-end sm:items-center" onClick={onClose} role="dialog" aria-modal="true" aria-label={d ? `${d.name}'s season` : "A driver's season"}>
+    <div className="sheet-scale fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm animate-[fade-in_0.2s_ease] sm:p-5 flex items-end sm:items-center" onClick={onClose} role="dialog" aria-modal="true" aria-label={d ? `${d.name}'s season` : "A driver's season"}>
       <div
-        className="relative w-full max-w-[980px] mx-auto max-h-[92vh] rounded-t-3xl sm:rounded-3xl border hairline bg-[var(--surface)] text-ink overflow-hidden flex flex-col animate-[sheet-up_0.4s_var(--ease-out)]"
+        className="sheet-panel relative w-full max-w-[980px] mx-auto rounded-t-3xl sm:rounded-3xl border hairline bg-[var(--surface)] text-ink overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-center gap-4 px-5 py-4 border-b hairline" style={d ? { background: `linear-gradient(90deg, color-mix(in srgb, ${d.colour} 22%, transparent), transparent 70%)` } : undefined}>
@@ -259,7 +259,7 @@ export default function DriverSheet({ code, onClose }: { code: string; onClose: 
             )}
           </span>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 font-label text-[9.5px] text-ink-soft">
+            <div className="flex items-center gap-2 font-label text-[10.5px] text-ink-soft">
               {d && <TeamGlyph team={d.team} colour={d.colour} size={14} />}
               {d ? `${d.team} · ${season?.year} season` : "Season"}
             </div>

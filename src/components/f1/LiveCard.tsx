@@ -82,7 +82,7 @@ export default function LiveCard({ snap }: { snap: LiveSnapshot }) {
         </span>
         <span className="flex items-center gap-2 shrink-0">
           {snap.track.tone !== "green" && snap.running && (
-            <span className="rounded-full px-2 py-0.5 font-label text-[8.5px]" style={{ background: tone.bg, color: tone.fg }}>
+            <span className="rounded-full px-2 py-0.5 font-label text-[9.5px]" style={{ background: tone.bg, color: tone.fg }}>
               {snap.track.label}
             </span>
           )}
@@ -91,7 +91,7 @@ export default function LiveCard({ snap }: { snap: LiveSnapshot }) {
       </div>
       <div className="flex items-baseline justify-between gap-2 mt-1">
         <span className="font-headline text-[15px] leading-tight truncate">{snap.meeting}</span>
-        <Link href="/f1/live" className="font-label text-[9.5px] text-ink-soft hover:text-ink shrink-0 group">
+        <Link href="/f1/live" className="font-label text-[10.5px] text-ink-soft hover:text-ink shrink-0 group">
           Live centre <span className="inline-block transition-transform group-hover:translate-x-0.5">›</span>
         </Link>
       </div>
@@ -112,7 +112,7 @@ export default function LiveCard({ snap }: { snap: LiveSnapshot }) {
         )}
         {fresh && latest && (
           <Link href="/f1/live#race-control" className="font-mono text-[10px] text-ink-soft hover:text-ink truncate min-w-0" title={latest.message}>
-            <span className="font-label text-[8.5px] mr-1.5" style={{ color: latest.flag ? "var(--f1-slower)" : undefined }}>
+            <span className="font-label text-[9.5px] mr-1.5" style={{ color: latest.flag ? "var(--f1-slower)" : undefined }}>
               Race control
             </span>
             {latest.message.charAt(0) + latest.message.slice(1).toLowerCase()}

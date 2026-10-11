@@ -73,7 +73,7 @@ export default function Briefing({
                     {i + 1}
                   </span>
                   <span className="min-w-0">
-                    <span className="flex items-center gap-1.5 font-label text-[9px]" style={{ color: hue }}>
+                    <span className="flex items-center gap-1.5 font-label text-[10px]" style={{ color: hue }}>
                       <span className="w-1.5 h-1.5 rounded-full" style={{ background: hue }} />
                       {b.section}
                       <span className="text-ink-faint ml-auto opacity-0 group-hover:opacity-100 transition-opacity">

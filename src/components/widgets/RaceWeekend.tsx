@@ -57,12 +57,12 @@ export default function RaceWeekend({ sessions, tops = {} }: { sessions: F1Sessi
         <div className="font-label text-[10px] text-ink-soft">
           Race weekend{isSprint ? " · sprint" : ""}
         </div>
-        {tz && <div className="font-mono text-[10px] text-ink-faint">times in {tz}</div>}
+        {tz && <div className="font-mono text-[10px] text-ink-faint">Times in {tz}</div>}
       </div>
       <ol className="space-y-3">
         {days.map(({ day, items }) => (
           <li key={day}>
-            <div className="font-label text-[9px] text-ink-faint mb-1">{day}</div>
+            <div className="font-label text-[10px] text-ink-faint mb-1">{day}</div>
             <ul className="space-y-1">
               {items.map(({ s, i }) => {
                 const start = Date.parse(s.start);
@@ -80,9 +80,9 @@ export default function RaceWeekend({ sessions, tops = {} }: { sessions: F1Sessi
                     } ${done && !top ? "opacity-45" : ""}`}
                     style={next || live ? { boxShadow: "inset 3px 0 0 var(--section-hue, var(--accent))" } : undefined}
                   >
-                    <span className={`truncate text-[13px] ${main ? "font-semibold" : ""} ${top ? "text-ink-soft" : ""}`}>
+                    <span className={`truncate font-sans text-[13px] ${main ? "font-semibold" : ""} ${top ? "text-ink-soft" : ""}`}>
                       {SHORT[s.name] ?? s.name}
-                      {live && <span className="ml-2 font-mono text-[10px] text-down">● live</span>}
+                      {live && <span className="ml-2 font-mono text-[10px] text-down">● Live</span>}
                       {next && at !== null && (
                         <span className="ml-2 font-mono text-[10px] text-ink-soft">{until(start - at)}</span>
                       )}

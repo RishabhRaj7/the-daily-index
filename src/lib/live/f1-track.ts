@@ -67,10 +67,16 @@ export function buildModel(raw: Raw, circuitKey: number, year: number): TrackMod
   const fit = ([x, y]: [number, number]): [number, number] => [Math.round(((x - minX) * k + PAD) * 10) / 10, Math.round(((y - minY) * k + PAD) * 10) / 10];
   const frame = { cx, cy, rotation: 0, minX, minY, k, flip: true };
 
-  // Lap fraction at each point, from the reference lap's clock; without it,
-  // by distance along the line.
-  const times = raw.trackPositionTime?.length === n ? raw.trackPositionTime : null;
-  const total = times ? times[n - 1] || 1 : 0;
+  // Lap fraction at each point, from the reference lap's clock, counted from
+  // the lap's own first point (Monaco's clock doesn't start at 0: divided as
+  // it came, the whole lap fell in its last 8 %). A clock that runs backwards
+  // or is plainly short of a lap isn't used; then by distance along the line.
+  const clock = raw.trackPositionTime?.length === n ? raw.trackPositionTime : null;
+  const t0 = clock?.[0] ?? 0;
+  const run = clock ? clock[n - 1] - t0 : 0;
+  const sane = !!clock && run > 0 && clock.every((t, i) => !i || t >= clock[i - 1]) && (!raw.candidateLap?.lapTime || run > raw.candidateLap.lapTime * 0.5);
+  const times = sane ? clock.map((t) => t - t0) : null;
+  const total = times ? run : 0;
   const dist: number[] = [0];
   for (let i = 1; i < n; i++) dist.push(dist[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
   const length = dist[n - 1] || 1;
@@ -236,7 +242,7 @@ export async function getTrack(circuitKey: number, year = new Date().getUTCFullY
   const hit = memo.get(id);
   if (hit && Date.now() - hit.at < 6 * 3_600_000) return hit.model;
   const store = getStore();
-  const key = `f1:track:v6:${id}`;
+  const key = `f1:track:v7:${id}`;
   let model = await store.get<TrackModel>(key).catch(() => null);
   if (!model) {
     for (const y of [year, year - 1, year - 2]) {

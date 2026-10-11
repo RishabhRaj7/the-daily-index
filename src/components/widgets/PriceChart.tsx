@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { PriceBar } from "@/lib/types";
+import { useUnzoomed } from "@/lib/use-unzoomed";
 
 // A TradingView Lightweight Charts price chart in the paper's colours: an
 // area (or candles) in the section's hue, volume as faint bars along the
@@ -60,6 +61,9 @@ export default function PriceChart({
   format?: (price: number) => string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  // The library reads the pointer in screen pixels: the chart lives outside the page's zoom.
+  const box = useRef<HTMLDivElement>(null);
+  useUnzoomed(box, ref);
   const hoverRef = useRef(onHover);
   useEffect(() => {
     hoverRef.current = onHover;
@@ -185,5 +189,9 @@ export default function PriceChart({
     };
   }, [bars, mode, previousClose, showVolume, intraday, hue, trend, format, reference]);
 
-  return <div ref={ref} style={{ height }} className="w-full" />;
+  return (
+    <div ref={box} style={{ height }} className="w-full">
+      <div ref={ref} />
+    </div>
+  );
 }

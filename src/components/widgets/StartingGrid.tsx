@@ -59,7 +59,7 @@ function Countdown({ target }: { target: string }) {
               "—"
             )}
           </div>
-          <div className="font-label text-[8px] text-ink-soft mt-1">{p.label}</div>
+          <div className="font-label text-[9px] text-ink-soft mt-1">{p.label}</div>
         </div>
       ))}
     </div>
@@ -164,7 +164,7 @@ function Podium({ rows }: { rows: Row[] }) {
         return (
           <div key={r!.code} className="flex flex-col items-center text-center min-w-0">
             <span className="font-sans font-semibold text-[12px] leading-tight truncate max-w-full">{r!.driver}</span>
-            <span className="font-mono text-[9px] text-ink-soft truncate max-w-full">{r!.team}</span>
+            <span className="font-mono text-[10px] text-ink-soft truncate max-w-full">{r!.team}</span>
             {/* The winner's race time; the others' gap to the winner. */}
             <span className="font-mono text-[10px] tabular-nums truncate max-w-full mt-0.5 mb-1.5">
               {("interval" in r! ? r!.interval : r!.time) || "—"}
@@ -336,12 +336,12 @@ export default function StartingGrid({
       >
         <div className="flex items-center justify-between gap-2">
           <span
-            className="rounded-full px-2.5 py-0.5 font-label text-[9px]"
+            className="rounded-full px-2.5 py-0.5 font-label text-[10px]"
             style={{ background: "var(--section-hue)", color: "var(--paper)" }}
           >
             {live || liveSnap?.running ? "Live now" : "Next up"} · Round {displayedRace.round}
           </span>
-          <span className="font-label text-[9px] text-ink-soft truncate">{displayedRace.country}</span>
+          <span className="font-label text-[10px] text-ink-soft truncate">{displayedRace.country}</span>
         </div>
         <div className="font-display font-extrabold uppercase text-[1.9rem] leading-[0.9] mt-3">{displayedRace.name}</div>
         <div className="font-mono text-[10px] text-ink-soft mt-1">{displayedRace.circuit}</div>
@@ -370,7 +370,7 @@ export default function StartingGrid({
           <>
             <Countdown target={nextRace.date} />
             <div className="flex justify-between gap-2 font-mono text-[10px] text-ink-soft mt-2">
-              <span>until lights out</span>
+              <span>Until lights out</span>
               <span suppressHydrationWarning>
                 {lightsOut.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} ·{" "}
                 {lightsOut.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
@@ -380,7 +380,7 @@ export default function StartingGrid({
         )}
         {!live && trackFact && (
           <p className="text-[11px] text-ink-soft italic leading-relaxed mt-4 pt-3 border-t hairline">
-            <span className="font-label not-italic text-[9px] mr-1.5">Track fact</span>
+            <span className="font-label not-italic text-[10px] mr-1.5">Track fact</span>
             {trackFact}
           </p>
         )}
@@ -400,7 +400,7 @@ export default function StartingGrid({
             {upcoming.slice(1).map((race) => (
               <li key={race.round} className="grid grid-cols-[2rem_minmax(0,1fr)_auto] items-baseline gap-2 border-t hairline first:border-t-0 py-2">
                 <span className="font-mono text-[11px] text-ink-faint">R{race.round}</span>
-                <span className="text-[13px] truncate">{race.name}</span>
+                <span className="font-sans text-[13px] truncate">{race.name}</span>
                 <span className="font-mono text-[11px] text-ink-soft">
                   {new Date(race.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}
                 </span>
@@ -451,7 +451,7 @@ export default function StartingGrid({
           {sessionStatus === "ready" && (
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mt-1.5">
               {timingNote && <span className="font-mono text-[10.5px] text-ink-soft">{timingNote}</span>}
-              <ol className="flex items-center gap-1 font-label text-[9px]" aria-label="Weekend progress">
+              <ol className="flex flex-wrap items-center gap-x-1 gap-y-1 font-label text-[10px] min-w-0" aria-label="Weekend progress">
                 {steps.map((s, i) => (
                   <li key={s.key} className="flex items-center gap-1">
                     {i > 0 && <span className={`w-3 h-px ${i <= stepAt ? "bg-ink-soft" : "bg-[var(--rule)]"}`} />}
@@ -513,7 +513,7 @@ export default function StartingGrid({
                           <span className="font-semibold font-sans">{r.driver}</span>
                         </span>
                       </td>
-                      <td className="py-1.5 text-ink-soft truncate max-w-[80px]">{r.team}</td>
+                      <td className="py-1.5 font-sans text-ink-soft truncate max-w-[80px]">{r.team}</td>
                       <td className="py-1.5 text-right font-mono text-ink-soft">
                         {"interval" in r ? r.interval : r.time}
                       </td>

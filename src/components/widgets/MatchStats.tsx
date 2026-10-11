@@ -75,7 +75,7 @@ function Agent({ slug }: { slug: string }) {
     // eslint-disable-next-line @next/next/no-img-element
     <img src={`/val/agents/${slug}.webp`} alt={slug} title={slug} width={20} height={20} className="rounded-[4px] bg-[#17171c] shrink-0" onError={() => setOk(false)} />
   ) : (
-    <span className="grid place-items-center w-[20px] h-[20px] rounded-[4px] bg-[#17171c] text-[8px] text-white uppercase shrink-0" title={slug}>
+    <span className="grid place-items-center w-[20px] h-[20px] rounded-[4px] bg-[#17171c] text-[9px] text-white uppercase shrink-0" title={slug}>
       {slug.slice(0, 2)}
     </span>
   );
@@ -94,7 +94,7 @@ function Table({ team, players, side, best, mine }: { team: string; players: Val
           ))}
         </colgroup>
         <thead>
-          <tr className="font-label text-[8.5px] text-ink-faint text-right">
+          <tr className="font-label text-[9.5px] text-ink-faint text-right">
             <th className="text-left font-normal py-1 sticky left-0 bg-surface" style={mine ? { color: "var(--section-hue)" } : undefined}>
               {team}
             </th>
@@ -171,7 +171,7 @@ function Rounds({ rounds, teams }: { rounds: ValMatchStats["maps"][number]["roun
           <span className="w-[3.2rem] shrink-0" />
           {rounds.flatMap((_, i) => [
             ...(gap(i) ? [<span key={`hg-${i}`} className="w-[6px] shrink-0" />] : []),
-            <span key={`n-${i}`} className="w-[22px] shrink-0 text-center font-mono text-[9.5px] text-ink-faint tabular-nums">
+            <span key={`n-${i}`} className="w-[22px] shrink-0 text-center font-mono text-[10.5px] text-ink-faint tabular-nums">
               {String(i + 1).padStart(2, "0")}
             </span>,
           ])}
@@ -275,7 +275,7 @@ export default function MatchStats({
     <section className="mt-4">
       <div className="flex flex-wrap items-center gap-2">
         {data.live && (
-          <span className="font-label text-[9px] inline-flex items-center gap-1 mr-1" style={{ color: "var(--section-hue)" }}>
+          <span className="font-label text-[10px] inline-flex items-center gap-1 mr-1" style={{ color: "var(--section-hue)" }}>
             <span className="live-dot" /> Live · every minute
           </span>
         )}
@@ -292,7 +292,7 @@ export default function MatchStats({
               "All maps"
             ) : (
               <>
-                <span className="font-mono text-[9px] opacity-60">{i}</span>
+                <span className="font-mono text-[10px] opacity-60">{i}</span>
                 {m.name}
                 {m.score[0] != null && (
                   <span className="font-mono text-[11px] tabular-nums">

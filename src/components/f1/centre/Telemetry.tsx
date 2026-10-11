@@ -60,10 +60,10 @@ function useLiveHistory(snap: LiveSnapshot, code: string | null): Sample[] {
 function Gauge({ label, value, unit, children }: { label: string; value: React.ReactNode; unit?: string; children?: React.ReactNode }) {
   return (
     <div className="rounded-xl border hairline px-3 py-2 min-w-0">
-      <div className="font-label text-[8px] text-ink-faint">{label}</div>
+      <div className="font-label text-[9px] text-ink-faint">{label}</div>
       <div className="font-display font-extrabold text-[1.45rem] leading-none mt-1 tabular-nums">
         {value}
-        {unit && <span className="font-mono font-normal text-[9.5px] text-ink-soft ml-1">{unit}</span>}
+        {unit && <span className="font-mono font-normal text-[10.5px] text-ink-soft ml-1">{unit}</span>}
       </div>
       {children}
     </div>
@@ -169,7 +169,7 @@ function Chart({
       )}
       <path d={line} fill="none" stroke={colour} strokeWidth="2.2" strokeLinejoin="round" />
       {/* throttle: a band that fills with the pedal */}
-      <text x={pad.l - 6} y={throttleY + band / 2} dy="0.35em" textAnchor="end" fontSize="9" fontFamily="var(--font-mono)" fill="var(--ink-faint)">
+      <text x={pad.l - 6} y={throttleY + band / 2} dy="0.35em" textAnchor="end" fontSize="10" fontFamily="var(--font-mono)" fill="var(--ink-faint)">
         THR
       </text>
       {samples.map((s, i) => {
@@ -182,7 +182,7 @@ function Chart({
           </g>
         );
       })}
-      <text x={pad.l - 6} y={brakeY + band * 0.3} dy="0.35em" textAnchor="end" fontSize="9" fontFamily="var(--font-mono)" fill="var(--ink-faint)">
+      <text x={pad.l - 6} y={brakeY + band * 0.3} dy="0.35em" textAnchor="end" fontSize="10" fontFamily="var(--font-mono)" fill="var(--ink-faint)">
         BRK
       </text>
       <text x={W - pad.r} y={H - 4} textAnchor="end" fontSize="10" fontFamily="var(--font-mono)" fill="var(--ink-faint)">
@@ -253,7 +253,7 @@ export function useTelemetry(snap: LiveSnapshot, code: string | null, live: bool
   const history = useLiveHistory(snap, live ? code : null);
 
   if (live) {
-    return { now: code ? (snap.telemetry?.[code] ?? null) : null, samples: history, axis: "seconds, the last few minutes (a reading every 5 s)", source: "live · a reading every 5 s", play: null };
+    return { now: code ? (snap.telemetry?.[code] ?? null) : null, samples: history, axis: "Seconds, the last few minutes (a reading every 5 s)", source: "Live · a reading every 5 s", play: null };
   }
   const all = trace?.samples ?? [];
   const end = all.at(-1)?.[0] ?? 0;
@@ -264,16 +264,16 @@ export function useTelemetry(snap: LiveSnapshot, code: string | null, live: bool
     return {
       now: readingAt(all, at) ?? trace?.now ?? null,
       samples: all.filter((x) => x[0] <= at),
-      axis: "seconds into the lap",
-      source: `lap ${trace?.lap ?? "—"}, as it's driven`,
+      axis: "Seconds into the lap",
+      source: `Lap ${trace?.lap ?? "—"}, as it's driven`,
       play: all.length > 1 ? { kind: "replay", samples: all, end, asked, replayT, rate: snap.replaySpeed ?? 1 } : null,
     };
   }
   return {
     now: readingAt(all, 0) ?? trace?.now ?? null,
     samples: all,
-    axis: `seconds into the lap${trace?.lapTime ? ` · ${trace.lapTime}` : ""}`,
-    source: trace ? `fastest lap, lap ${trace.lap}${trace.lapTime ? ` · ${trace.lapTime}` : ""}` : "fastest lap",
+    axis: `Seconds into the lap${trace?.lapTime ? ` · ${trace.lapTime}` : ""}`,
+    source: trace ? `Fastest lap, lap ${trace.lap}${trace.lapTime ? ` · ${trace.lapTime}` : ""}` : "Fastest lap",
     play: all.length > 1 ? { kind: "loop", samples: all, end } : null,
   };
 }
@@ -382,7 +382,7 @@ function Dial({ now, colour, code, onOpen, source }: { now: CarNow | null; colou
         return (
           <g key={k}>
             <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="var(--ink-faint)" strokeWidth="1.2" />
-            <text x={tx} y={ty} dy="0.35em" textAnchor="middle" fontSize="8.5" fontFamily="var(--font-mono)" fill="var(--ink-faint)">
+            <text x={tx} y={ty} dy="0.35em" textAnchor="middle" fontSize="9.5" fontFamily="var(--font-mono)" fill="var(--ink-faint)">
               {k}
             </text>
           </g>
@@ -406,7 +406,7 @@ function Dial({ now, colour, code, onOpen, source }: { now: CarNow | null; colou
       <text x={cx} y={cy - 6} textAnchor="middle" fontSize="34" fontWeight="800" fontFamily="var(--font-display)" fill="var(--ink)">
         {now ? v : "—"}
       </text>
-      <text x={cx} y={cy + 9} textAnchor="middle" fontSize="8" letterSpacing="1.2" fontFamily="var(--font-mono)" fill="var(--ink-soft)">
+      <text x={cx} y={cy + 9} textAnchor="middle" fontSize="9" letterSpacing="1.2" fontFamily="var(--font-mono)" fill="var(--ink-soft)">
         KM/H
       </text>
       <text x={cx} y={cy + 27} textAnchor="middle" fontSize="12" fontWeight="700" fontFamily="var(--font-mono)" fill="var(--ink)">
@@ -417,7 +417,7 @@ function Dial({ now, colour, code, onOpen, source }: { now: CarNow | null; colou
         </tspan>
       </text>
       <g transform={`translate(${cx} ${cy + 52})`}>
-        <text x={-8} textAnchor="end" dy="0.35em" fontSize="8" letterSpacing="1.2" fontFamily="var(--font-mono)" fill="var(--ink-soft)">
+        <text x={-8} textAnchor="end" dy="0.35em" fontSize="9" letterSpacing="1.2" fontFamily="var(--font-mono)" fill="var(--ink-soft)">
           GEAR
         </text>
         <text x={-2} dy="0.36em" fontSize="18" fontWeight="800" fontFamily="var(--font-display)" fill="var(--ink)">
@@ -448,12 +448,12 @@ function Dial({ now, colour, code, onOpen, source }: { now: CarNow | null; colou
   );
   return onOpen ? (
     <button type="button" onClick={onOpen} className="group block w-full rounded-2xl border hairline px-3 pt-3 pb-2 text-left hover:border-[color:var(--ink-faint)] transition-colors" title={`${code}'s telemetry in detail`}>
-      <span className="flex items-baseline justify-between gap-2 font-label text-[8.5px] text-ink-faint">
+      <span className="flex items-baseline justify-between gap-2 font-label text-[9.5px] text-ink-faint">
         <span>Telemetry</span>
         <span className="group-hover:text-ink transition-colors">Detail →</span>
       </span>
       {body}
-      <span className="block text-center font-mono text-[9px] text-ink-faint truncate">{source}</span>
+      <span className="block text-center font-mono text-[10px] text-ink-faint truncate">{source}</span>
     </button>
   ) : (
     body
@@ -491,14 +491,14 @@ export function TelemetrySheet({ t, code, name, colour, onClose }: { t: Telemetr
   const at = hover !== null ? t.samples[hover] : null;
   const held = at ? toNow(at) : null;
   return createPortal(
-    <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm animate-[fade-in_0.2s_ease] sm:p-5 flex items-end sm:items-center" onClick={onClose} role="dialog" aria-modal="true" aria-label={`${name}'s telemetry`}>
+    <div className="sheet-scale fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm animate-[fade-in_0.2s_ease] sm:p-5 flex items-end sm:items-center" onClick={onClose} role="dialog" aria-modal="true" aria-label={`${name}'s telemetry`}>
       <div
-        className="relative w-full max-w-[980px] mx-auto max-h-[92vh] rounded-t-3xl sm:rounded-3xl border hairline bg-[var(--surface)] text-ink overflow-hidden flex flex-col animate-[sheet-up_0.4s_var(--ease-out)]"
+        className="sheet-panel relative w-full max-w-[980px] mx-auto rounded-t-3xl sm:rounded-3xl border hairline bg-[var(--surface)] text-ink overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-center gap-4 px-5 py-4 border-b hairline" style={{ background: `linear-gradient(90deg, color-mix(in srgb, ${colour} 22%, transparent), transparent 70%)` }}>
           <div className="min-w-0 flex-1">
-            <div className="font-label text-[9.5px] text-ink-soft">Telemetry · {t.source}</div>
+            <div className="font-label text-[10.5px] text-ink-soft">Telemetry · {t.source}</div>
             <div className="font-display font-extrabold uppercase text-[1.6rem] leading-none mt-1 truncate">{name || code}</div>
           </div>
           <button type="button" onClick={onClose} className="icon-btn" aria-label="Close">
@@ -511,13 +511,13 @@ export function TelemetrySheet({ t, code, name, colour, onClose }: { t: Telemetr
           {!t.now && t.samples.length < 2 ? (
             <Empty>Reading the car data…</Empty>
           ) : (
-            <div className="grid md:grid-cols-[17rem_minmax(0,1fr)] gap-5 items-start">
+            <div className="grid grid-cols-1 md:grid-cols-[17rem_minmax(0,1fr)] gap-5 items-start">
               <div className="space-y-3">
                 <SheetGauges t={t} held={held} colour={colour} code={code} seekRef={seekRef} />
               </div>
               <div>
                 {t.samples.length >= 2 ? <Chart samples={t.samples} colour={colour} axis={t.axis} hover={hover} setHover={setHover} seekRef={t.play ? seekRef : undefined} /> : <Empty>The lap draws as readings come in.</Empty>}
-                <p className="font-mono text-[9.5px] text-ink-faint mt-2 leading-relaxed">
+                <p className="font-mono text-[10.5px] text-ink-faint mt-2 leading-relaxed">
                   Speed is the line; the green band is the throttle, the red marks braking. Point at the lap to see that moment in the gauges. From F1&rsquo;s car data, about four readings a second
                   {t.source.startsWith("live") ? " (live: one every 5 s)" : ""}.
                 </p>

@@ -26,7 +26,7 @@ function Meter({ label, value, max, note }: { label: string; value: number; max:
   return (
     <div>
       <div className="flex items-baseline justify-between">
-        <span className="font-label text-[9px] text-ink-soft">{label}</span>
+        <span className="font-label text-[10px] text-ink-soft">{label}</span>
         <span className="font-mono text-[11px] text-ink-soft">{note}</span>
       </div>
       <div className="font-display font-bold text-[2rem] leading-none mt-1">{value}</div>
@@ -47,7 +47,7 @@ function TempRange({ min, max, now }: { min: number; max: number; now: number })
   return (
     <div className="flex items-center gap-3 font-mono text-[12px] tabular-nums">
       <span className="text-ink-soft">
-        <span className="font-label text-[9px] mr-1">Low</span>
+        <span className="font-label text-[10px] mr-1">Low</span>
         {min}°
       </span>
       <span className="relative flex-1 h-1.5 rounded-full bg-card-bg min-w-[80px]">
@@ -67,25 +67,25 @@ function TempRange({ min, max, now }: { min: number; max: number; now: number })
         />
       </span>
       <span className="text-ink-soft">
-        {max}°<span className="font-label text-[9px] ml-1">High</span>
+        {max}°<span className="font-label text-[10px] ml-1">High</span>
       </span>
     </div>
   );
 }
 
 function humidityLabel(h: number): string {
-  if (h < 30) return "dry";
-  if (h < 60) return "comfortable";
-  if (h < 80) return "humid";
-  return "muggy";
+  if (h < 30) return "Dry";
+  if (h < 60) return "Comfortable";
+  if (h < 80) return "Humid";
+  return "Muggy";
 }
 
 function uvLabel(uv: number): string {
-  if (uv < 3) return "low";
-  if (uv < 6) return "moderate";
-  if (uv < 8) return "high";
-  if (uv < 11) return "very high";
-  return "extreme";
+  if (uv < 3) return "Low";
+  if (uv < 6) return "Moderate";
+  if (uv < 8) return "High";
+  if (uv < 11) return "Very high";
+  return "Extreme";
 }
 
 export default function SkyReportSection({
@@ -113,7 +113,7 @@ export default function SkyReportSection({
       <section id="sky-report">
         <SectionHeader sectionKey="sky-report" />
         {status === "loading" ? (
-          <div className="grid md:grid-cols-[1fr_220px] gap-6" aria-busy="true">
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_220px] gap-6" aria-busy="true">
             <div>
               <div className="h-8 w-2/3 bg-card-bg mb-3 animate-pulse" />
               <div className="h-4 w-full bg-card-bg mb-2 animate-pulse" />
@@ -168,7 +168,7 @@ export function CityMini({ weather }: { weather: WeatherNow }) {
           <span className="font-display font-extrabold uppercase text-[1.8rem] leading-none" style={{ color: "var(--section-hue, var(--accent))" }}>
             {weather.city}
           </span>
-          <span className="font-label text-[9px] text-ink-soft">{night ? "Tonight" : "Today"}</span>
+          <span className="font-label text-[10px] text-ink-soft">{night ? "Tonight" : "Today"}</span>
         </div>
         <div className="flex items-center gap-3 mt-3">
           <span className="font-display font-extrabold text-[3.6rem] leading-[0.8]">{weather.tempC}°</span>
@@ -198,7 +198,7 @@ export function CityMini({ weather }: { weather: WeatherNow }) {
       </div>
       {weather.blocks && weather.blocks.length > 0 && (
         <div className="min-w-0">
-          <div className="font-label text-[9px] text-ink-soft mb-2">
+          <div className="font-label text-[10px] text-ink-soft mb-2">
             Chance of rain{typeof weather.rainChance === "number" ? ` · peak ${weather.rainChance}%` : ""}
           </div>
           <WeatherBlocks blocks={weather.blocks} compact />
@@ -240,7 +240,7 @@ function SkyReading({
       />
       <WeatherAlerts alerts={alerts} />
 
-      <div className="grid md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-10 items-start">
+      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-10 items-start">
         <div data-reveal>
           <div className="font-label text-[11px] text-ink-soft">
             {weather.city} · {night ? "Tonight" : "Today"}
@@ -288,7 +288,7 @@ function SkyReading({
           <div className="flex items-baseline justify-between gap-4 mb-3">
             <h3 className="font-label text-[11px] text-ink-soft">The rest of the day · chance of rain</h3>
             {typeof weather.rainChance === "number" && (
-              <span className="font-mono text-[11px] text-ink-soft">today&rsquo;s peak {weather.rainChance}%</span>
+              <span className="font-mono text-[11px] text-ink-soft">Today&rsquo;s peak {weather.rainChance}%</span>
             )}
           </div>
           <WeatherBlocks blocks={weather.blocks} />

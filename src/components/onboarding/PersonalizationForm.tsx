@@ -225,7 +225,7 @@ function SportCard({ name, accent, children }: { name: string; accent?: string; 
         <span className="w-2 h-2 rounded-full" style={{ background: accent ?? "var(--accent)" }} />
         <span className="font-display font-bold text-[1.35rem] leading-none">{name}</span>
       </div>
-      <div className="grid sm:grid-cols-2 gap-x-4 gap-y-4">{children}</div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">{children}</div>
     </div>
   );
 }

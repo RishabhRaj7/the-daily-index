@@ -183,7 +183,7 @@ function IpoSheet({ ipo, onClose }: { ipo: IpoEntry; onClose: () => void }) {
       <dl className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {headline.map(([label, value]) => (
           <div key={label} className="rounded-xl border hairline p-3">
-            <dt className="font-label text-[9px] text-ink-soft">{label}</dt>
+            <dt className="font-label text-[10px] text-ink-soft">{label}</dt>
             <dd className="font-display font-bold text-[1.35rem] leading-tight mt-1 tabular-nums">
               {label === "GMP" && d.gmp !== null ? <GmpPill ipo={d} large /> : value}
             </dd>
@@ -211,7 +211,7 @@ function IpoSheet({ ipo, onClose }: { ipo: IpoEntry; onClose: () => void }) {
                 }}
               />
               <div className="text-center mt-2">
-                <div className="font-label text-[9px] text-ink-soft">{label}</div>
+                <div className="font-label text-[10px] text-ink-soft">{label}</div>
                 <div className="font-mono text-[12px] mt-0.5">
                   {day(date)}
                   {est ? <span className="text-ink-faint">*</span> : null}
@@ -222,7 +222,7 @@ function IpoSheet({ ipo, onClose }: { ipo: IpoEntry; onClose: () => void }) {
         })}
       </ol>
 
-      <div className="grid md:grid-cols-2 gap-6 mt-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
         {/* Subscription by category. */}
         <section>
           <div className="flex items-baseline justify-between mb-3">
@@ -306,7 +306,7 @@ function IpoSheet({ ipo, onClose }: { ipo: IpoEntry; onClose: () => void }) {
               ["Latest", lp.last],
             ].map(([label, v]) => (
               <div key={label as string}>
-                <dt className="font-label text-[9px] text-ink-soft">{label}</dt>
+                <dt className="font-label text-[10px] text-ink-soft">{label}</dt>
                 <dd className="font-mono text-[15px] tabular-nums">
                   {typeof v === "number" ? `₹${v.toFixed(1)}` : "—"}
                   {typeof v === "number" && (
@@ -319,7 +319,7 @@ function IpoSheet({ ipo, onClose }: { ipo: IpoEntry; onClose: () => void }) {
               </div>
             ))}
             <div>
-              <dt className="font-label text-[9px] text-ink-soft">vs GMP estimate</dt>
+              <dt className="font-label text-[10px] text-ink-soft">vs GMP estimate</dt>
               <dd className="font-mono text-[15px] tabular-nums">
                 {estListing !== null ? `${lp.open >= estListing ? "beat" : "missed"} by ₹${Math.abs(lp.open - estListing).toFixed(1)}` : "—"}
               </dd>
@@ -330,7 +330,7 @@ function IpoSheet({ ipo, onClose }: { ipo: IpoEntry; onClose: () => void }) {
 
       {/* The issue in detail, and its papers. */}
       {d.facts.length > 0 && (
-        <dl className="grid sm:grid-cols-2 gap-x-8 mt-8 border-t hairline">
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 mt-8 border-t hairline">
           {d.facts.map((f) => (
             <div key={f.label} className="flex justify-between gap-4 py-2 border-b hairline text-[12px]">
               <dt className="text-ink-soft shrink-0">{f.label}</dt>
@@ -411,7 +411,7 @@ export default function IpoWatch() {
               <span className="min-w-0">
                 <span className="flex items-center gap-2">
                   <span
-                    className={`shrink-0 rounded-full px-2 py-0.5 font-label text-[8px] ${ipo.stage === "open" || ipo.stage === "listing" ? "" : "text-ink-soft border hairline"}`}
+                    className={`shrink-0 rounded-full px-2 py-0.5 font-label text-[9px] ${ipo.stage === "open" || ipo.stage === "listing" ? "" : "text-ink-soft border hairline"}`}
                     style={ipo.stage === "open" || ipo.stage === "listing" ? { background: "var(--section-hue)", color: "var(--paper)" } : undefined}
                   >
                     {STAGE[ipo.stage]}
@@ -419,7 +419,7 @@ export default function IpoWatch() {
                   <span className="font-sans font-semibold text-[14px] truncate">{ipo.name}</span>
                 </span>
                 <span className="block font-mono text-[11px] text-ink-soft mt-1">
-                  {size(ipo.sizeCr) || "size tbc"}
+                  {size(ipo.sizeCr) || "Size TBC"}
                   {(() => {
                     // The mood is for an issue still taking bids.
                     const mood = ipo.stage === "open" ? ipoMood(ipo, todayIso()) : null;

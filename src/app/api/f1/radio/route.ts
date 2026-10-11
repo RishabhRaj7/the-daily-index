@@ -23,7 +23,8 @@ export async function GET(req: Request) {
     .slice(0, 40);
   const urls = clips.map((x) => x.u);
   const known = await cachedTranscripts(urls);
-  const missing = clips.filter((x) => !known[x.u]);
+  // Not yet written, or written under older instructions (shown meanwhile).
+  const missing = clips.filter((x) => !known[x.u] || known[x.u].stale);
   const paused = missing.length > 0 && (await radioPaused());
   const written = paused ? [] : await Promise.all(missing.slice(0, 3).map(async (x) => [x.u, await transcribe(x.u, x.w || "the driver", x.f)] as const));
   for (const [u, t] of written) if (t) known[u] = t;

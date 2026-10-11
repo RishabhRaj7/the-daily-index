@@ -37,12 +37,12 @@ function Event({ e }: { e: AheadEvent }) {
   const kind = KIND[e.kind];
   const body = (
     <>
-      <span className="flex items-center gap-1.5 font-label text-[8px]" style={{ color: kind.hue }}>
+      <span className="flex items-center gap-1.5 font-label text-[9px]" style={{ color: kind.hue }}>
         <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: kind.hue }} aria-hidden="true" />
         {kind.label}
         {e.time && <span className="font-mono text-ink-soft normal-case tracking-normal">{e.time}</span>}
       </span>
-      <span className="text-[13px] leading-snug mt-0.5 line-clamp-4" title={e.label}>{e.label}</span>
+      <span className="font-sans text-[13px] leading-snug mt-0.5 line-clamp-4" title={e.label}>{e.label}</span>
     </>
   );
   return (
@@ -95,7 +95,7 @@ export default function WeekAhead() {
                 <span className={`font-display font-bold text-[1.7rem] leading-none tabular-nums ${today ? "text-[color:var(--section-hue)]" : ""}`}>
                   {d.getUTCDate()}
                 </span>
-                <span className="font-label text-[9px] text-ink-soft">
+                <span className="font-label text-[10px] text-ink-soft">
                   {today ? "Today" : d.toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" })}
                   {(i === 0 || d.getUTCDate() === 1) && ` · ${d.toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" })}`}
                 </span>

@@ -39,7 +39,7 @@ export function Panel({
 export function Tile({ label, value, unit, tone }: { label: string; value: React.ReactNode; unit?: string; tone?: string }) {
   return (
     <div className="rounded-xl border hairline px-3 pt-2.5 pb-2 min-w-0" style={tone ? { borderColor: tone, background: `color-mix(in srgb, ${tone} 12%, transparent)` } : undefined}>
-      <div className="font-label text-[8.5px] text-ink-faint truncate">{label}</div>
+      <div className="font-label text-[9.5px] text-ink-faint truncate">{label}</div>
       <div className="font-display font-extrabold text-[1.35rem] sm:text-[1.55rem] leading-none mt-1.5 tabular-nums truncate" style={tone ? { color: tone } : undefined}>
         {value}
         {unit && <span className="font-mono font-normal text-[10px] text-ink-soft ml-1">{unit}</span>}
@@ -78,7 +78,7 @@ export function Seg<T extends string>({
               style={on ? { background: "var(--ink)" } : undefined}
             >
               {o.label}
-              {o.count !== undefined && <span className={`font-mono text-[9.5px] tabular-nums ${on ? "opacity-70" : "text-ink-faint"}`}>{o.count}</span>}
+              {o.count !== undefined && <span className={`font-mono text-[10.5px] tabular-nums ${on ? "opacity-70" : "text-ink-faint"}`}>{o.count}</span>}
             </button>
           );
         })}

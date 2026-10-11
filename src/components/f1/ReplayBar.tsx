@@ -237,7 +237,7 @@ export default function ReplayBar({ replay, onClose }: { replay: Replay; onClose
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-3 font-mono text-[10.5px] tabular-nums">
             <span className="flex items-center gap-2 min-w-0">
-              <span className="font-label text-[8.5px]" style={{ color: "var(--hue-f1)" }}>
+              <span className="font-label text-[9.5px]" style={{ color: "var(--hue-f1)" }}>
                 Replay
               </span>
               <span className="text-ink">{hms(shown - timeline.start)}</span>

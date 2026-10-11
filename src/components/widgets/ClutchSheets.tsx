@@ -28,7 +28,7 @@ const shortWhen = (iso: string) =>
 export function Logo({ src, name, size = 22 }: { src: string | null; name: string; size?: number }) {
   if (!src) {
     return (
-      <span className="grid place-items-center rounded-md bg-card-bg font-mono text-[9px] text-ink-soft shrink-0" style={{ width: size, height: size }} aria-hidden="true">
+      <span className="grid place-items-center rounded-md bg-card-bg font-mono text-[10px] text-ink-soft shrink-0" style={{ width: size, height: size }} aria-hidden="true">
         {name.slice(0, 2).toUpperCase()}
       </span>
     );
@@ -90,7 +90,7 @@ function Form({ list, code, n = 10 }: { list: ValMatch[]; code: string; n?: numb
         <span
           key={m.id}
           title={`${won(m, code) ? "Won" : "Lost"} ${us(m, code).wins ?? 0}–${them(m, code).wins ?? 0} v ${them(m, code).name} · ${m.event} · ${date(m.start)}`}
-          className="grid place-items-center w-5 h-5 rounded-[4px] font-mono text-[9px] font-bold"
+          className="grid place-items-center w-5 h-5 rounded-[4px] font-mono text-[10px] font-bold"
           style={won(m, code) ? { background: "var(--up)", color: "var(--paper)" } : { background: "color-mix(in srgb, var(--down) 22%, transparent)", color: "var(--down)" }}
         >
           {won(m, code) ? "W" : "L"}
@@ -183,7 +183,7 @@ function Tree({ b, follows, onOpen, avail }: { b: Bracket; follows: string[]; on
         <div className="flex gap-6 min-w-max">
           {b.upper.map((c) => (
             <div key={c.title} style={{ width: cw }}>
-              <div className="font-label text-[9px] text-ink-soft mb-2">{c.title}</div>
+              <div className="font-label text-[10px] text-ink-soft mb-2">{c.title}</div>
               <div className="space-y-3">
                 {c.slots.map((s) => (
                   <div key={s.id} style={{ height: CARD_H }}>
@@ -195,7 +195,7 @@ function Tree({ b, follows, onOpen, avail }: { b: Bracket; follows: string[]; on
           ))}
           {b.final.length > 0 && (
             <div style={{ width: cw }}>
-              <div className="font-label text-[9px] text-ink-soft mb-2">Final</div>
+              <div className="font-label text-[10px] text-ink-soft mb-2">Final</div>
               {b.final.map((s) => (
                 <div key={s.id} style={{ height: CARD_H }}>
                   <SlotCard s={s} follows={follows} onOpen={onOpen} />
@@ -261,7 +261,7 @@ function Tree({ b, follows, onOpen, avail }: { b: Bracket; follows: string[]; on
           ))}
         </svg>
         {titles.map((h) => (
-          <div key={`${h.t}-${h.x}-${h.y}`} className="absolute font-label text-[9px] text-ink-soft" style={{ left: h.x, top: h.y, width: cw }}>
+          <div key={`${h.t}-${h.x}-${h.y}`} className="absolute font-label text-[10px] text-ink-soft" style={{ left: h.x, top: h.y, width: cw }}>
             {h.t}
           </div>
         ))}
@@ -272,7 +272,7 @@ function Tree({ b, follows, onOpen, avail }: { b: Bracket; follows: string[]; on
             <div key={s.id} className="absolute" style={{ left: p.x, top: p.y, width: cw, height: CARD_H }}>
               <SlotCard s={s} follows={follows} onOpen={onOpen} />
               {s.match && (
-                <div className="absolute -bottom-[15px] left-0 font-mono text-[9px] text-ink-faint whitespace-nowrap">
+                <div className="absolute -bottom-[15px] left-0 font-mono text-[10px] text-ink-faint whitespace-nowrap">
                   {s.match.state === "inProgress" ? (
                     <span className="text-[color:var(--section-hue)] font-semibold">LIVE</span>
                   ) : s.match.state === "completed" ? (
@@ -297,7 +297,7 @@ function GroupCard({ g, follows, onOpen, onTeam }: { g: GroupTable; follows: str
       <div className="font-label text-[10px] text-ink-soft mb-2">{g.name}</div>
       <table className="w-full text-[12.5px]">
         <thead>
-          <tr className="font-label text-[8px] text-ink-faint text-right">
+          <tr className="font-label text-[9px] text-ink-faint text-right">
             <th className="text-left font-normal pb-1">Team</th>
             <th className="font-normal pb-1 w-10">W–L</th>
             <th className="font-normal pb-1 w-12">Maps</th>
@@ -322,7 +322,7 @@ function GroupCard({ g, follows, onOpen, onTeam }: { g: GroupTable; follows: str
                 <td className="text-right">
                   {r.status && (
                     <span
-                      className="font-label text-[8px] rounded-full px-1.5 py-0.5"
+                      className="font-label text-[9px] rounded-full px-1.5 py-0.5"
                       style={r.status === "through" ? { background: "var(--section-hue)", color: "var(--paper)" } : { border: "1px solid var(--rule)" }}
                     >
                       {r.status === "through" ? "Through" : "Out"}
@@ -385,7 +385,7 @@ function EventView({ event, data, follows, go }: { event: ValEvent; data: Valora
         </>
       )}
       {tab === "groups" && groups && (
-        <div className="grid sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {groups.tables.map((g) => (
             <GroupCard key={g.name} g={g} follows={follows} onOpen={open} onTeam={(code) => go({ kind: "team", code })} />
           ))}
@@ -487,7 +487,7 @@ function TeamView({ team, data, go }: { team: ValTeam; data: ValorantData; go: (
 
   return (
     <div>
-      <div className="grid sm:grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-3 items-center">
+      <div className="grid grid-cols-1 sm:grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-3 items-center">
         <Logo src={team.image} name={team.code} size={64} />
         <div className="min-w-0">
           <div className="font-mono text-[11px] text-ink-soft">
@@ -636,7 +636,7 @@ function MatchView({ a, b, id, data, follows, go }: { a: string; b: string; id?:
 
       <section className="mt-5 border-t hairline pt-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-label text-[9px] text-ink-soft mr-1">Past results</span>
+          <span className="font-label text-[10px] text-ink-soft mr-1">Past results</span>
           {(
             [
               ["h2h", ha ? (meetings.length ? `Head to head ${aw}–${bw}` : "Never met") : "Head to head"],

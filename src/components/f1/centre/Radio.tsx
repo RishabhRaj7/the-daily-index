@@ -100,7 +100,7 @@ export function Confidence({ value, model, checkedBy }: { value: number | null; 
   const how = checkedBy ? `two listens agree on ${Math.round(value * 100)}%` : "one listen";
   return (
     <span
-      className="inline-flex items-center gap-1.5 font-mono text-[9.5px] text-ink-faint"
+      className="inline-flex items-center gap-1.5 font-mono text-[10.5px] text-ink-faint"
       title={checkedBy ? `Written by ${model}, checked by ${checkedBy}: ${Math.round(value * 100)}% of words heard the same. Underlined words were heard differently.` : `Written by ${model}; no second listen was free, so this is its own rating.`}
     >
       <span className="flex gap-[2px]" aria-hidden="true">
@@ -143,7 +143,7 @@ export function Transcript({ text, code }: { text: string; code: string }) {
     <div className="mt-2 space-y-1">
       {turns.map((t, i) => (
         <p key={i} className="font-headline text-[14px] leading-snug">
-          <span className={`font-label text-[8.5px] mr-1.5 ${t.who === "driver" ? "" : "text-ink-faint"}`} title={t.who === "unsure" ? "Couldn't tell whether the driver or the engineer said this" : undefined}>
+          <span className={`font-label text-[9.5px] mr-1.5 ${t.who === "driver" ? "" : "text-ink-faint"}`} title={t.who === "unsure" ? "Couldn't tell whether the driver or the engineer said this" : undefined}>
             {t.who === "driver" ? code : t.who === "engineer" ? "Engineer" : "Driver or engineer?"}
           </span>
           <span className={t.who === "driver" ? "" : "text-ink-soft"}>
@@ -187,7 +187,7 @@ export function RadioRow({
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
           <span className="font-sans font-bold text-[13px]">{clip.code}</span>
-          <span className="font-label text-[8px] text-ink-faint">Radio</span>
+          <span className="font-label text-[9px] text-ink-faint">Radio</span>
           <span className="font-mono text-[10.5px] text-ink-faint tabular-nums">{clock(clip.utc)}</span>
           <button
             type="button"

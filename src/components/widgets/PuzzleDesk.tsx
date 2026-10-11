@@ -492,7 +492,7 @@ function WordleGame({
                   onClick={() => press(key)}
                   disabled={status !== "playing"}
                   aria-label={key === "⌫" ? "Delete letter" : key === "ENTER" ? "Submit guess" : `Letter ${key}`}
-                  className={`h-8 ${wide ? "flex-[1.6] px-1" : "flex-1"} grid place-items-center border hairline font-label text-[9px] rounded-[2px] transition-colors ${
+                  className={`h-8 ${wide ? "flex-[1.6] px-1" : "flex-1"} grid place-items-center border hairline font-label text-[10px] rounded-[2px] transition-colors ${
                     mark ? `wl-mark wl-${mark}` : "bg-card-bg"
                   } ${status === "playing" ? "hover:bg-card-bg cursor-pointer" : "opacity-70"} ${
                     mark && status === "playing" ? "hover:opacity-90" : ""

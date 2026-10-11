@@ -38,14 +38,14 @@ export default function MapSheet({
 
   const race = snap.type === "Race";
   return createPortal(
-    <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm animate-[fade-in_0.2s_ease] p-2 sm:p-5" onClick={onClose} role="dialog" aria-modal="true" aria-label={`${model.name} map`}>
+    <div className="sheet-scale fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm animate-[fade-in_0.2s_ease] flex items-end sm:block sm:p-5" onClick={onClose} role="dialog" aria-modal="true" aria-label={`${model.name} map`}>
       <div
-        className="relative h-full w-full max-w-[1500px] mx-auto rounded-3xl border hairline bg-[var(--surface)] text-ink overflow-hidden flex flex-col animate-[sheet-up_0.4s_var(--ease-out)]"
+        className="sheet-panel relative h-[88dvh] sm:h-full w-full max-w-[1500px] mx-auto rounded-t-3xl sm:rounded-3xl border hairline bg-[var(--surface)] text-ink overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-center justify-between gap-3 px-5 py-4 border-b hairline">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 font-label text-[9.5px] text-ink-soft">
+            <div className="flex items-center gap-2 font-label text-[10.5px] text-ink-soft">
               <LiveDot running={snap.running} />
               {sessionLine(snap)}
             </div>
@@ -59,13 +59,13 @@ export default function MapSheet({
         </header>
         <div className="flex-1 min-h-0 grid grid-rows-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_17rem]">
           {/* the map fits the space both ways, whatever the circuit's shape */}
-          <div className="relative min-h-[60vh] lg:min-h-0">
+          <div className="relative min-h-0">
             <div className="absolute inset-3 sm:inset-6">
               <TrackMap model={model} snap={snap} focus={focus} onFocus={onFocus} big controls className="w-full h-full" />
             </div>
           </div>
           <aside className="hidden lg:block border-l hairline overflow-y-auto p-4">
-            <div className="font-label text-[9px] text-ink-faint mb-2">Running order · tap to follow</div>
+            <div className="font-label text-[10px] text-ink-faint mb-2">Running order · tap to follow</div>
             <ol>
               {snap.rows.map((r) => {
                 const on = r.code === focus;
@@ -82,7 +82,7 @@ export default function MapSheet({
                         <span className="w-[3px] h-3.5 rounded-full shrink-0" style={{ background: r.colour }} />
                         <TeamGlyph team={r.team} colour={r.colour} />
                         <span className="font-sans font-bold">{r.code}</span>
-                        {snap.running && r.inPit && <span className="font-label text-[8px]" style={{ color: "var(--f1-pit)" }}>Pit</span>}
+                        {snap.running && r.inPit && <span className="font-label text-[9px]" style={{ color: "var(--f1-pit)" }}>Pit</span>}
                       </span>
                       <span className="font-mono text-[10.5px] tabular-nums text-ink-soft">{race ? (r.position === 1 ? "Leader" : r.interval) : r.best}</span>
                       {r.tyre ? <TyreIcon compound={r.tyre.compound} fresh={r.tyre.fresh} size={14} /> : <span />}
@@ -91,7 +91,7 @@ export default function MapSheet({
                 );
               })}
             </ol>
-            <p className="font-mono text-[9.5px] text-ink-faint mt-4 leading-relaxed">Cars are placed from F1&rsquo;s timing loops and gaps — accurate to a corner or so. Exact positions are F1 TV&rsquo;s alone.</p>
+            <p className="font-mono text-[10.5px] text-ink-faint mt-4 leading-relaxed">Cars are placed from F1&rsquo;s timing loops and gaps — accurate to a corner or so. Exact positions are F1 TV&rsquo;s alone.</p>
           </aside>
         </div>
       </div>

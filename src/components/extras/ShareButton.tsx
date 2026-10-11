@@ -40,7 +40,7 @@ function ShareCard({ story, cardRef }: { story: Story; cardRef: React.RefObject<
       {summary && <p className="font-body text-[17px] leading-[1.55] text-ink/85 mt-6 line-clamp-[9]">{summary}</p>}
       {story.why && (
         <div className="why-line mt-5 pl-4 border-l-2" style={{ borderColor: hue }}>
-          <div className="font-label text-[9px] text-ink-soft">Why it matters</div>
+          <div className="font-label text-[10px] text-ink-soft">Why it matters</div>
           <p className="font-headline italic text-[16px] leading-snug mt-1">{story.why}</p>
         </div>
       )}
@@ -168,88 +168,92 @@ export default function ShareButton({ story, className = "" }: { story: Story; c
       {open &&
         createPortal(
           <div
-            className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-black/55 backdrop-blur-sm animate-[fade-in_0.25s_ease]"
+            className="sheet-scale fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-black/55 backdrop-blur-sm animate-[fade-in_0.25s_ease]"
             onClick={() => setOpen(false)}
             role="dialog"
             aria-modal="true"
             aria-label="Share this story"
           >
             <div
-              className="relative w-full sm:max-w-[760px] max-h-[92vh] overflow-y-auto bg-surface text-ink rounded-t-3xl sm:rounded-3xl border hairline shadow-[0_40px_120px_-30px_rgba(0,0,0,0.6)] p-5 sm:p-7 animate-[sheet-up_0.45s_var(--ease-out)]"
+              className="sheet-panel relative w-full sm:max-w-[760px] flex flex-col overflow-hidden bg-surface text-ink rounded-t-3xl sm:rounded-3xl border hairline shadow-[0_40px_120px_-30px_rgba(0,0,0,0.6)]"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="font-display font-extrabold text-[2rem] leading-none">Share</h2>
-                <button type="button" onClick={() => setOpen(false)} className="icon-btn" aria-label="Close">
-                  <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
-                    <path d="M4 4l8 8M12 4l-8 8" />
-                  </svg>
-                </button>
-              </div>
-
-              <div className="grid sm:grid-cols-[minmax(0,1fr)_240px] gap-6 items-start">
-                <div className="rounded-2xl overflow-hidden border hairline bg-paper aspect-[4/5] grid place-items-center">
-                  {status === "ready" && image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={image.url} alt={`Share card: ${story.headline}`} className="w-full h-full object-contain animate-[fade-in_0.4s_ease]" />
-                  ) : status === "failed" ? (
-                    <div className="text-center p-6">
-                      <p className="font-headline italic text-lg">The card didn&rsquo;t develop.</p>
-                      <button type="button" onClick={() => void render()} className="chip mt-4">
-                        Try again
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 font-mono text-[11px] text-ink-soft">
-                      <span className="live-dot text-accent" /> SETTING THE CARD…
-                    </div>
-                  )}
+              <div className="shrink-0 px-5 sm:px-7 pt-6 sm:pt-7 pb-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-display font-extrabold text-[2rem] leading-none">Share</h2>
+                  <button type="button" onClick={() => setOpen(false)} className="icon-btn" aria-label="Close">
+                    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+                      <path d="M4 4l8 8M12 4l-8 8" />
+                    </svg>
+                  </button>
                 </div>
+              </div>
+              <div className="min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-7 pb-5 sm:pb-7">
 
-                <div className="flex flex-col gap-2">
-                  {canNativeShare && (
-                    <button type="button" onClick={nativeShare} className="chip chip-signal h-11 justify-center">
-                      Share image…
-                    </button>
-                  )}
-                  <button type="button" onClick={copyImage} disabled={status !== "ready"} className="chip h-11 justify-center">
-                    Copy image
-                  </button>
-                  <button type="button" onClick={download} disabled={status !== "ready"} className="chip h-11 justify-center">
-                    Download PNG
-                  </button>
-                  <div className="font-label text-[9px] text-ink-soft mt-3 mb-1">Send the link</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {APPS.map((app) => (
-                      <a
-                        key={app.id}
-                        href={app.href(story.headline, link)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="chip h-10 justify-center"
-                      >
-                        {app.label}
-                      </a>
-                    ))}
+                <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_240px] gap-6 items-start">
+                  <div className="rounded-2xl overflow-hidden border hairline bg-paper aspect-[4/5] grid place-items-center">
+                    {status === "ready" && image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={image.url} alt={`Share card: ${story.headline}`} className="w-full h-full object-contain animate-[fade-in_0.4s_ease]" />
+                    ) : status === "failed" ? (
+                      <div className="text-center p-6">
+                        <p className="font-headline italic text-lg">The card didn&rsquo;t develop.</p>
+                        <button type="button" onClick={() => void render()} className="chip mt-4">
+                          Try again
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 font-mono text-[11px] text-ink-soft">
+                        <span className="live-dot text-accent" /> SETTING THE CARD…
+                      </div>
+                    )}
                   </div>
-                  <button type="button" onClick={copyLink} className="chip h-10 justify-center">
-                    Copy link
-                  </button>
-                  <p className="font-body text-[12px] text-ink-soft leading-snug mt-2">
-                    Apps get the link to the original story. To send the card itself, copy or download the image.
-                  </p>
-                </div>
-              </div>
 
-              {toast && (
-                <div className="absolute left-1/2 -translate-x-1/2 bottom-5 chip chip-signal pointer-events-none animate-[pop-in_0.3s_var(--ease-out)]">
-                  {toast}
+                  <div className="flex flex-col gap-2">
+                    {canNativeShare && (
+                      <button type="button" onClick={nativeShare} className="chip chip-signal h-11 justify-center">
+                        Share image…
+                      </button>
+                    )}
+                    <button type="button" onClick={copyImage} disabled={status !== "ready"} className="chip h-11 justify-center">
+                      Copy image
+                    </button>
+                    <button type="button" onClick={download} disabled={status !== "ready"} className="chip h-11 justify-center">
+                      Download PNG
+                    </button>
+                    <div className="font-label text-[10px] text-ink-soft mt-3 mb-1">Send the link</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {APPS.map((app) => (
+                        <a
+                          key={app.id}
+                          href={app.href(story.headline, link)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="chip h-10 justify-center"
+                        >
+                          {app.label}
+                        </a>
+                      ))}
+                    </div>
+                    <button type="button" onClick={copyLink} className="chip h-10 justify-center">
+                      Copy link
+                    </button>
+                    <p className="font-body text-[12px] text-ink-soft leading-snug mt-2">
+                      Apps get the link to the original story. To send the card itself, copy or download the image.
+                    </p>
+                  </div>
                 </div>
-              )}
 
-              {/* The card being photographed: laid out off-screen at print size. */}
-              <div aria-hidden="true" className="fixed -left-[10000px] top-0 pointer-events-none">
-                <ShareCard story={story} cardRef={cardRef} />
+                {toast && (
+                  <div className="absolute left-1/2 -translate-x-1/2 bottom-5 chip chip-signal pointer-events-none animate-[pop-in_0.3s_var(--ease-out)]">
+                    {toast}
+                  </div>
+                )}
+
+                {/* The card being photographed: laid out off-screen at print size. */}
+                <div aria-hidden="true" className="fixed -left-[10000px] top-0 pointer-events-none">
+                  <ShareCard story={story} cardRef={cardRef} />
+                </div>
               </div>
             </div>
           </div>,

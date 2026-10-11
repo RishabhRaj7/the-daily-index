@@ -30,7 +30,10 @@ import { joinTurns, writeTurns, type Speaker } from "@/lib/f1-radio-speaker";
 // rating.
 
 const KEEP_DAYS = 120;
-const key = (url: string) => `f1:radio:v3:${createHash("sha1").update(url).digest("hex").slice(0, 20)}`;
+const hash = (url: string) => createHash("sha1").update(url).digest("hex").slice(0, 20);
+const key = (url: string) => `f1:radio:v4:${hash(url)}`;
+// v3 was labelled before the swap check (below): shown until the clip is written again.
+const OLD = (url: string) => `f1:radio:v3:${hash(url)}`;
 const BLOCK = (model: string) => `f1:radio:block:${model}`;
 
 interface Slot {
@@ -66,6 +69,8 @@ export interface Transcript {
   model: string;
   /** The model that listened again, when one did. */
   checkedBy?: string;
+  /** Written under older instructions; shown until it is written again. */
+  stale?: boolean;
 }
 
 let client: GoogleGenAI | null = null;
@@ -79,12 +84,14 @@ export function radioModels(): string[] {
 export async function cachedTranscripts(urls: string[]): Promise<Record<string, Transcript>> {
   if (urls.length === 0) return {};
   const found = await getStore()
-    .getMany<Transcript>(urls.map(key))
+    .getMany<Transcript>([...urls.map(key), ...urls.map(OLD)])
     .catch(() => new Map<string, Transcript>());
   const out: Record<string, Transcript> = {};
   for (const u of urls) {
     const t = found.get(key(u));
+    const old = found.get(OLD(u));
     if (t?.text) out[u] = t;
+    else if (old?.text) out[u] = { ...old, stale: true };
   }
   return out;
 }
@@ -172,7 +179,20 @@ const SPEAKERS = (first: string | null) =>
     "hold only one speaker, most often the engineer alone (an instruction, or a message after the flag), so don't invent a",
     "second voice; equally, don't merge two voices into one turn when you hear the sound change.",
     "",
+    "After the chequered flag the cockpit is quiet, so sound tells you less and the words decide. The engineer reports the",
+    "result and why (that's P9, he got a ten-second penalty, so we're up one), passes on other cars' penalties, gives the",
+    "routine (switch positions, P1 then P0, cool-down, stop at the weighbridge) and thanks the driver for the drive or the",
+    "pace. The driver thanks the team, the strategists, the guys in the garage, asks where he finished (was I P3?), and",
+    "reacts to the result.",
+    "",
     "4. When sound and words disagree, go with what you hear. When neither settles it, say unsure.",
+    "",
+    "5. Check the whole exchange before you answer. For each turn, note in `cue` the one or two things that decided it",
+    "(e.g. 'engine noise behind', 'gives the position', 'thanks the strategists'). Then read the conversation again with",
+    "every driver and engineer label swapped. The most common mistake is getting the first speaker wrong and every label",
+    "after it with it. If the swapped version reads more like a real driver–engineer exchange (the one reporting results,",
+    "penalties and instructions is the engineer; the one thanking the team and asking about the car or the result is the",
+    "driver), answer with the swapped labels.",
   ].join("\n");
 
 async function write(model: string, data: string, who: string, first: string | null): Promise<{ text: string; confidence: number | null }> {
@@ -206,8 +226,10 @@ async function write(model: string, data: string, who: string, first: string | n
             type: Type.ARRAY,
             items: {
               type: Type.OBJECT,
-              properties: { speaker: { type: Type.STRING, enum: ["driver", "engineer", "unsure"] }, text: { type: Type.STRING } },
-              required: ["speaker", "text"],
+              // the words, then what gives the speaker away, then the speaker
+              properties: { text: { type: Type.STRING }, cue: { type: Type.STRING }, speaker: { type: Type.STRING, enum: ["driver", "engineer", "unsure"] } },
+              required: ["text", "cue", "speaker"],
+              propertyOrdering: ["text", "cue", "speaker"],
             },
           },
           confidence: { type: Type.NUMBER },
