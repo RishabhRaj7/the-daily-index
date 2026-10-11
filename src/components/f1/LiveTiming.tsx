@@ -313,8 +313,8 @@ export default function LiveTiming({
                 <span className="flex items-center gap-2 min-w-0">
                   <span className="w-[3px] h-3.5 rounded-full shrink-0" style={{ background: r.colour }} />
                   {layout !== "narrow" && <TeamGlyph team={r.team} colour={r.colour} />}
-                  <DriverName code={r.code} className="flex items-baseline gap-2 min-w-0">
-                    <span className="font-sans font-bold tracking-[0.02em]">{r.code}</span>
+                  <DriverName code={r.code} className="flex items-baseline gap-2 min-w-[2.4rem] overflow-hidden">
+                    <span className="font-sans font-bold tracking-[0.02em] shrink-0">{r.code}</span>
                     {showName && !(layout === "roomy" && sectors) && <span className="text-ink-soft truncate min-w-0">{r.name}</span>}
                   </DriverName>
                   <Status r={r} race={race} running={snap.running} />

@@ -603,6 +603,18 @@ edition starts building before the reader is back on the paper.
   `/api/f1/telemetry?session=&code=[&t=]` cuts out the lap in progress at
   the replay's moment, or the driver's fastest lap. Lap boundaries come from
   TimingData's lap counts on the same feed clock.
+- Satellite under the track (\`components/f1/Satellite.tsx\`, Map options →
+  Under the track: Satellite, when \`NEXT_PUBLIC_MAPBOX_TOKEN\` is set and the
+  circuit is placed). \`lib/live/f1-geo.ts\` fits each circuit's outline onto
+  its GPS racing line from bacinger/f1-circuits (MIT): scale, turn and shift
+  by iterative closest point, the scale started from the official length,
+  kept as \`f1:track:geo:v1:<key>:<year>\` and served with the track as
+  \`geo\` (Monaco, Monza, Zandvoort, Baku: 2–3 m). Mapbox (satellite-v9,
+  non-interactive) only paints the ground: its camera is set from our view
+  box every time the view changes (zoom, pan, follow), so the drawing, cars
+  and controls stay ours. Over imagery the track is a slim line at any zoom.
+  Fitting showed every circuit had been drawn mirror-image (F1's y runs up);
+  models are now flipped (\`f1:track:v5\`, \`frame.flip\`).
 - A driver's name opens their season (`components/f1/DriverLink.tsx`:
   `DriverName`, `openDriver`, one `DriverSheetHost` in the root layout)
   where the whole season is what a reader wants: the home page's

@@ -218,4 +218,22 @@ export interface TrackModel {
   frame?: { cx: number; cy: number; rotation: number; minX: number; minY: number; k: number; flip?: boolean };
   /** The pit lane, entry to exit, in the model's box (traced from a real stop: /api/f1/track). */
   pit?: [number, number][] | null;
+  /** Where the circuit is on Earth (lib/live/f1-geo.ts), for the satellite map. */
+  geo?: TrackGeo | null;
+}
+
+/**
+ * A model's box onto the ground: metres east and north of (lat0, lon0) are
+ * s · turn(a) · (x, m·y) + (tx, ty). `err`: the fit's mean distance, in metres.
+ */
+export interface TrackGeo {
+  id: string;
+  lat0: number;
+  lon0: number;
+  m: 1 | -1;
+  s: number;
+  a: number;
+  tx: number;
+  ty: number;
+  err: number;
 }
