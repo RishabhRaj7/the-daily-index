@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CarNow, LapTrace, LiveSnapshot } from "@/lib/f1-live-types";
 import { Empty } from "./ui";
@@ -95,7 +95,23 @@ function Readout({ now, colour }: { now: CarNow; colour: string }) {
   );
 }
 
-function Chart({ samples, colour, axis, hover, setHover, playhead = null }: { samples: Sample[]; colour: string; axis: string; hover: number | null; setHover: (i: number | null) => void; playhead?: number | null }) {
+function Chart({
+  samples,
+  colour,
+  axis,
+  hover,
+  setHover,
+  seekRef,
+}: {
+  samples: Sample[];
+  colour: string;
+  axis: string;
+  hover: number | null;
+  setHover: (i: number | null) => void;
+  /** Filled in here: moves the marker for where the gauges are (called every frame). */
+  seekRef?: React.RefObject<((at: number) => void) | null>;
+}) {
+  const marker = useRef<SVGLineElement>(null);
   const W = 720;
   const H = 210;
   const pad = { l: 34, r: 8, t: 8, b: 22 };
@@ -109,6 +125,20 @@ function Chart({ samples, colour, axis, hover, setHover, playhead = null }: { sa
   const throttleY = pad.t + speedH + 6;
   const brakeY = throttleY + band + 2;
   const h = hover !== null ? (samples[hover] ?? null) : null;
+  useEffect(() => {
+    if (!seekRef) return;
+    const span = W - pad.l - pad.r;
+    seekRef.current = (at: number) => {
+      const el = marker.current;
+      if (!el) return;
+      const px = (pad.l + (Math.min(at, end) / end) * span).toFixed(1);
+      el.setAttribute("x1", px);
+      el.setAttribute("x2", px);
+    };
+    return () => {
+      seekRef.current = null;
+    };
+  }, [seekRef, end, pad.l, pad.r]);
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
@@ -159,9 +189,7 @@ function Chart({ samples, colour, axis, hover, setHover, playhead = null }: { sa
         {axis}
       </text>
       {/* where the gauges are in the lap */}
-      {!h && playhead !== null && playhead <= end && (
-        <line x1={x(playhead)} x2={x(playhead)} y1={pad.t} y2={brakeY + band} stroke={colour} strokeWidth="1.5" strokeOpacity="0.8" pointerEvents="none" />
-      )}
+      {seekRef && <line ref={marker} x1={-10} x2={-10} y1={pad.t} y2={brakeY + band} stroke={colour} strokeWidth="1.5" strokeOpacity={h ? 0 : 0.8} pointerEvents="none" />}
       {h && (
         <g pointerEvents="none">
           <line x1={x(h[0])} x2={x(h[0])} y1={pad.t} y2={brakeY + band} stroke="var(--ink)" strokeOpacity="0.4" />
@@ -186,18 +214,26 @@ function Chart({ samples, colour, axis, hover, setHover, playhead = null }: { sa
 
 const toNow = (s: Sample): CarNow => ({ speed: s[1], throttle: s[2], brake: !!s[3], gear: s[4], rpm: s[5], drs: s[6] ? "open" : "off" });
 
-/** The sample at `at` seconds into the lap (the last one before it). */
-function sampleAt(samples: Sample[], at: number): Sample | null {
+/** The reading `at` seconds into the lap, blended between the two readings around it. */
+function readingAt(samples: Sample[], at: number): CarNow | null {
+  if (!samples.length) return null;
   let lo = 0;
   let hi = samples.length - 1;
-  if (hi < 0) return null;
   while (lo < hi) {
     const mid = (lo + hi + 1) >> 1;
     if (samples[mid][0] <= at) lo = mid;
     else hi = mid - 1;
   }
-  return samples[lo];
+  const a = samples[lo];
+  const b = samples[lo + 1];
+  if (!b || at <= a[0]) return toNow(a);
+  const f = Math.min(1, (at - a[0]) / (b[0] - a[0] || 1));
+  const mix = (k: number) => a[k] + (b[k] - a[k]) * f;
+  return { speed: mix(1), throttle: mix(2), rpm: mix(5), brake: !!a[3], gear: a[4], drs: a[6] ? "open" : "off" };
 }
+
+/** How the gauges play a lap: the fastest on a loop, or the lap in progress with the replay. */
+type Play = { kind: "loop"; samples: Sample[]; end: number } | { kind: "replay"; samples: Sample[]; end: number; asked: number; replayT: number; rate: number };
 
 export interface Telemetry {
   now: CarNow | null;
@@ -206,8 +242,8 @@ export interface Telemetry {
   axis: string;
   /** Where the readings come from, for the header. */
   source: string;
-  /** Seconds into the lap the gauges show (a replay or the looping fastest lap). */
-  at: number | null;
+  /** What the gauges play between reads (nothing live: they ease to each reading). */
+  play: Play | null;
 }
 
 /** The followed driver's telemetry, wherever the page is: live, a replay, or a finished session. */
@@ -215,20 +251,9 @@ export function useTelemetry(snap: LiveSnapshot, code: string | null, live: bool
   const archived = !live && !!snap.path;
   const trace = useTrace(archived ? snap.path : null, code, archived ? replayT : null);
   const history = useLiveHistory(snap, live ? code : null);
-  // A finished session plays the fastest lap on a loop, a tenth of a second at a time.
-  const looping = archived && replayT === null && !!trace;
-  const [clock, setClock] = useState(0);
-  useEffect(() => {
-    if (!looping) return;
-    const start = Date.now();
-    const id = setInterval(() => {
-      if (document.visibilityState === "visible") setClock(Date.now() - start);
-    }, 100);
-    return () => clearInterval(id);
-  }, [looping, trace]);
 
   if (live) {
-    return { now: code ? (snap.telemetry?.[code] ?? null) : null, samples: history, axis: "seconds, the last few minutes (a reading every 5 s)", source: "live · a reading every 5 s", at: null };
+    return { now: code ? (snap.telemetry?.[code] ?? null) : null, samples: history, axis: "seconds, the last few minutes (a reading every 5 s)", source: "live · a reading every 5 s", play: null };
   }
   const all = trace?.samples ?? [];
   const end = all.at(-1)?.[0] ?? 0;
@@ -236,18 +261,80 @@ export function useTelemetry(snap: LiveSnapshot, code: string | null, live: bool
     // The answer runs a few seconds ahead of the replay: play up to where the replay is.
     const asked = Math.floor(replayT / 2) * 2 + AHEAD;
     const at = Math.max(0, end - (asked - replayT));
-    const s = sampleAt(all, at);
-    return { now: s ? toNow(s) : (trace?.now ?? null), samples: all.filter((x) => x[0] <= at), axis: "seconds into the lap", source: `lap ${trace?.lap ?? "—"}, as it's driven`, at };
+    return {
+      now: readingAt(all, at) ?? trace?.now ?? null,
+      samples: all.filter((x) => x[0] <= at),
+      axis: "seconds into the lap",
+      source: `lap ${trace?.lap ?? "—"}, as it's driven`,
+      play: all.length > 1 ? { kind: "replay", samples: all, end, asked, replayT, rate: snap.replaySpeed ?? 1 } : null,
+    };
   }
-  const loopAt = end > 0 ? (clock / 1000) % end : null;
-  const s = loopAt !== null ? sampleAt(all, loopAt) : null;
   return {
-    at: loopAt,
-    now: s ? toNow(s) : (trace?.now ?? null),
+    now: readingAt(all, 0) ?? trace?.now ?? null,
     samples: all,
     axis: `seconds into the lap${trace?.lapTime ? ` · ${trace.lapTime}` : ""}`,
     source: trace ? `fastest lap, lap ${trace.lap}${trace.lapTime ? ` · ${trace.lapTime}` : ""}` : "fastest lap",
+    play: all.length > 1 ? { kind: "loop", samples: all, end } : null,
   };
+}
+
+const same = (a: CarNow, b: CarNow) =>
+  Math.round(a.speed) === Math.round(b.speed) && Math.round(a.throttle) === Math.round(b.throttle) && Math.round(a.rpm / 20) === Math.round(b.rpm / 20) && a.gear === b.gear && a.brake === b.brake && a.drs === b.drs;
+
+/**
+ * What the gauges show, frame by frame: a lap played back is blended between
+ * its readings (about four a second) at the display's own rate, and every
+ * value eases towards where it should be — quickly when playing a lap,
+ * more gently towards each live reading five seconds apart. Only the gauges
+ * that use this redraw; `seekRef` moves a chart's marker along with them.
+ */
+function useSmooth(t: Telemetry, seekRef?: React.RefObject<((at: number) => void) | null>): CarNow | null {
+  const [shown, setShown] = useState<CarNow | null>(null);
+  const latest = useRef(t);
+  useEffect(() => {
+    latest.current = t;
+  }, [t]);
+  useEffect(() => {
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const mark = { replayT: -1, wall: 0 };
+    let cur: CarNow | null = null;
+    let last = performance.now();
+    let raf = 0;
+    const frame = (now: number) => {
+      const dt = Math.min(0.1, (now - last) / 1000);
+      last = now;
+      const t = latest.current;
+      const p = t.play;
+      let target = t.now;
+      let at: number | null = null;
+      if (p?.kind === "loop" && p.end > 0) {
+        at = (now / 1000) % p.end;
+        target = readingAt(p.samples, at);
+      } else if (p?.kind === "replay") {
+        // The replay's clock moves on between its updates (four a second): carry it on.
+        if (mark.replayT !== p.replayT) {
+          mark.replayT = p.replayT;
+          mark.wall = now;
+        }
+        const tNow = p.replayT + Math.min(1, (now - mark.wall) / 1000) * p.rate;
+        at = Math.max(0, Math.min(p.end, p.end - (p.asked - tNow)));
+        target = readingAt(p.samples, at);
+      }
+      if (at !== null) seekRef?.current?.(at);
+      if (target) {
+        const k = reduced || !cur ? 1 : 1 - Math.exp(-dt / (p ? 0.06 : 0.35));
+        const from: CarNow = cur ?? target;
+        const next: CarNow = { ...target, speed: from.speed + (target.speed - from.speed) * k, rpm: from.rpm + (target.rpm - from.rpm) * k, throttle: from.throttle + (target.throttle - from.throttle) * k };
+        cur = next;
+        setShown((prev) => (prev && same(prev, next) ? prev : next));
+      }
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, [seekRef]);
+  const v = shown ?? t.now;
+  return v ? { ...v, speed: Math.round(v.speed), rpm: Math.round(v.rpm), throttle: Math.round(v.throttle) } : null;
 }
 
 // ---- the speedometer -----------------------------------------------------------
@@ -262,8 +349,14 @@ function arc(cx: number, cy: number, r: number, from: number, to: number) {
   return `M${x0.toFixed(1)},${y0.toFixed(1)}A${r},${r} 0 ${Math.abs(to - from) > 180 ? 1 : 0} 1 ${x1.toFixed(1)},${y1.toFixed(1)}`;
 }
 
+/** The card's speedometer: the dial, played smoothly (a tap opens the detail). */
+export function Speedometer({ t, colour, code, onOpen }: { t: Telemetry; colour: string; code: string; onOpen?: () => void }) {
+  const now = useSmooth(t);
+  return <Dial now={now} colour={colour} code={code} onOpen={onOpen} source={t.source} />;
+}
+
 /** A speedometer: speed round the dial in the team's colour, throttle and brake on the inner arcs. */
-export function Speedometer({ now, colour, code, onOpen, source }: { now: CarNow | null; colour: string; code: string; onOpen?: () => void; source: string }) {
+function Dial({ now, colour, code, onOpen, source }: { now: CarNow | null; colour: string; code: string; onOpen?: () => void; source: string }) {
   const cx = 110;
   const cy = 98;
   const R = 82;
@@ -369,8 +462,21 @@ export function Speedometer({ now, colour, code, onOpen, source }: { now: CarNow
 
 // ---- the detail ------------------------------------------------------------------
 
+/** The sheet's dial and gauges, played smoothly; pointing at the lap holds them at that moment. */
+function SheetGauges({ t, held, colour, code, seekRef }: { t: Telemetry; held: CarNow | null; colour: string; code: string; seekRef: React.RefObject<((at: number) => void) | null> }) {
+  const smooth = useSmooth(t, seekRef);
+  const now = held ?? smooth;
+  return (
+    <>
+      <Dial now={now} colour={colour} code={code} source={t.source} />
+      {now && <Readout now={now} colour={colour} />}
+    </>
+  );
+}
+
 export function TelemetrySheet({ t, code, name, colour, onClose }: { t: Telemetry; code: string; name: string; colour: string; onClose: () => void }) {
   const [hover, setHover] = useState<number | null>(null);
+  const seekRef = useRef<((at: number) => void) | null>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -381,9 +487,9 @@ export function TelemetrySheet({ t, code, name, colour, onClose }: { t: Telemetr
       document.body.style.overflow = overflow;
     };
   }, [onClose]);
-  // Pointing at the lap shows that moment; otherwise, now.
+  // Pointing at the lap shows that moment; otherwise, as it plays.
   const at = hover !== null ? t.samples[hover] : null;
-  const now = at ? toNow(at) : t.now;
+  const held = at ? toNow(at) : null;
   return createPortal(
     <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm animate-[fade-in_0.2s_ease] sm:p-5 flex items-end sm:items-center" onClick={onClose} role="dialog" aria-modal="true" aria-label={`${name}'s telemetry`}>
       <div
@@ -402,16 +508,15 @@ export function TelemetrySheet({ t, code, name, colour, onClose }: { t: Telemetr
           </button>
         </header>
         <div className="overflow-y-auto overscroll-contain p-4 sm:p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
-          {!now && t.samples.length < 2 ? (
+          {!t.now && t.samples.length < 2 ? (
             <Empty>Reading the car data…</Empty>
           ) : (
             <div className="grid md:grid-cols-[17rem_minmax(0,1fr)] gap-5 items-start">
               <div className="space-y-3">
-                <Speedometer now={now} colour={colour} code={code} source={t.source} />
-                {now && <Readout now={now} colour={colour} />}
+                <SheetGauges t={t} held={held} colour={colour} code={code} seekRef={seekRef} />
               </div>
               <div>
-                {t.samples.length >= 2 ? <Chart samples={t.samples} colour={colour} axis={t.axis} hover={hover} setHover={setHover} playhead={t.at} /> : <Empty>The lap draws as readings come in.</Empty>}
+                {t.samples.length >= 2 ? <Chart samples={t.samples} colour={colour} axis={t.axis} hover={hover} setHover={setHover} seekRef={t.play ? seekRef : undefined} /> : <Empty>The lap draws as readings come in.</Empty>}
                 <p className="font-mono text-[9.5px] text-ink-faint mt-2 leading-relaxed">
                   Speed is the line; the green band is the throttle, the red marks braking. Point at the lap to see that moment in the gauges. From F1&rsquo;s car data, about four readings a second
                   {t.source.startsWith("live") ? " (live: one every 5 s)" : ""}.

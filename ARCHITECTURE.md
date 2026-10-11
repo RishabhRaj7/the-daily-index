@@ -588,7 +588,14 @@ edition starts building before the reader is back on the paper.
   lap drawn out (speed line, throttle band, braking marks, a marker where
   the gauges are; pointing at the lap shows that moment). A finished
   session plays the fastest lap on a loop; a replay plays the lap in
-  progress (asked a few seconds ahead so the dial moves smoothly). Live: the shared read takes
+  progress (asked a few seconds ahead). The gauges run on the display's
+  frames (`useSmooth`): a lap played back is blended between its readings
+  and every value eases to where it should be, so the dial sweeps rather
+  than ticks; only the gauges redraw, and the chart's marker is moved
+  directly.
+- The timing table: last and best laps for every driver; short of the wide
+  layout a Gaps / Sectors switch picks the middle columns (interval and gap,
+  or S1–S3 with their mini-sectors); wide shows both. Live: the shared read takes
   CarData.z on a connection of its own (if F1 holds it back, the timing is
   untouched) and carries every car's latest reading as `telemetry`; the page
   keeps the last few minutes of them. Finished sessions: F1's archive (a

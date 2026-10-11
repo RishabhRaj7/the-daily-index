@@ -194,7 +194,7 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
       </div>
 
       <div className={`mt-3 grid gap-3 items-start ${hasTelemetry ? "sm:grid-cols-[13.5rem_minmax(0,1fr)]" : ""}`}>
-        {hasTelemetry && <Speedometer now={telemetry.now} colour={row.colour} code={row.code} source={telemetry.source} onOpen={() => setDetail(true)} />}
+        {hasTelemetry && <Speedometer t={telemetry} colour={row.colour} code={row.code} onOpen={() => setDetail(true)} />}
         <div className="min-w-0 space-y-3">
           {/* last and best, against the session's fastest */}
           <div className="grid grid-cols-2 gap-2">
