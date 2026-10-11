@@ -364,10 +364,10 @@ export default function TrackMap({
   const fav = useF1Favourites();
   const [codes, setCodes] = useStoredChoice<"all" | "yours" | "off">("f1-map-codes", "all", ["all", "yours", "off"]);
   const [paint, setPaint] = useStoredChoice<"team" | "tyre">("f1-map-paint", "team", ["team", "tyre"]);
-  // What the map carries (the live maps): corner numbers off at first, the sectors on.
+  // What the map carries (the live maps): sector numbers on at first; coloured edges and corner numbers off.
   const [cornerPick, setCornerPick] = useStoredChoice<"on" | "off">("f1-map-corners", "off", ["on", "off"]);
   const [sectorPick, setSectorPick] = useStoredChoice<"on" | "off">("f1-map-sectors", "on", ["on", "off"]);
-  const [edgePick, setEdgePick] = useStoredChoice<"on" | "off">("f1-map-edges", "on", ["on", "off"]);
+  const [edgePick, setEdgePick] = useStoredChoice<"on" | "off">("f1-map-edges-v2", "off", ["on", "off"]);
   const showCorners = corners && (!controls || cornerPick === "on");
   const showSectors = !controls || sectorPick === "on";
   const showEdges = !controls || edgePick === "on";
@@ -403,7 +403,6 @@ export default function TrackMap({
     };
   })();
   const pitted = laneAt && snap?.running ? snap.rows.filter((x) => x.inPit && !x.out && !(x.knockedOut && snap.type !== "Race")) : [];
-  const pitLabel = laneAt ? out(...laneAt(0.5), 40 * scale) : null;
 
   // The sectors, each its own colour along the track's edge and on its label.
   const sectorRanges: [number, number][] | null = ends ? [[0, ends[0]], [ends[0], ends[1]], [ends[1], 1]] : null;
@@ -586,11 +585,6 @@ export default function TrackMap({
                 );
               })}
 
-            {pitLabel && (
-              <text x={pitLabel[0]} y={pitLabel[1]} dy="0.35em" textAnchor="middle" fontSize={(big ? 13 : 16) * scale * inv} fontWeight={700} fontFamily="var(--font-mono)" fill="var(--ink-faint)">
-                PIT
-              </text>
-            )}
           </g>
         )}
 

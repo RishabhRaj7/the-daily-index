@@ -609,8 +609,8 @@ edition starts building before the reader is back on the paper.
   round dark tarmac (`--track-edge`, `--track-tarmac`), the edge tinted by
   sector (S1 red, S2 blue, S3 yellow, each with a coloured badge where it
   begins), corner numbers in round badges just off the track, a dashed pit
-  lane (`f1:track:v6`). Map options switches sector numbers, sector-coloured
-  edges (both on at first) and corner numbers (off at first). Badges are
+  lane (`f1:track:v6`). Map options switches sector numbers (on at first),
+  sector-coloured edges and corner numbers (both off at first). Badges are
   placed along the track's normal, out as far as it takes to clear the
   track, the pit lane, the start line and the badges already placed. The
   home page's next-race map is `minimal` (just the circuit), turning slowly
