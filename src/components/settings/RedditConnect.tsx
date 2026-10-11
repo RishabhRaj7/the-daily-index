@@ -83,7 +83,7 @@ export default function RedditConnect({
 
   if (!status.configured) {
     return (
-      <div className="text-[11px] text-ink-soft leading-relaxed space-y-1.5">
+      <div className="font-sans text-[11px] text-ink-soft leading-relaxed space-y-1.5">
         <p>
           Reddit login isn&rsquo;t switched on yet. It activates automatically once the server has{" "}
           <span className="font-mono">REDDIT_CLIENT_ID</span> and{" "}
@@ -101,7 +101,7 @@ export default function RedditConnect({
 
   if (status.storage === false) {
     return (
-      <div className="text-[11px] text-ink-soft leading-relaxed space-y-1.5">
+      <div className="font-sans text-[11px] text-ink-soft leading-relaxed space-y-1.5">
         <p>
           Reddit login is ready on the server but there&rsquo;s no database to remember your
           account (<span className="font-mono">DATABASE_URL</span> isn&rsquo;t set). The

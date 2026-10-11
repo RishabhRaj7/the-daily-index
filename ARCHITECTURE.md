@@ -686,6 +686,25 @@ SyncRuntime.tsx`, controls in `components/settings/SyncCard.tsx`).
 - Turning the map: two buttons turn it 45° at a time. The basic map turns
   the drawing inside a box fitted to it turned, labels kept upright; the 3D
   view turns its camera (and starts from the basic map's turn).
+- The stewards in the timing table (`lib/f1-stewards.ts`): race control read
+  in order, up to the current lap (a replay holds later messages too), gives
+  each driver's open penalties (time penalties summed: two +5s read +10s; a
+  drive-through for failing to serve a time penalty replaces it; "penalty
+  served" clears), open incidents per reason (noted → under investigation →
+  after the race; "no further action" or a penalty closes one), the
+  black-and-white flag and laps deleted for track limits. Shown as small tags
+  beside the code (penalties in red; a yellow "!" for an incident under or
+  awaiting investigation, grey when only noted; a tap opens the details) and in full on the followed
+  driver's card.
+- The followed driver at first: the paddock's first driver as picked, while
+  running; then the second; then the leader. Their card shows the fight
+  (`components/f1/centre/Battle.tsx`, races): gap to the car ahead and from
+  the car behind, the closing rate (each car's gap to the car ahead noted as
+  it completes a lap, kept for the session whichever view is open; the change
+  over up to three laps against the same car; the last lap times until there
+  are two), and when the chaser reaches DRS range (1 s); and, under it, where
+  they'd come out if they pitted now: the place, the cars either side with
+  the gaps, and whether it's into traffic (gaps to the leader plus the pit loss).
 - A driver's name opens their season (`components/f1/DriverLink.tsx`:
   `DriverName`, `openDriver`, one `DriverSheetHost` in the root layout)
   where the whole season is what a reader wants: the home page's

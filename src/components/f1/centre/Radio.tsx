@@ -135,7 +135,7 @@ function Said({ text }: { text: string }) {
   );
 }
 
-export function Transcript({ text, code }: { text: string; code: string }) {
+export function Transcript({ text, code, colour }: { text: string; code: string; colour?: string }) {
   // Turns as settled on the server (lib/f1-radio-speaker.ts): the driver, the
   // engineer, or a line nobody could place, shown without a guess.
   const turns = readTurns(text, code);
@@ -143,9 +143,19 @@ export function Transcript({ text, code }: { text: string; code: string }) {
     <div className="mt-2 space-y-1">
       {turns.map((t, i) => (
         <p key={i} className="font-headline text-[14px] leading-snug">
-          <span className={`font-label text-[9.5px] mr-1.5 ${t.who === "driver" ? "" : "text-ink-faint"}`} title={t.who === "unsure" ? "Couldn't tell whether the driver or the engineer said this" : undefined}>
-            {t.who === "driver" ? code : t.who === "engineer" ? "Engineer" : "Driver or engineer?"}
-          </span>
+          {/* The driver as a tag in the team's colour: a bare "OCO" in small capitals reads as a word ("oco"). */}
+          {t.who === "driver" ? (
+            <span
+              className="inline-block align-[1px] rounded px-1 mr-1.5 font-sans font-bold text-[10.5px] leading-[16px] tracking-[0.04em]"
+              style={{ color: colour ?? "var(--ink)", background: `color-mix(in srgb, ${colour ?? "var(--ink)"} 16%, transparent)` }}
+            >
+              {code.toUpperCase()}
+            </span>
+          ) : (
+            <span className="font-label text-[9.5px] mr-1.5 text-ink-faint" title={t.who === "unsure" ? "Couldn't tell whether the driver or the engineer said this" : undefined}>
+              {t.who === "engineer" ? "Engineer" : "Driver or engineer?"}
+            </span>
+          )}
           <span className={t.who === "driver" ? "" : "text-ink-soft"}>
             <Said text={t.said} />
           </span>
@@ -222,7 +232,7 @@ export function RadioRow({
             </button>
           ) : (
             <>
-              <Transcript text={written.text} code={clip.code} />
+              <Transcript text={written.text} code={clip.code} colour={clip.colour} />
               <div className="mt-1.5">
                 <Confidence value={written.confidence} model={written.model} checkedBy={written.checkedBy} />
               </div>

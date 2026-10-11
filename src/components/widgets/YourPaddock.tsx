@@ -84,7 +84,10 @@ function VersusBar({ label, pair, colours }: { label: string; pair: [number, num
 }
 
 function Versus({ options }: { options: { id: string; label: string; query: string }[] }) {
-  const [pick, setPick] = useState(options[0]?.id);
+  // Until the reader picks, the first option leads ("Your drivers" when there
+  // are two of them): the options fill in after the first render, so the
+  // first one then isn't fixed.
+  const [pick, setPick] = useState<string | null>(null);
   const chosen = options.find((o) => o.id === pick) ?? options[0];
   const h = useH2H(chosen?.query ?? null);
   if (!chosen) return null;
@@ -234,7 +237,7 @@ function PaddockPicker({ roster, onClose }: { roster: F1RosterEntry[]; onClose: 
                   type="button"
                   onClick={() => setTeam(on ? "" : t)}
                   aria-pressed={on}
-                  className="flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-[13px] transition-colors"
+                  className="flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left font-sans font-semibold text-[13px] transition-colors"
                   style={{
                     borderColor: on ? F1_TEAM_COLORS[t] : "var(--rule)",
                     background: on ? `color-mix(in srgb, ${F1_TEAM_COLORS[t]} 16%, var(--surface))` : undefined,
@@ -438,7 +441,7 @@ export default function YourPaddock({
           )}
         </div>
       ) : (
-        <button type="button" onClick={() => setOpen(true)} className="rounded-xl border border-dashed hairline p-3 text-left text-[13px] text-ink-soft">
+        <button type="button" onClick={() => setOpen(true)} className="rounded-xl border border-dashed hairline p-3 text-left font-sans text-[13px] text-ink-soft">
           + Follow a team
         </button>
       )}
@@ -487,7 +490,7 @@ export default function YourPaddock({
           })}
         </ul>
       ) : (
-        <button type="button" onClick={() => setOpen(true)} className="rounded-xl border border-dashed hairline p-3 text-left text-[13px] text-ink-soft">
+        <button type="button" onClick={() => setOpen(true)} className="rounded-xl border border-dashed hairline p-3 text-left font-sans text-[13px] text-ink-soft">
           + Follow up to two drivers
         </button>
       )}

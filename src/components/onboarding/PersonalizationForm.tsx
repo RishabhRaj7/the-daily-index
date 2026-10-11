@@ -78,11 +78,11 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 }
 
 function Hint({ children }: { children: React.ReactNode }) {
-  return <span className="block text-[11px] text-ink-soft mt-1.5 leading-relaxed">{children}</span>;
+  return <span className="block font-sans text-[11px] text-ink-soft mt-1.5 leading-relaxed">{children}</span>;
 }
 
 const inputCls =
-  "w-full border hairline rounded-lg px-2.5 py-2 bg-transparent text-sm outline-none focus:border-accent/60 transition-colors";
+  "w-full border hairline rounded-lg px-2.5 py-2 bg-transparent font-sans text-sm outline-none focus:border-accent/60 transition-colors";
 
 function Chip({
   active,
@@ -100,7 +100,7 @@ function Chip({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`text-xs px-2.5 py-1.5 border hairline rounded-full transition-colors ${
+      className={`font-sans text-xs px-2.5 py-1.5 border hairline rounded-full transition-colors ${
         active
           ? "bg-accent text-accent-ink border-accent"
           : "hover:bg-card-bg disabled:opacity-30 disabled:cursor-not-allowed"
@@ -199,7 +199,7 @@ function TagInput({
           />
         )}
       </div>
-      <span className="block text-[11px] text-ink-soft mt-1.5">
+      <span className="block font-sans text-[11px] text-ink-soft mt-1.5">
         {rejected && invalidHint ? (
           <span className="text-accent">{invalidHint}</span>
         ) : value.length === 0 ? (
@@ -527,7 +527,7 @@ export default function PersonalizationForm({
                   value.subreddits.length < MAX_SUBS &&
                   onChange({ ...value, subreddits: [...value.subreddits, s] })
                 }
-                className="text-[11px] px-2 py-0.5 border hairline rounded-full text-ink-soft hover:bg-card-bg transition-colors"
+                className="font-sans text-[11px] px-2 py-0.5 border hairline rounded-full text-ink-soft hover:bg-card-bg transition-colors"
               >
                 + r/{s}
               </button>

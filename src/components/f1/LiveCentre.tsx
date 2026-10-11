@@ -6,7 +6,7 @@ import type { F1Race } from "@/lib/types";
 import type { LivePrediction, LiveRow, LiveSnapshot, TrackModel } from "@/lib/f1-live-types";
 import { useF1Live } from "@/lib/use-f1-live";
 import { driverPhotoByCode } from "@/lib/f1-assets";
-import LiveTiming, { MARK_COLOUR, SEGMENT_COLOUR, TeamGlyph, useF1Favourites } from "./LiveTiming";
+import LiveTiming, { MARK_COLOUR, SEGMENT_COLOUR, stewardLines, TeamGlyph, useF1Favourites } from "./LiveTiming";
 import TyreIcon from "./TyreIcon";
 import { StintLine } from "./Stints";
 import TrackMap, { useTrack } from "./TrackMap";
@@ -21,6 +21,8 @@ import Analysis, { type Sub } from "./centre/Analysis";
 import Weekend from "./centre/Weekend";
 import { Speedometer, TelemetrySheet, useTelemetry } from "./centre/Telemetry";
 import { Panel, Tile } from "./centre/ui";
+import Battle, { useGapHistory } from "./centre/Battle";
+import { stewardsByCode } from "@/lib/f1-stewards";
 
 // /f1/live — a session, spread over five views rather than one long page:
 //   Live      the running order beside the map (the field on it, the
@@ -124,7 +126,16 @@ const gapSecs = (r: LiveRow) => {
  * gap in seconds). The cost is the circuit's (MultiViewer), else the median
  * time in the lane at this race so far.
  */
-function pitWindow(snap: LiveSnapshot, row: LiveRow, track: TrackModel | null): { loss: number; pos: number; ahead: { code: string; by: number } | null; behind: { code: string; by: number } | null } | null {
+interface PitStopNow {
+  loss: number;
+  pos: number;
+  ahead: { code: string; by: number } | null;
+  behind: { code: string; by: number } | null;
+  /** The cars either side where they'd rejoin (two each way): seconds from the car rejoining, − ahead, + behind. */
+  around: { code: string; colour: string; d: number }[];
+}
+
+function pitWindow(snap: LiveSnapshot, row: LiveRow, track: TrackModel | null): PitStopNow | null {
   if (snap.type !== "Race" || !snap.running || row.out || row.inPit) return null;
   const lanes = (snap.pitStops ?? []).map((p) => p.lane).filter((x): x is number => x !== null && x > 10 && x < 45).sort((a, b) => a - b);
   const loss = track?.pitLoss ?? (lanes.length >= 3 ? lanes[Math.floor(lanes.length / 2)] : null);
@@ -133,7 +144,7 @@ function pitWindow(snap: LiveSnapshot, row: LiveRow, track: TrackModel | null): 
   const out = mine + loss;
   const field = snap.rows.filter((r) => r !== row && !r.out).flatMap((r) => {
     const g = gapSecs(r);
-    return g === null ? [] : [{ code: r.code, g }];
+    return g === null ? [] : [{ code: r.code, colour: r.colour, g }];
   });
   const ahead = field.filter((f) => f.g <= out).sort((a, b) => b.g - a.g)[0] ?? null;
   const behind = field.filter((f) => f.g > out).sort((a, b) => a.g - b.g)[0] ?? null;
@@ -142,7 +153,64 @@ function pitWindow(snap: LiveSnapshot, row: LiveRow, track: TrackModel | null): 
     pos: field.filter((f) => f.g <= out).length + 1,
     ahead: ahead ? { code: ahead.code, by: out - ahead.g } : null,
     behind: behind ? { code: behind.code, by: behind.g - out } : null,
+    around: [
+      ...field.filter((f) => f.g <= out).sort((a, b) => b.g - a.g).slice(0, 2).reverse(),
+      ...field.filter((f) => f.g > out).sort((a, b) => a.g - b.g).slice(0, 2),
+    ].map((f) => ({ code: f.code, colour: f.colour, d: f.g - out })),
   };
+}
+
+/**
+ * If the followed driver pitted now: the place they'd come out in (from where
+ * they are now), the cars they'd rejoin between with the gaps, and whether
+ * it's into traffic. Estimated from the gaps to the leader and the circuit's
+ * pit loss.
+ */
+function PitNow({ stop, row }: { stop: PitStopNow; row: LiveRow }) {
+  const lost = stop.pos - row.position;
+  const traffic = stop.ahead && stop.ahead.by < 1.5 ? `Into traffic: ${stop.ahead.by.toFixed(1)} s behind ${stop.ahead.code}` : stop.behind && stop.behind.by < 1 ? `${stop.behind.code} right behind, ${stop.behind.by.toFixed(1)} s back` : "In clear air";
+  const ahead = stop.around.filter((c) => c.d <= 0);
+  const behind = stop.around.filter((c) => c.d > 0);
+  const chip = (c: { code: string; colour: string; d: number }) => (
+    <span key={c.code} className="flex items-center gap-1.5 rounded-full border hairline px-2 h-7 shrink-0">
+      <span className="w-[3px] h-3 rounded-full" style={{ background: c.colour }} />
+      <span className="font-sans font-semibold text-[11.5px]">{c.code}</span>
+      <span className="font-mono text-[10.5px] text-ink-soft tabular-nums">
+        {c.d <= 0 ? "−" : "+"}
+        {Math.abs(c.d).toFixed(1)}
+      </span>
+    </span>
+  );
+  return (
+    <div className="mt-3 rounded-xl border hairline px-3 py-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="font-label text-[9.5px] text-ink-faint">If {row.code} pits now</span>
+        <span className="font-mono text-[10.5px] text-ink-faint">Pit loss ~{stop.loss.toFixed(0)} s</span>
+      </div>
+      <div className="mt-2 grid grid-cols-1 sm:grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-2.5 items-center">
+        <div className="flex items-baseline gap-2">
+          <span className="font-display font-extrabold text-[1.9rem] leading-none text-ink-soft">P{row.position}</span>
+          <span className="font-mono text-[13px] text-ink-faint" aria-hidden="true">→</span>
+          <span className="font-display font-extrabold text-[1.9rem] leading-none" style={{ color: lost > 0 ? "var(--down)" : "var(--up)" }}>
+            P{stop.pos}
+          </span>
+          <span className="font-mono text-[10.5px] text-ink-soft ml-1">{lost > 0 ? `${lost} place${lost === 1 ? "" : "s"} lost` : "No places lost"}</span>
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none]" aria-label="Where they'd rejoin">
+            {ahead.map(chip)}
+            <span className="flex items-center gap-1.5 rounded-full px-2 h-7 shrink-0 text-[color:var(--paper)]" style={{ background: row.colour }}>
+              <span className="font-sans font-bold text-[11.5px]">{row.code}</span>
+            </span>
+            {behind.map(chip)}
+          </div>
+          <div className="font-mono text-[10.5px] mt-1.5" style={{ color: traffic.startsWith("In clear") ? "var(--up)" : "var(--f1-slower)" }}>
+            {traffic}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 const lapSecs = (t?: string | null) => {
@@ -167,6 +235,9 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
   const total = race ? (snap.lap?.total ?? 0) : 0;
   const fastest = snap.rows.find((r) => r.bestFastest);
   const off = !row.bestFastest && fastest ? (lapSecs(row.best) ?? 0) - (lapSecs(fastest.best) ?? 0) : null;
+  const upTo = snap.lap?.current ?? null;
+  const stewards = useMemo(() => stewardsByCode(snap.raceControl, upTo).get(row.code), [snap.raceControl, upTo, row.code]);
+  const stewardLine = stewards ? stewardLines(stewards) : [];
   return (
     <div className="mt-4 pt-4 border-t hairline">
       <div className="flex items-center gap-3">
@@ -187,29 +258,62 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
           <span className="block font-mono text-[10.5px] text-ink-soft mt-1 truncate">
             {race ? (row.position === 1 ? "Leading" : `${row.gap || "—"} to the leader · ${row.interval || "—"} to the car ahead`) : `${row.gap || "—"} to the fastest`}
           </span>
+          {stewardLine.length > 0 && (
+            <span className="block font-mono text-[10.5px] mt-1 truncate" style={{ color: stewards?.penalties.length ? "var(--down)" : "var(--f1-slower)" }} title={stewardLine.join(" · ")}>
+              {stewardLine.join(" · ")}
+            </span>
+          )}
         </span>
         <button type="button" onClick={() => openDriver(row.code)} className="chip h-8 text-[11.5px] shrink-0" title={`${row.name || row.code}'s season, round by round`}>
           Season →
         </button>
       </div>
 
-      <div className={`mt-3 grid gap-3 items-start ${hasTelemetry ? "sm:grid-cols-[13.5rem_minmax(0,1fr)]" : ""}`}>
-        {hasTelemetry && <Speedometer t={telemetry} colour={row.colour} code={row.code} onOpen={() => setDetail(true)} />}
+      <div className={`mt-3 grid gap-3 items-start ${hasTelemetry || stints.length ? "sm:grid-cols-[13.5rem_minmax(0,1fr)]" : ""}`}>
+        {/* left: the speedometer, and the race in tyres under it */}
+        {(hasTelemetry || stints.length > 0) && (
+          <div className="space-y-3 min-w-0">
+            {hasTelemetry && <Speedometer t={telemetry} colour={row.colour} code={row.code} onOpen={() => setDetail(true)} />}
+            {stints.length > 0 && (
+              <div className="rounded-xl border hairline px-3 pt-2 pb-1">
+                <div className="flex items-baseline justify-between gap-2 font-label text-[9px] text-ink-faint">
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    Tyres
+                    {stints.some((x) => !x.fresh) && (
+                      <span className="flex items-center gap-1" title="A dashed stint ran on a used set; a solid one on new tyres">
+                        <span className="inline-block w-3 h-[2px]" style={{ background: "repeating-linear-gradient(90deg, currentColor 0 3px, transparent 3px 5px)" }} /> used
+                      </span>
+                    )}
+                  </span>
+                  <span className="whitespace-nowrap">
+                    {row.stops} stop{row.stops === 1 ? "" : "s"}
+                    {total ? ` · ${total} laps` : ""}
+                  </span>
+                </div>
+                <div className="pt-3 pr-2">
+                  <StintLine stints={stints} total={total} running={snap.running} />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* right: laps, sectors, the fight */}
         <div className="min-w-0 space-y-3">
           {/* last and best, against the session's fastest */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-xl border hairline px-3 py-2">
+          <div className="rounded-xl border hairline grid grid-cols-2 divide-x divide-[var(--rule)]">
+            <div className="px-3 py-2 min-w-0">
               <div className="font-label text-[9px] text-ink-faint">Last lap</div>
-              <div className="font-mono text-[15px] font-semibold tabular-nums mt-1" style={{ color: MARK_COLOUR[row.lastMark] }}>
+              <div className="font-mono text-[15px] font-semibold tabular-nums mt-1 whitespace-nowrap" style={{ color: MARK_COLOUR[row.lastMark] }}>
                 {row.last || "—"}
               </div>
             </div>
-            <div className="rounded-xl border hairline px-3 py-2" style={row.bestFastest ? { borderColor: "var(--f1-fastest)" } : undefined}>
-              <div className="font-label text-[9px] text-ink-faint">{row.bestFastest ? "Best · fastest of all" : "Best lap"}</div>
-              <div className="font-mono text-[15px] font-semibold tabular-nums mt-1" style={{ color: row.bestFastest ? "var(--f1-fastest)" : undefined }}>
+            <div className="px-3 py-2 min-w-0">
+              <div className="font-label text-[9px] text-ink-faint whitespace-nowrap">{row.bestFastest ? "Best · fastest" : "Best lap"}</div>
+              <div className="font-mono text-[15px] font-semibold tabular-nums mt-1 whitespace-nowrap" style={{ color: row.bestFastest ? "var(--f1-fastest)" : undefined }}>
                 {row.best || "—"}
-                {off !== null && off > 0 && <span className="font-normal text-[10px] text-ink-faint ml-1.5">+{off.toFixed(3)}</span>}
               </div>
+              {!row.bestFastest && off !== null && off > 0 && <div className="font-mono text-[10px] text-ink-faint tabular-nums">+{off.toFixed(3)} to the fastest</div>}
             </div>
           </div>
 
@@ -231,59 +335,19 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
                         ))}
                       </div>
                     )}
-                    {stats?.bestSectors[i] && <div className="font-mono text-[10.5px] text-ink-faint mt-1 tabular-nums">Best {stats.bestSectors[i]}</div>}
+                    {stats?.bestSectors[i] && <div className="font-mono text-[10.5px] text-ink-faint mt-1 tabular-nums truncate">Best {stats.bestSectors[i]}</div>}
                   </div>
                 );
               })}
             </div>
           </div>
 
-          {/* the race in tyres */}
-          {stints.length > 0 && (
-            <div className="rounded-xl border hairline px-3 pt-2 pb-1">
-              <div className="flex items-baseline justify-between font-label text-[9px] text-ink-faint">
-                <span className="flex items-center gap-1.5">
-                  Tyres
-                  {stints.some((x) => !x.fresh) && (
-                    <span className="flex items-center gap-1 text-ink-faint/80" title="A dashed stint ran on a used set; a solid one on new tyres">
-                      · <span className="inline-block w-3 h-[2px]" style={{ background: "repeating-linear-gradient(90deg, currentColor 0 3px, transparent 3px 5px)" }} /> used set
-                    </span>
-                  )}
-                </span>
-                <span>
-                  {row.stops} stop{row.stops === 1 ? "" : "s"}
-                  {total ? ` · ${total} laps` : ""}
-                </span>
-              </div>
-              <div className="pt-3 pr-2">
-                <StintLine stints={stints} total={total} running={snap.running} />
-              </div>
-            </div>
-          )}
-
-          {stop && (
-            <div className="rounded-xl border hairline px-3 py-2.5">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="font-label text-[9.5px] text-ink-faint">A stop now</span>
-                <span className="font-mono text-[10.5px] text-ink-faint">costs ~{stop.loss.toFixed(0)} s</span>
-              </div>
-              <div className="text-[12.5px] mt-1 leading-snug">
-                Out in <b className="font-display text-[1.05rem]">P{stop.pos}</b>
-                {stop.ahead && (
-                  <span className="text-ink-soft">
-                    , {stop.ahead.by.toFixed(1)} s behind <b className="text-ink">{stop.ahead.code}</b>
-                  </span>
-                )}
-                {stop.behind && (
-                  <span className="text-ink-soft">
-                    , {stop.behind.by.toFixed(1)} s ahead of <b className="text-ink">{stop.behind.code}</b>
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
+          <Battle snap={snap} row={row} />
         </div>
       </div>
+
+      {/* if they pitted now: where they'd come out, and among whom */}
+      {stop && <PitNow stop={stop} row={row} />}
       {detail && <TelemetrySheet t={telemetry} code={row.code} name={row.name} colour={row.colour} onClose={() => setDetail(false)} />}
     </div>
   );
@@ -365,7 +429,8 @@ function LiveView({ snap, live, replay, replayT }: { snap: LiveSnapshot; live: b
   const [enlarged, setEnlarged] = useState(false);
   const fav = useF1Favourites();
   const [picked, setPicked] = useState<string | null>(null);
-  const defaultFocus = snap.rows.find((r) => fav.codes.has(r.code) && !r.out)?.code ?? snap.rows[0]?.code ?? null;
+  // Followed at first: the paddock's first driver (as picked) while running, then the second, then the leader.
+  const defaultFocus = [...fav.codes].map((c) => snap.rows.find((r) => r.code === c && !r.out)).find(Boolean)?.code ?? snap.rows[0]?.code ?? null;
   const focus = picked && snap.rows.some((r) => r.code === picked) ? picked : defaultFocus;
   const focusRow = snap.rows.find((r) => r.code === focus);
   const track = useTrack(snap.circuitKey);
@@ -491,6 +556,8 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
   const replay = useReplay(replaying ? replayPath : null);
   const snap = replaying && replay.snap ? replay.snap : base;
   const inReplay = replaying && !!replay.snap;
+  // Every car's gap to the car ahead, lap by lap, whichever view is open (the followed driver's fight reads it).
+  useGapHistory(snap);
   const fav = useF1Favourites();
   const highlight = useMemo(() => new Set(fav.codes), [fav.codes]);
   const view = nav.view;

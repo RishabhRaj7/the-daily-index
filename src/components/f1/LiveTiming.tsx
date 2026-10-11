@@ -5,7 +5,9 @@ import type { LapMark, LiveRow, LiveSector, LiveSnapshot, SegmentMark } from "@/
 import { loadPersonalization, PERSONALIZATION_CHANGED_EVENT } from "@/lib/personalization";
 import TyreIcon from "./TyreIcon";
 import { DriverName } from "./DriverLink";
+import { createPortal } from "react-dom";
 import { teamLogo } from "@/lib/f1-assets";
+import { stewardsByCode, type Stewards } from "@/lib/f1-stewards";
 
 // The running order, as the timing screens show it. Its columns follow the
 // session and the room it has (it measures itself):
@@ -78,6 +80,97 @@ function useLayoutFor(ref: React.RefObject<HTMLDivElement | null>, allowWide: bo
   return layout;
 }
 
+/**
+ * The stewards' word on a driver, beside the code, as the broadcast shows it:
+ * penalties still to serve in red, a yellow tile with a "!" for an incident
+ * under (or awaiting) investigation, a grey one for an incident noted, and the
+ * black-and-white flag. Hover for the details; a tap opens them (outside the
+ * table, so its clipping can't cut them off).
+ */
+export function stewardLines(s: Stewards): string[] {
+  return [
+    ...s.penalties.map((p) => `Penalty ${p.label === "DT" ? "drive-through" : p.label === "SG" ? "stop-and-go" : p.label}: ${p.why.toLowerCase()}`),
+    ...s.incidents.map((x) => `${x.state === "noted" ? "Noted" : x.state === "after" ? "Investigated after the race" : "Under investigation"}: ${x.why.toLowerCase()}`),
+    ...(s.blackWhite ? [`Black-and-white flag: ${s.blackWhite.toLowerCase()}`] : []),
+    ...(s.trackLimits ? [`${s.trackLimits} lap${s.trackLimits === 1 ? "" : "s"} deleted for track limits`] : []),
+  ];
+}
+
+function StewardMarks({ s, code, compact = false }: { s: Stewards | undefined; code: string; compact?: boolean }) {
+  const [at, setAt] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    if (!at) return;
+    const close = () => setAt(null);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && close();
+    window.addEventListener("pointerdown", close);
+    // The page scrolling (not the feed's or a table's own scrolling, which the live page does all the time).
+    window.addEventListener("scroll", close);
+    window.addEventListener("keydown", esc);
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("scroll", close);
+      window.removeEventListener("keydown", esc);
+    };
+  }, [at]);
+  if (!s || (!s.penalties.length && !s.incidents.length && !s.blackWhite)) return null;
+  const top = s.incidents[0];
+  const lines = stewardLines(s);
+  return (
+    <>
+      <button
+        type="button"
+        className="min-w-0 overflow-hidden flex items-center gap-1 rounded focus-visible:outline-2"
+        title={lines.join("\n")}
+        aria-label={`${code}: ${lines.join("; ")}`}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          const r = e.currentTarget.getBoundingClientRect();
+          setAt(at ? null : { x: r.left, y: r.bottom });
+        }}
+      >
+        {s.penalties.map((p, i) => (
+          <span key={i} className="whitespace-nowrap rounded px-1 font-mono text-[9.5px] font-semibold leading-[15px]" style={{ color: "var(--down)", background: "color-mix(in srgb, var(--down) 15%, transparent)" }}>
+            {compact ? p.label.replace(/s$/, "") : p.label}
+          </span>
+        ))}
+        {top && (
+          // The broadcast's mark: a yellow tile with a black "!" (grey when only noted; a dashed edge when it waits for the race to end).
+          <svg viewBox="0 0 14 16" className="w-[13px] h-[15px] block" aria-hidden="true">
+            <rect x="0.5" y="0.5" width="13" height="15" rx="2.2" fill={top.state === "noted" ? "var(--ink-faint)" : "#ffd21f"} stroke={top.state === "after" ? "#111" : "none"} strokeWidth="1" strokeDasharray="2 1.4" />
+            <path d="M7 3.6v6.2" stroke="#111" strokeWidth="2.2" strokeLinecap="round" />
+            <circle cx="7" cy="12.6" r="1.25" fill="#111" />
+          </svg>
+        )}
+        {s.blackWhite && (
+          <svg viewBox="0 0 12 12" className="w-3 h-3 block" aria-hidden="true">
+            <rect x="0.5" y="0.5" width="11" height="11" rx="1.5" fill="#fff" stroke="var(--ink-soft)" />
+            <path d="M0.5 11.5 11.5 0.5V10a1.5 1.5 0 0 1-1.5 1.5Z" fill="#111" />
+          </svg>
+        )}
+      </button>
+      {at &&
+        createPortal(
+          <div
+            className="fixed z-[95] w-[min(18rem,calc(100vw-1rem))] rounded-xl border hairline bg-[var(--surface)] shadow-xl p-3 space-y-1.5 animate-[fade-in_0.15s_ease]"
+            style={{ left: Math.max(8, Math.min(at.x - 8, window.innerWidth - 296)), top: at.y + 6 }}
+            onPointerDown={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-label={`${code} and the stewards`}
+          >
+            <div className="font-label text-[9.5px] text-ink-faint">{code} · stewards</div>
+            {lines.map((l, i) => (
+              <p key={i} className="font-sans text-[12.5px] leading-snug">
+                {l}
+              </p>
+            ))}
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+
 function Status({ r, race, running }: { r: LiveRow; race: boolean; running: boolean }) {
   // Once the flag has fallen everyone is in the pits; only the out and the
   // knocked out are worth a word.
@@ -141,6 +234,8 @@ export default function LiveTiming({
   const box = useRef<HTMLDivElement>(null);
   const layout = useLayoutFor(box, wide);
   const rows = limit ? snap.rows.slice(0, limit) : snap.rows;
+  const upTo = snap.lap?.current ?? null;
+  const stewards = useMemo(() => stewardsByCode(snap.raceControl, upTo), [snap.raceControl, upTo]);
 
   // ---- motion: glide to the new order, flash what changed -----------------
   const refs = useRef(new Map<string, HTMLDivElement>());
@@ -310,14 +405,16 @@ export default function LiveTiming({
               >
                 {focused && <span className="absolute left-0.5 top-1.5 bottom-1.5 w-[3px] rounded-full" style={{ background: r.colour }} aria-hidden="true" />}
                 <span className="font-mono text-[11px] tabular-nums text-ink-soft pl-0.5">{r.position}</span>
-                <span className="flex items-center gap-2 min-w-0">
+                <span className={`flex items-center min-w-0 overflow-hidden ${layout === "narrow" || layout === "medium" ? "gap-1.5" : "gap-2"}`}>
                   <span className="w-[3px] h-3.5 rounded-full shrink-0" style={{ background: r.colour }} />
-                  {layout !== "narrow" && <TeamGlyph team={r.team} colour={r.colour} />}
-                  <DriverName code={r.code} className="flex items-baseline gap-2 min-w-[2.4rem] overflow-hidden">
+                  {/* the team's mark where there's room (the colour bar says it anyway) */}
+                  {layout !== "narrow" && layout !== "medium" && <TeamGlyph team={r.team} colour={r.colour} />}
+                  <DriverName code={r.code} className={`flex items-baseline gap-2 overflow-hidden ${layout === "narrow" || layout === "medium" ? "min-w-[2.1rem]" : "min-w-[2.4rem]"}`}>
                     <span className="font-sans font-bold tracking-[0.02em] shrink-0">{r.code}</span>
-                    {showName && !(layout === "roomy" && sectors) && <span className="text-ink-soft truncate min-w-0">{r.name}</span>}
+                    {showName && !(layout === "roomy" && sectors) && <span className="font-sans text-ink-soft truncate min-w-0">{r.name}</span>}
                   </DriverName>
                   <Status r={r} race={race} running={snap.running} />
+                  <StewardMarks s={stewards.get(r.code)} code={r.code} compact={layout === "narrow" || layout === "medium"} />
                 </span>
                 {columns.map((c) => (
                   <span key={c.key} className="min-w-0 flex justify-end">
