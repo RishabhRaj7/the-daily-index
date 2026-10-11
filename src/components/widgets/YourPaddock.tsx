@@ -44,8 +44,8 @@ function Badge({ team, size = 44 }: { team: string; size?: number }) {
 }
 
 // Head to head this season: who out-qualified whom, who finished ahead, and
-// the usual qualifying gap — teammates, or the reader's two drivers when
-// they're not the same pair (a switch picks between them).
+// the usual qualifying gap — the reader's two drivers first when they're not
+// teammates, else the followed team's pair (a switch picks between them).
 const h2hCache = new Map<string, Promise<HeadToHead | null>>();
 
 function useH2H(query: string | null): HeadToHead | null {
@@ -444,7 +444,8 @@ export default function YourPaddock({
         if (favoriteTeam) options.push({ id: "team", label: "Teammates", query: `team=${encodeURIComponent(favoriteTeam)}` });
         const codes = drivers.map((d) => d.code).filter(Boolean);
         const sameTeam = drivers.length === 2 && drivers.every((d) => normalizeF1Team(d.team) === favoriteTeam);
-        if (codes.length === 2 && !sameTeam) options.push({ id: "mine", label: "Your drivers", query: `a=${codes[0]}&b=${codes[1]}` });
+        // The reader's own two drivers come first; their team's pairing is the other choice.
+        if (codes.length === 2 && !sameTeam) options.unshift({ id: "mine", label: "Your drivers", query: `a=${codes[0]}&b=${codes[1]}` });
         return options.length > 0 ? <Versus options={options} /> : null;
       })()}
 

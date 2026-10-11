@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { F1GridResult, F1LiveResult, F1Race, F1LastRace, F1Phase, F1SessionResult, F1SessionTop } from "@/lib/types";
 import { CIRCUIT_FACTS } from "@/lib/config/circuit-facts";
@@ -345,9 +346,12 @@ export default function StartingGrid({
         <div className="font-mono text-[10px] text-ink-soft mt-1">{displayedRace.circuit}</div>
 
         {!live && track && (
-          <div className="my-4 mx-auto max-w-[22rem]">
-            <TrackMap model={track} label={`${nextRace.circuit} track layout`} />
-          </div>
+          // Just the circuit, turning slowly in 3D; a tap opens the live centre.
+          <Link href="/f1/live" className="block my-4 mx-auto max-w-[20rem] [perspective:900px]" title="Open the live centre">
+            <div className="track-turn">
+              <TrackMap model={track} minimal corners={false} label={`${nextRace.circuit} track layout`} />
+            </div>
+          </Link>
         )}
         {!live && !track && nextRace.circuitImageUrl && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -373,6 +377,19 @@ export default function StartingGrid({
             </div>
           </>
         )}
+        {/* the way in: timing, the map, replays, telemetry, the season */}
+        <Link
+          href="/f1/live"
+          className="mt-4 flex items-center justify-between gap-3 rounded-xl border hairline px-3.5 py-2.5 hover:border-[color:var(--ink-faint)] transition-colors group"
+        >
+          <span className="min-w-0">
+            <span className="block font-sans font-bold text-[13px]">Live centre</span>
+            <span className="block font-mono text-[10px] text-ink-soft truncate">Timing, the map, telemetry, replays and the season</span>
+          </span>
+          <span className="shrink-0 text-ink-soft group-hover:text-ink transition-colors" aria-hidden="true">
+            →
+          </span>
+        </Link>
         {!live && trackFact && (
           <p className="text-[11px] text-ink-soft italic leading-relaxed mt-4 pt-3 border-t hairline">
             <span className="font-label not-italic text-[9px] mr-1.5">Track fact</span>

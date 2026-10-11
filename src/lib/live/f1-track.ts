@@ -49,15 +49,12 @@ export function buildModel(raw: Raw, circuitKey: number, year: number): TrackMod
   if (n < 20) return null;
   const cx = (Math.min(...raw.x) + Math.max(...raw.x)) / 2;
   const cy = (Math.min(...raw.y) + Math.max(...raw.y)) / 2;
-  // MultiViewer's rotation is given for a display turned a quarter (the
-  // convention the open-source timing apps follow). F1's y runs up the page
-  // and the screen's runs down, so the turned outline is flipped top to
-  // bottom: drawn straight, every circuit came out as its mirror image
-  // (laid over the real circuit, Monaco only fits once flipped).
-  const turn = (x: number, y: number): [number, number] => {
-    const [rx, ry] = rotate(x, y, (raw.rotation ?? 0) + 90, cx, cy);
-    return [rx, 2 * cy - ry];
-  };
+  // F1's coordinates as they come, y turned to run down the screen (F1's
+  // runs up; drawn straight, every circuit came out as its mirror image).
+  // MultiViewer's suggested rotation isn't applied: unturned is how the
+  // broadcast-style dashboards lay circuits out (Singapore wide, the main
+  // straight up the right), and the corner badges sit the same way round.
+  const turn = (x: number, y: number): [number, number] => [x, 2 * cy - y];
   const pts = Array.from({ length: n }, (_, i) => turn(raw.x[i], raw.y[i]));
   const xs = pts.map((p) => p[0]);
   const ys = pts.map((p) => p[1]);
@@ -68,7 +65,7 @@ export function buildModel(raw: Raw, circuitKey: number, year: number): TrackMod
   const w = (Math.max(...xs) - minX) * k + PAD * 2;
   const h = (Math.max(...ys) - minY) * k + PAD * 2;
   const fit = ([x, y]: [number, number]): [number, number] => [Math.round(((x - minX) * k + PAD) * 10) / 10, Math.round(((y - minY) * k + PAD) * 10) / 10];
-  const frame = { cx, cy, rotation: (raw.rotation ?? 0) + 90, minX, minY, k, flip: true };
+  const frame = { cx, cy, rotation: 0, minX, minY, k, flip: true };
 
   // Lap fraction at each point, from the reference lap's clock; without it,
   // by distance along the line.
@@ -239,7 +236,7 @@ export async function getTrack(circuitKey: number, year = new Date().getUTCFullY
   const hit = memo.get(id);
   if (hit && Date.now() - hit.at < 6 * 3_600_000) return hit.model;
   const store = getStore();
-  const key = `f1:track:v5:${id}`;
+  const key = `f1:track:v6:${id}`;
   let model = await store.get<TrackModel>(key).catch(() => null);
   if (!model) {
     for (const y of [year, year - 1, year - 2]) {

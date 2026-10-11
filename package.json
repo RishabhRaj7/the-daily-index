@@ -18,7 +18,6 @@
     "drizzle-orm": "0.45.2",
     "html-to-image": "^1.11.13",
     "lightweight-charts": "^5.2.1",
-    "mapbox-gl": "3.31.0",
     "next": "16.2.6",
     "pg": "8.20.0",
     "react": "19.2.6",

@@ -3,9 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LiveSnapshot, SegmentMark, TrackModel } from "@/lib/f1-live-types";
 import { estimateCars, headingAt, pointAt, sectorEnds, segmentBounds, segmentMarks } from "@/lib/f1-track-progress";
-import dynamic from "next/dynamic";
 import { useF1Favourites } from "./LiveTiming";
-import type { ViewBox } from "./Satellite";
 import { TYRE } from "./TyreIcon";
 
 // The circuit as a vector: it draws itself when it comes into view, with the
@@ -26,9 +24,8 @@ import { TYRE } from "./TyreIcon";
 
 const cache = new Map<number, Promise<TrackModel | null>>();
 
-// Mapbox, only when the reader asks for satellite imagery (and a token is set).
-const Satellite = dynamic(() => import("./Satellite"), { ssr: false });
-const HAS_MAPBOX = !!process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+/** Sector colours: S1 red, S2 blue, S3 yellow (as the broadcast's sector boards). */
+const SECTOR_COLOUR = ["#ff3b4a", "#3b9dff", "#ffcf3a"];
 
 export function useTrack(circuitKey: number | null | undefined): TrackModel | null {
   const [model, setModel] = useState<{ key: number; model: TrackModel | null } | null>(null);
@@ -37,7 +34,7 @@ export function useTrack(circuitKey: number | null | undefined): TrackModel | nu
     let live = true;
     let p = cache.get(circuitKey);
     if (!p) {
-      p = fetch(`/api/f1/track?key=${circuitKey}&v=4`)
+      p = fetch(`/api/f1/track?key=${circuitKey}&v=5`)
         .then((r) => (r.ok ? (r.json() as Promise<TrackModel>) : null))
         .catch(() => null);
       cache.set(circuitKey, p);
@@ -89,6 +86,7 @@ export default function TrackMap({
   className = "",
   label,
   controls = false,
+  minimal = false,
 }: {
   model: TrackModel;
   snap?: LiveSnapshot | null;
@@ -108,6 +106,8 @@ export default function TrackMap({
   label?: string;
   /** The map's toolbar (codes, colours, follow, zoom) and mini map, for a session. */
   controls?: boolean;
+  /** Just the circuit: no numbers, labels or sectors (the home page). */
+  minimal?: boolean;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [drawn, setDrawn] = useState(false);
@@ -202,8 +202,6 @@ export default function TrackMap({
   const followRef = useRef<string | null>(null);
   const centre = useRef({ x: model.width / 2, y: model.height / 2 });
   const miniRef = useRef<SVGRectElement>(null);
-  const viewRef = useRef<ViewBox>({ x: 0, y: 0, w: model.width, h: model.height });
-  const groundRef = useRef<((box: ViewBox) => void) | null>(null);
   const applyView = useCallback(() => {
     const z = zoomRef.current;
     const w = model.width / z;
@@ -213,8 +211,6 @@ export default function TrackMap({
     c.y = z <= 1 ? model.height / 2 : Math.min(model.height - h / 2, Math.max(h / 2, c.y));
     const box = [c.x - w / 2, c.y - h / 2, w, h].map((v) => v.toFixed(1));
     svgRef.current?.setAttribute("viewBox", box.join(" "));
-    viewRef.current = { x: c.x - w / 2, y: c.y - h / 2, w, h };
-    groundRef.current?.(viewRef.current);
     const m = miniRef.current;
     if (m) ["x", "y", "width", "height"].forEach((k, i) => m.setAttribute(k, box[i]));
   }, [model]);
@@ -368,9 +364,6 @@ export default function TrackMap({
   const fav = useF1Favourites();
   const [codes, setCodes] = useStoredChoice<"all" | "yours" | "off">("f1-map-codes", "all", ["all", "yours", "off"]);
   const [paint, setPaint] = useStoredChoice<"team" | "tyre">("f1-map-paint", "team", ["team", "tyre"]);
-  const [ground, setGround] = useStoredChoice<"plain" | "satellite">("f1-map-ground", "plain", ["plain", "satellite"]);
-  const canSatellite = controls && HAS_MAPBOX && !!model.geo;
-  const satellite = canSatellite && ground === "satellite";
   const tyreOf = new Map((snap?.rows ?? []).map((row) => [row.code, row.tyre?.compound ?? null]));
   const fill = (code: string, colour: string) => {
     const t = paint === "tyre" ? tyreOf.get(code) : null;
@@ -405,9 +398,11 @@ export default function TrackMap({
   const pitted = laneAt && snap?.running ? snap.rows.filter((x) => x.inPit && !x.out && !(x.knockedOut && snap.type !== "Race")) : [];
   const pitLabel = laneAt ? out(...laneAt(0.5), 40 * scale) : null;
 
+  // The sectors, each its own colour along the track's edge and on its label.
+  const sectorRanges: [number, number][] | null = ends ? [[0, ends[0]], [ends[0], ends[1]], [ends[1], 1]] : null;
+
   return (
     <div className={`relative ${className}`}>
-      {satellite && model.geo && <Satellite geo={model.geo} view={viewRef} follow={groundRef} />}
       <svg
         ref={svgRef}
         viewBox={`0 0 ${model.width} ${model.height}`}
@@ -417,11 +412,7 @@ export default function TrackMap({
         onPointerMove={controls ? onPointerMove : undefined}
         onPointerUp={controls ? onPointerUp : undefined}
         onPointerCancel={controls ? onPointerUp : undefined}
-        style={{
-          ...(controls && (zoom > 1 || big) ? { touchAction: "none", cursor: zoom > 1 ? "grab" : undefined } : {}),
-          // Over imagery: a dark, see-through tarmac, a white line and white labels with a dark edge.
-          ...(satellite ? ({ "--rule": "rgba(8,10,14,0.45)", "--ink-soft": "rgba(255,255,255,0.92)", "--ink-faint": "rgba(255,255,255,0.8)", "--ink": "#fff", "--paper": "rgba(0,0,0,0.8)" } as React.CSSProperties) : {}),
-        }}
+        style={controls && (zoom > 1 || big) ? { touchAction: "none", cursor: zoom > 1 ? "grab" : undefined } : undefined}
         role="img"
         aria-label={label ?? `${model.name} circuit map`}
       >
@@ -433,27 +424,32 @@ export default function TrackMap({
           </pattern>
         </defs>
 
-        {/* the pit lane, under the track */}
+        {/* the pit lane, under the track: a narrow lane, dashed down the middle */}
         {lane && (
           <g aria-label="Pit lane">
-            <polyline points={lane.map((p) => p.join(",")).join(" ")} fill="none" stroke="var(--rule)" strokeWidth={(satellite ? 6 / zoom : 16) * scale} strokeLinejoin="round" strokeLinecap="round" />
-            <polyline
-              points={lane.map((p) => p.join(",")).join(" ")}
-              fill="none"
-              stroke="var(--f1-pit)"
-              strokeOpacity={0.75}
-              strokeWidth={3.5 * scale}
-              strokeDasharray={`${10 * scale} ${8 * scale}`}
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
+            <polyline points={lane.map((p) => p.join(",")).join(" ")} fill="none" stroke="var(--track-edge)" strokeWidth={14 * scale} strokeLinejoin="round" strokeLinecap="round" />
+            <polyline points={lane.map((p) => p.join(",")).join(" ")} fill="none" stroke="var(--track-tarmac)" strokeWidth={9 * scale} strokeLinejoin="round" strokeLinecap="round" />
+            {!minimal && (
+              <polyline
+                points={lane.map((p) => p.join(",")).join(" ")}
+                fill="none"
+                stroke="var(--ink-faint)"
+                strokeWidth={2 * scale}
+                strokeDasharray={`${8 * scale} ${7 * scale}`}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            )}
           </g>
         )}
 
-        {/* the tarmac, then the line that draws itself */}
-        {/* over imagery the real tarmac shows, so the drawn track stays a slim line at any zoom */}
-        <path d={model.path} fill="none" stroke="var(--rule)" strokeWidth={(satellite ? 12 / zoom : 30) * scale} strokeLinejoin="round" strokeLinecap="round" />
-        <path className="track-line" d={model.path} pathLength={1} fill="none" stroke="var(--ink-soft)" strokeWidth={(satellite ? 3.5 / zoom : 7) * scale} strokeLinejoin="round" strokeLinecap="round" />
+        {/* the edge (in each sector's colour), then the tarmac, which draws itself */}
+        <path d={model.path} fill="none" stroke="var(--track-edge)" strokeWidth={28 * scale} strokeLinejoin="round" strokeLinecap="round" />
+        {!minimal &&
+          sectorRanges?.map(([from, to], i) => (
+            <polyline key={i} className="track-corner" points={stretch(model, from, to)} fill="none" stroke={SECTOR_COLOUR[i]} strokeOpacity={0.55} strokeWidth={28 * scale} strokeLinejoin="round" />
+          ))}
+        <path className="track-line" d={model.path} pathLength={1} fill="none" stroke="var(--track-tarmac)" strokeWidth={19 * scale} strokeLinejoin="round" strokeLinecap="round" />
 
         {/* the followed driver's mini-sectors, lit as the timing screens light them (points set by the frame loop) */}
         {snap &&
@@ -466,52 +462,55 @@ export default function TrackMap({
               points=""
               fill="none"
               stroke={MARK[marks[i] ?? "none"]}
-              strokeWidth={(satellite ? 6 / zoom : 9) * scale}
+              strokeWidth={9 * scale}
               strokeLinecap="round"
               strokeLinejoin="round"
               style={{ transition: "stroke 0.3s ease" }}
             />
           ))}
-        {snap && <polyline ref={trailRef} points="" fill="none" stroke={focusRow?.colour ?? "var(--ink)"} strokeOpacity={0.5} strokeWidth={(satellite ? 6 / zoom : 9) * scale} strokeLinecap="round" strokeLinejoin="round" />}
+        {snap && <polyline ref={trailRef} points="" fill="none" stroke={focusRow?.colour ?? "var(--ink)"} strokeOpacity={0.5} strokeWidth={9 * scale} strokeLinecap="round" strokeLinejoin="round" />}
 
-        <g className="track-corner">
-          {/* where sectors 2 and 3 begin */}
-          {ends &&
-            [
-              { f: ends[0], label: "S2" },
-              { f: ends[1], label: "S3" },
-            ].map((t) => {
-              const a = across(model, t.f, 22 * scale);
-              const [lx, ly] = out(a.x, a.y, 48 * scale);
+        {!minimal && (
+          <g className="track-corner">
+            {/* where each sector begins: a tick across in its colour, and its badge */}
+            {sectorRanges?.map(([from], i) => {
+              const a = across(model, from, 18 * scale);
+              const [lx, ly] = out(a.x, a.y, (i === 0 ? 70 : 52) * scale);
+              const w = 30 * scale * inv;
+              const h = 17 * scale * inv;
               return (
-                <g key={t.label}>
-                  <line x1={a.x1} y1={a.y1} x2={a.x2} y2={a.y2} stroke="var(--ink)" strokeOpacity={0.55} strokeWidth={3.5 * scale} strokeLinecap="round" />
-                  <text x={lx} y={ly} dy="0.35em" textAnchor="middle" fontSize={(big ? 15 : 19) * scale * inv} fontWeight={700} fontFamily="var(--font-mono)" fill="var(--ink-soft)">
-                    {t.label}
+                <g key={i}>
+                  {i > 0 && <line x1={a.x1} y1={a.y1} x2={a.x2} y2={a.y2} stroke={SECTOR_COLOUR[i]} strokeWidth={4 * scale} strokeLinecap="round" />}
+                  <rect x={lx - w / 2} y={ly - h / 2} width={w} height={h} rx={h / 2} fill={SECTOR_COLOUR[i]} />
+                  <text x={lx} y={ly} dy="0.36em" textAnchor="middle" fontSize={11 * scale * inv} fontWeight={800} fontFamily="var(--font-sans)" fill="#111">
+                    S{i + 1}
                   </text>
                 </g>
               );
             })}
 
-          {corners &&
-            model.corners.map((c) => {
-              const [x, y] = out(c.x, c.y, 34 * scale);
-              return (
-                <text key={c.number} x={x} y={y} dy="0.35em" textAnchor="middle" fontSize={(big ? 14 : 19) * scale * inv} fontFamily="var(--font-mono)" fill="var(--ink-faint)">
-                  {c.number}
-                </text>
-              );
-            })}
+            {/* the corners, numbered in badges just off the track */}
+            {corners &&
+              model.corners.map((c) => {
+                const [x, y] = out(c.x, c.y, 36 * scale);
+                const rr = 11 * scale * inv;
+                return (
+                  <g key={c.number}>
+                    <circle cx={x} cy={y} r={rr} fill="var(--track-badge)" stroke="var(--ink)" strokeOpacity={0.85} strokeWidth={1.6 * scale * inv} />
+                    <text x={x} y={y} dy="0.36em" textAnchor="middle" fontSize={(c.number > 9 ? 10 : 11) * scale * inv} fontWeight={700} fontFamily="var(--font-sans)" fill="var(--ink)">
+                      {c.number}
+                    </text>
+                  </g>
+                );
+              })}
 
-          <text x={startLabel[0]} y={startLabel[1]} dy="0.35em" textAnchor="middle" fontSize={(big ? 14 : 18) * scale * inv} fontWeight={700} fontFamily="var(--font-mono)" fill="var(--ink)">
-            {ends ? "START · S1" : "START"}
-          </text>
-          {pitLabel && (
-            <text x={pitLabel[0]} y={pitLabel[1]} dy="0.35em" textAnchor="middle" fontSize={(big ? 13 : 17) * scale * inv} fontWeight={700} fontFamily="var(--font-mono)" fill="var(--f1-pit)">
-              PIT
-            </text>
-          )}
-        </g>
+            {pitLabel && (
+              <text x={pitLabel[0]} y={pitLabel[1]} dy="0.35em" textAnchor="middle" fontSize={(big ? 13 : 16) * scale * inv} fontWeight={700} fontFamily="var(--font-mono)" fill="var(--ink-faint)">
+                PIT
+              </text>
+            )}
+          </g>
+        )}
 
         {/* start / finish, chequered across the track */}
         <line x1={start.x1} y1={start.y1} x2={start.x2} y2={start.y2} stroke={`url(#chequer-${model.circuitKey})`} strokeWidth={10 * scale} />
@@ -581,8 +580,6 @@ export default function TrackMap({
       </svg>
       {controls && snap && (
         <MapTools
-          ground={canSatellite ? ground : null}
-          onGround={setGround}
           codes={codes}
           onCodes={setCodes}
           paint={paint}
@@ -694,9 +691,6 @@ function Choice<T extends string>({ label, value, options, onChange }: { label: 
  * back to the whole circuit.
  */
 function MapTools(p: {
-  /** Drawing or satellite imagery underneath (null: no imagery for this circuit). */
-  ground: "plain" | "satellite" | null;
-  onGround: (v: "plain" | "satellite") => void;
   codes: "all" | "yours" | "off";
   onCodes: (v: "all" | "yours" | "off") => void;
   paint: "team" | "tyre";
@@ -762,17 +756,6 @@ function MapTools(p: {
                 ["off", "None"],
               ]}
             />
-            {p.ground && (
-              <Choice
-                label="Under the track"
-                value={p.ground}
-                onChange={p.onGround}
-                options={[
-                  ["plain", "Plain"],
-                  ["satellite", "Satellite"],
-                ]}
-              />
-            )}
             <Choice
               label="Colour the cars by"
               value={p.paint}

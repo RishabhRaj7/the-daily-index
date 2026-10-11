@@ -55,6 +55,10 @@
   --f1-slower: #c89400;
   --f1-pit: #2f6bff;
   --tyre-hard: #4a4a52;
+  /* the track map: a light kerb-coloured edge round dark tarmac, corner badges */
+  --track-edge: rgba(70, 76, 90, 0.55);
+  --track-tarmac: #e4e6ea;
+  --track-badge: #ffffff;
 
   /* Fear ⇄ greed zones, red through grey to green. */
   --mood-xfear: #d4002a;
@@ -118,6 +122,9 @@ html[data-edition="evening"] {
   --f1-slower: #f2c94c;
   --f1-pit: #5c8dff;
   --tyre-hard: #f2f2ef;
+  --track-edge: rgba(176, 182, 196, 0.62);
+  --track-tarmac: #2b2f38;
+  --track-badge: #0b0d12;
 
   --mood-xfear: #ff4d6a;
   --mood-fear: #ff9a4d;
@@ -800,4 +807,14 @@ html[data-edition="evening"] .f1-logo { filter: none; }
 .driver-link:hover,
 .driver-link:focus-visible {
   text-decoration-color: currentColor;
+}
+
+/* The home page's track: drawn, then turning slowly in 3D. */
+@keyframes track-turn {
+  from { transform: rotateX(52deg) rotateZ(0deg); }
+  to { transform: rotateX(52deg) rotateZ(360deg); }
+}
+.track-turn { animation: track-turn 48s linear infinite; transform-style: preserve-3d; }
+@media (prefers-reduced-motion: reduce) {
+  .track-turn { animation: none; transform: rotateX(40deg); }
 }

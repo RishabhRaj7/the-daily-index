@@ -169,8 +169,13 @@ export async function lapTrace(path: string, code: string, t?: number): Promise<
     if (!b) return null;
     lap = b.lap;
     const end = laps.get(b.lap);
-    const start = laps.get(b.lap - 1);
-    if (end === undefined || start === undefined) return null;
+    if (end === undefined) return null;
+    // Back from the line by the lap's own time: the lap count also ticks over
+    // in the pit lane, so the count before can be a garage stop, not the start.
+    const m = /^(?:(\d+):)?(\d+\.\d+)$/.exec(b.time);
+    const secs = m ? Number(m[1] ?? 0) * 60 + Number(m[2]) : null;
+    const start = secs ? end - secs * 1000 : laps.get(b.lap - 1);
+    if (start === undefined) return null;
     from = start;
     to = end;
   }
