@@ -166,6 +166,8 @@ export interface LiveSnapshot {
   clockAt: string | null;
   clockRunning: boolean;
   weather: { air: number; track: number; humidity: number; wind: number; rain: boolean } | null;
+  /** F1's live audio coverage (an HLS stream, English when there is one), while a session has it. */
+  commentary?: string | null;
   rows: LiveRow[];
   /** The full read only (the /f1/live page). */
   raceControl?: LiveRaceControl[];

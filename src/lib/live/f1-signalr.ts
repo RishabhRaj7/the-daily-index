@@ -27,6 +27,7 @@ export const LIVE_TOPICS = [
   "ChampionshipPrediction",
   "LapSeries",
   "PitStopSeries",
+  "AudioStreams",
 ] as const;
 
 export type LiveTopic = (typeof LIVE_TOPICS)[number];

@@ -77,6 +77,14 @@ const num = (v: unknown): number => {
 };
 const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : v && typeof v === "object" ? Object.values(v as Obj) : []);
 
+/** F1's live audio coverage from the feed's AudioStreams: the English stream, else the first. */
+function commentaryOf(state: LiveState): string | null {
+  const streams = list(obj(state.AudioStreams).Streams).map(obj);
+  const pick = streams.find((s) => str(s.Language) === "en") ?? streams[0];
+  const uri = pick ? str(pick.Uri) : "";
+  return /^https:\/\/[a-z0-9.-]+\.formula1\.com\//.test(uri) ? uri : null;
+}
+
 const COMPOUNDS = new Set<TyreCompound>(["SOFT", "MEDIUM", "HARD", "INTERMEDIATE", "WET"]);
 const compound = (v: unknown): TyreCompound => {
   const c = str(v).toUpperCase() as TyreCompound;
@@ -300,6 +308,7 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
     weather: Object.keys(w).length
       ? { air: num(w.AirTemp), track: num(w.TrackTemp), humidity: num(w.Humidity), wind: num(w.WindSpeed), rain: num(w.Rainfall) > 0 }
       : null,
+    commentary: commentaryOf(state),
     rows,
     raceControl,
     radio,
@@ -402,7 +411,7 @@ export function compact(s: LiveSnapshot): LiveSnapshot {
 }
 
 /** Development only: a finished session from F1's archive, shown as if it were running. */
-const ARCHIVE_TOPICS = ["SessionInfo", "SessionStatus", "TrackStatus", "LapCount", "ExtrapolatedClock", "DriverList", "TimingData", "TimingAppData", "TimingStats", "RaceControlMessages", "TeamRadio", "WeatherData", "ChampionshipPrediction", "LapSeries", "PitStopSeries"];
+const ARCHIVE_TOPICS = ["SessionInfo", "SessionStatus", "TrackStatus", "LapCount", "ExtrapolatedClock", "DriverList", "TimingData", "TimingAppData", "TimingStats", "RaceControlMessages", "TeamRadio", "WeatherData", "ChampionshipPrediction", "LapSeries", "PitStopSeries", "AudioStreams"];
 
 const infoFrom = (state: LiveState, fallbackPath?: string): CurrentSessionInfo | null => {
   const si = obj(state.SessionInfo);
