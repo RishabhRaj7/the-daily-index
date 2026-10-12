@@ -82,7 +82,7 @@ function useLayoutFor(ref: React.RefObject<HTMLDivElement | null>, allowWide: bo
 
 /**
  * The stewards' word on a driver, beside the code, as the broadcast shows it:
- * penalties still to serve in red, a yellow tile with a "!" for an incident
+ * penalties still to serve in red, a pastel-yellow tile with a "!" for an incident
  * under (or awaiting) investigation, a grey one for an incident noted, and the
  * black-and-white flag. Hover for the details; a tap opens them (outside the
  * table, so its clipping can't cut them off).
@@ -135,12 +135,17 @@ function StewardMarks({ s, code, compact = false }: { s: Stewards | undefined; c
           </span>
         ))}
         {top && (
-          // The broadcast's mark: a yellow tile with a black "!" (grey when only noted; a dashed edge when it waits for the race to end).
-          <svg viewBox="0 0 14 16" className="w-[13px] h-[15px] block" aria-hidden="true">
-            <rect x="0.5" y="0.5" width="13" height="15" rx="2.2" fill={top.state === "noted" ? "var(--ink-faint)" : "#ffd21f"} stroke={top.state === "after" ? "#111" : "none"} strokeWidth="1" strokeDasharray="2 1.4" />
-            <path d="M7 3.6v6.2" stroke="#111" strokeWidth="2.2" strokeLinecap="round" />
-            <circle cx="7" cy="12.6" r="1.25" fill="#111" />
-          </svg>
+          // A pastel-yellow tile with a black "!" and a soft shadow (grey when only noted); the tooltip says when it's after the race.
+          <span
+            className="grid place-items-center w-[13px] h-[15px] rounded-[3px] shrink-0"
+            style={{ background: top.state === "noted" ? "#d9d9de" : "#ffe98a", boxShadow: "0 1px 3px rgba(0,0,0,0.35)" }}
+            aria-hidden="true"
+          >
+            <svg viewBox="0 0 14 16" className="w-[13px] h-[15px] block">
+              <path d="M7 3.6v6.2" stroke="#111" strokeWidth="2.2" strokeLinecap="round" />
+              <circle cx="7" cy="12.6" r="1.25" fill="#111" />
+            </svg>
+          </span>
         )}
         {s.blackWhite && (
           <svg viewBox="0 0 12 12" className="w-3 h-3 block" aria-hidden="true">
