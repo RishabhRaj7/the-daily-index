@@ -314,7 +314,7 @@ export default function City3D({
       // looks different, and at the opacity it had, so a live update doesn't
       // flash a dimmed car back to full)
       const html =
-        `<span class="car-body" style="display:block;transition:opacity .35s ease;opacity:${v.op}">` +
+        `<span class="car-body" style="display:block;transition:opacity .3s ease;opacity:${v.op}">` +
         (c.mine ? `<span style="position:absolute;left:50%;top:50%;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;background:${c.colour};opacity:.25" class="car-pulse"></span>` : "") +
         `<span style="display:block;width:${size}px;height:${size}px;border-radius:50%;background:${c.fill};border:2.5px solid ${c.ring};box-shadow:0 0 6px rgba(0,0,0,.6)"></span>` +
         (c.label
@@ -336,15 +336,15 @@ export default function City3D({
     // times a second (a link bridge over the road, a tower between the
     // camera and the track).
     const hidden = new Map<string, boolean>();
-    // Once covered, a car stays dimmed until it has been clear for a moment:
-    // a building's edge, a gap between two bridge decks or a tile redrawing
-    // would otherwise flick it bright and dim again.
+    // Once behind a building, a car stays dimmed until it has been clear for
+    // a moment: a building's edge or a tile redrawing would otherwise flick
+    // it bright and dim again.
     const dimUntil = new Map<string, number>();
     let asked = 0;
     const frame = (now: number) => {
       const map = mapRef.current;
       const covered = coverRef.current;
-      const ask = !!map && now - asked > 250;
+      const ask = !!map && now - asked > 150;
       if (ask) asked = now;
       for (const c of carsRef.current) {
         const v = markers.current.get(c.code);
@@ -359,13 +359,19 @@ export default function City3D({
           } catch {}
           hidden.set(c.code, behind);
         }
-        const under = hidden.get(c.code) || (!c.pit && !!covered && covered[pointIndex(model.fraction, spots.current.get(c.code)?.[2] ?? 0)] > 0);
-        if (under) dimUntil.set(c.code, now + 700);
+        // A bridge or tunnel is known exactly from the track; only the building
+        // check (one pixel, a few times a second) is held over its flicker.
+        if (hidden.get(c.code)) dimUntil.set(c.code, now + 300);
+        const under = now < (dimUntil.get(c.code) ?? 0) || (!c.pit && !!covered && covered[pointIndex(model.fraction, spots.current.get(c.code)?.[2] ?? 0)] > 0);
         const body = v.el.firstElementChild as HTMLElement | null;
-        // Dimmed, not hidden: still followable, without blinking out.
-        const op = now < (dimUntil.get(c.code) ?? 0) ? "0.3" : "1";
+        // Dimmed, not hidden: still followable, without blinking out. It
+        // fades out gently and comes back quickly, as it clears the cover.
+        const op = under ? "0.3" : "1";
         v.op = op;
-        if (body && body.style.opacity !== op) body.style.opacity = op;
+        if (body && body.style.opacity !== op) {
+          body.style.transition = `opacity ${under ? ".3s" : ".12s"} ease`;
+          body.style.opacity = op;
+        }
         if (map && follow.current === c.code && !map.isMoving()) map.setCenter(ll);
       }
       raf = requestAnimationFrame(frame);
