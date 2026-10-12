@@ -104,7 +104,7 @@ export default function City3D({
   const box = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("mapbox-gl").Map | null>(null);
   const libRef = useRef<typeof import("mapbox-gl").default | null>(null);
-  const markers = useRef(new Map<string, { m: import("mapbox-gl").Marker; el: HTMLDivElement }>());
+  const markers = useRef(new Map<string, { m: import("mapbox-gl").Marker; el: HTMLDivElement; html: string; op: string }>());
   const badgeMarks = useRef<import("mapbox-gl").Marker[]>([]);
   const carsRef = useRef(cars);
   const focusRef = useRef(onFocus);
@@ -305,20 +305,26 @@ export default function City3D({
           e.stopPropagation();
           focusRef.current?.(c.code);
         });
-        v = { m: new gl.Marker({ element: el }).setLngLat(toLngLat(geo, ...(c.pit ?? model.points[0]))).addTo(map), el };
+        v = { m: new gl.Marker({ element: el }).setLngLat(toLngLat(geo, ...(c.pit ?? model.points[0]))).addTo(map), el, html: "", op: "1" };
         mk.set(c.code, v);
       }
       const size = c.mine ? 16 : 12;
       v.el.style.zIndex = c.mine ? "2" : "1";
-      // (one body, faded under a bridge or in a tunnel)
-      v.el.innerHTML =
-        `<span class="car-body" style="display:block;transition:opacity .35s ease">` +
+      // (one body, faded under a bridge or in a tunnel; rebuilt only when it
+      // looks different, and at the opacity it had, so a live update doesn't
+      // flash a dimmed car back to full)
+      const html =
+        `<span class="car-body" style="display:block;transition:opacity .35s ease;opacity:${v.op}">` +
         (c.mine ? `<span style="position:absolute;left:50%;top:50%;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;background:${c.colour};opacity:.25" class="car-pulse"></span>` : "") +
         `<span style="display:block;width:${size}px;height:${size}px;border-radius:50%;background:${c.fill};border:2.5px solid ${c.ring};box-shadow:0 0 6px rgba(0,0,0,.6)"></span>` +
         (c.label
           ? `<span style="position:absolute;left:${size}px;bottom:${size - 2}px;font:700 ${c.mine ? 13 : 11}px var(--font-sans),system-ui,sans-serif;color:#fff;text-shadow:0 0 3px #000,0 0 3px #000;white-space:nowrap;pointer-events:none">${c.code}</span>`
           : "") +
         `</span>`;
+      if (html.replace(/;opacity:[\d.]+/, "") !== v.html.replace(/;opacity:[\d.]+/, "")) {
+        v.el.innerHTML = html;
+        v.html = html;
+      }
     }
   }, [cars, geo, model, ready]);
 
@@ -330,6 +336,10 @@ export default function City3D({
     // times a second (a link bridge over the road, a tower between the
     // camera and the track).
     const hidden = new Map<string, boolean>();
+    // Once covered, a car stays dimmed until it has been clear for a moment:
+    // a building's edge, a gap between two bridge decks or a tile redrawing
+    // would otherwise flick it bright and dim again.
+    const dimUntil = new Map<string, number>();
     let asked = 0;
     const frame = (now: number) => {
       const map = mapRef.current;
@@ -350,9 +360,11 @@ export default function City3D({
           hidden.set(c.code, behind);
         }
         const under = hidden.get(c.code) || (!c.pit && !!covered && covered[pointIndex(model.fraction, spots.current.get(c.code)?.[2] ?? 0)] > 0);
+        if (under) dimUntil.set(c.code, now + 700);
         const body = v.el.firstElementChild as HTMLElement | null;
         // Dimmed, not hidden: still followable, without blinking out.
-        const op = under ? "0.3" : "1";
+        const op = now < (dimUntil.get(c.code) ?? 0) ? "0.3" : "1";
+        v.op = op;
         if (body && body.style.opacity !== op) body.style.opacity = op;
         if (map && follow.current === c.code && !map.isMoving()) map.setCenter(ll);
       }
