@@ -22,6 +22,7 @@ import Weekend from "./centre/Weekend";
 import { Speedometer, TelemetrySheet, useTelemetry } from "./centre/Telemetry";
 import { Panel, Tile } from "./centre/ui";
 import Battle, { useGapHistory } from "./centre/Battle";
+import Commentary from "./centre/Commentary";
 import { stewardsByCode } from "@/lib/f1-stewards";
 
 // /f1/live — a session, spread over five views rather than one long page:
@@ -570,6 +571,8 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
           <span aria-hidden="true">←</span> <span className="hidden sm:inline">Pit wall</span>
         </Link>
         <span className="flex items-center gap-2 min-w-0">
+          {/* F1's live commentary (only while a session is live, not in a replay) */}
+          {!past && !replaying && <Commentary />}
           <PastSessions current={past} label={past && snap ? `${snap.meeting.replace(/ Grand Prix$/, "")} · ${snap.session.replace("Practice ", "FP")}` : null} onPick={pick} />
           {!live && base?.path && !replaying && (
             <button
