@@ -182,7 +182,9 @@ function Status({ r, race, running }: { r: LiveRow; race: boolean; running: bool
   if (!running) return r.out ? <span className="font-label text-[9.5px] text-ink-faint">{race ? "DNF" : "Out"}</span> : !race && r.knockedOut ? <span className="font-label text-[9.5px] text-ink-faint">KO</span> : null;
   if (r.out) return <span className="font-label text-[9.5px] text-ink-faint">Out</span>;
   if (r.inPit) return <span className="shrink-0 whitespace-nowrap rounded px-1 font-label text-[9.5px] text-white" style={{ background: "var(--f1-pit)" }}>Pit</span>;
-  if (r.pitOut)
+  // The out-lap matters off a race (that lap isn't timed); in a race the
+  // stop count and the fresh tyre already say it.
+  if (r.pitOut && !race)
     return (
       <span className="shrink-0 whitespace-nowrap rounded px-1 font-label text-[9.5px] border" style={{ color: "var(--f1-pit)", borderColor: "color-mix(in srgb, var(--f1-pit) 45%, transparent)" }} title="On an out-lap">
         Out lap
