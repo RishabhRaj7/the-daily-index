@@ -25,6 +25,7 @@ import Battle, { useGapHistory } from "./centre/Battle";
 import Pace from "./centre/Pace";
 import Commentary from "./centre/Commentary";
 import LiveAlerts from "./centre/Alerts";
+import { DelayControl, useDelayed, useDelaySeconds } from "./centre/Delay";
 import { stewardsByCode } from "@/lib/f1-stewards";
 
 // /f1/live — a session, spread over five views rather than one long page:
@@ -547,7 +548,10 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const { snapshot, last, next, checked } = useF1Live({ full: true, always: !past, session: past });
+  const { snapshot: fresh, last, next, checked } = useF1Live({ full: true, always: !past, session: past });
+  // Live, the timing can be held back to match the commentary or TV (centre/Delay.tsx).
+  const delay = useDelaySeconds();
+  const snapshot = useDelayed(fresh, !past ? delay : 0);
   const live = !past && !!snapshot;
   const base = live ? snapshot : last;
   // A finished session can be played back: the replay bar drives the page.
@@ -579,6 +583,7 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
         <span className="flex items-center gap-2 min-w-0">
           {/* F1's live audio coverage, while a session is live (the feed lists the stream) */}
           {live && !replaying && snapshot?.commentary && <Commentary src={snapshot.commentary} />}
+          {live && !replaying && <DelayControl />}
           {/* alerts for a live session only (with the bell that mutes them) */}
           {live && !replaying && snapshot && <LiveAlerts snap={snapshot} mine={alertFor} onOpen={() => go("feed")} />}
           <PastSessions current={past} label={past && snap ? `${snap.meeting.replace(/ Grand Prix$/, "")} · ${snap.session.replace("Practice ", "FP")}` : null} onPick={pick} />
