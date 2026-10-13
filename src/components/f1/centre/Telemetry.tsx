@@ -1,9 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import type { CarNow, LapTrace, LiveSnapshot } from "@/lib/f1-live-types";
+import type { CarNow, LapTrace, LiveSnapshot, TrackModel } from "@/lib/f1-live-types";
 import { Empty } from "./ui";
+import { clippingOn, cornerAfter, detectClipping, setClipping, type Clip } from "@/lib/f1-clipping";
+
+const subStorage = (fn: () => void) => {
+  window.addEventListener("storage", fn);
+  return () => window.removeEventListener("storage", fn);
+};
+/** Whether clipping is marked (on unless switched off on this device). */
+export function useClippingOn(): boolean {
+  return useSyncExternalStore(subStorage, clippingOn, () => true);
+}
 
 // The followed driver's telemetry. Under the map, a speedometer in the
 // driver's card (speed on the dial, throttle and brake on the inner arcs,
@@ -102,10 +112,13 @@ function Chart({
   hover,
   setHover,
   seekRef,
+  clips = [],
 }: {
   samples: Sample[];
   colour: string;
   axis: string;
+  /** Where the car ran out of battery on a straight (amber bands). */
+  clips?: Clip[];
   hover: number | null;
   setHover: (i: number | null) => void;
   /** Filled in here: moves the marker for where the gauges are (called every frame). */
@@ -167,6 +180,15 @@ function Chart({
           </g>
         ) : null,
       )}
+      {/* clipping: flat out, but the speed falling */}
+      {clips.map((c, i) => (
+        <g key={i}>
+          <rect x={x(c.at)} y={pad.t} width={Math.max(2, x(c.until) - x(c.at))} height={speedH} fill="var(--f1-investigation)" opacity="0.16" />
+          <text x={x(c.at) + 3} y={pad.t + 10} fontSize="9.5" fontFamily="var(--font-mono)" fill="var(--f1-investigation)">
+            {`−${c.drop}`}
+          </text>
+        </g>
+      ))}
       <path d={line} fill="none" stroke={colour} strokeWidth="2.2" strokeLinejoin="round" />
       {/* throttle: a band that fills with the pedal */}
       <text x={pad.l - 6} y={throttleY + band / 2} dy="0.35em" textAnchor="end" fontSize="10" fontFamily="var(--font-mono)" fill="var(--ink-faint)">
@@ -447,6 +469,30 @@ function Dial({ now, colour, code, onOpen, source }: { now: CarNow | null; colou
   );
 }
 
+/** Where the followed car clipped on the lap shown (a lap trace only: not the live readings, five seconds apart). */
+export function ClipNote({ t, track }: { t: Telemetry; track: TrackModel | null }) {
+  const on = useClippingOn();
+  const live = /^live/i.test(t.source);
+  const clips = useMemo(() => (on && !live ? detectClipping(t.samples) : []), [on, live, t.samples]);
+  if (!clips.length) return null;
+  const lap = track?.lapTime || t.samples.at(-1)?.[0] || 1;
+  return (
+    <div className="rounded-xl border hairline px-3 py-2" title="Flat out but losing speed: the battery running dry before the braking point">
+      <div className="font-label text-[9px] text-ink-faint">Clipping</div>
+      <div className="flex flex-wrap gap-1.5 mt-1">
+        {clips.map((c, i) => {
+          const corner = cornerAfter(track, (c.until / lap) % 1);
+          return (
+            <span key={i} className="whitespace-nowrap rounded px-1.5 font-mono text-[10.5px] font-semibold leading-[17px]" style={{ color: "var(--f1-investigation)", background: "color-mix(in srgb, var(--f1-investigation) 15%, transparent)" }}>
+              {corner ? `into T${corner} ` : ""}−{c.drop} km/h
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ---- the detail ------------------------------------------------------------------
 
 /** The sheet's dial and gauges, played smoothly; pointing at the lap holds them at that moment. */
@@ -477,6 +523,8 @@ export function TelemetrySheet({ t, code, name, colour, onClose }: { t: Telemetr
   // Pointing at the lap shows that moment; otherwise, as it plays.
   const at = hover !== null ? t.samples[hover] : null;
   const held = at ? toNow(at) : null;
+  const marking = useClippingOn();
+  const clips = useMemo(() => (marking ? detectClipping(t.samples) : []), [marking, t.samples]);
   return createPortal(
     <div className="sheet-scale fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm animate-[fade-in_0.2s_ease] sm:p-5 flex items-end sm:items-center" onClick={onClose} role="dialog" aria-modal="true" aria-label={`${name}'s telemetry`}>
       <div
@@ -503,10 +551,14 @@ export function TelemetrySheet({ t, code, name, colour, onClose }: { t: Telemetr
                 <SheetGauges t={t} held={held} colour={colour} code={code} seekRef={seekRef} />
               </div>
               <div>
-                {t.samples.length >= 2 ? <Chart samples={t.samples} colour={colour} axis={t.axis} hover={hover} setHover={setHover} seekRef={t.play ? seekRef : undefined} /> : <Empty>The lap draws as readings come in.</Empty>}
+                {t.samples.length >= 2 ? <Chart samples={t.samples} colour={colour} axis={t.axis} hover={hover} setHover={setHover} seekRef={t.play ? seekRef : undefined} clips={clips} /> : <Empty>The lap draws as readings come in.</Empty>}
                 <p className="font-mono text-[10.5px] text-ink-faint mt-2 leading-relaxed">
                   Speed is the line; the green band is the throttle, the red marks braking. Point at the lap to see that moment in the gauges. From F1&rsquo;s car data, about four readings a second
-                  {t.source.startsWith("live") ? " (live: one every 5 s)" : ""}.
+                  {t.source.startsWith("live") ? " (live: one every 5 s)" : ""}. Amber bands: clipping, flat out but losing speed as the battery runs dry (the km/h lost
+                  {t.source.startsWith("live") ? "; it needs a full lap's readings, so a replay or a past session" : ""}).{" "}
+                  <button type="button" className="underline underline-offset-2 hover:text-ink" onClick={() => setClipping(!marking)}>
+                    {marking ? "Hide clipping" : "Show clipping"}
+                  </button>
                 </p>
               </div>
             </div>

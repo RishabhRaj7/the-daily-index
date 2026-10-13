@@ -19,7 +19,7 @@ import { LiveDot, SessionClock, TONE, sessionLine } from "./LiveCard";
 import Feed from "./centre/Feed";
 import Analysis, { type Sub } from "./centre/Analysis";
 import Weekend from "./centre/Weekend";
-import { Speedometer, TelemetrySheet, useTelemetry } from "./centre/Telemetry";
+import { ClipNote, Speedometer, TelemetrySheet, useTelemetry } from "./centre/Telemetry";
 import { Panel, Tile } from "./centre/ui";
 import Battle, { useGapHistory } from "./centre/Battle";
 import Pace from "./centre/Pace";
@@ -278,6 +278,7 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
         {(hasTelemetry || stints.length > 0) && (
           <div className="space-y-3 min-w-0">
             {hasTelemetry && <Speedometer t={telemetry} colour={row.colour} code={row.code} onOpen={() => setDetail(true)} ended={!snap.running && replayT === null} />}
+            {hasTelemetry && <ClipNote t={telemetry} track={track} />}
             {stints.length > 0 && (
               <div className="rounded-xl border hairline px-3 pt-2 pb-1">
                 <div className="flex items-baseline justify-between gap-2 font-label text-[9px] text-ink-faint">
