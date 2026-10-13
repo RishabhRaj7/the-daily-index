@@ -161,6 +161,7 @@ export async function collectCorpus(prefs: DigestPreferences): Promise<CorpusArt
         source: b.domain,
         pool,
         postedAgo: b.postedAgo,
+        ...(b.postedAt ? { postedAt: b.postedAt } : {}),
         ageHours: parseAgeHours(b.postedAgo),
       };
     })
@@ -198,6 +199,7 @@ export async function collectCorpus(prefs: DigestPreferences): Promise<CorpusArt
       source: s.domain || s.outlet,
       pool: s.pool,
       postedAgo: s.ageHours === null ? "" : s.ageHours < 1 ? "just now" : `${s.ageHours}h ago`,
+      ...(s.ageHours === null ? {} : { postedAt: new Date(Date.now() - s.ageHours * 3_600_000).toISOString() }),
       ageHours: s.ageHours,
       coverage: s.outlets.length,
       ...(s.lead ? { lead: s.lead } : {}),
@@ -275,6 +277,7 @@ function toBriefs(
         source: a.source,
         url: a.url,
         publishedAt: a.postedAgo,
+        ...(a.postedAt ? { postedAt: a.postedAt } : {}),
         outlets: a.coverage ?? 1,
         ...(a.lead ? { lead: a.lead } : {}),
       };
@@ -430,6 +433,7 @@ function toDigestArticle(
     source: article.source,
     url: article.url,
     publishedAt: article.postedAgo,
+    ...(article.postedAt ? { postedAt: article.postedAt } : {}),
     priority,
     ...(group ? { group } : {}),
     ...(matchedEntity ? { matchedEntity } : {}),
@@ -496,6 +500,7 @@ function rehydrateAtAGlance(raw: unknown, corpus: CorpusArticle[]): AtAGlanceIte
       source: article.source,
       url: article.url,
       publishedAt: article.postedAgo,
+      ...(article.postedAt ? { postedAt: article.postedAt } : {}),
       pool: article.pool,
     });
   }
@@ -634,6 +639,7 @@ function rehydrateRivals(
       source: article.source,
       url: article.url,
       publishedAt: article.postedAgo,
+      ...(article.postedAt ? { postedAt: article.postedAt } : {}),
       priority: out.length + 1,
       group: rival,
     });
@@ -902,6 +908,7 @@ async function aiDigest(
         source: a.source,
         url: a.url,
         publishedAt: a.postedAgo,
+        ...(a.postedAt ? { postedAt: a.postedAt } : {}),
         priority: list.length + 1,
         ...(group ? { group } : {}),
       });
@@ -1181,6 +1188,7 @@ function heuristicDigest(
         source: a.source,
         url: a.url,
         publishedAt: a.postedAgo,
+        ...(a.postedAt ? { postedAt: a.postedAt } : {}),
         priority,
         ...(group ? { group } : {}),
         ...(matchedEntity ? { matchedEntity } : {}),
@@ -1250,6 +1258,7 @@ function heuristicAtAGlance(
         source: article.source,
         url: article.url,
         publishedAt: article.publishedAt,
+        ...(article.postedAt ? { postedAt: article.postedAt } : {}),
         pool: poolByUrl.get(article.url) ?? "World",
       });
       if (out.length >= MAX_PICKS) break;

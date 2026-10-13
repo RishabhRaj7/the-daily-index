@@ -215,6 +215,7 @@ export async function fetchRssFeed(
           // Empty for undated items: downstream prints "recently" and the
           // digest treats the age as unknown rather than inventing one.
           postedAgo: date ? timeAgo(date) : "",
+          ...(date ? { postedAt: date.toISOString() } : {}),
         };
       })
       .filter((b): b is WireBrief => b !== null);

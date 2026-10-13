@@ -5,6 +5,7 @@ import type { WeatherNow, WireBrief } from "@/lib/types";
 import type { TravelState } from "@/lib/travel";
 import { clearTravel } from "@/lib/travel";
 import SectionHeader from "@/components/story/SectionHeader";
+import Ago from "@/components/extras/Ago";
 import WeatherIcon from "@/components/widgets/WeatherIcon";
 import WeatherBlocks from "@/components/widgets/WeatherBlocks";
 import TravelButton from "@/components/extras/TravelButton";
@@ -40,7 +41,12 @@ function Headlines({ title, items }: { title: string; items: WireBrief[] }) {
                 </a>
                 <span className="block font-mono text-[10px] text-ink-soft mt-1">
                   {b.domain}
-                  {b.postedAgo ? ` · ${b.postedAgo}` : ""}
+                  {b.postedAgo || b.postedAt ? (
+                    <>
+                      {" · "}
+                      <Ago iso={b.postedAt} fallback={b.postedAgo} />
+                    </>
+                  ) : null}
                 </span>
               </span>
             </li>

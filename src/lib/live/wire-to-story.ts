@@ -18,6 +18,7 @@ function wireBriefToStory(
     dateline: brief.domain,
     readTimeMin: 1,
     lastUpdated: brief.postedAgo || "recently",
+    ...(brief.postedAt ? { postedAt: brief.postedAt } : {}),
     body: [summary],
     significance: Math.max(1, BASE_SIGNIFICANCE - index * 5),
     personal: personalLabel ?? undefined,

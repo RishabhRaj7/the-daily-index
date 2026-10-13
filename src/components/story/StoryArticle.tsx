@@ -3,6 +3,7 @@
 import { Fragment, useState } from "react";
 import type { Story } from "@/lib/types";
 import StatCallout from "./StatCallout";
+import Ago from "@/components/extras/Ago";
 import CoverArt from "./CoverArt";
 import StoryOdds from "./StoryOdds";
 import { SECTION_META } from "@/lib/sections";
@@ -48,7 +49,7 @@ export default function StoryArticle({
           )}
           {source && <span className="font-semibold text-ink truncate">{source}</span>}
           <span className="text-ink-faint font-mono text-[11px] shrink-0">
-            {story.lastUpdated}
+            <Ago iso={story.postedAt} fallback={story.lastUpdated} />
             {story.readTimeMin > 1 ? ` · ${story.readTimeMin} min` : ""}
           </span>
         </div>

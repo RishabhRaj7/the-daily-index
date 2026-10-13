@@ -3,6 +3,7 @@
 import type { Story } from "@/lib/types";
 import { SECTION_META } from "@/lib/sections";
 import StatCallout from "./StatCallout";
+import Ago from "@/components/extras/Ago";
 import CoverArt from "./CoverArt";
 import ShareButton from "@/components/extras/ShareButton";
 import { recordEngagement } from "@/lib/reader-memory";
@@ -70,7 +71,7 @@ export default function HeroStory({ story }: { story: Story }) {
           {story.sourceName && <span className="text-ink font-medium uppercase">{story.sourceName}</span>}
           {story.dateline && story.dateline !== story.sourceName && <span>{story.dateline}</span>}
           <span>{story.readTimeMin} MIN</span>
-          <span>UPDATED {story.lastUpdated.toUpperCase()}</span>
+          <span>UPDATED <Ago iso={story.postedAt} fallback={story.lastUpdated.toUpperCase()} upper /></span>
         </div>
 
         {standfirst && (

@@ -133,6 +133,8 @@ export interface DigestArticle {
   url: string;
   /** ISO timestamp when known, else the feed's own age string ("3h ago"). */
   publishedAt: string;
+  /** When the source published it (ISO), for an age worked out where it is shown. */
+  postedAt?: string;
   /**
    * Bucket the article belongs to:
    *  - grouped sections → one of the section's `groups` values;
@@ -165,6 +167,8 @@ export interface AtAGlanceItem {
   url: string;
   /** ISO timestamp when known, else the feed's own age string ("3h ago"). */
   publishedAt: string;
+  /** When the source published it (ISO), for an age worked out where it is shown. */
+  postedAt?: string;
   /** Wire pool the article came from: World, Markets, F1, Football, Tennis,
    *  Tech. */
   pool: string;
@@ -186,6 +190,8 @@ export interface CorpusArticle {
   pool: string;
   /** Feed-reported age, e.g. "3h ago". */
   postedAgo: string;
+  /** When the source published it (ISO), for an age worked out where it is shown. */
+  postedAt?: string;
   /** Parsed age in hours when derivable from postedAgo; else null. */
   ageHours: number | null;
   /** Google News signal (lib/live/signals.ts), when the story is on its
@@ -204,6 +210,8 @@ export interface BriefItem {
   source: string;
   url: string;
   publishedAt: string;
+  /** When the source published it (ISO), for an age worked out where it is shown. */
+  postedAt?: string;
   /** How many outlets carry it (Google News' coverage list). */
   outlets: number;
   /** Its place on India's top-stories page, when it's there. */

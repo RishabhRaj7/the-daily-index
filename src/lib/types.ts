@@ -38,6 +38,8 @@ export interface Story {
   dateline: string;
   readTimeMin: number;
   lastUpdated: string;
+  /** When the source published it (ISO), for an age worked out where it is shown. */
+  postedAt?: string;
   body: string[];
   pullQuote?: string;
   stats?: StatItem[];
@@ -298,6 +300,8 @@ export interface EditorsPick {
   personal: boolean;
   matchedInterest?: string;
   postedAgo: string;
+  /** When the source published it (ISO), for an age worked out where it is shown. */
+  postedAt?: string;
 }
 
 export interface GrapevineData {
@@ -424,6 +428,8 @@ export interface WireBrief {
   points?: number;
   comments?: number;
   postedAgo: string;
+  /** When the source published it (ISO), for an age worked out where it is shown. */
+  postedAt?: string;
 }
 
 export interface WeatherNow {

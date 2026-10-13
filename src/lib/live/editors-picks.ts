@@ -191,6 +191,7 @@ export function buildEditorsPicks(
       personal: Boolean(s.matched?.personal),
       matchedInterest: s.matched?.personal ? s.matched.label : undefined,
       postedAgo: s.brief.postedAgo,
+      ...(s.brief.postedAt ? { postedAt: s.brief.postedAt } : {}),
     });
     perPool.set(s.pool, (perPool.get(s.pool) ?? 0) + 1);
     domains.add(s.brief.domain);

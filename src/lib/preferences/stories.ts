@@ -33,6 +33,7 @@ export function digestArticleToStory(
     dateline: article.source,
     readTimeMin: 1,
     lastUpdated: article.publishedAt || "recently",
+    ...(article.postedAt ? { postedAt: article.postedAt } : {}),
     body: [article.summary],
     significance: Math.max(20, 75 - article.priority * 5),
     personal: article.matchedEntity,

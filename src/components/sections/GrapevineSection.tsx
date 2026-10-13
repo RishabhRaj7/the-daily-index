@@ -1,6 +1,7 @@
 "use client";
 
 import type { EditorsPick, GrapevineData, TrendingTopic } from "@/lib/types";
+import Ago from "@/components/extras/Ago";
 import SectionHeader from "@/components/story/SectionHeader";
 import LiveBadge from "@/components/widgets/LiveBadge";
 import PuzzleDesk from "@/components/widgets/PuzzleDesk";
@@ -56,7 +57,7 @@ function PickItem({ pick, index }: { pick: EditorsPick; index: number }) {
           )}
           <span className="font-label text-[10px] text-ink-soft">{pick.pool} wire</span>
           <span className="font-mono text-[10px] text-ink-soft">
-            {pick.domain} · {pick.postedAgo}
+            {pick.domain} · <Ago iso={pick.postedAt} fallback={pick.postedAgo} />
           </span>
         </div>
       </div>
