@@ -4,6 +4,7 @@ import { driverPhoto } from "@/lib/f1-assets";
 import { rememberSectors } from "./f1-track";
 import { latestReadings } from "./f1-telemetry";
 import type {
+  LiveLapHistory,
   LapMark,
   LiveAnswer,
   LivePitStop,
@@ -330,7 +331,32 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
 // back the fingerprints it holds and gets only the parts that changed, so a
 // poll carries the timing rows and little else.
 
-export const SLOW_PARTS = ["raceControl", "radio", "stints", "prediction", "photos", "lapPositions", "stats", "pitStops"] as const;
+export const SLOW_PARTS = ["raceControl", "radio", "stints", "prediction", "photos", "lapPositions", "stats", "pitStops", "lapTimes"] as const;
+
+const lapSecs = (t: string): number | null => {
+  const m = /^(?:(\d+):)?(\d+\.\d+)$/.exec(t.trim());
+  return m ? Number(m[1] ?? 0) * 60 + Number(m[2]) : null;
+};
+
+/**
+ * The lap history carried on: what was kept (for the same session) plus each
+ * car's latest lap, filed under the lap it closed, and the lap now running if
+ * it's behind a safety car, VSC or red flag.
+ */
+export function addLaps(prev: LiveLapHistory | undefined, snap: LiveSnapshot): LiveLapHistory {
+  const times: LiveLapHistory["times"] = Object.fromEntries(Object.entries(prev?.times ?? {}).map(([k, v]) => [k, [...v]]));
+  for (const r of snap.rows) {
+    const t = lapSecs(r.last);
+    if (!r.laps || t === null) continue;
+    const list = (times[r.code] ??= []);
+    while (list.length < r.laps) list.push(null);
+    list[r.laps - 1] = t;
+  }
+  const neutral = new Set(prev?.neutral ?? []);
+  const lap = snap.lap?.current;
+  if (lap && /^(sc|vsc|red)$/.test(snap.track.tone)) neutral.add(lap);
+  return { times, neutral: [...neutral].sort((a, b) => a - b) };
+}
 
 const fingerprint = (v: unknown) => {
   const s = JSON.stringify(v ?? null);
@@ -393,8 +419,9 @@ async function keepClassification(snap: LiveSnapshot, info: CurrentSessionInfo):
 
 /** Pit wall size: the table and its header, nothing else. */
 export function compact(s: LiveSnapshot): LiveSnapshot {
-  const { raceControl, radio, stints, prediction, photos, lapPositions, transcripts, stats, pitStops, versions, telemetry, ...rest } = s;
+  const { raceControl, radio, stints, prediction, photos, lapPositions, transcripts, stats, pitStops, versions, telemetry, lapTimes, ...rest } = s;
   void versions;
+  void lapTimes;
   void telemetry;
   void stats;
   void pitStops;
@@ -442,9 +469,9 @@ export async function replay(path: string, t?: number): Promise<LiveAnswer> {
   let snap: LiveSnapshot | null;
   if (t !== undefined && Number.isFinite(t)) {
     const { stateAt } = await import("./f1-replay");
-    const { state } = await stateAt(path, t);
+    const { state, laps } = await stateAt(path, t);
     const info = infoFrom(state, path);
-    snap = info ? parse(state, info) : null;
+    snap = info ? withVersions({ ...parse(state, info), versions: undefined, lapTimes: laps }) : null;
   } else {
     snap = await archivedSession(path);
   }
@@ -539,7 +566,9 @@ export async function getLive(opts: { fresh?: boolean; withLast?: boolean } = {}
     // Car data on its own connection: if F1 holds it back (or it's slow), the timing still comes.
     const [state, cars] = await Promise.all([readLiveState(), readLiveState(["CarData.z"], 4000).catch(() => null)]);
     if (!state) return cached && cached.sessionKey === info.Key ? { live: true, snapshot: cached } : { live: false, next: null };
-    const snap = parse(state, info);
+    // The lap history: kept from the last read of this session, with this read's laps added.
+    const parsed = parse(state, info);
+    const snap = withVersions({ ...parsed, versions: undefined, lapTimes: addLaps(cached?.sessionKey === info.Key ? cached.lapTimes : undefined, parsed) });
     const readings = latestReadings(cars?.["CarData.z" as keyof LiveState]);
     if (Object.keys(readings).length) {
       const codes = new Map(snap.rows.map((r) => [r.number, r.code]));

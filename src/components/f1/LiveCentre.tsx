@@ -22,6 +22,7 @@ import Weekend from "./centre/Weekend";
 import { Speedometer, TelemetrySheet, useTelemetry } from "./centre/Telemetry";
 import { Panel, Tile } from "./centre/ui";
 import Battle, { useGapHistory } from "./centre/Battle";
+import Pace from "./centre/Pace";
 import Commentary from "./centre/Commentary";
 import LiveAlerts from "./centre/Alerts";
 import { stewardsByCode } from "@/lib/f1-stewards";
@@ -345,6 +346,7 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
           </div>
 
           <Battle snap={snap} row={row} />
+          <Pace snap={snap} row={row} />
         </div>
       </div>
 

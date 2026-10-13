@@ -230,13 +230,15 @@ export default function City3D({
           }
           if (h.length && f.length === Math.ceil(trackLL.length / step)) {
             heights = true;
-            // The ground model is noisy in a city (a bridge, an embankment): a
-            // running median, then a running mean, round the loop, before the
-            // rise and fall is measured.
+            // The ground model can carry buildings and trees in a city (radar
+            // heights): they only ever add height, so the profile keeps the
+            // ground under them — any peak narrower than ~25 samples (several
+            // hundred metres) is opened out (a running minimum, then a running
+            // maximum), then smoothed, round the loop.
             const n = h.length;
-            const at = (i: number) => h[((i % n) + n) % n];
-            const med = h.map((_, i) => [-4, -3, -2, -1, 0, 1, 2, 3, 4].map((k) => at(i + k)).sort((a, b) => a - b)[4]);
-            const smooth = med.map((_, i) => [-3, -2, -1, 0, 1, 2, 3].reduce((sum, k) => sum + med[((i + k) % n + n) % n], 0) / 7);
+            const roll = (xs: number[], half: number, pick: (v: number[]) => number) => xs.map((_, i) => pick(Array.from({ length: 2 * half + 1 }, (_, k) => xs[(((i + k - half) % n) + n) % n])));
+            const opened = roll(roll(h, 12, (v) => Math.min(...v)), 12, (v) => Math.max(...v));
+            const smooth = roll(opened, 3, (v) => v.reduce((a, b) => a + b, 0) / v.length);
             const range = Math.max(...smooth) - Math.min(...smooth);
             setProfile(range >= FLAT ? { f, h: smooth } : null);
           }

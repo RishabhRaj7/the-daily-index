@@ -1,4 +1,5 @@
 import type { LiveState } from "./f1-signalr";
+import type { LiveLapHistory } from "@/lib/f1-live-types";
 
 // A finished session replayed through time from F1's archive (the replay
 // bar on /f1/live, and ?f1replay= in development). Each topic's
@@ -38,6 +39,8 @@ interface Timeline {
   state: Record<string, unknown>;
   cursor: number;
   t: number;
+  /** Lap times and neutralised laps, as far as the cursor has played. */
+  laps: LiveLapHistory;
 }
 
 const timelines = new Map<string, Promise<Event[]>>();
@@ -149,17 +152,42 @@ export async function timeline(path: string): Promise<ReplayTimeline | null> {
 }
 
 /** The session's state `t` seconds after its feed opened. */
-export async function stateAt(path: string, t: number): Promise<{ state: LiveState; end: number }> {
+export async function stateAt(path: string, t: number): Promise<{ state: LiveState; end: number; laps: LiveLapHistory }> {
   const list = await eventsFor(path);
   let tl = cursors.get(path);
   if (!tl || t < tl.t) {
-    tl = { events: list, state: {}, cursor: 0, t: 0 };
+    tl = { events: list, state: {}, cursor: 0, t: 0, laps: { times: {}, neutral: [] } };
     cursors.set(path, tl);
   }
   while (tl.cursor < list.length && list[tl.cursor].t <= t) {
     const e = list[tl.cursor++];
     tl.state[e.topic] = merge(tl.state[e.topic], e.data);
+    noteLaps(tl, e);
   }
   tl.t = t;
-  return { state: tl.state as LiveState, end: list.at(-1)?.t ?? 0 };
+  return { state: tl.state as LiveState, end: list.at(-1)?.t ?? 0, laps: tl.laps };
+}
+
+/** The lap history as the feed plays: a car's lap time each time one closes; the laps behind a safety car, VSC or red flag. */
+function noteLaps(tl: { state: Record<string, unknown>; laps: LiveLapHistory }, e: { topic: string; data: unknown }) {
+  const d = (e.data ?? {}) as Record<string, unknown>;
+  if (e.topic === "TimingData" && d.Lines && typeof d.Lines === "object") {
+    const lines = ((tl.state.TimingData as Record<string, unknown>)?.Lines ?? {}) as Record<string, Record<string, unknown>>;
+    const drivers = (tl.state.DriverList ?? {}) as Record<string, { Tla?: string }>;
+    for (const [no, part] of Object.entries(d.Lines as Record<string, Record<string, unknown>>)) {
+      const value = (part?.LastLapTime as { Value?: string } | undefined)?.Value;
+      if (!value) continue;
+      const m = /^(?:(\d+):)?(\d+\.\d+)$/.exec(value);
+      const laps = Number(lines[no]?.NumberOfLaps ?? 0);
+      const code = drivers[no]?.Tla;
+      if (!m || !laps || !code) continue;
+      const list = (tl.laps.times[code] ??= []);
+      while (list.length < laps) list.push(null);
+      list[laps - 1] = Number(m[1] ?? 0) * 60 + Number(m[2]);
+    }
+  } else if (e.topic === "TrackStatus" || e.topic === "LapCount") {
+    const status = String(((tl.state.TrackStatus ?? {}) as { Status?: string }).Status ?? "1");
+    const lap = Number(((tl.state.LapCount ?? {}) as { CurrentLap?: number }).CurrentLap ?? 0);
+    if (lap && /^[4567]$/.test(status) && !tl.laps.neutral.includes(lap)) tl.laps.neutral.push(lap);
+  }
 }

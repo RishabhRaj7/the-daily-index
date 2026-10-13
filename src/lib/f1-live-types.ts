@@ -186,10 +186,22 @@ export interface LiveSnapshot {
   transcripts?: Record<string, string>;
   /** Live: every car's latest telemetry reading, by timing code (when F1 sends car data). */
   telemetry?: Record<string, CarNow>;
+  /**
+   * Lap by lap, as far as it was seen (live: kept from poll to poll; a
+   * replay: rebuilt from the feed): each car's lap times in seconds, index =
+   * lap − 1 (null where a lap wasn't seen), and the laps run behind a safety
+   * car, VSC or red flag.
+   */
+  lapTimes?: LiveLapHistory;
   /** A fingerprint of each slow-moving part (race control, radio…), so a reader can say what it has. */
   versions?: Record<string, string>;
   /** Parts left out of this answer because the reader already has them as they are. */
   same?: string[];
+}
+
+export interface LiveLapHistory {
+  times: Record<string, (number | null)[]>;
+  neutral: number[];
 }
 
 /** What /api/f1/live answers. */
