@@ -11,7 +11,7 @@ import type { LiveRow, LiveSnapshot } from "@/lib/f1-live-types";
 // whichever view is open), and the change over the last three laps against
 // the same car, per lap, is the closing rate. Before there are two laps of it
 // (a page just opened), the last lap times stand in. From a rate and a gap
-// comes when the chaser is within a second (DRS range).
+// comes when the chaser is within a second (Overtake Mode range).
 
 interface Mark {
   lap: number;
@@ -70,7 +70,7 @@ function closing(snap: LiveSnapshot, me: LiveRow, ahead: LiveRow): { rate: numbe
   return { rate: a - b, over: 0 };
 }
 
-function Side({ title, other, gap, rate, chaser }: { title: string; other: LiveRow | null; gap: number | null; rate: { rate: number; over: number } | null; chaser: "me" | "them" }) {
+function Side({ title, other, gap, lapped = "", rate, chaser }: { title: string; other: LiveRow | null; gap: number | null; /** The interval as timed ("1L" when a lap down; empty before there is one). */ lapped?: string; rate: { rate: number; over: number } | null; chaser: "me" | "them" }) {
   if (!other) {
     return (
       <div className="px-3 py-2 min-w-0">
@@ -85,8 +85,9 @@ function Side({ title, other, gap, rate, chaser }: { title: string; other: LiveR
   const good = r !== null && !steady && (chaser === "me" ? r > 0 : r < 0);
   const tone = r === null || steady ? "var(--ink-soft)" : good ? "var(--up)" : "var(--down)";
   const verb = r === null ? null : steady ? "Holding" : chaser === "me" ? (r > 0 ? "Closing" : "Losing") : r > 0 ? "Gaining" : "Dropping";
-  const toDrs = gap !== null && r !== null && r > 0.05 && gap > 1 ? Math.ceil((gap - 1) / r) : null;
-  const drs = gap === null ? null : gap <= 1 ? "In DRS range" : toDrs !== null && toDrs <= 30 ? `DRS in ~${toDrs} lap${toDrs === 1 ? "" : "s"}` : null;
+  // Within a second at the detection point earns Overtake Mode (2026: DRS's successor, extra electrical deployment).
+  const toRange = gap !== null && r !== null && r > 0.05 && gap > 1 ? Math.ceil((gap - 1) / r) : null;
+  const drs = gap === null ? null : gap <= 1 ? "In Overtake range" : toRange !== null && toRange <= 30 ? `Overtake range in ~${toRange} lap${toRange === 1 ? "" : "s"}` : null;
   return (
     <div className="px-3 py-2 min-w-0">
       <div className="font-label text-[9px] text-ink-faint flex items-center gap-1.5 whitespace-nowrap">
@@ -94,7 +95,7 @@ function Side({ title, other, gap, rate, chaser }: { title: string; other: LiveR
         <span className="w-[3px] h-2.5 rounded-full shrink-0" style={{ background: other.colour }} />
         <span className="text-ink-soft">{other.code}</span>
       </div>
-      <div className="font-mono text-[15px] font-semibold tabular-nums mt-1 whitespace-nowrap">{gap !== null ? `${gap.toFixed(3)} s` : "A lap or more"}</div>
+      <div className="font-mono text-[15px] font-semibold tabular-nums mt-1 whitespace-nowrap">{gap !== null ? `${gap.toFixed(3)} s` : /L/i.test(lapped) ? "A lap or more" : "—"}</div>
       {verb && (
         <div
           className="font-mono text-[10px] tabular-nums mt-0.5 whitespace-nowrap"
@@ -104,7 +105,7 @@ function Side({ title, other, gap, rate, chaser }: { title: string; other: LiveR
           {steady ? verb : `${verb} ${Math.abs(r!).toFixed(2)}/lap`}
         </div>
       )}
-      {drs && <div className="font-mono text-[10px] text-ink-faint mt-0.5 truncate">{drs}</div>}
+      {drs && <div className="font-mono text-[10px] text-ink-faint mt-0.5 truncate" title="Within a second at the detection point earns Overtake Mode">{drs}</div>}
     </div>
   );
 }
@@ -118,8 +119,8 @@ export default function Battle({ snap, row }: { snap: LiveSnapshot; row: LiveRow
   const behindLive = behind && !behind.out ? behind : null;
   return (
     <div className="rounded-xl border hairline grid grid-cols-2 divide-x divide-[var(--rule)]">
-      <Side title="Car ahead" other={ahead} gap={ahead ? secs(row.interval) : null} rate={ahead ? closing(snap, row, ahead) : null} chaser="me" />
-      <Side title="Car behind" other={behindLive} gap={behindLive ? secs(behindLive.interval) : null} rate={behindLive ? closing(snap, behindLive, row) : null} chaser="them" />
+      <Side title="Car ahead" other={ahead} gap={ahead ? secs(row.interval) : null} lapped={row.interval} rate={ahead ? closing(snap, row, ahead) : null} chaser="me" />
+      <Side title="Car behind" other={behindLive} gap={behindLive ? secs(behindLive.interval) : null} lapped={behindLive?.interval} rate={behindLive ? closing(snap, behindLive, row) : null} chaser="them" />
     </div>
   );
 }

@@ -11,8 +11,8 @@ import { Empty, Seg, clock } from "./ui";
 // lib/f1-race-control.ts), team radio with transcripts, and every pit stop
 // (time standing, time in the lane, the tyres it went out on). Filed under
 // All · Flags · Stewards · Track limits · Pits · Radio · Info, with a switch
-// for just the reader's drivers. Blue flags are in Flags only (a race has
-// dozens). The Live view carries it too, filters and all, beside the map (it
+// for just the reader's drivers. Blue flags come one line a lap in All (a
+// race has dozens), each on its own in Flags. The Live view carries it too, filters and all, beside the map (it
 // scrolls in its own panel there), so it can be read without leaving the order.
 
 type Filter = "all" | "flags" | "stewards" | "limits" | "pits" | "radio" | "info";
@@ -61,8 +61,34 @@ function useItems(snap: LiveSnapshot): Item[] {
   }, [snap.raceControl, snap.radio, snap.pitStops, snap.stints, drivers]);
 }
 
+/** All of it, with a lap's blue flags as one line ("Blue flags: SAI, LIN and BOR"). */
+function grouped(items: Item[]): Item[] {
+  const out: Item[] = [];
+  const lapLine = new Map<string, Item & { kind: "rc" }>();
+  for (const it of items) {
+    if (it.kind !== "rc" || !it.rc.minor) {
+      out.push(it);
+      continue;
+    }
+    const key = String(it.rc.lap ?? "?");
+    const line = lapLine.get(key);
+    if (line) {
+      // Newest first: the line keeps the lap's latest time; the drivers read oldest first.
+      for (const d of it.rc.drivers) if (!line.rc.drivers.includes(d)) line.rc.drivers.unshift(d);
+      line.rc.text = `Blue flags: ${listOf(line.rc.drivers)}`;
+      continue;
+    }
+    const first: Item & { kind: "rc" } = { ...it, rc: { ...it.rc, drivers: [...it.rc.drivers], text: `Blue flag: ${it.rc.drivers.join(", ")}`, minor: false } };
+    lapLine.set(key, first);
+    out.push(first);
+  }
+  return out;
+}
+
+const listOf = (xs: string[]) => (xs.length <= 1 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`);
+
 const matches = (it: Item, f: Filter) =>
-  f === "all" ? !(it.kind === "rc" && it.rc.minor) : f === "radio" ? it.kind === "radio" : f === "pits" ? it.kind === "pit" : it.kind === "rc" && it.rc.kind === f;
+  f === "all" ? true : f === "radio" ? it.kind === "radio" : f === "pits" ? it.kind === "pit" : it.kind === "rc" && it.rc.kind === f;
 
 const about = (it: Item): string[] => (it.kind === "rc" ? it.rc.drivers : it.kind === "radio" ? [it.radio.code] : [it.pit.code]);
 
@@ -125,14 +151,15 @@ export default function Feed({
   const [count, setCount] = useState(page);
   const player = usePlayer();
 
-  const filtered = items.filter((it) => matches(it, filter) && (!onlyMine || about(it).some((c) => mine.has(c))));
+  const all = useMemo(() => grouped(items), [items]);
+  const filtered = (filter === "all" ? all : items).filter((it) => matches(it, filter) && (!onlyMine || about(it).some((c) => mine.has(c))));
   const shown = filtered.slice(0, count);
   const clips = shown.flatMap((it) => (it.kind === "radio" ? [it.radio] : []));
   const { text, pending, paused } = useTranscripts(clips);
 
-  const n = (f: Filter) => items.filter((it) => matches(it, f) && (!onlyMine || about(it).some((c) => mine.has(c)))).length;
+  const n = (f: Filter) => (f === "all" ? all : items).filter((it) => matches(it, f) && (!onlyMine || about(it).some((c) => mine.has(c)))).length;
   const options: { value: Filter; label: string; count?: number }[] = [
-    { value: "all", label: "All" },
+    { value: "all", label: "All", count: n("all") },
     { value: "flags", label: "Flags", count: n("flags") },
     { value: "stewards", label: "Stewards", count: n("stewards") },
     { value: "limits", label: "Track limits", count: n("limits") },

@@ -38,6 +38,8 @@ export interface LiveRow {
   interval: string;
   /** Closing on the car ahead (races). */
   catching: boolean;
+  /** Where they started (races; null from the pit lane or unknown). */
+  grid?: number | null;
   last: string;
   lastMark: LapMark;
   best: string;

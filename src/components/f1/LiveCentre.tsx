@@ -23,6 +23,7 @@ import { Speedometer, TelemetrySheet, useTelemetry } from "./centre/Telemetry";
 import { Panel, Tile } from "./centre/ui";
 import Battle, { useGapHistory } from "./centre/Battle";
 import Commentary from "./centre/Commentary";
+import LiveAlerts from "./centre/Alerts";
 import { stewardsByCode } from "@/lib/f1-stewards";
 
 // /f1/live — a session, spread over five views rather than one long page:
@@ -274,7 +275,7 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
         {/* left: the speedometer, and the race in tyres under it */}
         {(hasTelemetry || stints.length > 0) && (
           <div className="space-y-3 min-w-0">
-            {hasTelemetry && <Speedometer t={telemetry} colour={row.colour} code={row.code} onOpen={() => setDetail(true)} />}
+            {hasTelemetry && <Speedometer t={telemetry} colour={row.colour} code={row.code} onOpen={() => setDetail(true)} ended={!snap.running && replayT === null} />}
             {stints.length > 0 && (
               <div className="rounded-xl border hairline px-3 pt-2 pb-1">
                 <div className="flex items-baseline justify-between gap-2 font-label text-[9px] text-ink-faint">
@@ -561,6 +562,9 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
   useGapHistory(snap);
   const fav = useF1Favourites();
   const highlight = useMemo(() => new Set(fav.codes), [fav.codes]);
+  // Alerts follow the reader's drivers and their team's.
+  const teamCodes = (snapshot?.rows ?? []).filter((r) => fav.team !== "" && r.team === fav.team).map((r) => r.code).join(",");
+  const alertFor = useMemo(() => new Set([...fav.codes, ...(teamCodes ? teamCodes.split(",") : [])]), [fav.codes, teamCodes]);
   const view = nav.view;
   const tone = snap ? TONE[snap.track.tone] : null;
 
@@ -573,6 +577,8 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
         <span className="flex items-center gap-2 min-w-0">
           {/* F1's live audio coverage, while a session is live (the feed lists the stream) */}
           {live && !replaying && snapshot?.commentary && <Commentary src={snapshot.commentary} />}
+          {/* alerts for a live session only (with the bell that mutes them) */}
+          {live && !replaying && snapshot && <LiveAlerts snap={snapshot} mine={alertFor} onOpen={() => go("feed")} />}
           <PastSessions current={past} label={past && snap ? `${snap.meeting.replace(/ Grand Prix$/, "")} · ${snap.session.replace("Practice ", "FP")}` : null} onPick={pick} />
           {!live && base?.path && !replaying && (
             <button

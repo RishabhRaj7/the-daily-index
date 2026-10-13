@@ -135,16 +135,13 @@ function StewardMarks({ s, code, compact = false }: { s: Stewards | undefined; c
           </span>
         ))}
         {top && (
-          // A pastel-yellow tile with a black "!" and a soft shadow (grey when only noted); the tooltip says when it's after the race.
+          // The same flat tag as a penalty's: a bold "!" in amber on an amber wash (grey when only noted); the tooltip says when it's after the race.
           <span
-            className="grid place-items-center w-[13px] h-[15px] rounded-[3px] shrink-0"
-            style={{ background: top.state === "noted" ? "#d9d9de" : "#ffe98a", boxShadow: "0 1px 3px rgba(0,0,0,0.35)" }}
+            className="whitespace-nowrap rounded px-1 font-mono text-[10px] font-bold leading-[15px]"
+            style={top.state === "noted" ? { color: "var(--ink-soft)", background: "color-mix(in srgb, var(--ink-soft) 16%, transparent)" } : { color: "var(--f1-investigation)", background: "color-mix(in srgb, var(--f1-investigation) 18%, transparent)" }}
             aria-hidden="true"
           >
-            <svg viewBox="0 0 14 16" className="w-[13px] h-[15px] block">
-              <path d="M7 3.6v6.2" stroke="#111" strokeWidth="2.2" strokeLinecap="round" />
-              <circle cx="7" cy="12.6" r="1.25" fill="#111" />
-            </svg>
+            !
           </span>
         )}
         {s.blackWhite && (
@@ -181,17 +178,38 @@ function Status({ r, race, running }: { r: LiveRow; race: boolean; running: bool
   // knocked out are worth a word.
   if (!running) return r.out ? <span className="font-label text-[9.5px] text-ink-faint">{race ? "DNF" : "Out"}</span> : !race && r.knockedOut ? <span className="font-label text-[9.5px] text-ink-faint">KO</span> : null;
   if (r.out) return <span className="font-label text-[9.5px] text-ink-faint">Out</span>;
-  if (r.inPit) return <span className="shrink-0 whitespace-nowrap rounded px-1 font-label text-[9.5px] text-white" style={{ background: "var(--f1-pit)" }}>Pit</span>;
-  // The out-lap matters off a race (that lap isn't timed); in a race the
-  // stop count and the fresh tyre already say it.
-  if (r.pitOut && !race)
+  if (!race && r.knockedOut) return <span className="font-label text-[9.5px] text-ink-faint">KO</span>;
+  return null;
+}
+
+/** Places made or lost since the start (a race, where there's room). */
+function Moved({ r }: { r: LiveRow }) {
+  if (!r.grid || r.out) return null;
+  const d = r.grid - r.position;
+  if (!d) return null;
+  return (
+    <span className="font-mono text-[9px] font-semibold tabular-nums whitespace-nowrap" style={{ color: d > 0 ? "var(--up)" : "var(--down)" }} title={`Started P${r.grid}: ${Math.abs(d)} place${Math.abs(d) === 1 ? "" : "s"} ${d > 0 ? "gained" : "lost"}`}>
+      {d > 0 ? "▲" : "▼"}
+      {Math.abs(d)}
+    </span>
+  );
+}
+
+/** The Pit column: in the pit lane, on an out-lap, else how many stops (in practice and qualifying, runs). */
+function PitCell({ r, running, short }: { r: LiveRow; running: boolean; short: boolean }) {
+  if (running && !r.out && r.inPit)
     return (
-      <span className="shrink-0 whitespace-nowrap rounded px-1 font-label text-[9.5px] border" style={{ color: "var(--f1-pit)", borderColor: "color-mix(in srgb, var(--f1-pit) 45%, transparent)" }} title="On an out-lap">
+      <span className="whitespace-nowrap rounded px-1 font-label text-[9.5px] leading-[15px] text-white" style={{ background: "var(--f1-pit)" }} title="In the pit lane">
+        {short ? "Pit" : "In pit"}
+      </span>
+    );
+  if (running && !r.out && r.pitOut)
+    return (
+      <span className="whitespace-nowrap rounded px-1 font-label text-[9.5px] leading-[13px] border" style={{ color: "var(--f1-pit)", borderColor: "color-mix(in srgb, var(--f1-pit) 50%, transparent)" }} title="On an out-lap">
         Out lap
       </span>
     );
-  if (!race && r.knockedOut) return <span className="font-label text-[9.5px] text-ink-faint">KO</span>;
-  return null;
+  return <span className="font-mono text-[11px] tabular-nums text-right text-ink-soft">{r.stops}</span>;
 }
 
 function Sector({ s }: { s: LiveSector | undefined }) {
@@ -285,8 +303,9 @@ export default function LiveTiming({
   const t = layout === "narrow" ? "minmax(3.6rem,1fr)" : layout === "medium" ? "minmax(4rem,1fr)" : "minmax(4.2rem,1fr)";
   const sec = layout === "narrow" ? "minmax(2.9rem,1fr)" : "minmax(3.9rem,1fr)";
   const showName = layout === "roomy" || layout === "wide";
-  const showStops = race && layout !== "narrow";
   const gaps = view !== "sectors";
+  // Places against the grid beside the position: a race, and not on a phone.
+  const moved = race && layout !== "narrow";
   const sectors = view !== "gaps";
 
   type Col = { key: string; head: string; w: string; cell: (r: LiveRow) => React.ReactNode };
@@ -352,10 +371,11 @@ export default function LiveTiming({
         </span>
       ),
     },
-    ...(showStops ? [{ key: "pits", head: "Pits", w: "minmax(1.8rem,0.4fr)", cell: (r: LiveRow) => <span className="font-mono text-[11px] tabular-nums text-right text-ink-soft">{r.stops}</span> }] : []),
+    // In the pit lane, on an out-lap, or the stops made (runs, off a race).
+    { key: "pit", head: "Pit", w: layout === "narrow" ? "2.9rem" : "minmax(3.2rem,0.5fr)", cell: (r: LiveRow) => <PitCell r={r} running={snap.running} short={layout === "narrow"} /> },
   ];
   const driverW = layout === "wide" ? "minmax(10rem,1.5fr)" : layout === "roomy" ? (sectors ? "minmax(4.5rem,0.8fr)" : "minmax(8rem,1.4fr)") : "minmax(0,1fr)";
-  const cols = `${layout === "narrow" || layout === "medium" ? "1.5rem" : "1.6rem"} ${driverW} ${columns.map((c) => c.w).join(" ")}`;
+  const cols = `${moved ? "2.7rem" : layout === "narrow" || layout === "medium" ? "1.5rem" : "1.6rem"} ${driverW} ${columns.map((c) => c.w).join(" ")}`;
   const gapX = layout === "narrow" ? "gap-x-2" : "gap-x-2.5";
 
   return (
@@ -411,7 +431,10 @@ export default function LiveTiming({
                 aria-current={focused || undefined}
               >
                 {focused && <span className="absolute left-0.5 top-1.5 bottom-1.5 w-[3px] rounded-full" style={{ background: r.colour }} aria-hidden="true" />}
-                <span className="font-mono text-[11px] tabular-nums text-ink-soft pl-0.5">{r.position}</span>
+                <span className="flex items-baseline gap-[3px] pl-0.5 min-w-0">
+                  <span className="font-mono text-[11px] tabular-nums text-ink-soft">{r.position}</span>
+                  {moved && <Moved r={r} />}
+                </span>
                 <span className={`flex items-center min-w-0 overflow-hidden ${layout === "narrow" || layout === "medium" ? "gap-1.5" : "gap-2"}`}>
                   <span className="w-[3px] h-3.5 rounded-full shrink-0" style={{ background: r.colour }} />
                   {/* the team's mark where there's room (the colour bar says it anyway) */}

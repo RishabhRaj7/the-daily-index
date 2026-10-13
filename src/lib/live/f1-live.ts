@@ -144,6 +144,7 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
         gap: race ? str(l.GapToLeader) : str(statsPart?.TimeDiffToFastest ?? l.TimeDiffToFastest),
         interval: race ? str(obj(l.IntervalToPositionAhead).Value) : str(statsPart?.TimeDifftoPositionAhead ?? l.TimeDiffToPositionAhead),
         catching: race && obj(l.IntervalToPositionAhead).Catching === true,
+        grid: race ? num(obj(app[no]).GridPos) || null : null,
         last: str(last.Value),
         lastMark: mark(last),
         best,
@@ -184,7 +185,8 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
     .map(obj)
     .map((m) => ({ utc: str(m.Utc), lap: m.Lap == null ? null : num(m.Lap), category: str(m.Category), flag: str(m.Flag) || null, message: str(m.Message) }))
     .reverse()
-    .slice(0, 250);
+    // The whole session (a wet race with its blue flags runs to a few hundred).
+    .slice(0, 800);
 
   const radio: LiveRadio[] = list(obj(state.TeamRadio).Captures)
     .map(obj)
@@ -196,7 +198,7 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
       return url ? [{ utc: str(c.Utc), number: no, code: r?.code ?? no, colour: r?.colour ?? "#888888", url, ...(first ? { first } : {}) }] : [];
     })
     .reverse()
-    .slice(0, 90);
+    .slice(0, 250);
 
   const stints: LiveStints[] = rows.map((r) => ({
     number: r.number,
