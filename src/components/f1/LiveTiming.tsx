@@ -135,10 +135,10 @@ function StewardMarks({ s, code, compact = false }: { s: Stewards | undefined; c
           </span>
         ))}
         {top && (
-          // The same flat tag as a penalty's: a bold "!" in amber on an amber wash (grey when only noted); the tooltip says when it's after the race.
+          // As F1 TV shows it: a solid yellow square with a black "!" (grey when only noted); the tooltip says when it's after the race.
           <span
-            className="whitespace-nowrap rounded px-1 font-mono text-[10px] font-bold leading-[15px]"
-            style={top.state === "noted" ? { color: "var(--ink-soft)", background: "color-mix(in srgb, var(--ink-soft) 16%, transparent)" } : { color: "var(--f1-investigation)", background: "color-mix(in srgb, var(--f1-investigation) 18%, transparent)" }}
+            className="grid place-items-center w-[14px] h-[14px] shrink-0 rounded-[2px] font-sans text-[11px] font-extrabold leading-none text-black"
+            style={{ background: top.state === "noted" ? "#c9c9cf" : "#ffd400" }}
             aria-hidden="true"
           >
             !

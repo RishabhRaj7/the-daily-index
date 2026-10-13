@@ -355,71 +355,83 @@ export function Speedometer({ t, colour, code, onOpen, ended = false }: { t: Tel
   return <Dial now={ended ? null : now} colour={colour} code={code} onOpen={onOpen} source={ended ? "Session ended · tap for the fastest lap" : t.source} />;
 }
 
-/** A pedal or the revs as a labelled bar under the dial. */
-function Meter({ label, value, text, colour }: { label: string; value: number; text: string; colour: string }) {
-  return (
-    <div className="min-w-0">
-      <div className="font-label text-[9px] text-ink-faint truncate">{label}</div>
-      <div className="font-mono text-[11px] font-semibold tabular-nums text-ink leading-tight mt-0.5">{text}</div>
-      <span className="block h-[4px] rounded-full mt-1 bg-[var(--rule)] overflow-hidden">
-        <span className="block h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, value))}%`, background: colour }} />
-      </span>
-    </div>
-  );
-}
-
 /**
- * A speedometer: the speed round the dial in the team's colour, the speed
- * and gear in the middle; throttle, brake and revs as bars beneath it (each
- * with its own room, so nothing overlaps at any width).
+ * A speedometer: speed round the dial in the team's colour, throttle and
+ * brake on the inner arcs. Everything has its own ring, so nothing overlaps:
+ * the scale outside the dial; the throttle and brake arcs inside it, their
+ * names just outside each arc; the speed, revs and gear in the middle, clear
+ * of the arcs' ends.
  */
 function Dial({ now, colour, code, onOpen, source }: { now: CarNow | null; colour: string; code: string; onOpen?: () => void; source: string }) {
   const cx = 110;
-  const cy = 92;
-  const R = 80;
+  const cy = 104;
+  const R = 78; // the speed ring
+  const r = 61; // the throttle and brake arcs
   const v = now?.speed ?? 0;
   const at = 135 + (Math.min(TOP, v) / TOP) * 270;
   const thr = now?.throttle ?? 0;
+  const id = `speedo-${code}-${onOpen ? "card" : "sheet"}`;
   const body = (
-    <>
-      <svg viewBox="0 0 220 158" className="block w-full max-w-[16rem] mx-auto h-auto" role="img" aria-label={now ? `${code}: ${v} km/h, gear ${now.gear}, throttle ${thr}%${now.brake ? ", braking" : ""}` : `${code}: no reading`}>
-        {/* the dial and its scale */}
-        <path d={arc(cx, cy, R, 135, 405)} fill="none" stroke="var(--rule)" strokeWidth="10" strokeLinecap="round" />
-        {now && v > 0 && <path d={arc(cx, cy, R, 135, at)} fill="none" stroke={colour} strokeWidth="10" strokeLinecap="round" />}
-        {[0, 60, 120, 180, 240, 300, 360].map((k) => {
-          const a = 135 + (k / TOP) * 270;
-          const [x1, y1] = polar(cx, cy, R - 9, a);
-          const [x2, y2] = polar(cx, cy, R - 13, a);
-          const [tx, ty] = polar(cx, cy, R - 23, a);
-          return (
-            <g key={k}>
-              <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="var(--ink-faint)" strokeWidth="1.2" />
-              <text x={tx} y={ty} dy="0.35em" textAnchor="middle" fontSize="9" fontFamily="var(--font-mono)" fill="var(--ink-faint)">
-                {k}
-              </text>
-            </g>
-          );
-        })}
-        {/* the numbers: speed, then the gear */}
-        <text x={cx} y={cy - 4} textAnchor="middle" fontSize="32" fontWeight="800" fontFamily="var(--font-display)" fill={now ? "var(--ink)" : "var(--ink-faint)"}>
-          {now ? v : "—"}
-        </text>
-        <text x={cx} y={cy + 11} textAnchor="middle" fontSize="9" letterSpacing="1.2" fontFamily="var(--font-mono)" fill="var(--ink-soft)">
-          KM/H
-        </text>
-        <text x={cx} y={cy + 44} textAnchor="middle" fontSize="22" fontWeight="800" fontFamily="var(--font-display)" fill={now ? "var(--ink)" : "var(--ink-faint)"}>
-          {now ? now.gear || "N" : "—"}
-        </text>
-        <text x={cx} y={cy + 57} textAnchor="middle" fontSize="8" letterSpacing="1.2" fontFamily="var(--font-mono)" fill="var(--ink-soft)">
+    <svg viewBox="0 0 220 180" className="block w-full max-w-[17rem] mx-auto h-auto" role="img" aria-label={now ? `${code}: ${v} km/h, gear ${now.gear}, throttle ${thr}%${now.brake ? ", braking" : ""}` : `${code}: no reading`}>
+      <defs>
+        {/* the arcs' names run just outside them (clockwise, so the letters stand outwards) */}
+        <path id={`${id}-thr`} d={arc(cx, cy, r + 5, 152, 248)} />
+        <path id={`${id}-brk`} d={arc(cx, cy, r + 5, 292, 388)} />
+      </defs>
+      {/* the dial, its ticks and the scale outside it */}
+      <path d={arc(cx, cy, R, 135, 405)} fill="none" stroke="var(--rule)" strokeWidth="10" strokeLinecap="round" />
+      {now && v > 0 && <path d={arc(cx, cy, R, 135, at)} fill="none" stroke={colour} strokeWidth="10" strokeLinecap="round" />}
+      {[0, 60, 120, 180, 240, 300, 360].map((k) => {
+        const a = 135 + (k / TOP) * 270;
+        const [x1, y1] = polar(cx, cy, R + 7, a);
+        const [x2, y2] = polar(cx, cy, R + 11, a);
+        const [tx, ty] = polar(cx, cy, R + 22, a);
+        return (
+          <g key={k}>
+            <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="var(--ink-faint)" strokeWidth="1.2" />
+            <text x={tx} y={ty} dy="0.35em" textAnchor="middle" fontSize="9" fontFamily="var(--font-mono)" fill="var(--ink-faint)">
+              {k}
+            </text>
+          </g>
+        );
+      })}
+      {/* throttle (left) and brake (right) */}
+      <path d={arc(cx, cy, r, 150, 250)} fill="none" stroke="var(--rule)" strokeWidth="6" strokeLinecap="round" />
+      {thr > 0 && <path d={arc(cx, cy, r, 150, 150 + thr)} fill="none" stroke="var(--f1-personal)" strokeWidth="6" strokeLinecap="round" />}
+      <path d={arc(cx, cy, r, 290, 390)} fill="none" stroke={now?.brake ? "var(--down)" : "var(--rule)"} strokeWidth="6" strokeLinecap="round" />
+      <text fontSize="6.5" fontWeight="700" letterSpacing="1.4" fontFamily="var(--font-sans)" fill={thr > 0 ? "var(--f1-personal)" : "var(--ink-faint)"}>
+        <textPath href={`#${id}-thr`} startOffset="50%" textAnchor="middle">
+          THROTTLE
+        </textPath>
+      </text>
+      <text fontSize="6.5" fontWeight="700" letterSpacing="1.4" fontFamily="var(--font-sans)" fill={now?.brake ? "var(--down)" : "var(--ink-faint)"}>
+        <textPath href={`#${id}-brk`} startOffset="50%" textAnchor="middle">
+          BRAKE
+        </textPath>
+      </text>
+      {/* the numbers: speed, revs, then the gear below the arcs' ends */}
+      <text x={cx} y={cy - 8} textAnchor="middle" fontSize="32" fontWeight="800" fontFamily="var(--font-display)" fill={now ? "var(--ink)" : "var(--ink-faint)"}>
+        {now ? v : "—"}
+      </text>
+      <text x={cx} y={cy + 6} textAnchor="middle" fontSize="8.5" letterSpacing="1.2" fontFamily="var(--font-mono)" fill="var(--ink-soft)">
+        KM/H
+      </text>
+      <text x={cx} y={cy + 23} textAnchor="middle" fontSize="11" fontWeight="700" fontFamily="var(--font-mono)" fill={now ? "var(--ink)" : "var(--ink-faint)"}>
+        {now ? now.rpm.toLocaleString("en-GB") : "—"}
+        <tspan fontSize="7" fontWeight="400" fill="var(--ink-soft)">
+          {" "}
+          RPM
+        </tspan>
+      </text>
+      <g transform={`translate(${cx} ${cy + 50})`}>
+        <text x={-4} textAnchor="end" dy="0.35em" fontSize="8.5" letterSpacing="1.2" fontFamily="var(--font-mono)" fill="var(--ink-soft)">
           GEAR
         </text>
-      </svg>
-      <div className="grid grid-cols-3 gap-2.5 px-0.5 mt-1">
-        <Meter label="Throttle" value={thr} text={now ? `${thr}%` : "—"} colour="var(--f1-personal)" />
-        <Meter label="Brake" value={now?.brake ? 100 : 0} text={now ? (now.brake ? "On" : "Off") : "—"} colour="var(--down)" />
-        <Meter label="Revs" value={now ? (now.rpm / 13000) * 100 : 0} text={now ? `${(now.rpm / 1000).toFixed(1)}k` : "—"} colour={colour} />
-      </div>
-    </>
+        <text x={2} dy="0.36em" fontSize="18" fontWeight="800" fontFamily="var(--font-display)" fill={now ? "var(--ink)" : "var(--ink-faint)"}>
+          {now ? now.gear || "N" : "—"}
+        </text>
+      </g>
+    </svg>
   );
   return onOpen ? (
     <button type="button" onClick={onOpen} className="group block w-full rounded-2xl border hairline px-3 pt-3 pb-2 text-left hover:border-[color:var(--ink-faint)] transition-colors" title={`${code}'s telemetry in detail`}>
@@ -428,10 +440,10 @@ function Dial({ now, colour, code, onOpen, source }: { now: CarNow | null; colou
         <span className="group-hover:text-ink transition-colors">Detail →</span>
       </span>
       {body}
-      <span className="block text-center font-mono text-[10px] text-ink-faint truncate mt-2">{source}</span>
+      <span className="block text-center font-mono text-[10px] text-ink-faint truncate">{source}</span>
     </button>
   ) : (
-    <div>{body}</div>
+    body
   );
 }
 
