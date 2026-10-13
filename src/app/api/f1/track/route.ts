@@ -1,4 +1,4 @@
-import { getTrack, loopsFor, pitLaneFor, placeOn, sectorsFor } from "@/lib/live/f1-track";
+import { getTrack, loopsFor, pitLaneFor, placeOn, refineLane, sectorsFor } from "@/lib/live/f1-track";
 import { geoFor } from "@/lib/live/f1-geo";
 
 // GET /api/f1/track?key=61   a circuit as a vector model (lib/live/f1-track.ts).
@@ -12,5 +12,5 @@ export async function GET(req: Request) {
   const [model, sectors, loops, lane] = await Promise.all([getTrack(key).catch(() => null), sectorsFor(key), loopsFor(key).catch(() => null), pitLaneFor(key).catch(() => null)]);
   if (!model) return Response.json({ error: "unknown circuit" }, { status: 404, headers: { "Cache-Control": "no-store" } });
   const geo = await geoFor(model).catch(() => null);
-  return Response.json({ ...model, sectors: sectors ?? model.sectors ?? null, loops, pit: lane ? placeOn(model, lane) : null, geo }, { headers: { "Cache-Control": "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800" } });
+  return Response.json({ ...model, sectors: sectors ?? model.sectors ?? null, loops, pit: lane ? refineLane(model, lane.map((l) => placeOn(model, l))) : null, geo }, { headers: { "Cache-Control": "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800" } });
 }

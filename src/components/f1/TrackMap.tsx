@@ -40,7 +40,7 @@ export function useTrack(circuitKey: number | null | undefined): TrackModel | nu
     let live = true;
     let p = cache.get(circuitKey);
     if (!p) {
-      p = fetch(`/api/f1/track?key=${circuitKey}&v=7`)
+      p = fetch(`/api/f1/track?key=${circuitKey}&v=8`)
         .then((r) => (r.ok ? (r.json() as Promise<TrackModel>) : null))
         .catch(() => null);
       cache.set(circuitKey, p);
@@ -438,22 +438,29 @@ export default function TrackMap({
   };
   const startLabel = out(start.x, start.y, 60 * scale);
 
-  // The pit lane (traced from a real stop, entry to exit), and the cars in it
-  // now, spread along its middle where the garages are, in running order.
-  const lane = model.pit && model.pit.length > 1 ? model.pit : null;
-  const laneAt = (() => {
-    if (!lane) return null;
+  // The pit lane (traced from real stops, entry to exit), and the cars in it
+  // now, spread along its middle where the garages are, in running order. On
+  // this map the track is drawn far wider than it is, so the lane — often only
+  // a wall's width from it — is eased out just enough to show beside it, on
+  // its real side, peeling off at the entry and exit (the 3D view keeps it
+  // where it is).
+  const realLane = model.pit && model.pit.length > 1 ? model.pit : null;
+  const lane = useMemo(() => (realLane ? besideTrack(model.points, realLane, 26 * scale) : null), [realLane, model.points, scale]);
+  const along = (pts: [number, number][] | null) => {
+    if (!pts) return null;
     const run = [0];
-    for (let i = 1; i < lane.length; i++) run.push(run[i - 1] + Math.hypot(lane[i][0] - lane[i - 1][0], lane[i][1] - lane[i - 1][1]));
+    for (let i = 1; i < pts.length; i++) run.push(run[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
     const total = run[run.length - 1] || 1;
     return (f: number): [number, number] => {
       const d = f * total;
       let i = 1;
-      while (i < lane.length - 1 && run[i] < d) i++;
+      while (i < pts.length - 1 && run[i] < d) i++;
       const t = (d - run[i - 1]) / (run[i] - run[i - 1] || 1);
-      return [lane[i - 1][0] + (lane[i][0] - lane[i - 1][0]) * t, lane[i - 1][1] + (lane[i][1] - lane[i - 1][1]) * t];
+      return [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * t, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * t];
     };
-  })();
+  };
+  const laneAt = along(lane);
+  const realLaneAt = along(realLane);
   const pitted = laneAt && snap?.running ? snap.rows.filter((x) => x.inPit && !x.out && !(x.knockedOut && snap.type !== "Race")) : [];
 
   // The sectors, each its own colour along the track's edge and on its label.
@@ -465,7 +472,7 @@ export default function TrackMap({
   // the start line and the badges already placed included.
   const spots = useMemo(() => {
     const pts = model.points;
-    const lanePts = model.pit ?? [];
+    const lanePts = lane ?? [];
     const half = 14 * scale;
     const placed: { x: number; y: number; r: number }[] = [];
     const clearance = (px: number, py: number) => {
@@ -544,7 +551,7 @@ export default function TrackMap({
           ring: "var(--f1-pit)",
           mine: row.code === focus,
           label: (pitted.length <= 6 || row.code === focus) && showCode(row.code),
-          pit: laneAt!(pitted.length === 1 ? 0.5 : 0.25 + (0.5 * i) / (pitted.length - 1)),
+          pit: realLaneAt!(pitted.length === 1 ? 0.5 : 0.25 + (0.5 * i) / (pitted.length - 1)),
         })),
       ]
     : [];
@@ -815,6 +822,47 @@ export default function TrackMap({
       )}
     </div>
   );
+}
+
+/**
+ * A pit lane eased out from the track as drawn: any point closer to the
+ * racing line than `need` moves out to it, along the line from the track to
+ * the point (or the track's normal, on the lane's side, where the two
+ * nearly touch); the push fades in over the lane's first and last stretch,
+ * so it still leaves and joins the track where it really does.
+ */
+function besideTrack(track: [number, number][], lane: [number, number][], need: number): [number, number][] {
+  const near = lane.map(([x, y]) => {
+    let best = { d: Infinity, px: x, py: y, tx: 1, ty: 0 };
+    for (let i = 1; i < track.length; i++) {
+      const [ax, ay] = track[i - 1];
+      const [bx, by] = track[i];
+      const dx = bx - ax;
+      const dy = by - ay;
+      const len = dx * dx + dy * dy || 1;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / len));
+      const px = ax + dx * t;
+      const py = ay + dy * t;
+      const d = Math.hypot(x - px, y - py);
+      if (d < best.d) best = { d, px, py, tx: dx / Math.sqrt(len), ty: dy / Math.sqrt(len) };
+    }
+    return best;
+  });
+  // The lane's side of the track: the way most of it lies from its nearest track point.
+  const side = Math.sign(near.reduce((s, n, i) => s + (n.tx * (lane[i][1] - n.py) - n.ty * (lane[i][0] - n.px)), 0)) || 1;
+  const run = [0];
+  for (let i = 1; i < lane.length; i++) run.push(run[i - 1] + Math.hypot(lane[i][0] - lane[i - 1][0], lane[i][1] - lane[i - 1][1]));
+  const total = run[run.length - 1] || 1;
+  const taper = Math.min(total / 3, need * 3);
+  return lane.map(([x, y], i) => {
+    const n = near[i];
+    const w = Math.min(1, Math.min(run[i], total - run[i]) / taper);
+    const want = need * w * w * (3 - 2 * w);
+    if (n.d >= want) return [x, y];
+    // Out from the track: towards the point, or along the normal on the lane's side when it sits on the line.
+    const [ux, uy] = n.d > need * 0.15 ? [(x - n.px) / n.d, (y - n.py) / n.d] : [-n.ty * side, n.tx * side];
+    return [n.px + ux * want, n.py + uy * want];
+  });
 }
 
 /** A choice the reader made on the map, remembered on this device. */

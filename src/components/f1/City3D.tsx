@@ -19,6 +19,11 @@ import { findCover, type Structure } from "@/lib/f1-cover";
 // runs through — is dimmed until it comes out the other side. So is a car the
 // map draws a building over (a raised walkway mapped as a building, or a
 // tower between the camera and the track).
+//
+// Height: the ground is raised from Mapbox's terrain (a little exaggerated,
+// so a circuit's climbs show), and the track, the lane and the cars sit on
+// it. Under the map, the lap's profile — its height from the line round to
+// the line — with the followed car on it; hidden where a circuit is flat.
 // Loaded only when the reader picks 3D (and a token is set).
 
 export const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
@@ -113,6 +118,8 @@ export default function City3D({
   /** The track's points under a bridge or in a tunnel. */
   const coverRef = useRef<Uint8Array | null>(null);
   const [ready, setReady] = useState(false);
+  /** The lap's height, metres, sampled along it (null until read, or a flat circuit). */
+  const [profile, setProfile] = useState<{ f: number[]; h: number[] } | null>(null);
 
   useEffect(() => {
     carsRef.current = cars;
@@ -181,6 +188,9 @@ export default function City3D({
       });
       map.on("style.load", () => {
         if (!map) return;
+        // The ground's height (the lines and markers follow it).
+        map.addSource("dem", { type: "raster-dem", url: "mapbox://mapbox.mapbox-terrain-dem-v1", tileSize: 512, maxzoom: 14 });
+        map.setTerrain({ source: "dem", exaggeration: EXAGGERATE });
         const emissive = { "line-emissive-strength": 1 };
         map.addSource("track", { type: "geojson", data: line(geo, loop) });
         if (model.pit && model.pit.length > 1) {
@@ -205,7 +215,32 @@ export default function City3D({
       });
       let seen = -1;
       const trackLL = model.points.map(([x, y]) => toLngLat(geo, x, y));
+      // The lap's height, read once the terrain under the whole circuit has loaded.
+      let heights = false;
       map.on("idle", () => {
+        if (!heights && map) {
+          const step = Math.max(1, Math.floor(trackLL.length / 240));
+          const f: number[] = [];
+          const h: number[] = [];
+          for (let i = 0; i < trackLL.length; i += step) {
+            const e = map.queryTerrainElevation(trackLL[i], { exaggerated: false });
+            if (e === null || e === undefined) break;
+            f.push(model.fraction[i] ?? i / trackLL.length);
+            h.push(e);
+          }
+          if (h.length && f.length === Math.ceil(trackLL.length / step)) {
+            heights = true;
+            // The ground model is noisy in a city (a bridge, an embankment): a
+            // running median, then a running mean, round the loop, before the
+            // rise and fall is measured.
+            const n = h.length;
+            const at = (i: number) => h[((i % n) + n) % n];
+            const med = h.map((_, i) => [-4, -3, -2, -1, 0, 1, 2, 3, 4].map((k) => at(i + k)).sort((a, b) => a - b)[4]);
+            const smooth = med.map((_, i) => [-3, -2, -1, 0, 1, 2, 3].reduce((sum, k) => sum + med[((i + k) % n + n) % n], 0) / 7);
+            const range = Math.max(...smooth) - Math.min(...smooth);
+            setProfile(range >= FLAT ? { f, h: smooth } : null);
+          }
+        }
         if (!map?.getSource("streets")) return;
         const found = map.querySourceFeatures("streets", { sourceLayer: "road" });
         if (found.length === seen) return;
@@ -384,6 +419,62 @@ export default function City3D({
   return (
     <div ref={frame} className="absolute inset-0 rounded-xl overflow-hidden bg-[#0b0e17]">
       <div ref={box} />
+      {profile && <Profile profile={profile} spots={spots} follow={follow} />}
+    </div>
+  );
+}
+
+/** How much the ground is raised (×), and the least rise and fall worth a profile (metres). */
+const EXAGGERATE = 1.5;
+const FLAT = 8;
+
+/** The lap's height from the line round to the line, with the followed car on it. */
+function Profile({ profile, spots, follow }: { profile: { f: number[]; h: number[] }; spots: React.RefObject<Map<string, [number, number, number]>>; follow: React.RefObject<string | null> }) {
+  const dot = useRef<SVGCircleElement>(null);
+  const W = 240;
+  const H = 46;
+  const lo = Math.min(...profile.h);
+  const hi = Math.max(...profile.h);
+  const span = hi - lo || 1;
+  const x = (f: number) => 4 + f * (W - 8);
+  const y = (h: number) => 6 + (1 - (h - lo) / span) * (H - 14);
+  const pts = profile.f.map((f, i) => `${x(f).toFixed(1)},${y(profile.h[i]).toFixed(1)}`);
+  const heightAt = (f: number) => {
+    let i = 0;
+    while (i < profile.f.length - 1 && profile.f[i + 1] <= f) i++;
+    return profile.h[i];
+  };
+  // The followed car, every frame.
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      const code = follow.current;
+      const at = code ? spots.current.get(code) : undefined;
+      const el = dot.current;
+      if (el) {
+        if (at) {
+          el.setAttribute("cx", x(at[2] % 1).toFixed(1));
+          el.setAttribute("cy", y(heightAt(at[2] % 1)).toFixed(1));
+          el.style.opacity = "1";
+        } else el.style.opacity = "0";
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile, spots, follow]);
+  return (
+    <div className="absolute left-10 bottom-8 w-[min(15rem,52%)] rounded-lg bg-[rgba(11,14,23,0.78)] border border-white/10 px-2 pt-1 pb-0.5 pointer-events-none" aria-label={`Height round the lap: ${Math.round(span)} m from lowest to highest`}>
+      <div className="flex justify-between font-mono text-[9px] text-white/60">
+        <span>Height</span>
+        <span>{Math.round(span)} m rise and fall</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="block w-full h-auto">
+        <polygon points={`${x(profile.f[0])},${H - 6} ${pts.join(" ")} ${x(profile.f[profile.f.length - 1])},${H - 6}`} fill="rgba(140,170,255,0.16)" />
+        <polyline points={pts.join(" ")} fill="none" stroke="#9fb4ff" strokeWidth="1.4" strokeLinejoin="round" />
+        <circle ref={dot} r="3.2" fill="#fff" stroke="#0b0e17" strokeWidth="1.2" style={{ opacity: 0 }} />
+      </svg>
     </div>
   );
 }

@@ -385,12 +385,16 @@ export async function loopsFor(circuitKey: number): Promise<number[] | null> {
 // ---- the pit lane ------------------------------------------------------------
 // No circuit file has the pit lane, but every race drives it: F1's archive
 // says when each car crossed the pit entry (InPit) and the exit (PitOut), and
-// records where every car is a few times a second. One ordinary stop, traced
-// between the two (a few seconds either side, so it meets the track), is the
-// lane. Traced once per circuit from its latest race and kept four months.
+// records where every car is a few times a second. A few ordinary stops by
+// different cars, each traced between the two (a few seconds either side, so
+// it meets the track), are kept; refineLane picks the most typical one, cuts
+// it where it leaves and rejoins the track, and smooths it. Traced once per
+// circuit from its latest race and kept four months.
 
-const pitKey = (circuitKey: number) => `f1:track:pit:v1:${circuitKey}`;
+const pitKey = (circuitKey: number) => `f1:track:pit:v2:${circuitKey}`;
 type Lane = { x: number[]; y: number[] };
+/** Stops traced per circuit (different cars, the race's first ordinary ones). */
+const TRACES = 5;
 
 /** A stream's lines as they arrive, so a long one can be left once the part wanted has passed. */
 async function* streamLines(url: string): AsyncGenerator<string> {
@@ -414,8 +418,8 @@ async function* streamLines(url: string): AsyncGenerator<string> {
   }
 }
 
-/** The pit lane in F1's coordinates, traced from one stop in a race. */
-export async function measurePitLane(path: string): Promise<Lane | null> {
+/** The pit lane in F1's coordinates, traced from a few ordinary stops in a race (one trace each). */
+export async function measurePitLane(path: string): Promise<Lane[] | null> {
   const stream = await text(`${STATIC}/${path}TimingData.jsonStream`);
   if (!stream) return null;
   const open = new Map<string, number>();
@@ -437,24 +441,29 @@ export async function measurePitLane(path: string): Promise<Lane | null> {
       }
     }
   }
-  // An ordinary stop: the first whose time in the lane is near the race's usual.
+  // Ordinary stops (time in the lane near the race's usual), the first few, each by a different car.
   const times = stops.map((s) => s.b - s.a).sort((x, y) => x - y);
   if (times.length < 3) return null;
   const usual = times[Math.floor(times.length / 2)];
-  const stop = stops.find((s) => Math.abs(s.b - s.a - usual) < usual * 0.12);
-  if (!stop) return null;
-  const from = stop.a - 3000;
-  const to = stop.b + 3000;
+  const cars = new Set<string>();
+  const picked: { no: string; from: number; to: number; xs: number[]; ys: number[] }[] = [];
+  for (const s of stops) {
+    if (picked.length >= TRACES) break;
+    if (Math.abs(s.b - s.a - usual) >= usual * 0.12 || cars.has(s.no)) continue;
+    cars.add(s.no);
+    picked.push({ no: s.no, from: s.a - 3000, to: s.b + 3000, xs: [], ys: [] });
+  }
+  if (!picked.length) return null;
+  const first = Math.min(...picked.map((s) => s.from));
+  const last = Math.max(...picked.map((s) => s.to));
 
-  const xs: number[] = [];
-  const ys: number[] = [];
   let offset: number | null = null;
   for await (const raw of streamLines(`${STATIC}/${path}Position.z.jsonStream`)) {
     const m = /^(\d{2}:\d{2}:\d{2}\.\d{3})"(.*)"$/.exec(raw.replace(/^﻿/, ""));
     if (!m) continue;
     const rel = stampOf(m[1]);
-    if (offset !== null && rel < from - 5000) continue;
-    if (rel > to + 5000) break;
+    if (offset !== null && rel < first - 5000) continue;
+    if (rel > last + 5000) break;
     let batch: { Position: { Timestamp: string; Entries: Record<string, { X: number; Y: number }> }[] };
     try {
       batch = JSON.parse(inflateRawSync(Buffer.from(m[2], "base64")).toString());
@@ -465,24 +474,27 @@ export async function measurePitLane(path: string): Promise<Lane | null> {
       const abs = Date.parse(b.Timestamp);
       offset ??= abs - rel;
       const t = abs - offset;
-      const e = b.Entries[stop.no];
-      if (t < from || t > to || !e || (e.X === 0 && e.Y === 0)) continue;
-      // Standing in the box: one point is enough.
-      if (xs.length && Math.hypot(e.X - xs[xs.length - 1], e.Y - ys[ys.length - 1]) < 5) continue;
-      xs.push(e.X);
-      ys.push(e.Y);
+      for (const s of picked) {
+        const e = b.Entries[s.no];
+        if (t < s.from || t > s.to || !e || (e.X === 0 && e.Y === 0)) continue;
+        // Standing in the box: one point is enough.
+        if (s.xs.length && Math.hypot(e.X - s.xs[s.xs.length - 1], e.Y - s.ys[s.ys.length - 1]) < 5) continue;
+        s.xs.push(e.X);
+        s.ys.push(e.Y);
+      }
     }
   }
-  return xs.length >= 10 ? { x: xs, y: ys } : null;
+  const lanes = picked.filter((s) => s.xs.length >= 10).map((s) => ({ x: s.xs, y: s.ys }));
+  return lanes.length ? lanes : null;
 }
 
-/** The pit lane at this circuit in F1's coordinates, measured once and kept. */
-export async function pitLaneFor(circuitKey: number): Promise<Lane | null> {
+/** The pit lane's traces at this circuit in F1's coordinates, measured once and kept. */
+export async function pitLaneFor(circuitKey: number): Promise<Lane[] | null> {
   const store = getStore();
-  const kept = await store.get<Lane | "none">(pitKey(circuitKey)).catch(() => null);
+  const kept = await store.get<Lane[] | "none">(pitKey(circuitKey)).catch(() => null);
   if (kept) return kept === "none" ? null : kept;
   if (!(await store.setIfAbsent(`${pitKey(circuitKey)}:lock`, 1, 120).catch(() => true))) return null;
-  let found: Lane | null = null;
+  let found: Lane[] | null = null;
   for (const { path } of (await sessionsAt(circuitKey)).filter((s) => /_(Race|Sprint)\/$/.test(s.path)).slice(0, 2)) {
     found = await measurePitLane(path).catch(() => null);
     if (found) break;
@@ -492,7 +504,70 @@ export async function pitLaneFor(circuitKey: number): Promise<Lane | null> {
   return found;
 }
 
-/** F1 coordinates onto a model's box (the same turn and scale as its outline). */
+/** The nearest point of the outline to (x, y), and how far it is. */
+function nearestOnTrack(pts: [number, number][], x: number, y: number): { d: number; px: number; py: number } {
+  let best = { d: Infinity, px: x, py: y };
+  for (let i = 1; i < pts.length; i++) {
+    const [ax, ay] = pts[i - 1];
+    const [bx, by] = pts[i];
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len = dx * dx + dy * dy || 1;
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / len));
+    const px = ax + dx * t;
+    const py = ay + dy * t;
+    const d = Math.hypot(x - px, y - py);
+    if (d < best.d) best = { d, px, py };
+  }
+  return best;
+}
+
+/**
+ * The pit lane as drawn, from its traces in the model's box: each trace cut
+ * to where it runs off the racing line (its longest stretch more than a few
+ * metres from it), its two ends put on the track where it leaves and rejoins;
+ * then the most typical of them (closest to the others) is kept and smoothed.
+ */
+export function refineLane(model: TrackModel, traces: ([number, number][] | null)[]): [number, number][] | null {
+  const k = model.frame?.k ?? 0;
+  if (!k) return null;
+  const off = 6 * 10 * k; // six metres (F1's coordinates are tenths of a metre)
+  const cut: [number, number][][] = [];
+  for (const t of traces) {
+    if (!t || t.length < 10) continue;
+    const near = t.map(([x, y]) => nearestOnTrack(model.points, x, y));
+    // The longest run of points off the racing line.
+    let best: [number, number] = [0, -1];
+    let from = -1;
+    near.forEach((n, i) => {
+      if (n.d > off) {
+        if (from < 0) from = i;
+        if (i - from > best[1] - best[0]) best = [from, i];
+      } else from = -1;
+    });
+    if (best[1] - best[0] < 4) continue;
+    const a = Math.max(0, best[0] - 1);
+    const b = Math.min(t.length - 1, best[1] + 1);
+    const line = t.slice(a, b + 1);
+    // The ends on the track, where the lane leaves it and joins it again.
+    line[0] = [near[a].px, near[a].py];
+    line[line.length - 1] = [near[b].px, near[b].py];
+    cut.push(line);
+  }
+  if (!cut.length) return null;
+  // The most typical: the smallest mean distance from its points to each other trace.
+  const gap = (t: [number, number][], o: [number, number][]) => t.reduce((s, [x, y]) => s + Math.min(...o.map(([ox, oy]) => Math.hypot(ox - x, oy - y))), 0) / t.length;
+  const score = (t: [number, number][]) => cut.reduce((sum, o) => (o === t ? sum : sum + gap(t, o)), 0);
+  const pick = cut.reduce((a, b) => (score(b) < score(a) ? b : a));
+  // Smoothed (the ends stay where they meet the track).
+  return pick.map(([x, y], i) => {
+    if (i === 0 || i === pick.length - 1) return [Math.round(x * 10) / 10, Math.round(y * 10) / 10];
+    const [px, py] = pick[i - 1];
+    const [nx, ny] = pick[i + 1];
+    return [Math.round(((px + 2 * x + nx) / 4) * 10) / 10, Math.round(((py + 2 * y + ny) / 4) * 10) / 10];
+  });
+}
+
 export function placeOn(model: TrackModel, lane: Lane): [number, number][] | null {
   const f = model.frame;
   if (!f) return null;
