@@ -371,7 +371,35 @@ export async function getIpoBoard(): Promise<IpoEntry[]> {
         await store.set(GMP_KEY(e.id), history, { ttlSeconds: 60 * 86_400 }).catch(() => {});
       }),
   ]);
+  // An issue taking bids that the GMP table hasn't caught up with (its first
+  // day, often): NSE's own running total, so its temperature still shows. Filled
+  // after the board is stored, so a stale figure is never kept.
+  await Promise.all(
+    out
+      .filter((e) => e.stage === "open" && !e.subscription && e.symbol)
+      .map(async (e) => {
+        const total = await nseTotal(e.symbol!);
+        if (total !== null) e.subscription = `${total >= 10 ? total.toFixed(1) : total.toFixed(2)}x`;
+      }),
+  );
   return out;
+}
+
+/** NSE's running subscription for an issue (all categories together), or null. */
+async function nseTotal(symbol: string): Promise<number | null> {
+  try {
+    const res = await fetch(`https://www.nseindia.com/api/ipo-detail?symbol=${encodeURIComponent(symbol)}&series=EQ`, {
+      headers: NSE_HEADERS,
+      next: { revalidate: 300 },
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!res.ok) return null;
+    const d = (await res.json()) as NseDetail;
+    const row = d.bidDetails?.find((r) => /^Total$/i.test(r.category ?? ""));
+    return num(String(row?.noOfTime ?? ""));
+  } catch {
+    return null;
+  }
 }
 
 // ---- one IPO in full -------------------------------------------------------------
