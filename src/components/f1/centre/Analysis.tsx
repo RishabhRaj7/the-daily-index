@@ -5,7 +5,7 @@ import type { LiveSnapshot, LiveStats, LiveStints } from "@/lib/f1-live-types";
 import { deletedLaps, stewardsCases, type StewardsCase } from "@/lib/f1-race-control";
 import TyreIcon, { TYRE } from "../TyreIcon";
 import RaceStory from "../RaceStory";
-import { LapAxis, StintLine } from "../Stints";
+import { LapAxis, StintKey, StintLine } from "../Stints";
 import { TeamGlyph } from "../LiveTiming";
 import { Empty, Panel, Seg, clock } from "./ui";
 
@@ -40,26 +40,21 @@ function Strategy({ stints, total, highlight, running }: { stints: LiveStints[];
         <span />
         <LapAxis total={scale} />
       </div>
-      <div className="space-y-1.5 mt-2">
+      <div className="space-y-2 mt-2">
         {stints.map((d, row) => (
-          <div key={d.code} className={`grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-3 pt-2 ${highlight.size && !highlight.has(d.code) ? "opacity-80" : ""}`}>
+          <div key={d.code} className={`grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-3 ${highlight.size && !highlight.has(d.code) ? "opacity-80" : ""}`}>
             <span className="flex items-center gap-1.5 font-sans font-bold text-[11.5px]">
               <span className="w-[3px] h-3 rounded-full" style={{ background: d.colour }} />
               {d.code}
             </span>
-            <span className="pr-3">
+            <span>
               <StintLine stints={d.stints} total={scale} running={running} delay={row * 22} />
             </span>
           </div>
         ))}
       </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-2 pt-4 mt-4 border-t hairline font-mono text-[10px] text-ink-soft">
-        {(["SOFT", "MEDIUM", "HARD", "INTERMEDIATE", "WET"] as const).map((c) => (
-          <span key={c} className="flex items-center gap-1.5">
-            <TyreIcon compound={c} size={13} /> {TYRE[c].name}
-          </span>
-        ))}
-        <span className="text-ink-faint">Dashed: a used set · the number along a stint: its laps · the dot: laps on the set now</span>
+      <div className="pt-4 mt-4 border-t hairline">
+        <StintKey />
       </div>
     </>
   );

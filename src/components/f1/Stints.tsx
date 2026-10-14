@@ -1,12 +1,12 @@
 "use client";
 
 import type { LiveStints } from "@/lib/f1-live-types";
-import TyreIcon, { TYRE } from "./TyreIcon";
+import { TYRE } from "./TyreIcon";
 
-// A car's race in tyres, on a lap scale: each stint a line in its compound's
-// colour (dashed for a used set), the tyre where it was fitted, how many laps
-// it ran along it, and at the end of the current one a dot with the laps on
-// the set now. The rest of the race is a faint track ahead. Used for the whole
+// A car's race in tyres, on a lap scale: each stint a solid bar in its
+// compound's colour with the compound and its laps inside ("M 12"; striped
+// for a used set), a hairline gap where it stopped, the set it's on now
+// ringed, and the rest of the race a faint rail ahead. Used for the whole
 // field (Analysis → Tyres) and for the followed driver (the card under the map).
 
 type Stint = LiveStints["stints"][number];
@@ -26,51 +26,63 @@ export function LapAxis({ total }: { total: number }) {
   );
 }
 
-export function StintLine({ stints, total, running = true, delay = 0 }: { stints: Stint[]; total: number; running?: boolean; delay?: number }) {
+export function StintLine({ stints, total, running = true, delay = 0, size = "md" }: { stints: Stint[]; total: number; running?: boolean; delay?: number; size?: "sm" | "md" }) {
   const scale = Math.max(1, total, stints.reduce((n, s) => n + s.laps, 0));
   const parts = stints.reduce<{ s: Stint; from: number; to: number }[]>((acc, s) => {
     const from = acc.at(-1)?.to ?? 0;
     return [...acc, { s, from, to: from + Math.max(s.laps, 0.5) }];
   }, []);
-  const last = parts.at(-1);
   const pct = (l: number) => `${(l / scale) * 100}%`;
+  const h = size === "sm" ? "h-[16px]" : "h-[18px]";
   return (
-    <div className="relative h-6" role="img" aria-label={stints.map((s) => `${TYRE[s.compound].name}${s.fresh ? "" : " (used)"} ${s.laps} laps`).join(", then ")}>
-      {/* the race ahead */}
-      <span className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-[3px] rounded-full bg-[var(--rule)]" />
+    <div className={`relative ${h}`} role="img" aria-label={stints.map((s) => `${TYRE[s.compound].name}${s.fresh ? "" : " (used)"} ${s.laps} laps`).join(", then ")}>
+      {/* the race ahead: a faint rail */}
+      <span className="absolute inset-0 rounded-[5px] bg-[var(--rule)] opacity-60" />
       {parts.map(({ s, from, to }, i) => {
         const t = TYRE[s.compound];
+        const share = (to - from) / scale;
+        const current = running && i === parts.length - 1;
         return (
-          <span key={i} className="stint-in absolute top-1/2 -translate-y-1/2" style={{ left: pct(from), width: `calc(${pct(to - from)} - 2px)`, animationDelay: `${delay + i * 60}ms` }}>
-            <span
-              className="block h-[4px] rounded-full"
-              style={s.fresh ? { background: t.colour } : { background: `repeating-linear-gradient(90deg, ${t.colour} 0 6px, transparent 6px 9px)` }}
-            />
-            {/* laps on the stint, along it */}
-            {to - from >= scale * 0.07 && (
-              <span className="absolute left-1/2 -translate-x-1/2 -top-[13px] font-mono text-[10px] tabular-nums" style={{ color: t.colour }}>
-                {s.laps}
-              </span>
-            )}
+          <span
+            key={i}
+            className="stint-in absolute inset-y-0 rounded-[5px] flex items-center justify-center overflow-hidden"
+            style={{
+              left: `calc(${pct(from)} + ${i ? 1 : 0}px)`,
+              width: `calc(${pct(to - from)} - ${i ? 2 : 1}px)`,
+              animationDelay: `${delay + i * 60}ms`,
+              // A used set: the same colour, softly striped (two close shades, so its label still reads).
+              background: s.fresh ? t.colour : `repeating-linear-gradient(135deg, ${t.colour} 0 5px, color-mix(in srgb, ${t.colour} 68%, var(--card-bg)) 5px 9px)`,
+              color: t.ink,
+              boxShadow: current ? `0 0 0 1.5px var(--card-bg), 0 0 0 2.5px color-mix(in srgb, ${t.colour} 55%, transparent)` : undefined,
+            }}
+            title={`${t.name}${s.fresh ? ", new" : ", used"} · ${s.laps} lap${s.laps === 1 ? "" : "s"}${current ? " so far" : ""}`}
+          >
+            {/* the compound and its laps, where there's room ("M 12", else "12") */}
+            <span className="font-mono font-bold text-[10px] leading-none tabular-nums whitespace-nowrap px-1">
+              <span className={share >= 0.1 ? "" : "hidden"}>{t.letter} </span>
+              <span className={share >= 0.045 ? "" : "hidden"}>{s.laps}</span>
+            </span>
           </span>
         );
       })}
-      {/* where each set went on */}
-      {parts.map(({ s, from }, i) => (
-        <span key={`t${i}`} className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full bg-[var(--card-bg)] leading-none" style={{ left: pct(from) }} title={`${TYRE[s.compound].name}${s.fresh ? ", new" : ", used"}`}>
-          <TyreIcon compound={s.compound} fresh={s.fresh} size={15} />
+    </div>
+  );
+}
+
+/** The compounds as swatches, and what a striped bar means. */
+export function StintKey() {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 font-mono text-[10px] text-ink-soft">
+      {(["SOFT", "MEDIUM", "HARD", "INTERMEDIATE", "WET"] as const).map((c) => (
+        <span key={c} className="flex items-center gap-1.5">
+          <span className="w-4 h-2.5 rounded-[3px]" style={{ background: TYRE[c].colour }} />
+          {TYRE[c].name}
         </span>
       ))}
-      {/* now: laps on the current set */}
-      {last && running && (
-        <span
-          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 min-w-[18px] h-[18px] px-1 rounded-full grid place-items-center font-mono text-[10.5px] font-bold"
-          style={{ left: pct(last.to), background: TYRE[last.s.compound].colour, color: "#111" }}
-          title={`${last.s.laps} laps on this set`}
-        >
-          {last.s.laps}
-        </span>
-      )}
+      <span className="flex items-center gap-1.5 text-ink-faint">
+        <span className="w-4 h-2.5 rounded-[3px]" style={{ background: `repeating-linear-gradient(135deg, var(--ink-soft) 0 3px, transparent 3px 5px)` }} />
+        A used set · the gap between bars: a stop · ringed: on it now
+      </span>
     </div>
   );
 }

@@ -347,8 +347,8 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
             <span className="flex items-center gap-1.5 min-w-0">
               Tyres
               {stints.some((x) => !x.fresh) && (
-                <span className="flex items-center gap-1" title="A dashed stint ran on a used set; a solid one on new tyres">
-                  <span className="inline-block w-3 h-[2px]" style={{ background: "repeating-linear-gradient(90deg, currentColor 0 3px, transparent 3px 5px)" }} /> used
+                <span className="flex items-center gap-1" title="A striped stint ran on a used set; a solid one on new tyres">
+                  <span className="inline-block w-3.5 h-2 rounded-[2px]" style={{ background: "repeating-linear-gradient(135deg, currentColor 0 2px, transparent 2px 4px)" }} /> used
                 </span>
               )}
             </span>
@@ -358,8 +358,8 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
             </span>
           </div>
           {stints.length > 0 ? (
-            <div className="pt-3 pr-2">
-              <StintLine stints={stints} total={total} running={snap.running} />
+            <div className="pt-2.5">
+              <StintLine stints={stints} total={total} running={snap.running} size="sm" />
             </div>
           ) : (
             <div className="font-mono text-[10.5px] text-ink-faint mt-2">—</div>
