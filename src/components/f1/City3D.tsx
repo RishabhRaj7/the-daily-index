@@ -87,6 +87,7 @@ export default function City3D({
   api,
   big,
   turn,
+  terrain = true,
 }: {
   model: TrackModel;
   geo: TrackGeo;
@@ -104,6 +105,8 @@ export default function City3D({
   big: boolean;
   /** The basic map's turn (degrees clockwise), for the first view. */
   turn: number;
+  /** The ground raised (hills and dips) or flat. */
+  terrain?: boolean;
 }) {
   const frame = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLDivElement>(null);
@@ -115,6 +118,7 @@ export default function City3D({
   const focusRef = useRef(onFocus);
   const leaveRef = useRef(onLeaveFollow);
   const turnRef = useRef(turn);
+  const terrainRef = useRef(terrain);
   /** The track's points under a bridge or in a tunnel. */
   const coverRef = useRef<Uint8Array | null>(null);
   const [ready, setReady] = useState(false);
@@ -190,7 +194,7 @@ export default function City3D({
         if (!map) return;
         // The ground's height (the lines and markers follow it).
         map.addSource("dem", { type: "raster-dem", url: "mapbox://mapbox.mapbox-terrain-dem-v1", tileSize: 512, maxzoom: 14 });
-        map.setTerrain({ source: "dem", exaggeration: EXAGGERATE });
+        if (terrainRef.current) map.setTerrain({ source: "dem", exaggeration: EXAGGERATE });
         const emissive = { "line-emissive-strength": 1 };
         map.addSource("track", { type: "geojson", data: line(geo, loop) });
         if (model.pit && model.pit.length > 1) {
@@ -296,6 +300,14 @@ export default function City3D({
       map?.remove();
     };
   }, [model, geo, api, big, spots]);
+
+  // Terrain on or off (the reader's choice), without rebuilding the map.
+  useEffect(() => {
+    terrainRef.current = terrain;
+    const map = mapRef.current;
+    if (!ready || !map) return;
+    map.setTerrain(terrain ? { source: "dem", exaggeration: EXAGGERATE } : null);
+  }, [terrain, ready]);
 
   // The sector-coloured edges.
   useEffect(() => {
@@ -421,7 +433,7 @@ export default function City3D({
   return (
     <div ref={frame} className="absolute inset-0 rounded-xl overflow-hidden bg-[#0b0e17]">
       <div ref={box} />
-      {profile && <Profile profile={profile} spots={spots} follow={follow} />}
+      {profile && terrain && <Profile profile={profile} spots={spots} follow={follow} />}
     </div>
   );
 }

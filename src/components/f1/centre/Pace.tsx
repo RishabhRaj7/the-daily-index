@@ -64,57 +64,57 @@ function stintOf(snap: LiveSnapshot, r: LiveRow): Stint | null {
 
 function StintCell({ title, row, s }: { title: string; row: LiveRow | null; s: Stint | null }) {
   return (
-    <div className="px-3 py-2 min-w-0">
-      <div className="font-label text-[9px] text-ink-faint flex items-center gap-1.5 whitespace-nowrap">
-        {title}
+    <div className="px-3 py-2 min-w-0 overflow-hidden">
+      <div className="font-label text-[9px] text-ink-faint flex items-center gap-1.5 whitespace-nowrap overflow-hidden">
+        <span className="shrink-0">{title}</span>
         {row && (
           <>
             <span className="w-[3px] h-2.5 rounded-full shrink-0" style={{ background: row.colour }} />
-            <span className="text-ink-soft">{row.code}</span>
+            <span className="text-ink-soft truncate">{row.code}</span>
           </>
         )}
       </div>
       <div className="font-mono text-[13px] font-semibold tabular-nums mt-1 truncate">{s ? fmt(s.avg) : "—"}</div>
-      {s && (
-        <div
-          className="font-mono text-[10px] tabular-nums mt-0.5 whitespace-nowrap"
-          style={{ color: s.trend === null || Math.abs(s.trend) < 0.02 ? "var(--ink-soft)" : s.trend > 0 ? "var(--down)" : "var(--up)" }}
-          title={`Average of ${s.laps.length} clean laps on this set${s.trend !== null ? `; ${s.trend > 0 ? "slower" : "quicker"} by ${Math.abs(s.trend).toFixed(2)} s a lap` : ""}`}
-        >
-          {s.trend === null ? `${s.laps.length} laps` : `${s.trend >= 0 ? "+" : "−"}${Math.abs(s.trend).toFixed(2)}/lap · ${s.laps.length}`}
-        </div>
-      )}
+      <div
+        className="font-mono text-[10px] tabular-nums mt-0.5 truncate"
+        style={{ color: !s || s.trend === null || Math.abs(s.trend) < 0.02 ? "var(--ink-soft)" : s.trend > 0 ? "var(--down)" : "var(--up)" }}
+        title={s ? `Average of ${s.laps.length} clean laps on this set${s.trend !== null ? `; ${s.trend > 0 ? "slower" : "quicker"} by ${Math.abs(s.trend).toFixed(2)} s a lap` : ""}` : "Not enough clean laps on this set yet"}
+      >
+        {!s ? "—" : s.trend === null ? `${s.laps.length} laps` : `${s.trend >= 0 ? "+" : "−"}${Math.abs(s.trend).toFixed(2)}/lap · ${s.laps.length}`}
+      </div>
     </div>
   );
 }
 
-/** The followed driver's pace on this set, their last laps against the car ahead, and the undercut. */
-export default function Pace({ snap, row }: { snap: LiveSnapshot; row: LiveRow }) {
-  if (!snap.lapTimes || !snap.running || row.out) return null;
+/**
+ * The followed driver's pace on this set, their last laps against the car
+ * ahead, and the undercut. Every part is always there (dashes where there's
+ * nothing yet), so the card never changes shape.
+ */
+export default function Pace({ snap, row, className = "" }: { snap: LiveSnapshot; row: LiveRow; className?: string }) {
+  const on = !!snap.lapTimes && snap.running && !row.out;
   const race = snap.type === "Race";
   const byPos = new Map(snap.rows.map((r) => [r.position, r]));
-  const ahead = race ? (byPos.get(row.position - 1) ?? null) : null;
-  const behindRow = race ? (byPos.get(row.position + 1) ?? null) : null;
+  const ahead = on && race ? (byPos.get(row.position - 1) ?? null) : null;
+  const behindRow = on && race ? (byPos.get(row.position + 1) ?? null) : null;
   const behind = behindRow && !behindRow.out ? behindRow : null;
-  const mine = stintOf(snap, row);
-  if (!mine && !race) return null;
+  const mine = on ? stintOf(snap, row) : null;
 
-  // The last five laps against the car ahead.
-  const times = snap.lapTimes.times;
-  const neutral = new Set(snap.lapTimes.neutral);
-  const last = ahead
-    ? Array.from({ length: 5 }, (_, i) => row.laps - 4 + i)
-        .filter((lap) => lap >= 1)
-        .map((lap) => ({
+  // The last five laps against the car ahead (five places, filled as far as known).
+  const times = snap.lapTimes?.times ?? {};
+  const neutral = new Set(snap.lapTimes?.neutral ?? []);
+  const last = Array.from({ length: 5 }, (_, i) => row.laps - 4 + i).map((lap) =>
+    ahead && lap >= 1
+      ? {
           lap,
           me: times[row.code]?.[lap - 1] ?? null,
           them: times[ahead.code]?.[lap - 1] ?? null,
           sc: neutral.has(lap),
           // An in-lap or out-lap for either car: its time says nothing about pace.
           pit: (snap.pitStops ?? []).some((p) => (p.code === row.code || p.code === ahead.code) && (p.lap === lap || p.lap + 1 === lap)),
-        }))
-    : [];
-  const showLast = last.some((l) => l.me !== null && l.them !== null);
+        }
+      : { lap: lap >= 1 ? lap : null, me: null, them: null, sc: false, pit: false },
+  );
 
   // The undercut, if the car behind stopped now.
   const gap = behind ? Number(/^\+?(\d+(?:\.\d+)?)$/.exec(behind.interval.trim())?.[1] ?? NaN) : NaN;
@@ -129,42 +129,38 @@ export default function Pace({ snap, row }: { snap: LiveSnapshot; row: LiveRow }
   }
 
   return (
-    <div className="rounded-xl border hairline">
-      <div className={`grid ${race ? "grid-cols-3" : "grid-cols-1"} divide-x divide-[var(--rule)]`}>
-        <StintCell title={race ? "Stint pace" : "Long-run pace"} row={race ? row : null} s={mine} />
-        {race && <StintCell title="Ahead" row={ahead} s={ahead ? stintOf(snap, ahead) : null} />}
-        {race && <StintCell title="Behind" row={behind} s={behind ? stintOf(snap, behind) : null} />}
+    <div className={`rounded-xl border hairline flex flex-col overflow-hidden ${className}`}>
+      <div className="grid grid-cols-3 divide-x divide-[var(--rule)]">
+        <StintCell title={race ? "Stint" : "Long run"} row={row} s={mine} />
+        <StintCell title="Ahead" row={ahead} s={ahead ? stintOf(snap, ahead) : null} />
+        <StintCell title="Behind" row={behind} s={behind ? stintOf(snap, behind) : null} />
       </div>
-      {showLast && ahead && (
-        <div className="border-t hairline px-3 py-2">
-          <div className="font-label text-[9px] text-ink-faint">Last laps against {ahead.code}</div>
-          <div className="grid grid-cols-5 gap-1.5 mt-1">
-            {last.map((l) => {
-              const d = l.me !== null && l.them !== null && !l.pit ? l.me - l.them : null;
-              return (
-                <div key={l.lap} className="min-w-0 text-center" title={l.me !== null && l.them !== null ? `Lap ${l.lap}: ${row.code} ${fmt(l.me)}, ${ahead.code} ${fmt(l.them)}` : `Lap ${l.lap}`}>
-                  <div className="font-mono text-[9px] text-ink-faint">L{l.lap}{l.sc ? " SC" : ""}</div>
-                  <div className="font-mono text-[10.5px] tabular-nums truncate">{l.me !== null ? fmt(l.me).replace(/^1:/, "") : "—"}</div>
-                  <div className="font-mono text-[10px] font-semibold tabular-nums" style={{ color: d === null || Math.abs(d) < 0.05 ? "var(--ink-soft)" : d < 0 ? "var(--up)" : "var(--down)" }}>
-                    {l.pit ? "pit" : d === null ? "—" : `${d < 0 ? "−" : "+"}${Math.abs(d).toFixed(2)}`}
-                  </div>
+      <div className="border-t hairline px-3 py-2 shrink-0">
+        <div className="font-label text-[9px] text-ink-faint truncate">Last laps against {ahead?.code ?? "the car ahead"}</div>
+        <div className="grid grid-cols-5 gap-1.5 mt-1">
+          {last.map((l, i) => {
+            const d = l.me !== null && l.them !== null && !l.pit ? l.me - l.them : null;
+            return (
+              <div key={i} className="min-w-0 text-center" title={l.me !== null && l.them !== null && ahead ? `Lap ${l.lap}: ${row.code} ${fmt(l.me)}, ${ahead.code} ${fmt(l.them)}` : l.lap ? `Lap ${l.lap}` : ""}>
+                <div className="font-mono text-[9px] text-ink-faint truncate">{l.lap ? `L${l.lap}${l.sc ? " SC" : ""}` : "—"}</div>
+                <div className="font-mono text-[10.5px] tabular-nums truncate">{l.me !== null ? fmt(l.me).replace(/^1:/, "") : "—"}</div>
+                <div className="font-mono text-[10px] font-semibold tabular-nums truncate" style={{ color: d === null || Math.abs(d) < 0.05 ? "var(--ink-soft)" : d < 0 ? "var(--up)" : "var(--down)" }}>
+                  {l.pit ? "pit" : d === null ? "—" : `${d < 0 ? "−" : "+"}${Math.abs(d).toFixed(2)}`}
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
         </div>
-      )}
-      {undercut && behind && (
-        <div
-          className="border-t hairline px-3 py-2 flex items-baseline justify-between gap-2 font-sans text-[12px]"
-          title={`If ${behind.code} stopped now: a fresh set is worth about ${undercut.gain.toFixed(1)} s on the lap before ${row.code} could answer, against a ${undercut.gap.toFixed(1)} s gap`}
-        >
-          <span className="text-ink-soft">Undercut risk from {behind.code}</span>
-          <span className="font-semibold" style={{ color: undercut.level === "High" ? "var(--down)" : undercut.level === "Medium" ? "var(--f1-investigation)" : "var(--up)" }}>
-            {undercut.level}
-          </span>
-        </div>
-      )}
+      </div>
+      <div
+        className="border-t hairline px-3 py-2 mt-auto flex items-baseline justify-between gap-2 font-sans text-[12px] whitespace-nowrap"
+        title={undercut && behind ? `If ${behind.code} stopped now: a fresh set is worth about ${undercut.gain.toFixed(1)} s on the lap before ${row.code} could answer, against a ${undercut.gap.toFixed(1)} s gap` : "A race, with the car behind within five seconds"}
+      >
+        <span className="text-ink-soft truncate">Undercut risk{behind ? ` from ${behind.code}` : ""}</span>
+        <span className="font-semibold shrink-0" style={{ color: !undercut ? "var(--ink-faint)" : undercut.level === "High" ? "var(--down)" : undercut.level === "Medium" ? "var(--f1-investigation)" : "var(--up)" }}>
+          {undercut?.level ?? "—"}
+        </span>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { LiveSnapshot, SegmentMark, TrackModel } from "@/lib/f1-live-types";
 import { estimateCars, headingAt, pointAt, sectorEnds, segmentBounds, segmentMarks } from "@/lib/f1-track-progress";
 import dynamic from "next/dynamic";
@@ -23,6 +23,14 @@ import { TYRE } from "./TyreIcon";
 // jumps. Whole laps are ignored when comparing (the lap counter and the
 // loops don't tick over at the same instant), and only a car a third of a
 // lap out — a first sighting, say — is placed outright.
+//
+// Out of the pits: the race gap a car is placed by lags a stop (F1 sends the
+// gap from before it for a while, then jumps it by the time lost), which
+// would put the car a quarter of a lap up the road and then leave it waiting
+// for the estimate to come round. So a car leaving the pits starts at the end
+// of the pit lane and drives its out-lap at a steady pace for its first
+// stretch, before the estimate steers it again. Going in, it glides down the
+// lane to its place.
 
 const cache = new Map<number, Promise<TrackModel | null>>();
 
@@ -171,9 +179,15 @@ export default function TrackMap({
   /** Where each car is drawn now (the 3D view reads it every frame). */
   const placedRef = useRef(new Map<string, [number, number, number]>());
   const motion = useRef(new Map<string, number>());
+  /** The pit exit as a share of the lap, and a racing lap's time (for the out-lap). */
+  const pitExitF = useRef<number | null>(null);
+  const outPace = useRef(95);
   /** Each car's recent estimates (read time, laps travelled), for its speed. */
   const seen = useRef(new Map<string, { t: number; d: number }[]>());
   const paceRef = useRef(new Map<string, number>());
+  /** Cars that were in the pits at the last read, and when (page time) each came out. */
+  const wasIn = useRef(new Map<string, boolean>());
+  const outAt = useRef(new Map<string, number>());
   const carsRef = useRef(cars);
   const readAt = snap?.localAt ?? (snap ? Date.parse(snap.at) : 0);
   const readRef = useRef(readAt);
@@ -191,8 +205,17 @@ export default function TrackMap({
         seen.current.delete(c.code);
         motion.current.delete(c.code);
         paceRef.current.delete(c.code);
+        outAt.current.delete(c.code);
+        wasIn.current.set(c.code, true);
         continue;
       }
+      // Just out of the pits: on the track where the lane comes out, its out-lap ahead.
+      if (wasIn.current.get(c.code) && pitExitF.current !== null) {
+        const f = pitExitF.current;
+        motion.current.set(c.code, Math.round(c.distance - f) + f);
+        outAt.current.set(c.code, performance.now());
+      }
+      wasIn.current.set(c.code, false);
       const hist = (seen.current.get(c.code) ?? []).filter((h) => readAt - h.t < 40_000 && h.t < readAt);
       hist.push({ t: readAt, d: c.distance });
       seen.current.set(c.code, hist);
@@ -358,10 +381,17 @@ export default function TrackMap({
         // Where the estimate says the car is by now, carried on at its speed.
         const target = c.distance + since / pace;
         let at = motion.current.get(c.code);
-        if (at !== undefined) at += Math.round(target - at); // whole laps don't count
-        const err = at === undefined ? 0 : target - at;
-        if (at === undefined || reduced || Math.abs(err) > 0.33) at = target;
-        else at += ((dt * r) / pace) * Math.min(2.5, Math.max(0, 1 + err * 12));
+        const left = outAt.current.get(c.code);
+        if (left !== undefined && at !== undefined && (now - left) * r < OUT_LAP_MS) {
+          // Out of the pits: a steady out-lap from the lane's end, the lagging gap ignored.
+          at += (dt * r) / (outPace.current * 1.08);
+        } else {
+          if (left !== undefined) outAt.current.delete(c.code);
+          if (at !== undefined) at += Math.round(target - at); // whole laps don't count
+          const err = at === undefined ? 0 : target - at;
+          if (at === undefined || reduced || Math.abs(err) > 0.33) at = target;
+          else at += ((dt * r) / pace) * Math.min(2.5, Math.max(0, 1 + err * 12));
+        }
         motion.current.set(c.code, at);
         const [x, y] = pointAt(model, at);
         placedRef.current.set(c.code, [x, y, ((at % 1) + 1) % 1]);
@@ -415,6 +445,8 @@ export default function TrackMap({
   const [cornerPick, setCornerPick] = useStoredChoice<"on" | "off">("f1-map-corners", "off", ["on", "off"]);
   const [sectorPick, setSectorPick] = useStoredChoice<"on" | "off">("f1-map-sectors", "on", ["on", "off"]);
   const [edgePick, setEdgePick] = useStoredChoice<"on" | "off">("f1-map-edges-v2", "off", ["on", "off"]);
+  // The 3D map's ground: raised hills and dips, or flat for a smooth track.
+  const [terrainPick, setTerrainPick] = useStoredChoice<"on" | "off">("f1-map-terrain", "on", ["on", "off"]);
   const showCorners = corners && (!controls || cornerPick === "on");
   const showSectors = !controls || sectorPick === "on";
   const showEdges = !controls || edgePick === "on";
@@ -461,6 +493,25 @@ export default function TrackMap({
   };
   const laneAt = along(lane);
   const realLaneAt = along(realLane);
+  // Where the lane rejoins the track, as a share of the lap (read by the motion loop).
+  useEffect(() => {
+    const end = realLane?.at(-1);
+    if (!end) {
+      pitExitF.current = null;
+      return;
+    }
+    let best = 0;
+    let d = Infinity;
+    model.points.forEach(([x, y], i) => {
+      const e = (x - end[0]) ** 2 + (y - end[1]) ** 2;
+      if (e < d) {
+        d = e;
+        best = i;
+      }
+    });
+    pitExitF.current = model.fraction[best] ?? null;
+    outPace.current = model.lapTime ?? 95;
+  }, [realLane, model]);
   const pitted = laneAt && snap?.running ? snap.rows.filter((x) => x.inPit && !x.out && !(x.knockedOut && snap.type !== "Race")) : [];
 
   // The sectors, each its own colour along the track's edge and on its label.
@@ -581,6 +632,7 @@ export default function TrackMap({
           api={cityApi}
           big={big}
           turn={turn}
+          terrain={terrainPick === "on"}
         />
       )}
       <svg
@@ -701,7 +753,7 @@ export default function TrackMap({
             const [x, y] = laneAt(pitted.length === 1 ? 0.5 : 0.25 + (0.5 * i) / (pitted.length - 1));
             const mine = row.code === focus;
             return (
-              <g key={`pit-${row.code}`} transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`} onClick={onFocus ? () => onFocus(row.code) : undefined} style={onFocus ? { cursor: "pointer" } : undefined}>
+              <PitSlot key={`pit-${row.code}`} x={x} y={y} from={laneAt(0)} onClick={onFocus ? () => onFocus(row.code) : undefined}>
                 <title>{`${row.code} in the pits`}</title>
                 <g transform={upright()}>
                 <circle r={(mine ? 1.1 : 0.85) * r} fill={fill(row.code, row.colour)} stroke="var(--f1-pit)" strokeWidth={3 * scale * inv} />
@@ -711,7 +763,7 @@ export default function TrackMap({
                   </text>
                 )}
                 </g>
-              </g>
+              </PitSlot>
             );
           })}
 
@@ -771,8 +823,8 @@ export default function TrackMap({
             setFollow(false);
             followRef.current = null;
           }}
-          layers={{ corners: cornerPick === "on", sectors: sectorPick === "on", edges: edgePick === "on" }}
-          onLayer={(k, on) => (k === "corners" ? setCornerPick : k === "sectors" ? setSectorPick : setEdgePick)(on ? "on" : "off")}
+          layers={{ corners: cornerPick === "on", sectors: sectorPick === "on", edges: edgePick === "on", terrain: terrainPick === "on" }}
+          onLayer={(k, on) => (k === "corners" ? setCornerPick : k === "sectors" ? setSectorPick : k === "terrain" ? setTerrainPick : setEdgePick)(on ? "on" : "off")}
           codes={codes}
           onCodes={setCodes}
           paint={paint}
@@ -865,6 +917,42 @@ function besideTrack(track: [number, number][], lane: [number, number][], need: 
   });
 }
 
+const OUT_LAP_MS = 35_000;
+
+/**
+ * A car in the pits, at its place in the lane: arriving, it glides there from
+ * the lane's entry (its first frame drawn at the entry, then moved), and
+ * moves along when the cars ahead of it leave.
+ */
+function PitSlot({ x, y, from, onClick, children }: { x: number; y: number; from: [number, number]; onClick?: () => void; children: React.ReactNode }) {
+  const ref = useRef<SVGGElement>(null);
+  const placed = useRef(false);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const to = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+    if (placed.current || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      el.style.transform = to;
+      placed.current = true;
+      return;
+    }
+    placed.current = true;
+    el.style.transition = "none";
+    el.style.transform = `translate(${from[0].toFixed(1)}px, ${from[1].toFixed(1)}px)`;
+    const raf = requestAnimationFrame(() => {
+      el.style.transition = "transform 3.5s cubic-bezier(0.2, 0.7, 0.3, 1)";
+      el.style.transform = to;
+    });
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [x, y]);
+  return (
+    <g ref={ref} onClick={onClick} style={{ cursor: onClick ? "pointer" : undefined, transition: "transform 1.2s ease" }}>
+      {children}
+    </g>
+  );
+}
+
 /** A choice the reader made on the map, remembered on this device. */
 function useStoredChoice<T extends string>(key: string, initial: T, allowed: readonly T[]): [T, (v: T) => void] {
   const [v, setV] = useState<T>(initial);
@@ -951,8 +1039,8 @@ function MapTools(p: {
   onZoom: (factor: number) => void;
   onReset: () => void;
   tyres: readonly ("SOFT" | "MEDIUM" | "HARD" | "INTERMEDIATE" | "WET")[];
-  layers: { corners: boolean; sectors: boolean; edges: boolean };
-  onLayer: (k: "corners" | "sectors" | "edges", on: boolean) => void;
+  layers: { corners: boolean; sectors: boolean; edges: boolean; terrain: boolean };
+  onLayer: (k: "corners" | "sectors" | "edges" | "terrain", on: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -1035,6 +1123,8 @@ function MapTools(p: {
                     ["sectors", "Sector numbers"],
                     ["edges", "Edges coloured by sector"],
                     ["corners", "Corner numbers"],
+                    // The ground's rise and fall (3D only).
+                    ...(p.view === "3d" ? ([["terrain", "Terrain (hills and dips)"]] as const) : []),
                   ] as const
                 ).map(([k, text]) => (
                   <button

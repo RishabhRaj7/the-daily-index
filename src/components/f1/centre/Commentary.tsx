@@ -79,7 +79,7 @@ export default function Commentary({ src }: { src: string }) {
         {state === "playing" && <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--hue-f1)" }} />}
       </button>
       {on && (
-        <button type="button" onClick={() => setMenu((m) => !m)} className="chip h-8 w-8 ml-1 justify-center text-[12px]" title="Volume" aria-label="Commentary volume">
+        <button type="button" onClick={() => setMenu((m) => !m)} className="chip h-8 w-8 ml-1 justify-center text-[12px]" style={{ padding: 0 }} title="Volume" aria-label="Commentary volume">
           {volume === 0 ? "🔇" : "🔊"}
         </button>
       )}

@@ -162,11 +162,13 @@ export default function LiveAlerts({ snap, mine, onOpen }: { snap: LiveSnapshot;
           emit();
         }}
         className="chip h-8 w-8 justify-center shrink-0"
+        // (.chip's own padding would squeeze the bell to a dot in a round button)
+        style={{ padding: 0 }}
         title={muted ? "Alerts are off: turn them on" : "Alerts are on: turn them off"}
         aria-label={muted ? "Turn live alerts on" : "Turn live alerts off"}
         aria-pressed={!muted}
       >
-        <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M4 11.5V7a4 4 0 0 1 8 0v4.5l1 1H3z" />
           <path d="M6.5 14a1.6 1.6 0 0 0 3 0" />
           {muted && <path d="M2.5 2.5l11 11" />}

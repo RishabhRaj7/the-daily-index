@@ -372,9 +372,9 @@ function arc(cx: number, cy: number, r: number, from: number, to: number) {
 }
 
 /** The card's speedometer: the dial, played smoothly (a tap opens the detail); at rest once the session is over. */
-export function Speedometer({ t, colour, code, onOpen, ended = false }: { t: Telemetry; colour: string; code: string; onOpen?: () => void; ended?: boolean }) {
+export function Speedometer({ t, colour, code, onOpen, ended = false, className = "" }: { t: Telemetry; colour: string; code: string; onOpen?: () => void; ended?: boolean; className?: string }) {
   const now = useSmooth(ended ? { ...t, now: null, play: null } : t);
-  return <Dial now={ended ? null : now} colour={colour} code={code} onOpen={onOpen} source={ended ? "Session ended · tap for the fastest lap" : t.source} />;
+  return <Dial now={ended ? null : now} colour={colour} code={code} onOpen={onOpen} source={ended ? "Session ended · tap for the fastest lap" : t.source} className={className} />;
 }
 
 /**
@@ -384,7 +384,7 @@ export function Speedometer({ t, colour, code, onOpen, ended = false }: { t: Tel
  * names just outside each arc; the speed, revs and gear in the middle, clear
  * of the arcs' ends.
  */
-function Dial({ now, colour, code, onOpen, source }: { now: CarNow | null; colour: string; code: string; onOpen?: () => void; source: string }) {
+function Dial({ now, colour, code, onOpen, source, className = "" }: { now: CarNow | null; colour: string; code: string; onOpen?: () => void; source: string; className?: string }) {
   const cx = 110;
   const cy = 104;
   const R = 78; // the speed ring
@@ -394,7 +394,7 @@ function Dial({ now, colour, code, onOpen, source }: { now: CarNow | null; colou
   const thr = now?.throttle ?? 0;
   const id = `speedo-${code}-${onOpen ? "card" : "sheet"}`;
   const body = (
-    <svg viewBox="0 0 220 180" className="block w-full max-w-[17rem] mx-auto h-auto" role="img" aria-label={now ? `${code}: ${v} km/h, gear ${now.gear}, throttle ${thr}%${now.brake ? ", braking" : ""}` : `${code}: no reading`}>
+    <svg viewBox="0 0 220 180" className="block w-full max-w-[17rem] max-h-full mx-auto h-auto" role="img" aria-label={now ? `${code}: ${v} km/h, gear ${now.gear}, throttle ${thr}%${now.brake ? ", braking" : ""}` : `${code}: no reading`}>
       <defs>
         {/* the arcs' names run just outside them (clockwise, so the letters stand outwards) */}
         <path id={`${id}-thr`} d={arc(cx, cy, r + 5, 152, 248)} />
@@ -456,13 +456,13 @@ function Dial({ now, colour, code, onOpen, source }: { now: CarNow | null; colou
     </svg>
   );
   return onOpen ? (
-    <button type="button" onClick={onOpen} className="group block w-full rounded-2xl border hairline px-3 pt-3 pb-2 text-left hover:border-[color:var(--ink-faint)] transition-colors" title={`${code}'s telemetry in detail`}>
-      <span className="flex items-baseline justify-between gap-2 font-label text-[9.5px] text-ink-faint">
+    <button type="button" onClick={onOpen} className={`group flex flex-col w-full rounded-xl border hairline px-3 pt-2.5 pb-2 text-left hover:border-[color:var(--ink-faint)] transition-colors overflow-hidden ${className}`} title={`${code}'s telemetry in detail`}>
+      <span className="flex items-baseline justify-between gap-2 font-label text-[9.5px] text-ink-faint shrink-0">
         <span>Telemetry</span>
         <span className="group-hover:text-ink transition-colors">Detail →</span>
       </span>
-      {body}
-      <span className="block text-center font-mono text-[10px] text-ink-faint truncate">{source}</span>
+      <span className="flex-1 min-h-0 grid place-items-center">{body}</span>
+      <span className="block text-center font-mono text-[10px] text-ink-faint truncate shrink-0">{source}</span>
     </button>
   ) : (
     body
@@ -470,16 +470,18 @@ function Dial({ now, colour, code, onOpen, source }: { now: CarNow | null; colou
 }
 
 /** Where the followed car clipped on the lap shown (a lap trace only: not the live readings, five seconds apart). */
-export function ClipNote({ t, track }: { t: Telemetry; track: TrackModel | null }) {
+export function ClipNote({ t, track, className = "" }: { t: Telemetry; track: TrackModel | null; className?: string }) {
   const on = useClippingOn();
   const live = /^live/i.test(t.source);
   const clips = useMemo(() => (on && !live ? detectClipping(t.samples) : []), [on, live, t.samples]);
-  if (!clips.length) return null;
   const lap = track?.lapTime || t.samples.at(-1)?.[0] || 1;
+  // Always there, so the card keeps its shape: why there's nothing, when there's nothing.
+  const none = !on ? "Switched off" : live ? "Replays and past sessions only" : t.samples.length < 2 ? "—" : "None on this lap";
   return (
-    <div className="rounded-xl border hairline px-3 py-2" title="Flat out but losing speed: the battery running dry before the braking point">
+    <div className={`rounded-xl border hairline px-3 py-2 overflow-hidden ${className}`} title="Flat out but losing speed: the battery running dry before the braking point">
       <div className="font-label text-[9px] text-ink-faint">Clipping</div>
-      <div className="flex flex-wrap gap-1.5 mt-1">
+      {!clips.length && <div className="font-mono text-[10.5px] text-ink-faint mt-1.5 truncate">{none}</div>}
+      <div className="flex flex-wrap gap-1.5 mt-1 max-h-[2.6rem] overflow-hidden">
         {clips.map((c, i) => {
           const corner = cornerAfter(track, (c.until / lap) % 1);
           return (

@@ -234,6 +234,7 @@ html.theme-transition *::after {
 :root { --page-zoom: 1; }
 .page-scale,
 .sheet-scale { zoom: var(--page-zoom); }
+
 .page-wrap { width: 100%; max-width: 1240px; margin-inline: auto; }
 @media (min-width: 1600px) and (min-height: 860px) {
   :root { --page-zoom: 1.15; }

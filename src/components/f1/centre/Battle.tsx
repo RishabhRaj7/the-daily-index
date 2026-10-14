@@ -70,12 +70,12 @@ function closing(snap: LiveSnapshot, me: LiveRow, ahead: LiveRow): { rate: numbe
   return { rate: a - b, over: 0 };
 }
 
-function Side({ title, other, gap, lapped = "", rate, chaser }: { title: string; other: LiveRow | null; gap: number | null; /** The interval as timed ("1L" when a lap down; empty before there is one). */ lapped?: string; rate: { rate: number; over: number } | null; chaser: "me" | "them" }) {
+function Side({ title, other, gap, lapped = "", rate, chaser, idle = false, race = true }: { title: string; other: LiveRow | null; gap: number | null; /** The interval as timed ("1L" when a lap down; empty before there is one). */ lapped?: string; rate: { rate: number; over: number } | null; chaser: "me" | "them"; /** Nothing running: the box stays, with dashes. */ idle?: boolean; /** Overtake Mode is a race's. */ race?: boolean }) {
   if (!other) {
     return (
-      <div className="px-3 py-2 min-w-0">
-        <div className="font-label text-[9px] text-ink-faint">{title}</div>
-        <div className="font-sans text-[13px] text-ink-soft mt-1">{chaser === "me" ? "Leading" : "No one behind"}</div>
+      <div className="px-3 py-2 min-w-0 overflow-hidden">
+        <div className="font-label text-[9px] text-ink-faint whitespace-nowrap">{title}</div>
+        <div className="font-mono text-[15px] font-semibold text-ink-faint mt-1 truncate">{idle ? "—" : chaser === "me" ? "Leading" : "No one behind"}</div>
       </div>
     );
   }
@@ -87,9 +87,9 @@ function Side({ title, other, gap, lapped = "", rate, chaser }: { title: string;
   const verb = r === null ? null : steady ? "Holding" : chaser === "me" ? (r > 0 ? "Closing" : "Losing") : r > 0 ? "Gaining" : "Dropping";
   // Within a second at the detection point earns Overtake Mode (2026: DRS's successor, extra electrical deployment).
   const toRange = gap !== null && r !== null && r > 0.05 && gap > 1 ? Math.ceil((gap - 1) / r) : null;
-  const drs = gap === null ? null : gap <= 1 ? "In Overtake range" : toRange !== null && toRange <= 30 ? `Overtake range in ~${toRange} lap${toRange === 1 ? "" : "s"}` : null;
+  const drs = gap === null || !race ? null : gap <= 1 ? "In Overtake range" : toRange !== null && toRange <= 30 ? `Overtake range in ~${toRange} lap${toRange === 1 ? "" : "s"}` : null;
   return (
-    <div className="px-3 py-2 min-w-0">
+    <div className="px-3 py-2 min-w-0 overflow-hidden">
       <div className="font-label text-[9px] text-ink-faint flex items-center gap-1.5 whitespace-nowrap">
         {title}
         <span className="w-[3px] h-2.5 rounded-full shrink-0" style={{ background: other.colour }} />
@@ -110,17 +110,25 @@ function Side({ title, other, gap, lapped = "", rate, chaser }: { title: string;
   );
 }
 
-/** The followed driver against the cars either side (a race, while it runs). */
-export default function Battle({ snap, row }: { snap: LiveSnapshot; row: LiveRow }) {
-  if (snap.type !== "Race" || !snap.running || row.out) return null;
+/** The followed driver against the cars either side (while a session runs; dashes otherwise, the box stays). */
+export default function Battle({ snap, row, className = "" }: { snap: LiveSnapshot; row: LiveRow; className?: string }) {
+  if (!snap.running || row.out) {
+    return (
+      <div className={`rounded-xl border hairline grid grid-cols-2 divide-x divide-[var(--rule)] ${className}`}>
+        <Side title="Car ahead" other={null} gap={null} rate={null} chaser="me" idle />
+        <Side title="Car behind" other={null} gap={null} rate={null} chaser="them" idle />
+      </div>
+    );
+  }
+  const race = snap.type === "Race";
   const byPos = new Map(snap.rows.map((r) => [r.position, r]));
   const ahead = byPos.get(row.position - 1) ?? null;
   const behind = byPos.get(row.position + 1) ?? null;
   const behindLive = behind && !behind.out ? behind : null;
   return (
-    <div className="rounded-xl border hairline grid grid-cols-2 divide-x divide-[var(--rule)]">
-      <Side title="Car ahead" other={ahead} gap={ahead ? secs(row.interval) : null} lapped={row.interval} rate={ahead ? closing(snap, row, ahead) : null} chaser="me" />
-      <Side title="Car behind" other={behindLive} gap={behindLive ? secs(behindLive.interval) : null} lapped={behindLive?.interval} rate={behindLive ? closing(snap, behindLive, row) : null} chaser="them" />
+    <div className={`rounded-xl border hairline grid grid-cols-2 divide-x divide-[var(--rule)] ${className}`}>
+      <Side title="Car ahead" other={ahead} gap={ahead ? secs(row.interval) : null} lapped={row.interval} rate={ahead && race ? closing(snap, row, ahead) : null} chaser="me" race={race} />
+      <Side title="Car behind" other={behindLive} gap={behindLive ? secs(behindLive.interval) : null} lapped={behindLive?.interval} rate={behindLive && race ? closing(snap, behindLive, row) : null} chaser="them" race={race} />
     </div>
   );
 }
