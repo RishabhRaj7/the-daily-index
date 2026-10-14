@@ -252,75 +252,76 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
         )}
       </div>
 
-      {done.length > 1 && (
-        <Panel label="Across the weekend" meta="Each driver's place in every session · tap a name for their season">
-          <Form sessions={done} onDriver={openDriver} />
-        </Panel>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] gap-6 items-start">
-        <Panel label="Recent years here" meta={h ? `${h.races} Grands Prix since ${h.firstYear}` : undefined}>
-          {!h ? (
-            <p className="font-mono text-[11px] text-ink-faint">{data === undefined ? "Reading…" : "No history: a new venue."}</p>
-          ) : (
-            <div className="overflow-x-auto -mx-1 px-1">
-              <table className="w-full text-[12px] min-w-[28rem]">
-                <thead>
-                  <tr className="font-label text-[9.5px] text-ink-faint text-left">
-                    <th className="font-normal py-1.5">Year</th>
-                    <th className="font-normal">Winner</th>
-                    <th className="font-normal">Pole</th>
-                    <th className="font-normal">Fastest lap</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {h.recent.map((r) => (
-                    <tr key={r.year} className="border-t hairline">
-                      <td className="font-mono py-2">{r.year}</td>
-                      <td>
-                        {r.winner && (
-                          <span className="flex items-center gap-1.5">
-                            <TeamGlyph team={r.winner.team} colour="var(--ink-faint)" size={13} />
-                            <b className="font-sans">{r.winner.name}</b>
-                            {r.winner.grid && r.winner.grid > 1 && <span className="font-mono text-[10px] text-ink-faint">from P{r.winner.grid}</span>}
-                          </span>
-                        )}
-                      </td>
-                      <td className="font-sans">
-                        {r.pole?.name} <span className="font-mono text-[10px] text-ink-faint">{r.pole?.time}</span>
-                      </td>
-                      <td className="font-sans">
-                        {r.fastest?.name} <span className="font-mono text-[10px] text-ink-faint">{r.fastest?.time}</span>
-                      </td>
+      {/* The weekend's form (five or six sessions: a narrow table) beside the
+          circuit's history, the lap benchmarks and the rounds after this one. */}
+      <div className={`grid grid-cols-1 gap-6 items-start ${done.length > 1 ? "lg:grid-cols-[auto_minmax(0,1fr)]" : ""}`}>
+        {done.length > 1 && (
+          <Panel label="Across the weekend" meta="Tap a name for their season" className="lg:w-max">
+            <Form sessions={done} onDriver={openDriver} />
+          </Panel>
+        )}
+        <div className="space-y-6 min-w-0">
+          <Panel label="Recent years here" meta={h ? `${h.races} Grands Prix since ${h.firstYear}` : undefined}>
+            {!h ? (
+              <p className="font-mono text-[11px] text-ink-faint">{data === undefined ? "Reading…" : "No history: a new venue."}</p>
+            ) : (
+              <div className="overflow-x-auto -mx-1 px-1">
+                <table className="w-full text-[12px] min-w-[28rem]">
+                  <thead>
+                    <tr className="font-label text-[9.5px] text-ink-faint text-left">
+                      <th className="font-normal py-1.5">Year</th>
+                      <th className="font-normal">Winner</th>
+                      <th className="font-normal">Pole</th>
+                      <th className="font-normal">Fastest lap</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Panel>
-        <Panel label="Lap benchmarks">
-          <Benchmarks snap={snap} />
-        </Panel>
+                  </thead>
+                  <tbody>
+                    {h.recent.map((r) => (
+                      <tr key={r.year} className="border-t hairline">
+                        <td className="font-mono py-2">{r.year}</td>
+                        <td>
+                          {r.winner && (
+                            <span className="flex items-center gap-1.5">
+                              <TeamGlyph team={r.winner.team} colour="var(--ink-faint)" size={13} />
+                              <b className="font-sans">{r.winner.name}</b>
+                              {r.winner.grid && r.winner.grid > 1 && <span className="font-mono text-[10px] text-ink-faint">from P{r.winner.grid}</span>}
+                            </span>
+                          )}
+                        </td>
+                        <td className="font-sans">
+                          {r.pole?.name} <span className="font-mono text-[10px] text-ink-faint">{r.pole?.time}</span>
+                        </td>
+                        <td className="font-sans">
+                          {r.fastest?.name} <span className="font-mono text-[10px] text-ink-faint">{r.fastest?.time}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Panel>
+          <Panel label="Lap benchmarks">
+            <Benchmarks snap={snap} />
+          </Panel>
+        {after.length > 0 && (
+          <Panel label="After this">
+            <ol className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {after.map((r) => (
+                <li key={r.round} className="rounded-xl border hairline px-3.5 py-3">
+                  <div className="font-label text-[9.5px] text-ink-faint">Round {r.round}</div>
+                  <div className="font-display font-extrabold uppercase text-[1.25rem] leading-none mt-1.5">{r.name}</div>
+                  <div className="font-mono text-[10.5px] text-ink-soft mt-1.5">
+                    {new Date(r.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+                    {r.sprint ? " · sprint" : ""}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </Panel>
+        )}
+        </div>
       </div>
-
-      {after.length > 0 && (
-        <Panel label="After this">
-          <ol className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {after.map((r) => (
-              <li key={r.round} className="rounded-xl border hairline px-3.5 py-3">
-                <div className="font-label text-[9.5px] text-ink-faint">Round {r.round}</div>
-                <div className="font-display font-extrabold uppercase text-[1.25rem] leading-none mt-1.5">{r.name}</div>
-                <div className="font-mono text-[10.5px] text-ink-soft mt-1.5">
-                  {new Date(r.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
-                  {r.sprint ? " · sprint" : ""}
-                </div>
-              </li>
-            ))}
-          </ol>
-        </Panel>
-      )}
-
     </div>
   );
 }
