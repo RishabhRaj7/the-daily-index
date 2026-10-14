@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { F1Race } from "@/lib/types";
 import type { LivePrediction, LiveRow, LiveSnapshot, TrackModel } from "@/lib/f1-live-types";
 import { useF1Live } from "@/lib/use-f1-live";
@@ -559,13 +559,20 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
     const top = document.getElementById("views-top");
     if (top && top.getBoundingClientRect().top < 0) window.scrollTo({ top: top.getBoundingClientRect().top + window.scrollY - 72, behavior: "instant" });
   };
-  const pick = (path: string | null) => {
+  // From the header's picker the page goes back to the top; from a session
+  // card on the Weekend view it stays where the reader is looking — even as
+  // what's above the views changes (the next-session note comes and goes), the
+  // views stay put on the screen until the new session is drawn.
+  const anchor = useRef<{ path: string | null; top: number } | null>(null);
+  const pick = (path: string | null, opts: { keepScroll?: boolean } = {}) => {
+    const top = document.getElementById("views-top");
+    anchor.current = opts.keepScroll && top ? { path, top: top.getBoundingClientRect().top } : null;
     const url = new URL(location.href);
     if (path) url.searchParams.set("session", path);
     else url.searchParams.delete("session");
     history.pushState(null, "", url);
     setPast(path);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (!opts.keepScroll) window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const { snapshot: fresh, last, next, checked } = useF1Live({ full: true, always: !past, session: past });
@@ -573,7 +580,21 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
   const delay = useDelaySeconds();
   const snapshot = useDelayed(fresh, !past ? delay : 0);
   const live = !past && !!snapshot;
-  const base = live ? snapshot : last;
+  const loaded = live ? snapshot : last;
+  // Picking another session keeps the one on screen until the new one arrives,
+  // so the page doesn't empty out (and lose the reader's place) while it loads.
+  const [held, setHeld] = useState<LiveSnapshot | null>(null);
+  if (loaded && loaded !== held) setHeld(loaded);
+  const base = loaded ?? held;
+  useLayoutEffect(() => {
+    const a = anchor.current;
+    const top = document.getElementById("views-top");
+    if (!a || !top) return;
+    const moved = top.getBoundingClientRect().top - a.top;
+    if (Math.abs(moved) > 1) window.scrollBy({ top: moved, behavior: "instant" });
+    // Done once the session picked is the one drawn.
+    if ((base?.path ?? null) === a.path || (!a.path && !past)) anchor.current = null;
+  }, [base, past]);
   // A finished session can be played back: the replay bar drives the page.
   const [replaying, setReplaying] = useState(false);
   const [replayPath, setReplayPath] = useState<string | null>(null);
@@ -685,7 +706,7 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
             <Feed snap={snap} mine={fav.codes} photos={snap.photos ?? {}} />
           </Panel>
         )}
-        {snap && view === "weekend" && <Weekend snap={snap} race={race} current={past} onPick={pick} />}
+        {snap && view === "weekend" && <Weekend snap={snap} race={race} current={past} onPick={(path) => pick(path, { keepScroll: true })} />}
         {view === "season" && (
           <div className="space-y-6">
             {snap?.prediction && (

@@ -254,13 +254,14 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
 
       {/* The weekend's form (five or six sessions: a narrow table) beside the
           circuit's history, the lap benchmarks and the rounds after this one. */}
-      <div className={`grid grid-cols-1 gap-6 items-start ${done.length > 1 ? "lg:grid-cols-[auto_minmax(0,1fr)]" : ""}`}>
+      {/* Both columns end level: the shorter one's last panel stretches to the other's foot. */}
+      <div className={`grid grid-cols-1 gap-6 items-stretch ${done.length > 1 ? "lg:grid-cols-[auto_minmax(0,1fr)]" : ""}`}>
         {done.length > 1 && (
           <Panel label="Across the weekend" meta="Tap a name for their season" className="lg:w-max">
             <Form sessions={done} onDriver={openDriver} />
           </Panel>
         )}
-        <div className="space-y-6 min-w-0">
+        <div className="flex flex-col gap-6 min-w-0 [&>*:last-child]:flex-1">
           <Panel label="Recent years here" meta={h ? `${h.races} Grands Prix since ${h.firstYear}` : undefined}>
             {!h ? (
               <p className="font-mono text-[11px] text-ink-faint">{data === undefined ? "Reading…" : "No history: a new venue."}</p>
