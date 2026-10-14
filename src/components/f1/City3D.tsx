@@ -20,7 +20,8 @@ import { findCover, type Structure } from "@/lib/f1-cover";
 // map draws a building over (a raised walkway mapped as a building, or a
 // tower between the camera and the track).
 //
-// Height: the ground is raised from Mapbox's terrain (a little exaggerated,
+// Height (when the reader turns it on; flat by default): the ground is raised
+// from Mapbox's terrain (a little exaggerated,
 // so a circuit's climbs show), and the track, the lane and the cars sit on
 // it. Under the map, the lap's profile — its height from the line round to
 // the line — with the followed car on it; hidden where a circuit is flat.
@@ -87,7 +88,7 @@ export default function City3D({
   api,
   big,
   turn,
-  terrain = true,
+  terrain = false,
 }: {
   model: TrackModel;
   geo: TrackGeo;

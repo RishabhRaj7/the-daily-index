@@ -445,8 +445,8 @@ export default function TrackMap({
   const [cornerPick, setCornerPick] = useStoredChoice<"on" | "off">("f1-map-corners", "off", ["on", "off"]);
   const [sectorPick, setSectorPick] = useStoredChoice<"on" | "off">("f1-map-sectors", "on", ["on", "off"]);
   const [edgePick, setEdgePick] = useStoredChoice<"on" | "off">("f1-map-edges-v2", "off", ["on", "off"]);
-  // The 3D map's ground: raised hills and dips, or flat for a smooth track.
-  const [terrainPick, setTerrainPick] = useStoredChoice<"on" | "off">("f1-map-terrain", "on", ["on", "off"]);
+  // The 3D map's ground: flat (a smooth track) unless the reader turns terrain on.
+  const [terrainPick, setTerrainPick] = useStoredChoice<"on" | "off">("f1-map-terrain", "off", ["on", "off"]);
   const showCorners = corners && (!controls || cornerPick === "on");
   const showSectors = !controls || sectorPick === "on";
   const showEdges = !controls || edgePick === "on";
