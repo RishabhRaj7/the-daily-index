@@ -81,6 +81,7 @@ editions live in memory until the dev server restarts, and Reddit is off.
 |---|---|
 | `GEMINI_API_KEY` | AI selection and summaries (strongly recommended) |
 | `GEMINI_MODEL` | Model override (default in `.env.example`) |
+| `GEMINI_F1_API_KEY` | F1 team radio transcripts on their own Google project (falls back to `GEMINI_API_KEY`) |
 | `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Stored editions and the archive (Upstash Redis; `UPSTASH_REDIS_REST_*` also works) |
 | `CRON_SECRET` | Protects `/api/cron/*`; Vercel Cron sends it automatically |
 | `REDDIT_ENABLED`, `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `REDDIT_USER_AGENT` | Reddit in the Grapevine (optional) |

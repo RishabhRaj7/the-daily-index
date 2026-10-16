@@ -7,7 +7,13 @@ import { joinTurns, writeTurns, type Speaker } from "@/lib/f1-radio-speaker";
 // listens and transcribes it once, and the text is kept for four months, so
 // a clip costs its calls once however often it is read.
 //
-// Which models: radio has its own pool, kept apart from the models the paper
+// Its own key: GEMINI_F1_API_KEY, a separate Google project, so the live
+// centre and the paper never spend each other's quota (each Google project
+// has its own free allowance per model). With its own key, radio leads with
+// the strongest Flash model and uses Flash-Lite freely, last; without one it
+// shares GEMINI_API_KEY as below.
+//
+// Which models (a shared key): radio has its own pool, kept apart from the models the paper
 // summarises the news with (GEMINI_MODEL, and Flash-Lite generally), so a
 // busy race never eats the morning edition's quota. On the free tier each
 // model has its own daily allowance (about 20 calls), so the pool is four
@@ -34,7 +40,12 @@ const hash = (url: string) => createHash("sha1").update(url).digest("hex").slice
 const key = (url: string) => `f1:radio:v4:${hash(url)}`;
 // v3 was labelled before the swap check (below): shown until the clip is written again.
 const OLD = (url: string) => `f1:radio:v3:${hash(url)}`;
-const BLOCK = (model: string) => `f1:radio:block:${model}`;
+/** Radio's own Google project (its own quota), or the paper's key shared. */
+const OWN_KEY = () => !!process.env.GEMINI_F1_API_KEY;
+const apiKeyFor = () => process.env.GEMINI_F1_API_KEY || process.env.GEMINI_API_KEY;
+// Quota is a project's: what's spent or capped is kept per key.
+const scope = () => (OWN_KEY() ? "own" : "shared");
+const BLOCK = (model: string) => `f1:radio:block:${scope()}:${model}`;
 
 interface Slot {
   model: string;
@@ -44,8 +55,8 @@ interface Slot {
   daily?: number;
 }
 
-/** Models that write a labelled transcript (JSON), in the order they're tried. */
-const WRITERS: Slot[] = [
+/** Models that write a labelled transcript (JSON), in the order they're tried (a shared key). */
+const SHARED_WRITERS: Slot[] = [
   // First (the reader's choice), but it is the summaries' fallback too
   // (lib/server/gemini.ts), so radio stops at 60 calls of it a day.
   { model: "gemini-3.1-flash-lite", rpm: 10, daily: 60 },
@@ -59,6 +70,17 @@ const WRITERS: Slot[] = [
  * of a noisy clip, so it only checks when no other Flash model has room.
  */
 const LISTENER: Slot = { model: "gemini-3.5-transcribe", rpm: 3 };
+
+/** With radio's own key: the strongest Flash first, Flash-Lite (uncapped: nothing to share) last. */
+const OWN_WRITERS: Slot[] = [
+  { model: "gemini-3.8-flash", rpm: 5 },
+  { model: "gemini-3.7-flash", rpm: 5 },
+  { model: "gemini-3.6-flash", rpm: 5 },
+  { model: "gemini-3.5-flash", rpm: 5 },
+  { model: "gemini-3.1-flash-lite", rpm: 10 },
+];
+
+const WRITERS_NOW = (): Slot[] => (OWN_KEY() ? OWN_WRITERS : SHARED_WRITERS);
 
 export interface Transcript {
   /** Speaker turns on their own lines; [unclear]/[bleep] as heard; {{word}} where the second listen differed. */
@@ -78,7 +100,7 @@ let client: GoogleGenAI | null = null;
 /** The models radio uses, for the page and the docs. */
 export function radioModels(): string[] {
   const own = process.env.GEMINI_RADIO_MODEL;
-  return [...(own ? [own] : []), ...WRITERS.map((w) => w.model).filter((m) => m !== own)];
+  return [...(own ? [own] : []), ...WRITERS_NOW().map((w) => w.model).filter((m) => m !== own)];
 }
 
 export async function cachedTranscripts(urls: string[]): Promise<Record<string, Transcript>> {
@@ -109,15 +131,15 @@ async function claim({ model, rpm, daily }: Slot): Promise<boolean> {
   if (await store.get(BLOCK(model)).catch(() => null)) return false;
   if (daily) {
     const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
-    const usedToday = await store.get<number>(`f1:radio:day:${model}:${today}`).catch(() => 0);
+    const usedToday = await store.get<number>(`f1:radio:day:${scope()}:${model}:${today}`).catch(() => 0);
     if ((usedToday ?? 0) >= daily) return false;
   }
   const minute = Math.floor(Date.now() / 60_000);
-  const used = await store.incr(`f1:radio:rpm:${model}:${minute}`, 90).catch(() => 1);
+  const used = await store.incr(`f1:radio:rpm:${scope()}:${model}:${minute}`, 90).catch(() => 1);
   if (used > rpm) return false;
   if (daily) {
     const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
-    await store.incr(`f1:radio:day:${model}:${today}`, 2 * 86_400).catch(() => 0);
+    await store.incr(`f1:radio:day:${scope()}:${model}:${today}`, 2 * 86_400).catch(() => 0);
   }
   return true;
 }
@@ -139,14 +161,14 @@ async function pick(pool: Slot[], not?: string): Promise<string | null> {
 /** Whether any writer has room — the page stops asking when none has. */
 export async function radioPaused(): Promise<boolean> {
   const blocks = await getStore()
-    .getMany(WRITERS.map((w) => BLOCK(w.model)))
+    .getMany(WRITERS_NOW().map((w) => BLOCK(w.model)))
     .catch(() => new Map());
-  return blocks.size >= WRITERS.length;
+  return blocks.size >= WRITERS_NOW().length;
 }
 
 function writers(): Slot[] {
   const own = process.env.GEMINI_RADIO_MODEL;
-  return own ? [{ model: own, rpm: 5 }, ...WRITERS.filter((w) => w.model !== own)] : WRITERS;
+  return own ? [{ model: own, rpm: 5 }, ...WRITERS_NOW().filter((w) => w.model !== own)] : WRITERS_NOW();
 }
 
 // Who is speaking is the model's call: it hears the voices and the whole
@@ -327,7 +349,7 @@ export async function transcribe(url: string, who: string, first: string | null 
   const store = getStore();
   const kept = await store.get<Transcript>(key(url)).catch(() => null);
   if (kept?.text) return kept;
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = apiKeyFor();
   if (!apiKey || process.env.AI_SUMMARIZE === "false") return null;
   // One writer per clip at a time.
   if (!(await store.setIfAbsent(`${key(url)}:lock`, 1, 90).catch(() => true))) return null;
