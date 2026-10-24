@@ -85,7 +85,8 @@ export default function PastSessions({ current, label, onPick }: { current: stri
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="font-sans font-semibold text-[13px]">{m.meeting}</span>
                     <span className="font-mono text-[10px] text-ink-faint">
-                      R{m.round} · {new Date(m.sessions.at(-1)!.end).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                      {m.round ? `R${m.round} · ` : ""}
+                      {new Date(m.sessions.at(-1)!.end).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-1.5 mt-2">

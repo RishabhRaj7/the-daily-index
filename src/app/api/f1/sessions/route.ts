@@ -5,5 +5,6 @@ import { seasonSessions } from "@/lib/live/f1-live";
 export async function GET(req: Request) {
   const y = Number(new URL(req.url).searchParams.get("year")) || new Date().getUTCFullYear();
   const meetings = await seasonSessions(y);
-  return Response.json(meetings, { headers: { "Cache-Control": "public, max-age=300, s-maxage=900" } });
+  // An empty season (nothing answered, nothing kept yet) isn't held, so the next ask can find it.
+  return Response.json(meetings, { headers: { "Cache-Control": meetings.length ? "public, max-age=300, s-maxage=900" : "no-store" } });
 }

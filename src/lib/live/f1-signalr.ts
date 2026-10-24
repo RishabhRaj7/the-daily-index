@@ -43,7 +43,7 @@ export interface CurrentSessionInfo {
   GmtOffset: string;
   Path?: string;
   SessionStatus?: string;
-  Meeting?: { Key: number; Name: string; Location?: string; Country?: { Name: string } };
+  Meeting?: { Key: number; Name: string; Location?: string; Number?: number; Country?: { Name: string } };
 }
 
 /** "2026-10-10T21:30:00" in local time + "08:00:00" → UTC milliseconds. */
