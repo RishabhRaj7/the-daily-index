@@ -532,10 +532,11 @@ async function keptEntries(): Promise<KeptEntry[]> {
     .zrevrangeFrom(KEPT_INDEX, Date.now() - SESSION_DAYS * 86_400_000, 500)
     .catch(() => [] as string[]);
   const seen = new Set<number>();
-  return lines.flatMap((l) => {
+  // Redis (Upstash) hands JSON members back already parsed; memory hands back the text.
+  return (lines as unknown[]).flatMap((l) => {
     try {
-      const e = JSON.parse(l) as KeptEntry;
-      if (seen.has(e.key)) return [];
+      const e = (typeof l === "string" ? JSON.parse(l) : l) as KeptEntry;
+      if (!e?.key || !e.path || seen.has(e.key)) return [];
       seen.add(e.key);
       return [e];
     } catch {
@@ -602,7 +603,7 @@ export async function lastSession(): Promise<LiveSnapshot | null> {
       void rememberSectors(kept.circuitKey, kept.sectorRef);
       // Sessions kept before the index existed join it here.
       const same = current?.Key === kept.sessionKey ? current : undefined;
-      void indexSession(kept, same, same?.Meeting?.Number ?? 0);
+      await indexSession(kept, same, same?.Meeting?.Number ?? 0);
       return kept;
     }
   }
