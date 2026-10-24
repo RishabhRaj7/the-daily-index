@@ -1,0 +1,21 @@
+# Keeps every F1 session once it is over (/api/f1/keep): F1's yearly archive
+# now refuses outside readers, and its live feed holds a finished session only
+# until the next one starts (at least ~2.5 hours on a race weekend), so it is
+# asked every 15 minutes. GitHub may start a scheduled run late or skip one
+# when busy; with this many chances in every gap that costs nothing.
+name: F1 keep sessions
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  keep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Keep the last finished session
+        run: |
+          curl -fsS --retry 3 --retry-delay 20 --retry-all-errors --max-time 45 \
+            "https://the-daily-index.vercel.app/api/f1/keep"

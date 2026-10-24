@@ -552,14 +552,16 @@ const OVER = /^(Finished|Finalised|Ends)$/;
  * the feed still holds it, kept. One reader connects (a short lock); a feed
  * that won't answer is left alone for a few minutes.
  */
-async function finishedFromFeed(info: CurrentSessionInfo): Promise<LiveSnapshot | null> {
+async function finishedFromFeed(info: CurrentSessionInfo, prev?: LiveSnapshot | null): Promise<LiveSnapshot | null> {
   const store = getStore();
   const over = OVER.test(info.SessionStatus ?? "") || sessionTime(info.EndDate, info.GmtOffset) + AFTER_MS < Date.now();
   if (!over) return null;
   if (!(await store.setIfAbsent(`f1:session:feedread:${info.Key}`, 1, 300).catch(() => true))) return null;
   const state = await readLiveState().catch(() => null);
   if (!state || num(obj(state.SessionInfo).Key) !== info.Key || !state.TimingData) return null;
-  const snap = withVersions({ ...parse(state, info), versions: undefined, running: false, clockRunning: false });
+  // A re-read keeps the lap-by-lap history that was gathered while it ran (the feed's final state has no history).
+  const lapTimes = prev?.sessionKey === info.Key ? prev.lapTimes : undefined;
+  const snap = withVersions({ ...parse(state, info), versions: undefined, running: false, clockRunning: false, ...(lapTimes ? { lapTimes } : {}) });
   await keepSession(snap, info, num(obj(obj(state.SessionInfo).Meeting).Number) || (info.Meeting?.Number ?? 0));
   return snap;
 }
@@ -622,6 +624,55 @@ export async function lastSession(): Promise<LiveSnapshot | null> {
   }
   // F1 hasn't published the newest yet: the one before, as kept.
   return pointer ? await store.get<LiveSnapshot>(`f1:session:v3:${pointer}`).catch(() => null) : null;
+}
+
+// ---- keeping every session, on a schedule ---------------------------------------
+// /api/f1/keep, every 15 minutes (.github/workflows/f1-keep.yml), so a session
+// is kept even if nobody opens the live centre before the next one starts.
+//
+//   over     F1 says the session is over (Finished, Finalised, Ends), or it is
+//            30 minutes past its scheduled end; while a red flag holds it, F1
+//            still says it is running, so the job waits and asks again
+//   first    kept as soon as it is over (from the feed, else F1's archive)
+//   settled  read once more two hours after its scheduled end, for late
+//            penalties and deleted laps, while the feed still holds it
+//
+// Every run before or between those is a look and nothing else.
+
+const SETTLED_MS = 2 * 3600_000;
+
+export type KeepResult = { done: "nothing" | "running" | "kept" | "saved" | "settled" | "pending"; session?: string };
+
+export async function keepFinished(): Promise<KeepResult> {
+  const info = await currentSession();
+  if (!info?.Key) return { done: "nothing" };
+  const session = `${info.Meeting?.Name ?? ""} · ${info.Name}`;
+  const end = sessionTime(info.EndDate, info.GmtOffset);
+  const over = OVER.test(info.SessionStatus ?? "") || end + AFTER_MS < Date.now();
+  if (!over) return { done: "running", session };
+
+  const store = getStore();
+  const kept = await store.get<LiveSnapshot>(`f1:session:v3:${info.Key}`).catch(() => null);
+  const settledKey = `f1:session:settled:${info.Key}`;
+  const due = Date.now() >= end + SETTLED_MS;
+  if (kept && (!due || (await store.get(settledKey).catch(() => null)))) {
+    await indexSession(kept, info, info.Meeting?.Number ?? 0);
+    return { done: "kept", session };
+  }
+
+  // The feed keeps what it reads; the archive's copy is kept here.
+  let read = await finishedFromFeed(info, kept);
+  if (!read && info.Path) {
+    const built = await archivedSession(info.Path);
+    if (built) {
+      read = kept?.lapTimes && !built.lapTimes ? { ...built, lapTimes: kept.lapTimes } : built;
+      await keepSession(read, info, info.Meeting?.Number ?? 0);
+    }
+  }
+  // Neither answered (or another run is reading it now): the next run tries again.
+  if (!read) return { done: kept ? "kept" : "pending", session };
+  if (due) await store.set(settledKey, 1, { ttlSeconds: SESSION_DAYS * 86_400 }).catch(() => {});
+  return { done: due ? "settled" : "saved", session };
 }
 
 export async function getLive(opts: { fresh?: boolean; withLast?: boolean } = {}): Promise<LiveAnswer> {
