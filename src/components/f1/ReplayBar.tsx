@@ -5,8 +5,9 @@ import type { LiveSnapshot } from "@/lib/f1-live-types";
 import type { FlagTone, ReplayTimeline } from "@/lib/live/f1-replay";
 
 // A finished session, played back. The page asks the server for the session
-// as it stood at the replay clock (F1's archive, rebuilt change by change —
-// lib/live/f1-replay.ts) every second and a half, and everything on the page
+// as it stood at the replay clock (F1's archive or live-feed samples saved
+// locally for the latest session — lib/live/f1-replay.ts) every second and a half,
+// and everything on the page
 // — timing, the cars on the map, race control, radio, the race story — moves
 // as it did on the day. The bar along the foot of the screen: play/pause,
 // the clock, a track coloured by the flags (with qualifying's parts and every
@@ -18,6 +19,7 @@ const SPEEDS = [1, 2, 5, 10, 30];
 export interface Replay {
   snap: LiveSnapshot | null;
   timeline: ReplayTimeline | null;
+  unavailable: boolean;
   t: number;
   playing: boolean;
   speed: number;
@@ -30,8 +32,10 @@ export function useReplay(path: string | null): Replay {
   // Both tagged with their session, so a new one starts blank without a reset.
   const [line, setLine] = useState<{ path: string; timeline: ReplayTimeline } | null>(null);
   const [read_, setRead] = useState<{ path: string; snap: LiveSnapshot } | null>(null);
+  const [unavailablePath, setUnavailablePath] = useState<string | null>(null);
   const timeline = line && line.path === path ? line.timeline : null;
   const snap = read_ && read_.path === path ? read_.snap : null;
+  const unavailable = unavailablePath === path;
   const [t, setT] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [speed, setSpeedState] = useState(1);
@@ -54,12 +58,13 @@ export function useReplay(path: string | null): Replay {
       const at = Math.round(now() * 10) / 10;
       const q = new URLSearchParams({ session: p, t: String(at), full: "1", ...(withTimeline ? { timeline: "1" } : {}) });
       const res = await fetch(`/api/f1/live?${q}`, { cache: "no-store" });
-      const d = (await res.json()) as { live: boolean; snapshot?: LiveSnapshot; timeline?: ReplayTimeline | null };
+      const d = (await res.json()) as { live: boolean; snapshot?: LiveSnapshot; timeline?: ReplayTimeline | null; replayUnavailable?: boolean };
       if (p !== pathRef.current) return;
       if (d.timeline) {
         setLine({ path: p, timeline: d.timeline });
         end.current = d.timeline.end;
       }
+      if (d.replayUnavailable) setUnavailablePath(p);
       if (d.live && d.snapshot) {
         const s = d.snapshot;
         // The state is for the clock when the request left; carried on from there.
@@ -73,7 +78,7 @@ export function useReplay(path: string | null): Replay {
     }
   }, []);
 
-  // A new session: read its shape, start a minute before the lights.
+  // A new session: load its timeline and start at the earliest available point.
   useEffect(() => {
     pathRef.current = path;
     if (!path) return;
@@ -82,8 +87,12 @@ export function useReplay(path: string | null): Replay {
       const q = new URLSearchParams({ session: path, t: "0", timeline: "1", full: "1" });
       const d = (await fetch(`/api/f1/live?${q}`)
         .then((r) => r.json())
-        .catch(() => null)) as { timeline?: ReplayTimeline | null } | null;
-      if (stop || !d?.timeline) return;
+        .catch(() => null)) as { timeline?: ReplayTimeline | null; replayUnavailable?: boolean } | null;
+      if (stop) return;
+      if (!d?.timeline) {
+        if (d?.replayUnavailable) setUnavailablePath(path);
+        return;
+      }
       setLine({ path, timeline: d.timeline });
       end.current = d.timeline.end;
       clock.current = { t: d.timeline.start, at: Date.now(), rate: 1 };
@@ -144,7 +153,7 @@ export function useReplay(path: string | null): Replay {
       setRead((r) => (r ? { ...r, snap: { ...r.snap, replaySpeed: s } } : r));
     }
   };
-  return { snap, timeline, t, playing, speed, toggle, seek, setSpeed };
+  return { snap, timeline, unavailable, t, playing, speed, toggle, seek, setSpeed };
 }
 
 const FLAG: Record<FlagTone, string> = {
@@ -187,7 +196,16 @@ export default function ReplayBar({ replay, onClose }: { replay: Replay; onClose
   if (!timeline) {
     return (
       <div className="fixed inset-x-3 bottom-[calc(4.6rem+env(safe-area-inset-bottom))] lg:bottom-3 z-40 mx-auto max-w-[min(1200px,calc(100%-1.5rem))] glass border hairline rounded-2xl px-4 py-3 font-mono text-[11px] shimmer-text">
-        Fetching the session from F1&rsquo;s archive…
+        {replay.unavailable ? (
+          <div className="flex items-center justify-between gap-3 text-ink-soft">
+            <span>Replay history isn&rsquo;t available for this session.</span>
+            <button type="button" onClick={onClose} className="shrink-0 rounded-full border hairline px-3 py-1 text-[10px] text-ink hover:border-[color:var(--ink-soft)]">
+              Close
+            </button>
+          </div>
+        ) : (
+          "Fetching the session from F1’s archive…"
+        )}
       </div>
     );
   }

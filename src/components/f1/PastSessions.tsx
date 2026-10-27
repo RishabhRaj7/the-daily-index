@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { PastMeeting } from "@/lib/live/f1-live";
 
 // Any finished session of the season, from F1's archive: a button that opens
@@ -13,6 +14,9 @@ export default function PastSessions({ current, label, onPick }: { current: stri
   const [open, setOpen] = useState(false);
   const [meetings, setMeetings] = useState<PastMeeting[] | null>(null);
   const box = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
 
   useEffect(() => {
     if (!open || meetings) return;
@@ -31,7 +35,8 @@ export default function PastSessions({ current, label, onPick }: { current: stri
   useEffect(() => {
     if (!open) return;
     const away = (e: MouseEvent) => {
-      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
+      if (box.current?.contains(e.target as Node) || menu.current?.contains(e.target as Node)) return;
+      setOpen(false);
     };
     const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
     document.addEventListener("mousedown", away);
@@ -42,9 +47,34 @@ export default function PastSessions({ current, label, onPick }: { current: stri
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const anchor = trigger.current?.getBoundingClientRect();
+      if (!anchor) return;
+      const height = window.innerHeight;
+      const max = Math.min(height * 0.7, 520);
+      const belowTop = anchor.bottom + 8;
+      let maxHeight = Math.min(max, height - belowTop - 16);
+      let top = belowTop;
+      if (maxHeight < 180 && anchor.top > 180) {
+        maxHeight = Math.min(max, anchor.top - 16);
+        top = Math.max(16, anchor.top - maxHeight - 8);
+      }
+      maxHeight = Math.max(0, Math.min(maxHeight, height - top - 16));
+      const width = Math.min(window.innerWidth - 32, 416);
+      const left = window.innerWidth < 640 ? 16 : Math.max(16, Math.min(anchor.right - width, window.innerWidth - width - 16));
+      setPosition({ top, left, width, maxHeight });
+    };
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [open]);
+
   return (
     <div ref={box} className="relative">
       <button
+        ref={trigger}
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={`chip h-8 text-[12px] gap-1.5 max-w-[11rem] sm:max-w-[16rem] ${current ? "text-ink hover:text-[color:var(--paper)]" : ""}`}
@@ -60,8 +90,12 @@ export default function PastSessions({ current, label, onPick }: { current: stri
           <path d="M3 4.5 6 7.5l3-3" />
         </svg>
       </button>
-      {open && (
-        <div className="absolute right-0 top-10 z-50 w-[min(calc(100vw-2rem),26rem)] max-h-[70vh] overflow-y-auto rounded-2xl border hairline bg-[var(--surface)] shadow-[0_30px_80px_-30px_rgba(0,0,0,0.6)] p-3 animate-[sheet-up_0.3s_var(--ease-out)]">
+      {open && position && createPortal(
+        <div
+          ref={menu}
+          className="fixed z-50 w-[min(26rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border hairline bg-[var(--surface)] shadow-[0_30px_80px_-30px_rgba(0,0,0,0.6)] p-3 animate-[sheet-up_0.3s_var(--ease-out)]"
+          style={{ top: position.top, left: position.left, width: position.width, maxHeight: position.maxHeight }}
+        >
           {current && (
             <button
               type="button"
@@ -113,7 +147,8 @@ export default function PastSessions({ current, label, onPick }: { current: stri
               ))}
             </ol>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

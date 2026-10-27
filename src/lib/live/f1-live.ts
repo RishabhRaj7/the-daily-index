@@ -1,5 +1,6 @@
 import { getStore } from "@/lib/server/store";
 import { currentSession, radioUrl, readLiveState, sessionTime, type CurrentSessionInfo, type LiveState } from "./f1-signalr";
+import { captureLiveSample, capturedReplay, capturedTimeline, type ReplayTimeline } from "./f1-replay";
 import { driverPhoto } from "@/lib/f1-assets";
 import { rememberSectors } from "./f1-track";
 import { latestReadings } from "./f1-telemetry";
@@ -464,14 +465,18 @@ export async function archivedSession(path: string): Promise<LiveSnapshot | null
   return { ...parse(state, info), running: false, clockRunning: false };
 }
 
-/** Development only: a finished session shown as if running — at its end, or `t` seconds into its feed. */
+/** A finished session shown as if running — at its end, or `t` seconds into its feed. */
 export async function replay(path: string, t?: number): Promise<LiveAnswer> {
   let snap: LiveSnapshot | null;
   if (t !== undefined && Number.isFinite(t)) {
-    const { stateAt } = await import("./f1-replay");
-    const { state, laps } = await stateAt(path, t);
-    const info = infoFrom(state, path);
-    snap = info ? withVersions({ ...parse(state, info), versions: undefined, lapTimes: laps }) : null;
+    const captured = await capturedReplay(path, t);
+    if (captured) snap = captured.snap;
+    else {
+      const { stateAt } = await import("./f1-replay");
+      const { state, laps } = await stateAt(path, t);
+      const info = infoFrom(state, path);
+      snap = info ? withVersions({ ...parse(state, info), versions: undefined, lapTimes: laps }) : null;
+    }
   } else {
     snap = await archivedSession(path);
   }
@@ -490,6 +495,22 @@ const SESSION_DAYS = 400;
 const LAST = "f1:session:last";
 // Every kept session, scored by its end: one JSON line each (KeptEntry).
 const KEPT_INDEX = "f1:session:kept:v1";
+
+export async function replayTimeline(path: string): Promise<ReplayTimeline | null> {
+  const captured = await capturedTimeline(path);
+  if (captured) return captured;
+  const { timeline } = await import("./f1-replay");
+  return timeline(path);
+}
+
+async function recordReplaySample(info: CurrentSessionInfo, snap: LiveSnapshot): Promise<void> {
+  if (!info.Path || !snap.path) return;
+  try {
+    await captureLiveSample(info.Path, sessionTime(info.StartDate, info.GmtOffset), snap);
+  } catch (err) {
+    console.error("[f1/replay] live sample capture failed:", err);
+  }
+}
 
 interface KeptEntry {
   key: number;
@@ -562,6 +583,7 @@ async function finishedFromFeed(info: CurrentSessionInfo, prev?: LiveSnapshot | 
   // A re-read keeps the lap-by-lap history that was gathered while it ran (the feed's final state has no history).
   const lapTimes = prev?.sessionKey === info.Key ? prev.lapTimes : undefined;
   const snap = withVersions({ ...parse(state, info), versions: undefined, running: false, clockRunning: false, ...(lapTimes ? { lapTimes } : {}) });
+  await recordReplaySample(info, snap);
   await keepSession(snap, info, num(obj(obj(state.SessionInfo).Meeting).Number) || (info.Meeting?.Number ?? 0));
   return snap;
 }
@@ -708,6 +730,9 @@ export async function getLive(opts: { fresh?: boolean; withLast?: boolean } = {}
       snap.telemetry = Object.fromEntries(Object.entries(readings).flatMap(([no, r]) => (codes.has(no) ? [[codes.get(no)!, r]] : [])));
     }
     await store.set(KEY, snap, { ttlSeconds: 3600 }).catch(() => {});
+    if (!cached || cached.sessionKey !== info.Key || Date.parse(snap.at) - Date.parse(cached.at) >= 10_000) {
+      await recordReplaySample(info, snap);
+    }
     await keepClassification(snap, info);
     // The flag has fallen: this is the session's final word, kept.
     if (!snap.running && OVER.test(snap.status)) await keepSession(snap, info, num(obj(obj(state.SessionInfo).Meeting).Number) || (info.Meeting?.Number ?? 0));

@@ -1,4 +1,4 @@
-import { compact, getLive, pastSession, replay, without } from "@/lib/live/f1-live";
+import { compact, getLive, pastSession, replay, replayTimeline, without } from "@/lib/live/f1-live";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 20;
@@ -30,10 +30,12 @@ export async function GET(req: Request) {
     if (past && /^\d{4}\/[\w-]+\/[\w-]+\/$/.test(past)) {
       const at = t === null ? NaN : Number(t);
       if (Number.isFinite(at) && at >= 0 && at < 6 * 3600) {
-        const [answer, line] = await Promise.all([replay(past, at), params.get("timeline") === "1" ? import("@/lib/live/f1-replay").then((m) => m.timeline(past)) : null]);
+        const [answer, line] = await Promise.all([replay(past, at), params.get("timeline") === "1" ? replayTimeline(past) : null]);
         const servedAt = new Date().toISOString();
         return Response.json(
-          answer.live ? { live: true, snapshot: { ...answer.snapshot, servedAt }, timeline: line } : { live: false, next: null, timeline: line },
+          answer.live
+            ? { live: true, snapshot: { ...answer.snapshot, servedAt }, timeline: line }
+            : { live: false, next: null, timeline: line, replayUnavailable: params.get("timeline") === "1" && !line },
           { headers: { "Cache-Control": "no-store" } },
         );
       }

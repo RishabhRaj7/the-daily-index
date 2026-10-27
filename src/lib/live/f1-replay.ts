@@ -1,14 +1,12 @@
+import { gunzipSync, gzipSync } from "node:zlib";
 import type { LiveState } from "./f1-signalr";
-import type { LiveLapHistory } from "@/lib/f1-live-types";
+import { getStore } from "@/lib/server/store";
+import type { LiveLapHistory, LiveSnapshot } from "@/lib/f1-live-types";
 
-// A finished session replayed through time from F1's archive (the replay
-// bar on /f1/live, and ?f1replay= in development). Each topic's
-// ".jsonStream" holds every change the live feed sent, stamped with the time
-// since the feed opened; applying them in order up to t rebuilds the state a
-// live reader would have had at t. A race's streams come to about 6.5 MB;
-// the two most recent sessions asked for stay in memory, each with a cursor,
-// so playing forward costs only the changes since the last read (going back
-// starts again from the top, still only milliseconds).
+// Older sessions replay F1's archived ".jsonStream" changes. The latest one
+// replays compressed snapshots captured from the live feed, kept for 30 days.
+// Archive streams stay in memory for the two most recently requested sessions
+// with a cursor, so playing forward applies only the changes since the last read.
 
 const TOPICS = [
   "SessionInfo",
@@ -46,6 +44,19 @@ interface Timeline {
 const timelines = new Map<string, Promise<Event[]>>();
 const cursors = new Map<string, Timeline>();
 const KEEP = 2;
+const CAPTURE_PREFIX = "f1:replay:v1:";
+const CAPTURE_TTL = 30 * 86_400;
+const CAPTURE_INTERVAL = 10;
+const MAX_CAPTURED_SAMPLES = 2_200;
+
+interface CapturedSample {
+  t: number;
+  snap: LiveSnapshot;
+}
+
+const captureKey = (path: string) => `${CAPTURE_PREFIX}${encodeURIComponent(path)}`;
+const parseCaptured = (entry: string): CapturedSample =>
+  JSON.parse(gunzipSync(Buffer.from(entry, "base64")).toString("utf8")) as CapturedSample;
 
 const stamp = (s: string) => {
   const [h, m, sec] = s.split(":").map(Number);
@@ -125,6 +136,81 @@ export interface ReplayTimeline {
 }
 
 const TRACK_TONE: Record<string, FlagTone> = { "1": "green", "2": "yellow", "4": "sc", "5": "red", "6": "vsc", "7": "vsc" };
+
+/** Keeps a bounded sample of a session read from the live feed for latest-session replay. */
+export async function captureLiveSample(path: string, startAt: number, snap: LiveSnapshot): Promise<void> {
+  const t = Math.max(0, (Date.parse(snap.at) - startAt) / 1000);
+  const key = captureKey(path);
+  const [last] = await getStore().zrevrangeFrom(key, 0, 1);
+  if (last) {
+    const previous = parseCaptured(last);
+    if (t - previous.t < CAPTURE_INTERVAL) return;
+  }
+  const member = gzipSync(JSON.stringify({ t, snap })).toString("base64");
+  await getStore().zadd(key, t, member, { ttlSeconds: CAPTURE_TTL });
+}
+
+async function capturedSamples(path: string): Promise<CapturedSample[]> {
+  const entries = await getStore().zrevrangeFrom(captureKey(path), 0, MAX_CAPTURED_SAMPLES);
+  return entries.reverse().flatMap((entry) => {
+    try {
+      const sample = parseCaptured(entry);
+      return Number.isFinite(sample.t) && sample.snap?.path === path ? [sample] : [];
+    } catch {
+      return [];
+    }
+  });
+}
+
+function buildCapturedTimeline(samples: CapturedSample[]): ReplayTimeline | null {
+  if (samples.length < 2 || samples.at(-1)!.t <= samples[0].t) return null;
+  const flags: ReplayTimeline["flags"] = [];
+  const laps: ReplayTimeline["laps"] = [];
+  const parts: ReplayTimeline["parts"] = [];
+  let tone: FlagTone | null = null;
+  let lap: number | null = null;
+  let part: string | null = null;
+  for (const sample of samples) {
+    const nextTone = sample.snap.track.tone;
+    if (nextTone !== tone) {
+      flags.push({ t: sample.t, tone: nextTone });
+      tone = nextTone;
+    }
+    const nextLap = sample.snap.lap?.current ?? null;
+    if (nextLap !== null && nextLap !== lap) {
+      laps.push({ t: sample.t, lap: nextLap });
+      lap = nextLap;
+    }
+    const nextPart = sample.snap.partLabel;
+    if (nextPart && nextPart !== part) {
+      parts.push({ t: sample.t, label: nextPart });
+      part = nextPart;
+    }
+  }
+
+  const start = samples[0].t;
+  const end = samples.at(-1)!.t;
+  return { start, end, flags, laps, parts };
+}
+
+/** Rebuilds the replay timeline from the live-feed samples stored for a session. */
+export async function capturedTimeline(path: string): Promise<ReplayTimeline | null> {
+  return buildCapturedTimeline(await capturedSamples(path));
+}
+
+/** Reads the closest state captured at or before `t`; the first sample handles an early seek. */
+export async function capturedReplay(path: string, t: number): Promise<{ snap: LiveSnapshot } | null> {
+  const key = captureKey(path);
+  const entries = await getStore().zrevrangeTo(key, t, 1);
+  let selected = entries[0] ? parseCaptured(entries[0]) : null;
+  if (!selected) {
+    const samples = await capturedSamples(path);
+    if (!buildCapturedTimeline(samples)) return null;
+    selected = samples[0];
+  }
+  if (selected.snap.path !== path) return null;
+  return { snap: { ...selected.snap, running: true, status: "Started", clockRunning: false } };
+}
 
 export async function timeline(path: string): Promise<ReplayTimeline | null> {
   const list = await eventsFor(path);

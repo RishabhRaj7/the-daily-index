@@ -28,11 +28,13 @@ export interface Store {
   /** Atomic counter that expires `ttlSeconds` after its first increment. */
   incr(key: string, ttlSeconds: number): Promise<number>;
   /** Sorted set: add/update a member's score. */
-  zadd(key: string, score: number, member: string): Promise<void>;
+  zadd(key: string, score: number, member: string, opts?: { ttlSeconds?: number }): Promise<void>;
   /** Sorted set: members, highest score first. */
   zrevrange(key: string, limit: number): Promise<string[]>;
   /** Sorted set: members with score ≥ min, highest first. */
   zrevrangeFrom(key: string, min: number, limit: number): Promise<string[]>;
+  /** Sorted set: members with score ≤ max, highest first. */
+  zrevrangeTo(key: string, max: number, limit: number): Promise<string[]>;
 }
 
 function redisFromEnv(): Redis | null {
@@ -85,14 +87,25 @@ function redisStore(redis: Redis): Store {
       if (n === 1) await redis.expire(k(key), ttlSeconds);
       return n;
     },
-    async zadd(key, score, member) {
-      await redis.zadd(k(key), { score, member });
+    async zadd(key, score, member, opts) {
+      const pipe = redis.pipeline();
+      pipe.zadd(k(key), { score, member });
+      if (opts?.ttlSeconds) pipe.expire(k(key), opts.ttlSeconds);
+      await pipe.exec();
     },
     async zrevrange(key, limit) {
       return redis.zrange<string[]>(k(key), 0, limit - 1, { rev: true });
     },
     async zrevrangeFrom(key, min, limit) {
       return redis.zrange<string[]>(k(key), "+inf", min, {
+        byScore: true,
+        rev: true,
+        offset: 0,
+        count: limit,
+      });
+    },
+    async zrevrangeTo(key, max, limit) {
+      return redis.zrange<string[]>(k(key), max, "-inf", {
         byScore: true,
         rev: true,
         offset: 0,
@@ -108,7 +121,7 @@ function memoryStore(): Store {
   const g = globalThis as typeof globalThis & {
     __dailyIndexStore?: {
       kv: Map<string, { value: unknown; expires: number | null }>;
-      zsets: Map<string, Map<string, number>>;
+      zsets: Map<string, { values: Map<string, number>; expires: number | null }>;
     };
   };
   g.__dailyIndexStore ??= { kv: new Map(), zsets: new Map() };
@@ -124,8 +137,19 @@ function memoryStore(): Store {
     return hit;
   };
   const expiry = (ttl?: number) => (ttl ? Date.now() + ttl * 1000 : null);
-  const sorted = (key: string) =>
-    [...(zsets.get(key) ?? new Map<string, number>()).entries()].sort((a, b) => b[1] - a[1]);
+  const sorted = (key: string) => {
+    let set = zsets.get(key);
+    if (!set) return [];
+    if (set instanceof Map) {
+      set = { values: set, expires: null };
+      zsets.set(key, set);
+    }
+    if (set.expires !== null && set.expires < Date.now()) {
+      zsets.delete(key);
+      return [];
+    }
+    return [...set.values.entries()].sort((a, b) => b[1] - a[1]);
+  };
 
   return {
     persistent: process.env.VERCEL !== "1",
@@ -160,9 +184,10 @@ function memoryStore(): Store {
       kv.set(key, { value: n, expires: hit?.expires ?? expiry(ttlSeconds) });
       return n;
     },
-    async zadd(key, score, member) {
-      const set = zsets.get(key) ?? new Map<string, number>();
-      set.set(member, score);
+    async zadd(key, score, member, opts) {
+      const set = zsets.get(key) ?? { values: new Map<string, number>(), expires: null };
+      set.values.set(member, score);
+      if (opts?.ttlSeconds) set.expires = expiry(opts.ttlSeconds);
       zsets.set(key, set);
     },
     async zrevrange(key, limit) {
@@ -171,6 +196,12 @@ function memoryStore(): Store {
     async zrevrangeFrom(key, min, limit) {
       return sorted(key)
         .filter(([, s]) => s >= min)
+        .slice(0, limit)
+        .map(([m]) => m);
+    },
+    async zrevrangeTo(key, max, limit) {
+      return sorted(key)
+        .filter(([, s]) => s <= max)
         .slice(0, limit)
         .map(([m]) => m);
     },
