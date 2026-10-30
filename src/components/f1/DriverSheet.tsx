@@ -164,14 +164,23 @@ function Body({ season, d }: { season: Season; d: SeasonDriver }) {
       )}
 
       <div className="overflow-x-auto mt-4 -mx-1 px-1">
-        <table className="w-full text-[12px] tabular-nums min-w-[34rem]">
+        <table className="data-table text-[12px] tabular-nums min-w-[38rem]">
+          <colgroup>
+            <col />
+            <col style={{ width: "6.5rem" }} />
+            <col style={{ width: "4rem" }} />
+            <col style={{ width: "7rem" }} />
+            <col style={{ width: "3rem" }} />
+            <col style={{ width: "4.5rem" }} />
+            <col style={{ width: "6rem" }} />
+          </colgroup>
           <thead>
             <tr className="font-label text-[9.5px] text-ink-faint text-left">
               <th className="font-normal py-1.5">Round</th>
               <th className="font-normal">Quali</th>
               <th className="font-normal">Grid</th>
               <th className="font-normal">Finish</th>
-              <th className="font-normal text-right">Pts</th>
+              <th className="font-normal num">Pts</th>
               <th className="font-normal pl-3">Sprint</th>
               <th className="font-normal">Fastest lap</th>
             </tr>

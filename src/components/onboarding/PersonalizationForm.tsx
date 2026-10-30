@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { F1RosterEntry, Personalization } from "@/lib/types";
-import { F1_TEAM_COLORS } from "@/lib/personalization";
+import { cleanXHandle, F1_TEAM_COLORS } from "@/lib/personalization";
 import { SECTION_ORDER } from "@/lib/sections";
 import PageOrderList from "./PageOrderList";
 
@@ -211,6 +211,14 @@ function TagInput({
     </div>
   );
 }
+
+function cleanXSearch(raw: string): string | null {
+  const cleaned = raw.replace(/\s+/g, " ").trim();
+  return cleaned.length >= 2 && cleaned.length <= 60 && !cleaned.includes("|") ? cleaned : null;
+}
+
+const MAX_X = 10;
+const MAX_X_SEARCHES = 3;
 
 function cleanSubreddit(raw: string): string | null {
   const cleaned = raw.replace(/^r\//i, "").trim().toLowerCase().replace(/\s+/g, "");
@@ -497,7 +505,7 @@ export default function PersonalizationForm({
         bare={bare}
         numeral={num("III.")}
         title="The Grapevine"
-        effect="Who fills the Reddit column: your actual subscriptions, a hand-picked list — or both."
+        effect="Two columns: X accounts and searches you name, and the Reddit list below."
       >
         <div>
           {redditPanel ?? (
@@ -537,6 +545,31 @@ export default function PersonalizationForm({
             {value.subreddits.length === 0
               ? "Empty — the column reads globally trending posts, matched to your sports."
               : "Your picks print first; connected subscriptions fill the rest."}
+          </Hint>
+        </div>
+        <div>
+          <FieldLabel>X accounts {(value.xAccounts?.length ?? 0) > 0 && `(${value.xAccounts!.length})`}</FieldLabel>
+          <TagInput
+            value={value.xAccounts ?? []}
+            onChange={(xAccounts) => onChange({ ...value, xAccounts })}
+            max={MAX_X}
+            placeholder="e.g. elonmusk or x.com/…"
+            prefix="@"
+            validate={cleanXHandle}
+            invalidHint="An X handle: up to 15 letters, numbers or underscores."
+          />
+          <FieldLabel>X searches {(value.xSearches?.length ?? 0) > 0 && `(${value.xSearches!.length})`}</FieldLabel>
+          <TagInput
+            value={value.xSearches ?? []}
+            onChange={(xSearches) => onChange({ ...value, xSearches })}
+            max={MAX_X_SEARCHES}
+            placeholder="e.g. Nvidia earnings"
+            validate={cleanXSearch}
+            invalidHint="2–60 characters."
+          />
+          <Hint>
+            Their newest posts from the last three days, one account at a time so no one fills the column, then your
+            searches. Read every 10 minutes at most.
           </Hint>
         </div>
       </Chapter>

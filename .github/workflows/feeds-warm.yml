@@ -1,0 +1,22 @@
+# Keeps the social feeds ready (lib/live/social.ts, warmSocial): Reddit's RSS
+# holds only its newest 100 posts (about half a day on the Indian market
+# subreddits), so the IPO-chatter and Valorant archives are topped up every
+# 30 minutes even when nobody opens the paper; the same call touches our
+# RSSHub so its free host stays awake. Two Reddit reads and one RSSHub ping
+# per run — nowhere near either's limits.
+name: Feeds warm
+
+on:
+  schedule:
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+
+jobs:
+  warm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Top up the Reddit archives and wake RSSHub
+        run: |
+          curl -fsS --retry 2 --retry-delay 20 --retry-all-errors --max-time 45 \
+            "https://the-daily-index.vercel.app/api/social?kind=warm"

@@ -295,13 +295,19 @@ function GroupCard({ g, follows, onOpen, onTeam }: { g: GroupTable; follows: str
   return (
     <div className="rounded-xl border hairline p-3">
       <div className="font-label text-[10px] text-ink-soft mb-2">{g.name}</div>
-      <table className="w-full text-[12.5px]">
+      <table className="data-table text-[12.5px]">
+        <colgroup>
+          <col />
+          <col style={{ width: "2.75rem" }} />
+          <col style={{ width: "3.25rem" }} />
+          <col style={{ width: "4.5rem" }} />
+        </colgroup>
         <thead>
           <tr className="font-label text-[9px] text-ink-faint text-right">
             <th className="text-left font-normal pb-1">Team</th>
-            <th className="font-normal pb-1 w-10">W–L</th>
-            <th className="font-normal pb-1 w-12">Maps</th>
-            <th className="font-normal pb-1 w-16" />
+            <th className="font-normal pb-1 num">W–L</th>
+            <th className="font-normal pb-1 num">Maps</th>
+            <th className="font-normal pb-1" />
           </tr>
         </thead>
         <tbody>

@@ -501,20 +501,26 @@ export default function StartingGrid({
                 style={showAll ? undefined : { minHeight: Math.min(baseRows, tableRows.length) * ROW_H }}
               >
               {/* A tap on the order opens the live centre — unmarked, for those who know. */}
-              <table className={`w-full text-xs ${showAll ? "" : "absolute inset-x-0 top-0"}`} onClick={() => router.push("/f1/live")}>
+              <table className={`data-table text-xs ${showAll ? "" : "absolute inset-x-0 top-0"}`} onClick={() => router.push("/f1/live")}>
+                <colgroup>
+                  <col style={{ width: "1.75rem" }} />
+                  <col />
+                  <col style={{ width: "28%" }} />
+                  <col style={{ width: "4.75rem" }} />
+                </colgroup>
                 <tbody>
                   {visibleRows.map((r) => (
                     <tr key={`${r.position ?? "dnf"}-${r.code}`} className="border-t hairline first:border-t-0">
-                      <td className="py-1.5 font-mono w-6 text-ink-soft">{r.position ?? "—"}</td>
+                      <td className="py-1.5 font-mono text-ink-soft">{r.position ?? "—"}</td>
                       <td className="py-1.5">
-                        <span className="flex items-center gap-2">
+                        <span className="flex items-center gap-2 min-w-0">
                           <span className="inline-block w-[3px] h-3 rounded-full shrink-0" style={{ background: teamColor(r.team) }} />
                           <TeamGlyph team={r.team} colour={teamColor(r.team) ?? "var(--ink-faint)"} />
-                          <span className="font-semibold font-sans">{r.driver}</span>
+                          <span className="font-semibold font-sans truncate">{r.driver}</span>
                         </span>
                       </td>
-                      <td className="py-1.5 font-sans text-ink-soft truncate max-w-[80px]">{r.team}</td>
-                      <td className="py-1.5 text-right font-mono text-ink-soft">
+                      <td className="py-1.5 pl-2 font-sans text-ink-soft">{r.team}</td>
+                      <td className="py-1.5 num font-mono text-ink-soft">
                         {"interval" in r ? r.interval : r.time}
                       </td>
                     </tr>

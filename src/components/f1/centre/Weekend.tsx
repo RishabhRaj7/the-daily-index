@@ -120,12 +120,19 @@ function Form({ sessions, onDriver }: { sessions: WeekendSession[]; onDriver: (c
   const all = new Map(sessions.flatMap((s) => s.rows.map((r) => [r.code, r] as const)));
   return (
     <div className="overflow-x-auto -mx-1 px-1">
-      <table className="border-separate border-spacing-[3px] text-[11.5px] tabular-nums">
+      <table className="data-table matrix border-separate border-spacing-[3px] text-[11.5px] tabular-nums">
+        {/* The driver a fixed width; every session the same width beside it. */}
+        <colgroup>
+          <col style={{ width: "9rem" }} />
+          {sessions.map((s) => (
+            <col key={s.path} style={{ width: "3.4rem" }} />
+          ))}
+        </colgroup>
         <thead>
           <tr className="font-label text-[9.5px] text-ink-faint">
-            <th className="text-left font-normal px-1 min-w-[8.5rem]">Driver</th>
+            <th className="text-left font-normal px-1">Driver</th>
             {sessions.map((s) => (
-              <th key={s.path} className="font-normal min-w-[3.4rem]">
+              <th key={s.path} className="font-normal mid">
                 {SHORT[s.name] ?? s.name}
               </th>
             ))}
@@ -267,7 +274,13 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
               <p className="font-mono text-[11px] text-ink-faint">{data === undefined ? "Reading…" : "No history: a new venue."}</p>
             ) : (
               <div className="overflow-x-auto -mx-1 px-1">
-                <table className="w-full text-[12px] min-w-[28rem]">
+                <table className="data-table text-[12px] min-w-[28rem]">
+                  <colgroup>
+                    <col style={{ width: "3.5rem" }} />
+                    <col />
+                    <col />
+                    <col />
+                  </colgroup>
                   <thead>
                     <tr className="font-label text-[9.5px] text-ink-faint text-left">
                       <th className="font-normal py-1.5">Year</th>

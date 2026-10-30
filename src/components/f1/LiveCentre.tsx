@@ -18,6 +18,7 @@ import ReplayBar, { useReplay } from "./ReplayBar";
 import { LiveDot, SessionClock, TONE, sessionLine } from "./LiveCard";
 import Feed from "./centre/Feed";
 import Analysis, { type Sub } from "./centre/Analysis";
+import TrackLimits from "./centre/TrackLimits";
 import Weekend from "./centre/Weekend";
 import { ClipNote, Speedometer, TelemetrySheet, useTelemetry } from "./centre/Telemetry";
 import { Panel, Tile } from "./centre/ui";
@@ -505,6 +506,8 @@ function LiveView({ snap, live, replay, replayT }: { snap: LiveSnapshot; live: b
           {race && <span>Interval: to the car ahead · Gap: to the leader</span>}
         </div>
       </Panel>
+      {/* Races and sprints only: the strikes towards the black and white flag. */}
+      {race && <TrackLimits snap={snap} className="order-4 lg:col-span-2" />}
     </div>
   );
 }

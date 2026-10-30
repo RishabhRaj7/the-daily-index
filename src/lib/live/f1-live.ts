@@ -719,7 +719,11 @@ export async function getLive(opts: { fresh?: boolean; withLast?: boolean } = {}
   }
   try {
     // Car data on its own connection: if F1 holds it back (or it's slow), the timing still comes.
-    const [state, cars] = await Promise.all([readLiveState(), readLiveState(["CarData.z"], 4000).catch(() => null)]);
+    // F1 sends it only to a signed-in F1 TV account: F1TV_TOKEN is that account's
+    // subscription token (see .env.example). Without it, or once it expires, the
+    // car read comes back empty and nothing else changes.
+    const f1tv = process.env.F1TV_TOKEN?.trim() || undefined;
+    const [state, cars] = await Promise.all([readLiveState(), f1tv ? readLiveState(["CarData.z"], 4000, f1tv).catch(() => null) : null]);
     if (!state) return cached && cached.sessionKey === info.Key ? { live: true, snapshot: cached } : { live: false, next: null };
     // The lap history: kept from the last read of this session, with this read's laps added.
     const parsed = parse(state, info);

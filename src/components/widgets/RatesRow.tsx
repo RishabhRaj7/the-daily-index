@@ -110,7 +110,14 @@ function FlowsSheet({ flows, onClose }: { flows: NonNullable<RatesPanel["flows"]
   return (
     <Sheet title="Who bought India" kicker={`Market Pulse · cash market · ${day(flows.date)}`} onClose={onClose} width={680} hue="var(--hue-markets)">
       <p className="font-headline text-[1.15rem] leading-snug">{story}</p>
-      <table className="w-full mt-5 font-mono text-[13px] tabular-nums">
+      <table className="data-table mt-5 font-mono text-[13px] tabular-nums">
+        {/* Who, then three money columns of one width. */}
+        <colgroup>
+          <col style={{ width: "34%" }} />
+          <col />
+          <col />
+          <col />
+        </colgroup>
         <thead>
           <tr className="font-label text-[10px] text-ink-soft text-right">
             <th className="text-left font-normal pb-2" />

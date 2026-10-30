@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { IpoDetail, IpoEntry, IpoStage, PriceBar } from "@/lib/types";
 import Sheet from "@/components/extras/Sheet";
+import { SocialList, SourceLogo, useSocial } from "@/components/extras/SocialFeed";
 import PriceChart from "./PriceChart";
 import { sortIpos } from "@/lib/ipo-order";
 import { ipoDriver, ipoMood, type IpoMood } from "@/lib/ipo-mood";
@@ -135,6 +136,53 @@ function MoodChip({ mood }: { mood: IpoMood }) {
   );
 }
 
+/** "2026-10-30T17:03:00+05:30" → "17:03, 30 Oct" (IST). */
+function asOf(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return null;
+  const opts = { timeZone: "Asia/Kolkata" } as const;
+  return `${new Date(t).toLocaleTimeString("en-GB", { ...opts, hour: "2-digit", minute: "2-digit" })}, ${new Date(t).toLocaleDateString("en-GB", { ...opts, day: "numeric", month: "short" })}`;
+}
+
+// ---- chatter -------------------------------------------------------------------
+
+// What retail investors are saying about the issue: r/IndianStockMarket,
+// r/StockMarketIndia, r/IndiaInvestments and r/IndianStreetBets (kept a week)
+// plus an X search when RSSHub is set up, ranked by how squarely each post is
+// about this issue and fading by half a day (lib/live/social.ts). Closed by
+// default; read only once opened.
+function Chatter({ name, stage }: { name: string; stage: IpoEntry["stage"] }) {
+  const [open, setOpen] = useState(false);
+  const data = useSocial(open ? `/api/social?kind=ipo&name=${encodeURIComponent(name)}` : null);
+  return (
+    <details className="mt-8 rounded-2xl border hairline group" onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
+      <summary className="cursor-pointer select-none list-none flex items-center justify-between gap-3 px-4 py-3">
+        <span className="font-label text-[10px] text-ink-soft">What people are saying</span>
+        <span className="font-mono text-[10px] text-ink-faint flex items-center gap-2">
+          {data ? `${data.posts.length} post${data.posts.length === 1 ? "" : "s"}` : ""}
+          <SourceLogo source="reddit" size={13} />
+          <SourceLogo source="x" size={13} />
+          <span className="transition-transform group-open:rotate-180" aria-hidden>
+            ▾
+          </span>
+        </span>
+      </summary>
+      <div className="px-4 pb-4">
+        <SocialList
+          data={data}
+          compact
+          filterKey="ipo-chatter"
+          empty={stage === "upcoming" ? "No one's talking about it yet." : "No posts naming this issue in the last week."}
+        />
+        <p className="font-sans text-[10.5px] text-ink-faint mt-3">
+          Most relevant first: posts that name the issue in the title, beside an IPO word, and recent ones rank higher. Opinions, not advice.
+        </p>
+      </div>
+    </details>
+  );
+}
+
 // ---- the detail sheet ----------------------------------------------------------
 
 function IpoSheet({ ipo, onClose }: { ipo: IpoEntry; onClose: () => void }) {
@@ -227,7 +275,7 @@ function IpoSheet({ ipo, onClose }: { ipo: IpoEntry; onClose: () => void }) {
         <section>
           <div className="flex items-baseline justify-between mb-3">
             <h3 className="font-label text-[10px] text-ink-soft">Subscription</h3>
-            <span className="font-mono text-[10px] text-ink-faint">{detail ? "NSE, live during bidding" : ""}</span>
+            <span className="font-mono text-[10px] text-ink-faint">{detail ? `NSE + BSE${asOf(d.subscriptionUpdated) ? ` · as of ${asOf(d.subscriptionUpdated)}` : ""}` : ""}</span>
           </div>
           {!detail && !failed ? (
             <div className="space-y-2 animate-pulse">
@@ -328,6 +376,9 @@ function IpoSheet({ ipo, onClose }: { ipo: IpoEntry; onClose: () => void }) {
         </section>
       )}
 
+      {/* What people are saying, folded away until asked for. */}
+      <Chatter name={d.name} stage={d.stage} />
+
       {/* The issue in detail, and its papers. */}
       {d.facts.length > 0 && (
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 mt-8 border-t hairline">
@@ -353,7 +404,7 @@ function IpoSheet({ ipo, onClose }: { ipo: IpoEntry; onClose: () => void }) {
       </div>
       <p className="font-sans text-[11px] text-ink-faint mt-5 leading-relaxed">
         * Worked out from SEBI&rsquo;s T+3 timeline until the exchange announces it. GMP is an unofficial grey-market
-        quote and often misses the actual listing. Subscription and issue details are from NSE.
+        quote and often misses the actual listing. Subscription (NSE and BSE bids together) and issue details are from NSE.
       </p>
     </Sheet>
   );
@@ -372,13 +423,22 @@ export default function IpoWatch() {
 
   useEffect(() => {
     let cancelled = false;
-    const load = () =>
+    let lastLoad = 0;
+    const load = () => {
+      lastLoad = Date.now();
       fetch("/api/ipos")
         .then((r) => (r.ok ? r.json() : null))
         .then((d: { ipos?: IpoEntry[] } | null) => !cancelled && setIpos(d?.ipos ?? []))
         .catch(() => !cancelled && setIpos([]));
+    };
     load();
-    const id = window.setInterval(load, 15 * 60 * 1000);
+    // Every 5 minutes while bidding hours run (the board's NSE figure moves
+    // every 15), every 15 otherwise.
+    const id = window.setInterval(() => {
+      const ist = new Date(Date.now() + 5.5 * 3_600_000);
+      const m = ist.getUTCHours() * 60 + ist.getUTCMinutes();
+      if ((m >= 600 && m <= 1170) || Date.now() - lastLoad >= 15 * 60_000 - 5_000) load();
+    }, 5 * 60 * 1000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
@@ -406,7 +466,7 @@ export default function IpoWatch() {
             <button
               type="button"
               onClick={() => setOpen(ipo)}
-              className="w-full text-left grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)_auto] items-center gap-x-6 gap-y-3 px-4 py-3.5 transition-colors hover:bg-[color:var(--card-bg)] focus-visible:bg-[color:var(--card-bg)]"
+              className="w-full text-left grid grid-cols-[minmax(0,1fr)_7rem] md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)_7rem] items-center gap-x-6 gap-y-3 px-4 py-3.5 transition-colors hover:bg-[color:var(--card-bg)] focus-visible:bg-[color:var(--card-bg)]"
             >
               <span className="min-w-0">
                 <span className="flex items-center gap-2">
@@ -427,7 +487,7 @@ export default function IpoWatch() {
                       return (
                         <>
                           {" · "}
-                          {ipo.subscription} subscribed{mood.when && ipo.stage === "open" ? ` (${mood.when.toLowerCase()})` : ""} · <MoodChip mood={mood} />
+                          {ipo.subscription} subscribed{asOf(ipo.subscriptionAt) ? ` (as of ${asOf(ipo.subscriptionAt)!.split(",")[0]})` : mood.when && ipo.stage === "open" ? ` (${mood.when.toLowerCase()})` : ""} · <MoodChip mood={mood} />
                         </>
                       );
                     return ipo.subscription && ipo.stage !== "upcoming" ? ` · ${ipo.subscription} subscribed` : "";

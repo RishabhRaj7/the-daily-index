@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { LiveSnapshot, LiveStats, LiveStints } from "@/lib/f1-live-types";
-import { deletedLaps, stewardsCases, type StewardsCase } from "@/lib/f1-race-control";
+import { stewardsCases, type StewardsCase } from "@/lib/f1-race-control";
+import TrackLimits from "./TrackLimits";
 import TyreIcon, { TYRE } from "../TyreIcon";
 import RaceStory from "../RaceStory";
 import { LapAxis, StintKey, StintLine } from "../Stints";
@@ -149,7 +150,17 @@ function Ideal({ stats, mine }: { stats: LiveStats[]; mine: Set<string> }) {
         </p>
       )}
       <div className="overflow-x-auto -mx-1 px-1">
-        <table className="w-full text-[12px] tabular-nums min-w-[26rem]">
+        <table className="data-table text-[12px] tabular-nums min-w-[26rem]">
+          {/* The driver a fixed width; the six times share the rest equally. */}
+          <colgroup>
+            <col style={{ width: "4.5rem" }} />
+            <col />
+            <col />
+            <col />
+            <col />
+            <col />
+            <col />
+          </colgroup>
           <thead>
             <tr className="font-label text-[9.5px] text-ink-faint text-right">
               <th className="text-left font-normal py-1">Driver</th>
@@ -285,7 +296,6 @@ function CaseRow({ c }: { c: StewardsCase }) {
 function Stewards({ snap }: { snap: LiveSnapshot }) {
   const rc = snap.raceControl;
   const cases = useMemo(() => stewardsCases(rc ?? []), [rc]);
-  const deleted = useMemo(() => deletedLaps(rc ?? []), [rc]);
   const open = cases.filter((c) => !c.decided);
   const decided = cases.filter((c) => c.decided);
   return (
@@ -298,29 +308,7 @@ function Stewards({ snap }: { snap: LiveSnapshot }) {
           {decided.length ? <ol>{decided.map((c, i) => <CaseRow key={i} c={c} />)}</ol> : <Empty>No decisions yet.</Empty>}
         </Panel>
       </div>
-      <Panel label="Laps deleted" meta="Third for track limits: black and white flag">
-        {deleted.length === 0 ? (
-          <Empty>No laps deleted.</Empty>
-        ) : (
-          <ol>
-            {deleted.map((d) => (
-              <li key={d.code} className="border-t hairline first:border-t-0 py-2.5">
-                <div className="flex items-center gap-3">
-                  <b className="font-sans text-[13px] w-10">{d.code}</b>
-                  <span className="flex gap-1" aria-label={`${d.limits} for track limits`}>
-                    {[0, 1, 2, 3].map((i) => (
-                      <span key={i} className="w-5 h-2 rounded-full" style={{ background: i < d.limits ? (i >= 3 ? "var(--down)" : i === 2 ? "var(--ink)" : "#fb923c") : "var(--rule)" }} />
-                    ))}
-                  </span>
-                  {d.blackAndWhite && <span className="font-label text-[9px] rounded px-1 py-[1px] border hairline">B/W flag</span>}
-                  <span className="ml-auto font-mono text-[11px] text-ink-soft">{d.laps.length}</span>
-                </div>
-                <div className="font-mono text-[10px] text-ink-faint mt-1 leading-relaxed">{d.laps.join(" · ")}</div>
-              </li>
-            ))}
-          </ol>
-        )}
-      </Panel>
+      <TrackLimits snap={snap} />
     </div>
   );
 }

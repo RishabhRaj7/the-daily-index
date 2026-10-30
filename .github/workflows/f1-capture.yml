@@ -1,0 +1,45 @@
+# Records every F1 session for the replay bar, whether or not anyone has the
+# live centre open. The site keeps a snapshot of the live feed at most every
+# 10 s, but only when /api/f1/live is read (F1's own archive now refuses
+# outside readers, so these snapshots are the only replay there is). Every
+# 15 minutes this checks whether a session is on; if one is, it reads the
+# live feed every 10 s until the session is over (up to five hours, a red-
+# flagged race included), then stops. One run at a time: a scheduled run that
+# finds one already going waits, then finds nothing to do.
+#
+# Free-tier cost per race weekend (about six hours on track): ~2,200 reads of
+# /api/f1/live, ~18k Redis commands and ~15 MB of snapshots kept 30 days —
+# well inside Vercel Hobby and Upstash's free 500k commands / 256 MB a month.
+# Actions minutes are free on a public repository.
+name: F1 capture replays
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: f1-capture
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - name: Read the live feed every 10 s while a session is on
+        run: |
+          url="https://the-daily-index.vercel.app/api/f1/live"
+          misses=0
+          while true; do
+            body=$(curl -fsS --max-time 25 "$url" || echo '{}')
+            if echo "$body" | grep -q '"live":true'; then
+              misses=0
+            else
+              misses=$((misses + 1))
+              # A blip is not the end: stop after three quiet reads in a row.
+              [ "$misses" -ge 3 ] && break
+            fi
+            sleep 10
+          done
+          echo "No session on; done."

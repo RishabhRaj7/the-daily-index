@@ -20,13 +20,19 @@ export default function FootballSidebar({
               {league.toUpperCase()}
             </div>
             {top8.length > 0 ? (
-              <table className="w-full text-xs">
+              <table className="data-table text-xs">
+          <colgroup>
+            <col style={{ width: "1.75rem" }} />
+            <col />
+            <col style={{ width: "2.25rem" }} />
+            <col style={{ width: "2.5rem" }} />
+          </colgroup>
           <thead>
             <tr className="text-left text-ink-soft font-label text-[10px]">
-              <th className="font-normal pb-1 w-6">#</th>
+              <th className="font-normal pb-1">#</th>
               <th className="font-normal pb-1">Club</th>
-              <th className="font-normal pb-1 text-right w-6">P</th>
-              <th className="font-normal pb-1 text-right w-8">Pts</th>
+              <th className="font-normal pb-1 num">P</th>
+              <th className="font-normal pb-1 num">Pts</th>
             </tr>
           </thead>
                 <tbody>

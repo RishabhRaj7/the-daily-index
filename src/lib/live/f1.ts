@@ -615,6 +615,19 @@ async function getDriverDetails(fallbackSessionKey?: number): Promise<Map<number
   return live.size > 0 ? live : staticDriverMap();
 }
 
+/**
+ * The season's drivers plus anyone else who drove in this session — a rookie
+ * in a practice seat, a stand-in — read from the session's own roster, only
+ * when such a number turns up (so a normal weekend still costs nothing).
+ */
+async function withSessionDrivers(drivers: Map<number, OpenF1Driver>, sessionKey: number, numbers: number[]): Promise<Map<number, OpenF1Driver>> {
+  if (sessionKey <= 0 || numbers.every((n) => drivers.has(n))) return drivers;
+  const extra = await getLiveSessionDrivers(sessionKey).catch(() => new Map<number, OpenF1Driver>());
+  const out = new Map(drivers);
+  for (const [n, d] of extra) if (!out.has(n)) out.set(n, d);
+  return out;
+}
+
 // The track map: the site's own copy when it has one (lib/config/f1-circuits.ts),
 // so it costs no OpenF1 call and survives a lockout. Otherwise the meetings
 // endpoint's circuit_image (sessions alone do not include it), kept by race
@@ -944,7 +957,8 @@ export async function getF1Results(): Promise<F1ResultsData | null> {
   const byName = new Map<string, F1GridResult[]>();
   await Promise.all(
     finished.map(async (s) => {
-      const rows = weekendRows(await getWeekendResult(s, weekendRace!).catch(() => []), drivers, s.session_name === "Sprint");
+      const raw = await getWeekendResult(s, weekendRace!).catch(() => []);
+      const rows = weekendRows(raw, await withSessionDrivers(drivers, s.session_key, raw.map((r) => r.driver_number)), s.session_name === "Sprint");
       byName.set(s.session_name, rows);
       if (rows[0]) tops[s.session_name] = { code: rows[0].code, driver: rows[0].driver, team: rows[0].team, time: rows[0].time };
     }),

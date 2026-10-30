@@ -966,7 +966,7 @@ export default function EditionView({
       />
     ),
     "straw-poll": () => <StrawPollSection poll={oddsLayout.poll} readAt={odds?.at ?? null} record={odds?.record ?? null} />,
-    clutch: () => <ClutchSection initial={edition.valorant ?? null} follows={personalization.valorantTeams} />,
+    clutch: () => <ClutchSection initial={edition.valorant ?? null} follows={personalization.valorantTeams} xAccounts={personalization.valorantX ?? []} />,
     "sky-report": () => (
       <SkyReportSection
         weather={weather}
@@ -1000,6 +1000,8 @@ export default function EditionView({
         redditUser={redditUser}
         dateKey={edition.isoDate}
         headlines={pageHeadlines}
+        xAccounts={personalization.xAccounts ?? []}
+        xSearches={personalization.xSearches ?? []}
       />
     ),
   };
