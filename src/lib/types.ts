@@ -129,8 +129,10 @@ export interface IpoEntry {
   /** Grey market premium, ₹ per share (unofficial). */
   gmp: number | null;
   gmpPct: number | null;
-  /** Overall subscription as printed by the GMP table, e.g. "5.07x". */
+  /** Overall subscription, e.g. "5.07x": NSE's consolidated figure (NSE + BSE), else the GMP table's. */
   subscription: string | null;
+  /** NSE's "as on" time for that figure (ISO), when it came from NSE. */
+  subscriptionAt?: string | null;
   gmpUrl: string | null;
   stage: IpoStage;
 }
@@ -556,6 +558,12 @@ export interface Personalization {
   oddsPins?: Array<{ id: string; title: string }>;
   topics: string[];
   subreddits: string[];            // up to 5; empty = use globally trending Reddit posts
+  /** X accounts read into the Grapevine's "From your feeds" (handles, no @). */
+  xAccounts?: string[];
+  /** X searches read there too ("Nvidia earnings"). */
+  xSearches?: string[];
+  /** X accounts Clutch reads for the transfer window (reporters, team accounts). */
+  valorantX?: string[];
   /** Every section, in print order (hidden ones keep their place). */
   sectionOrder: SectionKey[];
   /** Sections the reader switched off in Page order. */

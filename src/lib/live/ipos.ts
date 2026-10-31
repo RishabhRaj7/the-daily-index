@@ -371,41 +371,137 @@ export async function getIpoBoard(): Promise<IpoEntry[]> {
         await store.set(GMP_KEY(e.id), history, { ttlSeconds: 60 * 86_400 }).catch(() => {});
       }),
   ]);
-  // An issue taking bids that the GMP table hasn't caught up with (its first
-  // day, often): NSE's own running total, so its temperature still shows. Filled
-  // after the board is stored, so a stale figure is never kept.
+  // The subscription: NSE's consolidated figure (NSE and BSE bids together)
+  // over the GMP table's, which is read only a few times a day. Read on its
+  // own schedule (subscriptionFor) and filled after the board is stored, so
+  // the board keeps whatever the GMP table said and this is never kept stale.
   await Promise.all(
     out
-      .filter((e) => e.stage === "open" && !e.subscription && e.symbol)
+      .filter((e) => e.symbol && (e.stage === "open" || e.stage === "closed"))
       .map(async (e) => {
-        const total = await nseTotal(e.symbol!);
-        if (total !== null) e.subscription = `${total >= 10 ? total.toFixed(1) : total.toFixed(2)}x`;
+        const sub = await subscriptionFor(e, today).catch(() => null);
+        if (!sub) return;
+        e.subscription = `${sub.total >= 10 ? sub.total.toFixed(1) : sub.total.toFixed(2)}x`;
+        e.subscriptionAt = sub.asOf;
       }),
   );
   return out;
 }
 
-/** NSE's running subscription for an issue (all categories together), or null. */
-async function nseTotal(symbol: string): Promise<number | null> {
+// ---- the subscription, from NSE ---------------------------------------------------
+//
+// NSE's issue page carries two tables: bidDetails (bids on NSE alone) and
+// activeCat (NSE and BSE together, "Updated as on …"). Only the second is the
+// issue's subscription; the first runs at roughly half of it. NSE refreshes it
+// through the bidding day and posts the day's final figure at about 19:00 IST.
+//
+// When it is read (IST), per issue, from the store so every reader shares it:
+//   a bidding day, 10:00–19:30   every 15 minutes
+//   after the last bidding day   until the final figure is in, every 15 minutes
+//   otherwise                    never (the kept figure stands)
+
+const SUB_KEY = (id: string) => `ipo:sub:v2:${id}`;
+const SUB_EVERY_MS = 15 * 60_000;
+
+interface KeptSubscription {
+  total: number;
+  /** NSE's own "as on" time, ISO. */
+  asOf: string | null;
+  categories: Array<{ category: string; times: number }>;
+  /** When it was last read here. */
+  readAt: number;
+}
+
+/** "Updated as on 30-Oct-2026 19:00:00" → ISO (IST). */
+function nseAsOf(raw: string | undefined): string | null {
+  const m = raw?.match(/(\d{1,2})-([A-Za-z]{3})-(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (!m) return null;
+  const month = MONTHS.indexOf(m[2].toLowerCase());
+  if (month < 0) return null;
+  return `${m[3]}-${String(month + 1).padStart(2, "0")}-${m[1].padStart(2, "0")}T${m[4]}:${m[5]}:${m[6] ?? "00"}+05:30`;
+}
+
+const istClock = (now: number) => {
+  const d = new Date(now + 5.5 * 3_600_000);
+  return { day: d.toISOString().slice(0, 10), minutes: d.getUTCHours() * 60 + d.getUTCMinutes() };
+};
+
+async function subscriptionFor(e: IpoEntry, today: string, now = Date.now()): Promise<KeptSubscription | null> {
+  const store = getStore();
+  const kept = await store.get<KeptSubscription>(SUB_KEY(e.id)).catch(() => null);
+  const { day, minutes } = istClock(now);
+  const bidding = !!e.open && !!e.close && day >= e.open && day <= e.close;
+  const inHours = minutes >= 10 * 60 && minutes <= 19 * 60 + 30;
+  // The last day's figure posted from 18:30 on counts as final.
+  const finalIn = !!kept?.asOf && !!e.close && kept.asOf >= `${e.close}T18:30`;
+  const due =
+    !kept ||
+    (bidding && inHours && now - kept.readAt >= SUB_EVERY_MS) ||
+    (!!e.close && today > e.close && !finalIn && now - kept.readAt >= SUB_EVERY_MS);
+  if (!due) return kept;
+  const fresh = await nseSubscription(e.symbol!);
+  if (!fresh) return kept;
+  const next: KeptSubscription = { ...fresh, readAt: now };
+  await store.set(SUB_KEY(e.id), next, { ttlSeconds: 30 * 86_400 }).catch(() => {});
+  return next;
+}
+
+type NseRow = { category?: string; noOfTime?: string | number; noOfTotalMeant?: string | number };
+
+// The main categories only; NSE nests sub-rows under each.
+const CATEGORIES: Array<[RegExp, string]> = [
+  [/^Qualified Institutional/i, "QIB"],
+  [/^Non Institutional Investors$/i, "NII"],
+  [/more than Ten Lakh/i, "bNII (>₹10L)"],
+  [/Two Lakh Rupees upto Ten/i, "sNII (₹2–10L)"],
+  [/^Retail Individual/i, "Retail"],
+  [/^Employee/i, "Employees"],
+  [/^Shareholder/i, "Shareholders"],
+  [/^Total$/i, "Total"],
+];
+
+/** Category-wise times subscribed from NSE's consolidated table (NSE's own table only if that is missing). */
+function categoriesOf(d: NseDetail): { categories: Array<{ category: string; times: number }>; asOf: string | null } {
+  const consolidated = (d.activeCat?.dataList ?? []).filter((r) => r.srNo !== "Sr.No.");
+  const rows: NseRow[] = consolidated.length ? consolidated : (d.bidDetails ?? []);
+  const categories: Array<{ category: string; times: number }> = [];
+  for (const [re, label] of CATEGORIES) {
+    const row = rows.find((r) => re.test(r.category ?? ""));
+    const times = num(String(row?.noOfTotalMeant ?? row?.noOfTime ?? ""));
+    if (row && times !== null && !categories.some((c) => c.category === label)) categories.push({ category: label, times });
+  }
+  return { categories, asOf: consolidated.length ? nseAsOf(d.activeCat?.updateTime) : null };
+}
+
+async function nseDetail(symbol: string): Promise<NseDetail | null> {
   try {
     const res = await fetch(`https://www.nseindia.com/api/ipo-detail?symbol=${encodeURIComponent(symbol)}&series=EQ`, {
       headers: NSE_HEADERS,
-      next: { revalidate: 300 },
-      signal: AbortSignal.timeout(8_000),
+      // The schedule above decides when to read.
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
     });
-    if (!res.ok) return null;
-    const d = (await res.json()) as NseDetail;
-    const row = d.bidDetails?.find((r) => /^Total$/i.test(r.category ?? ""));
-    return num(String(row?.noOfTime ?? ""));
+    return res.ok ? ((await res.json()) as NseDetail) : null;
   } catch {
     return null;
   }
+}
+
+/** NSE's consolidated subscription for an issue, or null. */
+async function nseSubscription(symbol: string): Promise<Omit<KeptSubscription, "readAt"> | null> {
+  const d = await nseDetail(symbol);
+  if (!d) return null;
+  const { categories, asOf } = categoriesOf(d);
+  const total = categories.find((c) => c.category === "Total")?.times;
+  return total === undefined ? null : { total, asOf, categories };
 }
 
 // ---- one IPO in full -------------------------------------------------------------
 
 interface NseDetail {
   bidDetails?: Array<{ category?: string; noOfTime?: string | number; noOfSharesOffered?: string; noOfsharesBid?: string }>;
+  /** NSE and BSE bids together; the first row repeats the column names. */
+  activeCat?: { updateTime?: string; dataList?: Array<{ category?: string; noOfTotalMeant?: string; srNo?: string | null }> };
   issueInfo?: { dataList?: Array<{ title?: string | null; value?: string | null }> };
 }
 
@@ -423,43 +519,20 @@ export async function getIpoDetail(id: string): Promise<IpoDetail | null> {
   let documents: IpoDetail["documents"] = [];
   let subscriptionUpdated: string | null = null;
   if (entry.symbol) {
-    try {
-      const res = await fetch(
-        `https://www.nseindia.com/api/ipo-detail?symbol=${encodeURIComponent(entry.symbol)}&series=EQ`,
-        { headers: NSE_HEADERS, next: { revalidate: 300 }, signal: AbortSignal.timeout(10_000) },
-      );
-      if (res.ok) {
-        const d = (await res.json()) as NseDetail;
-        // The main categories only; NSE nests sub-rows under each.
-        const wanted: Array<[RegExp, string]> = [
-          [/^Qualified Institutional/i, "QIB"],
-          [/^Non Institutional Investors$/i, "NII"],
-          [/more than Ten Lakh/i, "bNII (>₹10L)"],
-          [/Two Lakh Rupees upto Ten/i, "sNII (₹2–10L)"],
-          [/^Retail Individual/i, "Retail"],
-          [/^Employee/i, "Employees"],
-          [/^Shareholder/i, "Shareholders"],
-          [/^Total$/i, "Total"],
-        ];
-        for (const [re, label] of wanted) {
-          const row = d.bidDetails?.find((r) => re.test(r.category ?? ""));
-          const times = num(String(row?.noOfTime ?? ""));
-          if (row && times !== null) subscription.push({ category: label, times });
-        }
-        subscription = subscription.filter((s, i, all) => all.findIndex((x) => x.category === s.category) === i);
-        const keep = /^(Issue Size|Issue Type|Price Range|Face Value|Bid Lot|Minimum Order Quantity|Maximum Subscription Amount for Retail|Book Running Lead Managers|Name of the Registrar|IPO Market Timings|Discount)/i;
-        for (const row of d.issueInfo?.dataList ?? []) {
-          const title = clean(row.title);
-          const value = clean(row.value);
-          if (!title || !value) continue;
-          const link = String(row.value ?? "").match(/https?:\/\/[^\s"<>]+\.(?:zip|pdf)/i)?.[0];
-          if (link && /Prospectus|Anchor|Ratios/i.test(title)) documents.push({ label: title, url: link });
-          else if (keep.test(title)) facts.push({ label: title.replace(/for Retail I.*$/i, "(retail)"), value: value.slice(0, 220) });
-        }
-        subscriptionUpdated = subscription.length > 0 ? new Date().toISOString() : null;
+    const d = await nseDetail(entry.symbol);
+    if (d) {
+      const read = categoriesOf(d);
+      subscription = read.categories;
+      const keep = /^(Issue Size|Issue Type|Price Range|Face Value|Bid Lot|Minimum Order Quantity|Maximum Subscription Amount for Retail|Book Running Lead Managers|Name of the Registrar|IPO Market Timings|Discount)/i;
+      for (const row of d.issueInfo?.dataList ?? []) {
+        const title = clean(row.title);
+        const value = clean(row.value);
+        if (!title || !value) continue;
+        const link = String(row.value ?? "").match(/https?:\/\/[^\s"<>]+\.(?:zip|pdf)/i)?.[0];
+        if (link && /Prospectus|Anchor|Ratios/i.test(title)) documents.push({ label: title, url: link });
+        else if (keep.test(title)) facts.push({ label: title.replace(/for Retail I.*$/i, "(retail)"), value: value.slice(0, 220) });
       }
-    } catch {
-      /* NSE unreachable: the board's own figures still print */
+      subscriptionUpdated = subscription.length > 0 ? (read.asOf ?? new Date().toISOString()) : null;
     }
   }
   documents = documents.slice(0, 4);

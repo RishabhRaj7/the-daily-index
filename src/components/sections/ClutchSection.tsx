@@ -4,7 +4,8 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import type { ValEvent, ValMatch, ValorantData, ValTeam } from "@/lib/types";
 import SectionHeader from "@/components/story/SectionHeader";
 import Sheet from "@/components/extras/Sheet";
-import { loadPersonalization, savePersonalization } from "@/lib/personalization";
+import { cleanXHandle, loadPersonalization, savePersonalization } from "@/lib/personalization";
+import { SocialList, useSocial } from "@/components/extras/SocialFeed";
 import ClutchSheet, { Logo, type ClutchView } from "@/components/widgets/ClutchSheets";
 
 // Clutch: Valorant, kept small. One band, three columns:
@@ -20,6 +21,7 @@ import ClutchSheet, { Logo, type ClutchView } from "@/components/widgets/ClutchS
 // moment the data was read, so the server's HTML and the page agree.
 
 const MAX_TEAMS = 3;
+const MAX_X = 8;
 const REFRESH_MS = 2 * 60_000;
 
 const TZ = "Asia/Kolkata";
@@ -73,13 +75,15 @@ function OddsBar({ m, focus }: { m: ValMatch; focus?: string }) {
 
 function TeamPicker({ teams, onClose }: { teams: ValTeam[]; onClose: () => void }) {
   const [picked, setPicked] = useState<string[]>(loadPersonalization().valorantTeams);
+  const [xText, setXText] = useState((loadPersonalization().valorantX ?? []).map((h) => `@${h}`).join(" "));
+  const handles = [...new Set(xText.split(/[\s,]+/).map((h) => cleanXHandle(h)).filter((h): h is string => !!h))].slice(0, MAX_X);
   const toggle = (code: string) =>
     setPicked((list) =>
       list.includes(code) ? list.filter((c) => c !== code) : list.length >= MAX_TEAMS ? [...list.slice(1), code] : [...list, code],
     );
   const regions = [...new Set(teams.map((t) => t.region ?? "Other"))];
   const save = () => {
-    savePersonalization({ ...loadPersonalization(), valorantTeams: picked });
+    savePersonalization({ ...loadPersonalization(), valorantTeams: picked, valorantX: handles });
     onClose();
   };
 
@@ -115,6 +119,18 @@ function TeamPicker({ teams, onClose }: { teams: ValTeam[]; onClose: () => void 
           </div>
         ))}
       </div>
+      <label className="block mt-6">
+        <span className="font-label text-[10px] text-ink-soft">X accounts for the transfer window</span>
+        <input
+          value={xText}
+          onChange={(e) => setXText(e.target.value)}
+          placeholder="@reporter @team …"
+          className="mt-2 w-full rounded-xl border hairline bg-transparent px-3 h-10 font-mono text-[13px]"
+        />
+        <span className="block font-sans text-[11.5px] text-ink-faint mt-1.5">
+          Up to {MAX_X} reporters or team accounts, separated by spaces. In the off-season their posts join r/ValorantCompetitive&rsquo;s roster talk.
+        </span>
+      </label>
       <div className="sticky bottom-0 mt-6 pt-4 pb-1 bg-surface border-t hairline flex items-center justify-between gap-2">
         <span className="font-mono text-[10px] text-ink-faint">
           {picked.length}/{MAX_TEAMS} picked
@@ -359,9 +375,29 @@ function Wire({ data, teams, now }: { data: ValorantData; teams: ValTeam[]; now:
   );
 }
 
+// ---- the transfer window -----------------------------------------------------------------
+//
+// The off-season is when rosters change: r/ValorantCompetitive's posts that
+// read like a move (signings, departures, benchings, free agents, rumours —
+// not match threads), plus the X accounts the reader follows for it, a team
+// they follow ranked first (lib/live/social.ts).
+
+function TransferWindow({ teams, handles }: { teams: ValTeam[]; handles: string[] }) {
+  const data = useSocial(`/api/social?kind=val&teams=${encodeURIComponent(teams.map((t) => t.name).join(","))}&x=${encodeURIComponent(handles.join(","))}`);
+  return (
+    <div className="module min-w-0" data-reveal>
+      <div className="flex items-baseline justify-between gap-3 mb-3">
+        <span className="font-label text-[10px] text-ink-soft">Transfer window</span>
+        <span className="font-mono text-[10px] text-ink-faint truncate">r/ValorantCompetitive{handles.length ? ` · ${handles.length} on X` : " · add X accounts in Edit teams"}</span>
+      </div>
+      <SocialList data={data} compact max={6} filterKey="transfer-window" empty="No roster moves talked about this week." />
+    </div>
+  );
+}
+
 // ---- the section ------------------------------------------------------------------------------
 
-export default function ClutchSection({ initial, follows }: { initial: ValorantData | null; follows: string[] }) {
+export default function ClutchSection({ initial, follows, xAccounts = [] }: { initial: ValorantData | null; follows: string[]; xAccounts?: string[] }) {
   const [data, setData] = useState<ValorantData | null>(initial);
   const [picking, setPicking] = useState(false);
   const [view, setView] = useState<ClutchView | null>(null);
@@ -418,7 +454,7 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
     return (
       <section id="clutch">
         <SectionHeader sectionKey="clutch" folio="Off-season" />
-        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-6 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,0.95fr)] gap-6 items-start">
           <div className="module">
             <div className="flex items-center justify-between gap-3">
               <span className="font-label text-[10px] text-ink-soft">Between events</span>
@@ -443,7 +479,10 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
               </ul>
             )}
           </div>
-          <Wire data={data} teams={teams} now={now} />
+          <TransferWindow teams={teams} handles={xAccounts} />
+          <div className="md:col-span-2 lg:col-span-1 min-w-0">
+            <Wire data={data} teams={teams} now={now} />
+          </div>
         </div>
         {picker}
       </section>

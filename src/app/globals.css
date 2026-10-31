@@ -469,6 +469,48 @@ html.js .is-in .bar-grow-y { transform: scaleY(1); }
 .prep-dot:nth-child(2) { animation-delay: 0.4s; }
 .prep-dot:nth-child(3) { animation-delay: 0.8s; }
 
+/* ---- Page transitions ------------------------------------------------------
+   app/template.tsx fades each page in; the loading skeleton fades in too, a
+   beat late, so a fast page never flashes it. */
+@keyframes page-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.page-in { animation: page-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.page-skeleton { animation: page-in 0.25s ease 0.12s both; }
+@media (prefers-reduced-motion: reduce) {
+  .page-in, .page-skeleton { animation: none; }
+}
+
+/* ---- Tables ----------------------------------------------------------------
+   Every table on every page sets its columns once (a <colgroup>: a fixed
+   width for each number column, the name column takes what is left), so
+   rows never shift with their contents and one table reads like the next.
+   Text that won't fit is cut with an ellipsis rather than widening a column;
+   numbers sit right with their digits lined up. A grid of rounds/sessions
+   (.data-table.matrix) keeps its fixed widths and scrolls sideways instead. */
+table.data-table {
+  width: 100%;
+  table-layout: fixed;
+}
+table.data-table.matrix {
+  width: max-content;
+  min-width: 100%;
+}
+table.data-table :is(th, td) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+table.data-table :is(th, td).num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+table.data-table :is(th, td).mid {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---- Focus + anchors ----------------------------------------------------- */
 :focus-visible {
   outline: 2px solid var(--accent);

@@ -65,7 +65,7 @@ export async function currentSession(): Promise<CurrentSessionInfo | null> {
 }
 
 /** The full current state of the given topics, or null if the feed won't answer. */
-export async function readLiveState(topics: readonly string[] = LIVE_TOPICS, timeoutMs = 8000): Promise<LiveState | null> {
+export async function readLiveState(topics: readonly string[] = LIVE_TOPICS, timeoutMs = 8000, auth?: string): Promise<LiveState | null> {
   const Socket = (globalThis as { WebSocket?: typeof WebSocket }).WebSocket;
   if (!Socket) return null;
   let cookie = "";
@@ -75,6 +75,7 @@ export async function readLiveState(topics: readonly string[] = LIVE_TOPICS, tim
       method: "POST",
       cache: "no-store",
       signal: AbortSignal.timeout(5000),
+      ...(auth ? { headers: { Authorization: `Bearer ${auth}` } } : {}),
     });
     if (!neg.ok) return null;
     // The load balancer pins the connection to the server that negotiated it.
@@ -101,7 +102,10 @@ export async function readLiveState(topics: readonly string[] = LIVE_TOPICS, tim
     try {
       // Node's WebSocket (undici) takes headers; browsers never run this.
       const Ctor = Socket as unknown as new (url: string, init?: { headers?: Record<string, string> }) => WebSocket;
-      ws = new Ctor(`wss://livetiming.formula1.com/signalrcore?id=${encodeURIComponent(token)}`, cookie ? { headers: { Cookie: cookie } } : undefined);
+      const headers: Record<string, string> = {};
+      if (cookie) headers.Cookie = cookie;
+      if (auth) headers.Authorization = `Bearer ${auth}`;
+      ws = new Ctor(`wss://livetiming.formula1.com/signalrcore?id=${encodeURIComponent(token)}`, Object.keys(headers).length ? { headers } : undefined);
     } catch {
       done(null);
       return;

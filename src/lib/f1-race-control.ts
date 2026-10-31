@@ -174,6 +174,8 @@ export interface Deleted {
   limits: number;
   /** Every deletion, newest first ("Track limits, turn 16, lap 16"). */
   laps: string[];
+  /** The same, one by one, oldest first. */
+  entries: { turn: number; lap: number; why: string; time: string | null; limits: boolean; utc: string }[];
   blackAndWhite: boolean;
 }
 
@@ -186,10 +188,12 @@ export function deletedLaps(items: LiveRaceControl[]): Deleted[] {
     const bw = BW.exec(raw);
     const code = x?.[1] ?? bw?.[1];
     if (!code) continue;
-    const d = by.get(code) ?? { code, limits: 0, laps: [], blackAndWhite: false };
+    const d = by.get(code) ?? { code, limits: 0, laps: [], entries: [], blackAndWhite: false };
     if (x) {
-      if (/TRACK LIMITS/.test(x[3])) d.limits++;
+      const limits = /TRACK LIMITS/.test(x[3]);
+      if (limits) d.limits++;
       d.laps.push(`${cap(lower(x[3]))}, turn ${x[4]}, lap ${x[5]}`);
+      d.entries.push({ turn: Number(x[4]), lap: Number(x[5]), why: cap(lower(x[3])), time: x[2] ?? null, limits, utc: m.utc });
     }
     if (bw) d.blackAndWhite = true;
     by.set(code, d);

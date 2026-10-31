@@ -274,10 +274,20 @@ export function useTelemetry(snap: LiveSnapshot, code: string | null, live: bool
   const trace = useTrace(archived ? snap.path : null, code, archived ? replayT : null);
   const history = useLiveHistory(snap, live ? code : null);
 
+  // F1 sends car data only to a signed-in F1 TV account (F1TV_TOKEN on the server).
+  const hasCars = Object.keys(snap.telemetry ?? {}).length > 0;
   if (live) {
-    return { now: code ? (snap.telemetry?.[code] ?? null) : null, samples: history, axis: "Seconds, the last few minutes (a reading every 5 s)", source: "Live · a reading every 5 s", play: null };
+    return { now: code ? (snap.telemetry?.[code] ?? null) : null, samples: history, axis: "Seconds, the last few minutes (a reading every 5 s)", source: hasCars ? "Live · a reading every 5 s" : "No car data · F1 shares it with F1 TV accounts only", play: null };
   }
   const all = trace?.samples ?? [];
+  // No lap from F1's archive (it is closed to outside readers): a replay kept
+  // from the live feed still carries each car's reading every 10 s or so.
+  if (all.length < 2 && replayT !== null && code && snap.telemetry?.[code]) {
+    return { now: snap.telemetry[code], samples: [], axis: "Seconds into the lap", source: "Replay · a reading every 10 s", play: null };
+  }
+  if (all.length < 2) {
+    return { now: null, samples: [], axis: "Seconds into the lap", source: hasCars || replayT !== null ? "No car data kept for this moment" : "No lap trace · F1's archive is closed", play: null };
+  }
   const end = all.at(-1)?.[0] ?? 0;
   if (replayT !== null) {
     // The answer runs a few seconds ahead of the replay: play up to where the replay is.
@@ -374,7 +384,7 @@ function arc(cx: number, cy: number, r: number, from: number, to: number) {
 /** The card's speedometer: the dial, played smoothly (a tap opens the detail); at rest once the session is over. */
 export function Speedometer({ t, colour, code, onOpen, ended = false, className = "" }: { t: Telemetry; colour: string; code: string; onOpen?: () => void; ended?: boolean; className?: string }) {
   const now = useSmooth(ended ? { ...t, now: null, play: null } : t);
-  return <Dial now={ended ? null : now} colour={colour} code={code} onOpen={onOpen} source={ended ? "Session ended · tap for the fastest lap" : t.source} className={className} />;
+  return <Dial now={ended ? null : now} colour={colour} code={code} onOpen={onOpen} source={ended ? (t.play ? "Session ended · tap for the fastest lap" : "Session ended") : t.source} className={className} />;
 }
 
 /**

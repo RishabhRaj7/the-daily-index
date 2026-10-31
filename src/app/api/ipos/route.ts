@@ -8,6 +8,6 @@ export async function GET() {
   const board = await getIpoBoard().catch(() => []);
   return Response.json(
     { ipos: board, at: new Date().toISOString() },
-    { headers: { "Cache-Control": "public, max-age=60, s-maxage=300" } },
+    { headers: { "Cache-Control": "public, max-age=60, s-maxage=120" } },
   );
 }

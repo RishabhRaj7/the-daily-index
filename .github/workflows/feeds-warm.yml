@@ -1,0 +1,27 @@
+# Keeps the social feeds ready (lib/live/social.ts, warmSocial):
+#   every 10 minutes   wakes our RSSHub — a free Render service sleeps after
+#                      15 idle minutes, and waking it takes most of a minute
+#   every 30 minutes   also tops up the IPO-chatter and Valorant Reddit
+#                      archives: Reddit's RSS holds only its newest 100 posts
+#                      (about half a day on the Indian market subreddits)
+# One always-on free Render service uses ~744 of its 750 free hours a month;
+# two Reddit reads every half hour are nowhere near Reddit's limits; Actions
+# minutes are free on a public repository.
+name: Feeds warm
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  warm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Wake RSSHub, and on the half hour top up the Reddit archives
+        run: |
+          minute=$(date -u +%M)
+          if [ $((10#$minute % 30)) -lt 10 ]; then only=""; else only="&only=rsshub"; fi
+          curl -fsS --retry 2 --retry-delay 20 --retry-all-errors --max-time 50 \
+            "https://the-daily-index.vercel.app/api/social?kind=warm${only}"

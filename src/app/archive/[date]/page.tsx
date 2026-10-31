@@ -151,16 +151,21 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
             {snapshot.markets.length > 0 && (
               <div className="module">
                 <h2 className="font-label text-[10px] text-ink-soft mb-3">Markets that day</h2>
-                <table className="w-full font-mono text-xs">
+                <table className="data-table font-mono text-xs">
+                  <colgroup>
+                    <col />
+                    <col style={{ width: "5.5rem" }} />
+                    <col style={{ width: "4.5rem" }} />
+                  </colgroup>
                   <tbody className="divide-y hairline">
                     {snapshot.markets.map((m) => (
                       <tr key={m.name}>
                         <td className="py-1 pr-2">{m.name}</td>
-                        <td className="py-1 text-right tabular-nums">
+                        <td className="py-1 num">
                           {m.level.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
                         </td>
                         <td
-                          className={`py-1 pl-2 text-right tabular-nums ${m.changePct >= 0 ? "text-up" : "text-down"}`}
+                          className={`py-1 pl-2 num ${m.changePct >= 0 ? "text-up" : "text-down"}`}
                         >
                           {m.changePct >= 0 ? "+" : ""}
                           {m.changePct.toFixed(2)}%
@@ -189,13 +194,18 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
             {snapshot.f1.standings.length > 0 && (
               <div className="module">
                 <h2 className="font-label text-[10px] text-ink-soft mb-3">Drivers&rsquo; championship</h2>
-                <table className="w-full font-mono text-xs">
+                <table className="data-table font-mono text-xs">
+                  <colgroup>
+                    <col style={{ width: "2rem" }} />
+                    <col />
+                    <col style={{ width: "3.5rem" }} />
+                  </colgroup>
                   <tbody className="divide-y hairline">
                     {snapshot.f1.standings.map((s) => (
                       <tr key={s.position}>
                         <td className="py-1 pr-2 text-ink-soft tabular-nums">{s.position}</td>
                         <td className="py-1">{s.name}</td>
-                        <td className="py-1 text-right tabular-nums">{s.points}</td>
+                        <td className="py-1 num">{s.points}</td>
                       </tr>
                     ))}
                   </tbody>

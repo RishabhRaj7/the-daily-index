@@ -36,6 +36,9 @@ export const DEFAULT_PERSONALIZATION: Personalization = {
   watchSeeded: 2,
   topics: [],
   subreddits: [],
+  xAccounts: [],
+  xSearches: [],
+  valorantX: [],
   sectionOrder: SECTION_ORDER,
   hiddenSections: [],
   showWhy: false,
@@ -88,6 +91,10 @@ export function loadPersonalization(): Personalization {
       const at = merged.oddsWatch.findIndex((q) => /drivers/i.test(q));
       merged.oddsWatch.splice(at >= 0 ? at + 1 : merged.oddsWatch.length, 0, "F1 Constructors Champion");
     }
+    const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+    merged.xAccounts = strings(merged.xAccounts);
+    merged.xSearches = strings(merged.xSearches);
+    merged.valorantX = strings(merged.valorantX);
     merged.oddsPins = (Array.isArray(merged.oddsPins) ? merged.oddsPins : []).filter((p) => p && typeof p.id === "string");
     merged.sectionOrder = [
       ...savedOrder,
@@ -241,4 +248,10 @@ export function isLightTeamColor(hex: string): boolean {
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
   return (r * 299 + g * 587 + b * 114) / 1000 > 140;
+}
+
+/** "@PaperRex", "x.com/PaperRex" → "PaperRex". */
+export function cleanXHandle(raw: string): string | null {
+  const cleaned = raw.trim().replace(/^@/, "").replace(/^https?:\/\/(www\.)?(x|twitter)\.com\//i, "").split(/[/?#]/)[0];
+  return /^[A-Za-z0-9_]{1,15}$/.test(cleaned) ? cleaned : null;
 }

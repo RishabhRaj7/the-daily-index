@@ -210,14 +210,23 @@ function Grid({ data, onDriver }: { data: SeasonData; onDriver: (code: string) =
         </div>
       </div>
       <div className="overflow-x-auto -mx-4 sm:-mx-5 px-4 sm:px-5 [scrollbar-width:thin]">
-        <table className="border-separate border-spacing-[3px] text-[11.5px] tabular-nums min-w-full">
+        <table className="data-table matrix border-separate border-spacing-[3px] text-[11.5px] tabular-nums">
+          {/* Fixed widths: every round the same, so the grid reads in straight columns. */}
+          <colgroup>
+            <col style={{ width: "1.75rem" }} />
+            <col style={{ width: "9rem" }} />
+            <col style={{ width: "3rem" }} />
+            {cols.map(({ r }) => (
+              <col key={r.round} style={{ width: "2.6rem" }} />
+            ))}
+          </colgroup>
           <thead>
             <tr className="font-label text-[9.5px] text-ink-faint">
               <th className="sticky left-0 z-10 bg-[var(--surface)] text-left font-normal px-1 w-7">Pos</th>
-              <th className="sticky left-7 z-10 bg-[var(--surface)] text-left font-normal px-1 min-w-[8.5rem]">Driver</th>
-              <th className="text-right font-normal px-2">Pts</th>
+              <th className="sticky left-7 z-10 bg-[var(--surface)] text-left font-normal px-1">Driver</th>
+              <th className="num font-normal px-2">Pts</th>
               {cols.map(({ r }) => (
-                <th key={r.round} className="font-normal px-0 min-w-[2.6rem]" title={`${r.name} · ${new Date(r.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`}>
+                <th key={r.round} className="font-normal px-0 mid" title={`${r.name} · ${new Date(r.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`}>
                   <div>R{r.round}</div>
                   <div className="font-mono normal-case tracking-normal text-[9.5px] truncate max-w-[2.6rem] mx-auto opacity-80">{r.name.slice(0, 3).toUpperCase()}</div>
                 </th>
