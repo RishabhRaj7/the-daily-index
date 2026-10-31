@@ -142,6 +142,20 @@ function interleave<T>(lists: T[][]): T[] {
   return out;
 }
 
+/**
+ * The best `limit` of each source, then all of them by score: "All" reads in
+ * order of relevance, and the reader's X / Reddit filter always has a full
+ * list of its own instead of what was left after the other source took the
+ * top places.
+ */
+function topPerSource(scored: { post: SocialPost; score: number }[], limit: number): SocialPost[] {
+  const ranked = [...scored].sort((a, b) => b.score - a.score);
+  const kept = new Set(
+    (["x", "reddit"] as const).flatMap((src) => dedupe(ranked.filter((s) => s.post.source === src).map((s) => s.post)).slice(0, limit)),
+  );
+  return ranked.map((s) => s.post).filter((p) => kept.delete(p));
+}
+
 const answer = (posts: SocialPost[], asked: number, answered: number, note: string | null = null): SocialAnswer => ({
   posts,
   status: asked === 0 || answered === asked ? "live" : answered > 0 ? "partial" : "unavailable",
@@ -221,7 +235,7 @@ export async function ipoChatter(name: string, limit = 10): Promise<SocialAnswer
     if (!phrase.test(p.title) && !(word && word.test(p.title))) continue;
     scored.push({ post: p, score: (IPO_WORDS.test(p.title) ? 2.5 : 1.5) * decay(p.at, 24) });
   }
-  const posts = dedupe(scored.sort((a, b) => b.score - a.score).map((s) => s.post)).slice(0, limit);
+  const posts = topPerSource(scored, limit);
   const asked = 1 + (xConfigured() ? 1 : 0);
   const answered = (reddit ? 1 : 0) + (x ? 1 : 0);
   return answer(posts, asked, answered, xConfigured() ? null : "Reddit only — X needs RSSHub.");
@@ -259,7 +273,7 @@ export async function valorantMoves(teams: string[], handles: string[], limit = 
     const hit = followed.filter((f) => f.re.test(p.title)).map((f) => f.name);
     scored.push({ post: { ...p, ...(hit.length ? { tags: hit } : {}) }, score: (MOVE.test(p.title) ? 1.5 : 0.6) * (hit.length ? 2 : 1) * decay(p.at, 48) });
   }
-  const posts = dedupe(scored.sort((a, b) => b.score - a.score).map((s) => s.post)).slice(0, limit);
+  const posts = topPerSource(scored, limit);
   const asked = 1 + xs.length;
   const answered = (reddit ? 1 : 0) + xs.filter(Boolean).length;
   return answer(posts, asked, answered, xConfigured() || handles.length === 0 ? null : "Reddit only — X needs RSSHub.");
