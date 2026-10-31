@@ -385,7 +385,7 @@ function Wire({ data, teams, now }: { data: ValorantData; teams: ValTeam[]; now:
 function TransferWindow({ teams, handles }: { teams: ValTeam[]; handles: string[] }) {
   const data = useSocial(`/api/social?kind=val&teams=${encodeURIComponent(teams.map((t) => t.name).join(","))}&x=${encodeURIComponent(handles.join(","))}`);
   return (
-    <div className="module min-w-0" data-reveal>
+    <div className="module min-w-0 h-full" data-reveal>
       <div className="flex items-baseline justify-between gap-3 mb-3">
         <span className="font-label text-[10px] text-ink-soft">Transfer window</span>
         <span className="font-mono text-[10px] text-ink-faint truncate">r/ValorantCompetitive{handles.length ? ` · ${handles.length} on X` : " · add X accounts in Edit teams"}</span>
@@ -445,7 +445,8 @@ export default function ClutchSection({ initial, follows, xAccounts = [] }: { in
     </button>
   );
 
-  // Off-season: one line of dates beside the headlines.
+  // Off-season: two columns that end level — the dates and the scene's
+  // headlines stacked on the left, the transfer window on the right.
   if (data.phase === "off" || !event) {
     const lastFinal = data.lastEvent
       ? [...data.matches].reverse().find((m) => m.eventKey === data.lastEvent!.key && m.state === "completed")
@@ -454,35 +455,40 @@ export default function ClutchSection({ initial, follows, xAccounts = [] }: { in
     return (
       <section id="clutch">
         <SectionHeader sectionKey="clutch" folio="Off-season" />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,0.95fr)] gap-6 items-start">
-          <div className="module">
-            <div className="flex items-center justify-between gap-3">
-              <span className="font-label text-[10px] text-ink-soft">Between events</span>
-              {edit}
+        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)] gap-6 items-stretch">
+          <div className="flex flex-col gap-6 min-w-0">
+            <div className="module">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-label text-[10px] text-ink-soft">Between events</span>
+                {edit}
+              </div>
+              <p className="font-sans text-[14px] mt-3 leading-snug">
+                {data.lastEvent ? (
+                  <>
+                    {data.lastEvent.name} ended {date(data.lastEvent.end)}
+                    {champion ? `, won by ${champion.name}` : ""}.{" "}
+                  </>
+                ) : null}
+                {data.nextEvent
+                  ? `Next: ${data.nextEvent.name}, from ${when(data.nextEvent.start)}.`
+                  : "The next VCT season's dates aren't out yet (Kickoff usually starts in January)."}
+              </p>
+              {teams.length > 0 && (
+                <ul className="mt-3 divide-y hairline">
+                  {teams.map((t) => (
+                    <TeamCard key={t.code} team={t} data={data} open={setView} />
+                  ))}
+                </ul>
+              )}
             </div>
-            <p className="font-sans text-[14px] mt-3 leading-snug">
-              {data.lastEvent ? (
-                <>
-                  {data.lastEvent.name} ended {date(data.lastEvent.end)}
-                  {champion ? `, won by ${champion.name}` : ""}.{" "}
-                </>
-              ) : null}
-              {data.nextEvent
-                ? `Next: ${data.nextEvent.name}, from ${when(data.nextEvent.start)}.`
-                : "The next VCT season's dates aren't out yet (Kickoff usually starts in January)."}
-            </p>
-            {teams.length > 0 && (
-              <ul className="mt-3 divide-y hairline">
-                {teams.map((t) => (
-                  <TeamCard key={t.code} team={t} data={data} open={setView} />
-                ))}
-              </ul>
+            {data.news.length > 0 && (
+              <div className="module flex-1" data-reveal>
+                <div className="font-label text-[10px] text-ink-soft mb-3">From the scene</div>
+                <Wire data={data} teams={teams} now={now} />
+              </div>
             )}
           </div>
           <TransferWindow teams={teams} handles={xAccounts} />
-          <div className="md:col-span-2 lg:col-span-1 min-w-0">
-            <Wire data={data} teams={teams} now={now} />
-          </div>
         </div>
         {picker}
       </section>

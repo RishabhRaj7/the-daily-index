@@ -172,6 +172,7 @@ function Chatter({ name, stage }: { name: string; stage: IpoEntry["stage"] }) {
         <SocialList
           data={data}
           compact
+          max={10}
           filterKey="ipo-chatter"
           empty={stage === "upcoming" ? "No one's talking about it yet." : "No posts naming this issue in the last week."}
         />
