@@ -5,8 +5,8 @@ import { isPolitical } from "./politics-filter";
 
 // What people are saying, from X and Reddit, as feeds:
 //
-//   X       through our own RSSHub (RSSHUB_URL, guarded by RSSHUB_ACCESS_KEY),
-//           which reads X as a logged-in burner account. Each account or
+//   X       through our own RSSHub on Render's free tier (RSSHUB_URL, guarded
+//           by RSSHUB_ACCESS_KEY), which reads X as a logged-in burner account. Each account or
 //           search is read at most every 10 minutes, shared by every reader,
 //           so the burner stays far under X's limits.
 //   Reddit  the public RSS feeds (lib/live/reddit.ts). A feed holds only the
@@ -266,16 +266,19 @@ export async function valorantMoves(teams: string[], handles: string[], limit = 
 }
 
 /**
- * Tops up the rolling Reddit archives, so a quiet night leaves no gap, and
- * touches RSSHub so its free host never goes to sleep (the scheduled job,
- * .github/workflows/feeds-warm.yml, calls this every 30 minutes).
+ * Keeps the feeds ready (the scheduled job, .github/workflows/feeds-warm.yml):
+ * touches RSSHub every 10 minutes so its free Render service, which sleeps
+ * after 15 idle minutes, never does; and every 30 tops up the rolling Reddit
+ * archives too (`reddit`), so a quiet night leaves no gap.
  */
-export async function warmSocial(): Promise<{ ipo: number; valorant: number; rsshub: boolean | null }> {
+export async function warmSocial(reddit = true): Promise<{ ipo: number | null; valorant: number | null; rsshub: boolean | null }> {
   const base = process.env.RSSHUB_URL?.trim().replace(/\/+$/, "");
+  const access = process.env.RSSHUB_ACCESS_KEY?.trim();
   const [ipo, val, hub] = await Promise.all([
-    rolling("ipo", IPO_SUBREDDITS, 7),
-    rolling("valcomp", ["ValorantCompetitive"], 10),
-    base ? fetch(`${base}/healthz`, { cache: "no-store", signal: AbortSignal.timeout(20_000) }).then((r) => r.ok, () => false) : Promise.resolve(null),
+    reddit ? rolling("ipo", IPO_SUBREDDITS, 7) : Promise.resolve(undefined),
+    reddit ? rolling("valcomp", ["ValorantCompetitive"], 10) : Promise.resolve(undefined),
+    // A cold start takes most of a minute; the request alone wakes it.
+    base ? fetch(`${base}/healthz${access ? `?key=${encodeURIComponent(access)}` : ""}`, { cache: "no-store", signal: AbortSignal.timeout(25_000) }).then((r) => r.ok, () => false) : Promise.resolve(null),
   ]);
-  return { ipo: ipo?.length ?? 0, valorant: val?.length ?? 0, rsshub: hub };
+  return { ipo: ipo === undefined ? null : (ipo?.length ?? 0), valorant: val === undefined ? null : (val?.length ?? 0), rsshub: hub };
 }

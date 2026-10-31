@@ -6,7 +6,7 @@ export const maxDuration = 30;
 // GET /api/social?kind=grapevine&x=handle,…&q=search|…&r=sub,…   the reader's X and Reddit
 // GET /api/social?kind=ipo&name=<company>                          IPO chatter (Reddit + X)
 // GET /api/social?kind=val&teams=Paper Rex,…&x=handle,…            Valorant transfer window
-// GET /api/social?kind=warm                                        tops up the Reddit archives
+// GET /api/social?kind=warm[&only=rsshub]                         wakes RSSHub, tops up the Reddit archives
 //
 // Everything upstream is kept 10 minutes in the store and shared by every
 // reader (lib/live/social.ts), so this answers fresh without ever hammering
@@ -39,7 +39,7 @@ export async function GET(req: Request) {
       const teams = list(p.get("teams"), ",", 12).filter((t) => t.length <= 40);
       return Response.json(await valorantMoves(teams, handles), { headers });
     }
-    if (kind === "warm") return Response.json(await warmSocial(), { headers });
+    if (kind === "warm") return Response.json(await warmSocial(p.get("only") !== "rsshub"), { headers });
     return Response.json({ error: "kind" }, { status: 400, headers });
   } catch (err) {
     console.error("[social] failed:", err);
