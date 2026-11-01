@@ -191,7 +191,7 @@ export default async function Home() {
     ]),
   ]);
 
-  const { result: redditResult, user: redditUser, subs: effectiveSubreddits } = redditBundle;
+  const { result: redditResult } = redditBundle;
   const initialDigest = await initialDigestPromise;
 
   // Preferences drive ranking everywhere below: matching stories float to
@@ -330,8 +330,6 @@ export default async function Home() {
       tennisStories={tennisStories}
       footballData={footballData}
       tennisData={tennisDataRaw}
-      redditUser={redditUser}
-      feedSubreddits={effectiveSubreddits}
     />
   );
 }

@@ -562,8 +562,15 @@ export interface Personalization {
   xAccounts?: string[];
   /** X searches read there too ("Nvidia earnings"). */
   xSearches?: string[];
-  /** X accounts Clutch reads for the transfer window (reporters, team accounts). */
+  /** X accounts Clutch reads for the transfer window (reporters, team accounts). Superseded by feedsClutch; still its default. */
   valorantX?: string[];
+  /** Each section's X accounts, searches and subreddits, once the reader has edited them (lib/feeds.ts); absent means the defaults. */
+  feedsGrapevine?: import("./feeds-shared").FeedConfig;
+  feedsPaddock?: import("./feeds-shared").FeedConfig;
+  feedsClutch?: import("./feeds-shared").FeedConfig;
+  feedsIpo?: import("./feeds-shared").FeedConfig;
+  /** Each social list's All / X / Reddit filter, by list ("grapevine", "paddock"…); synced like the rest. */
+  feedSources?: Record<string, "all" | "x" | "reddit">;
   /** Every section, in print order (hidden ones keep their place). */
   sectionOrder: SectionKey[];
   /** Sections the reader switched off in Page order. */

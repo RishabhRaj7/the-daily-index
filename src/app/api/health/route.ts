@@ -1,6 +1,7 @@
 import { isDatabaseConfigured, pingDatabase } from "@/db";
 import { editionDiagnostics, readBuildReport } from "@/lib/server/editions";
 import { editionDate } from "@/lib/edition-date";
+import { f1TokenExpiry } from "@/lib/live/f1-signalr";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,12 @@ export async function GET(req: Request) {
     features: {
       redditLogin: database === "ok",
     },
+    // F1's archive (past sessions, replay, finished-session telemetry) needs
+    // F1TV_TOKEN; it lasts a few days. "expired" means paste a fresh one in Vercel.
+    f1tv: (() => {
+      const t = f1TokenExpiry();
+      return t ? { token: t.expired ? "expired" : "ok", expires: t.expires } : { token: "missing" };
+    })(),
     timestamp: new Date().toISOString(),
   }, { headers: { "Cache-Control": "no-store" } });
 }

@@ -3,12 +3,16 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { SocialAnswer, SocialPost } from "@/lib/live/social";
 import Ago from "./Ago";
+import { loadPersonalization, PERSONALIZATION_CHANGED_EVENT, savePersonalization } from "@/lib/personalization";
+import Sheet from "./Sheet";
 
 // X and Reddit posts as a list (lib/live/social.ts, /api/social): the
 // Grapevine's feeds, IPO chatter, Clutch's transfer window. Read when shown,
 // again every 10 minutes and whenever the tab comes back into view, so what
 // is on screen is never older than the server's own 10-minute copy. Each post
 // carries its platform's mark, and a list can offer an All / X / Reddit filter.
+// A list shows the few that fit; "See all" opens the rest in the paper's sheet
+// (or, inside a sheet already, unfolds them in place).
 
 const REFRESH_MS = 10 * 60_000;
 
@@ -92,7 +96,8 @@ export function SocialItem({ post, compact = false }: { post: SocialPost; compac
 // ---- the source filter -------------------------------------------------------
 //
 // All, X or Reddit, with how many of each there are. The choice is kept per
-// list on this device. A source with nothing right now can't be picked, and a
+// list in personalization (feedSources), so sync carries it to the reader's
+// other devices. A source with nothing right now can't be picked, and a
 // kept choice whose source has gone quiet falls back to All (and says so)
 // rather than leaving an empty column.
 
@@ -101,12 +106,12 @@ const PICK_KEY = (key: string) => `daily-index:feed-source:${key}`;
 
 // The kept choice, read as an outside store: the server (and the first paint)
 // say "all", the browser then shows what was kept, so the two never disagree.
-const PICK_EVENT = "daily-index:feed-source";
+// It follows a change made here, in another tab, or arriving by sync.
 const subscribePick = (fn: () => void) => {
-  window.addEventListener(PICK_EVENT, fn);
+  window.addEventListener(PERSONALIZATION_CHANGED_EVENT, fn);
   window.addEventListener("storage", fn);
   return () => {
-    window.removeEventListener(PICK_EVENT, fn);
+    window.removeEventListener(PERSONALIZATION_CHANGED_EVENT, fn);
     window.removeEventListener("storage", fn);
   };
 };
@@ -114,6 +119,9 @@ const subscribePick = (fn: () => void) => {
 function savedPick(key: string | undefined): SourcePick {
   if (!key) return "all";
   try {
+    const synced = loadPersonalization().feedSources?.[key];
+    if (synced) return synced;
+    // A choice made before it synced, kept on this device only.
     const saved = window.localStorage.getItem(PICK_KEY(key));
     return saved === "x" || saved === "reddit" ? saved : "all";
   } catch {
@@ -126,11 +134,16 @@ function useSourcePick(key: string | undefined): [SourcePick, (p: SourcePick) =>
   // Without storage (a private window), the choice still holds for this visit.
   const [local, setLocal] = useState<SourcePick | null>(null);
   const choose = (p: SourcePick) => {
-    setLocal(p);
+    if (!key) return setLocal(p);
     try {
-      if (key) window.localStorage.setItem(PICK_KEY(key), p);
-    } catch {}
-    window.dispatchEvent(new Event(PICK_EVENT));
+      const was = loadPersonalization();
+      savePersonalization({ ...was, feedSources: { ...was.feedSources, [key]: p } });
+      window.localStorage.removeItem(PICK_KEY(key));
+      // Saved: the kept choice (and a later one arriving by sync) shows.
+      setLocal(null);
+    } catch {
+      setLocal(p);
+    }
   };
   return [local ?? kept, choose];
 }
@@ -176,6 +189,7 @@ export function SocialList({
   compact = false,
   max,
   filterKey,
+  more,
 }: {
   data: SocialAnswer | null;
   /** What to say when everything answered and nothing matched. */
@@ -184,8 +198,11 @@ export function SocialList({
   max?: number;
   /** Shows the All / X / Reddit filter, remembering the choice under this name. */
   filterKey?: string;
+  /** Past `max`: open the rest in a sheet with this title, or unfold them in place ("inline", for a list already inside a sheet). */
+  more?: { title: string; kicker?: string } | "inline";
 }) {
   const [pick, setPick] = useSourcePick(filterKey);
+  const [all, setAll] = useState(false);
   if (!data)
     return (
       <div className="space-y-3 animate-pulse" aria-label="Loading">
@@ -202,7 +219,8 @@ export function SocialList({
   // A kept choice whose source has nothing now: everything, with a word why.
   const quiet = pick !== "all" && counts[pick] === 0 && counts.all > 0;
   const shown = pick === "all" || quiet ? data.posts : data.posts.filter((p) => p.source === pick);
-  const posts = max ? shown.slice(0, max) : shown;
+  const posts = max && !(all && more === "inline") ? shown.slice(0, max) : shown;
+  const hidden = shown.length - posts.length;
   return (
     <>
       {filterKey && counts.all > 0 && (
@@ -222,7 +240,17 @@ export function SocialList({
           ))}
         </ul>
       )}
+      {more && (hidden > 0 || (all && more === "inline")) && (
+        <button type="button" onClick={() => setAll((v) => !v)} className="font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-2">
+          {more === "inline" && all ? "Show fewer ↑" : `See all ${shown.length} posts ${more === "inline" ? "↓" : "→"}`}
+        </button>
+      )}
       {data.note && posts.length > 0 && <p className="font-body italic text-xs text-ink-faint mt-3">{data.note}</p>}
+      {all && more && more !== "inline" && (
+        <Sheet title={more.title} kicker={more.kicker} onClose={() => setAll(false)} width={720}>
+          <SocialList data={data} empty={empty} filterKey={filterKey} />
+        </Sheet>
+      )}
     </>
   );
 }

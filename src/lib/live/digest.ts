@@ -259,21 +259,17 @@ function missedLeads(prefs: DigestPreferences, corpus: CorpusArticle[], printed:
   return out;
 }
 
+/** In Brief prints headlines alone: the writer's whole headline when the feed's was cut off or unclear. */
 function toBriefs(
   missed: Map<NewsSlot, CorpusArticle[]>,
-  gistOf: (a: CorpusArticle) => string | undefined,
   titleOf: (a: CorpusArticle) => string | undefined = () => undefined,
 ): DigestResult["briefs"] {
   const briefs: NonNullable<DigestResult["briefs"]> = {};
   for (const [slot, list] of missed) {
     briefs[slot] = list.map((a) => {
       const title = titleOf(a) ?? mendTitle(a.title, a.text);
-      const raw = gistOf(a);
-      // A line under a headline that only says it again is left out.
-      const gist = raw && !echoes(title, raw) ? raw : undefined;
       return {
         title,
-        ...(gist ? { gist } : {}),
         source: a.source,
         url: a.url,
         publishedAt: a.postedAgo,
@@ -320,12 +316,6 @@ export function mendTitle(title: string, text = ""): string {
   const whole = new RegExp(`\\b${lower}\\b`).test(body);
   const prefix = new RegExp(`\\b${lower}[a-z]+`).test(body);
   return !whole && prefix ? `${t.slice(0, -last.length).trimEnd()}…` : t;
-}
-
-/** Without the model: the feed's own first sentence, when it has one. */
-function firstSentence(text: string): string | undefined {
-  const s = text.replace(/\s+/g, " ").trim().match(/^.{20,160}?[.!?](\s|$)/)?.[0]?.trim();
-  return s && s.length <= 160 ? s : undefined;
 }
 
 // ---- validation / rehydration ------------------------------------------------
@@ -707,7 +697,7 @@ async function runWriting(
       const gist = entry.gist.trim();
       if (gist.length >= 4 && gist.length <= 140 && !echoes(item.article.title, gist)) written.gist = gist;
     }
-    if (item.needsGist && typeof entry.headline === "string") {
+    if ((item.needsGist || item.needsHeadline) && typeof entry.headline === "string") {
       const headline = humanise(entry.headline).replace(/\.$/, "");
       if (headline.length >= 12 && headline.length <= 160 && looksOnTopic(item.article.title, headline)) written.headline = headline;
     }
@@ -926,11 +916,12 @@ async function aiDigest(
   // summary, glance picks a gist, and an article can need both.
   const indexByUrl = new Map(corpus.map((a) => [a.url, a.i]));
   const glanceUrls = new Set(atAGlance.map((g) => g.url));
-  // In Brief: the leading stories nothing printed; each needs a one-line gist.
+  // In Brief: the leading stories nothing printed; each prints as a headline
+  // alone, so it needs one that stands on its own.
   const missed = missedLeads(prefs, corpus, [...sectionByUrl.keys(), ...glanceUrls]);
   const briefUrls = new Set([...missed.values()].flat().map((a) => a.url));
-  const gistUrls = new Set([...glanceUrls, ...briefUrls]);
-  const shortlist = [...new Set([...sectionByUrl.keys(), ...gistUrls])]
+  const gistUrls = glanceUrls;
+  const shortlist = [...new Set([...sectionByUrl.keys(), ...gistUrls, ...briefUrls])]
     .map((url) => corpus[indexByUrl.get(url) ?? -1])
     .filter((a): a is CorpusArticle => Boolean(a));
 
@@ -945,7 +936,8 @@ async function aiDigest(
     const k = keysFor(a);
     return [
       ...(sectionByUrl.has(a.url) ? [k.summary, k.why] : []),
-      ...(gistUrls.has(a.url) ? [k.gist, k.headline] : []),
+      ...(gistUrls.has(a.url) ? [k.gist] : []),
+      ...(gistUrls.has(a.url) || briefUrls.has(a.url) ? [k.headline] : []),
     ];
   });
   const cached = cache ? await cache.getMany(wanted).catch(() => new Map<string, string>()) : new Map<string, string>();
@@ -957,7 +949,7 @@ async function aiDigest(
     const why = cached.get(k.why);
     const gist = cached.get(k.gist);
     const headline = cached.get(k.headline);
-    if (summary || gist) written.set(a.i, { summary, why, gist, headline });
+    if (summary || gist || headline) written.set(a.i, { summary, why, gist, headline });
   }
 
   // Only what is still missing goes to the model — and only those pages
@@ -965,7 +957,8 @@ async function aiDigest(
   const pending = shortlist.filter(
     (a) =>
       (sectionByUrl.has(a.url) && !written.get(a.i)?.summary) ||
-      (gistUrls.has(a.url) && !written.get(a.i)?.gist),
+      (gistUrls.has(a.url) && !written.get(a.i)?.gist) ||
+      (briefUrls.has(a.url) && !written.get(a.i)?.headline),
   );
   // Printed Google News links are decoded now: the publisher URL is both
   // what the reader should get and what full text needs.
@@ -993,6 +986,7 @@ async function aiDigest(
     section: sectionByUrl.get(article.url),
     needsSummary: sectionByUrl.has(article.url) && !written.get(article.i)?.summary,
     needsGist: gistUrls.has(article.url) && !written.get(article.i)?.gist,
+    needsHeadline: briefUrls.has(article.url) && !written.get(article.i)?.headline,
   }));
 
   try {
@@ -1007,6 +1001,9 @@ async function aiDigest(
         if (out.why) toStore.set(keysFor(article).why, out.why);
         if (out.gist) toStore.set(keysFor(article).gist, out.gist);
         if (out.headline) toStore.set(keysFor(article).headline, out.headline);
+        // A brief whose headline already stood on its own keeps it: stored as
+        // it is, so the next rebuild doesn't ask again.
+        else if (briefUrls.has(article.url)) toStore.set(keysFor(article).headline, article.title);
       }
       if (cache && toStore.size > 0) await cache.setMany(toStore).catch(() => {});
     }
@@ -1035,11 +1032,7 @@ async function aiDigest(
     const gist = idx === undefined ? undefined : written.get(idx)?.gist;
     if (gist) g.summary = gist;
   }
-  const briefs = toBriefs(
-    missed,
-    (a) => written.get(a.i)?.gist ?? firstSentence(fullText.get(a.i) ?? a.text),
-    (a) => written.get(a.i)?.headline,
-  );
+  const briefs = toBriefs(missed, (a) => written.get(a.i)?.headline);
   applyLinks([...Object.values(sections), atAGlance, ...Object.values(briefs ?? {})], links);
 
   const { [RIVALS_SECTION.id]: rivalStories = [], ...paperSections } = sections;
@@ -1301,7 +1294,7 @@ export async function generateDigest(
       const sections = heuristicDigest(prefs, corpus);
       const atAGlance = heuristicAtAGlance(prefs, sections, corpus);
       const missed = missedLeads(prefs, corpus, [...Object.values(sections).flat(), ...atAGlance].map((a) => a.url));
-      const briefs = toBriefs(missed, (a) => firstSentence(a.text));
+      const briefs = toBriefs(missed);
       const links = await resolveGoogleLinks(
         [...Object.values(sections).flat(), ...atAGlance, ...Object.values(briefs ?? {}).flat()].map((a) => a.url).filter(isGoogleNewsUrl),
       );

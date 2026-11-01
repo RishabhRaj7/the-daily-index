@@ -1,3 +1,4 @@
+import { f1Fetch } from "./f1-signalr";
 import { inflateRawSync } from "node:zlib";
 import { getStore } from "@/lib/server/store";
 import type { TrackModel } from "@/lib/f1-live-types";
@@ -135,7 +136,7 @@ const stampOf = (s: string) => {
 
 async function text(url: string): Promise<string | null> {
   try {
-    const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(25_000) });
+    const res = await f1Fetch(url, { cache: "no-store", signal: AbortSignal.timeout(25_000) });
     return res.ok ? (await res.text()).replace(/^\uFEFF/, "") : null;
   } catch {
     return null;
@@ -398,7 +399,7 @@ const TRACES = 5;
 
 /** A stream's lines as they arrive, so a long one can be left once the part wanted has passed. */
 async function* streamLines(url: string): AsyncGenerator<string> {
-  const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(45_000) }).catch(() => null);
+  const res = await f1Fetch(url, { cache: "no-store", signal: AbortSignal.timeout(45_000) }).catch(() => null);
   if (!res?.ok || !res.body) return;
   const reader = res.body.getReader();
   const decoder = new TextDecoder();

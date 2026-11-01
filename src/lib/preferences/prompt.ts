@@ -163,6 +163,8 @@ export interface WritingItem {
   section?: DigestSection;
   needsSummary: boolean;
   needsGist: boolean;
+  /** In Brief prints the headline alone, so it must stand on its own. */
+  needsHeadline?: boolean;
 }
 
 /** Full text sent to the writing pass is capped per article. */
@@ -208,8 +210,8 @@ export function buildWritingPrompt(prefs: DigestPreferences, items: WritingItem[
   const g = prefs.global;
 
   const articles = items
-    .map(({ article, text, section, needsSummary, needsGist }) => {
-      const needs = needsSummary && needsGist ? "summary, gist" : needsSummary ? "summary" : "gist";
+    .map(({ article, text, section, needsSummary, needsGist, needsHeadline }) => {
+      const needs = [needsSummary && "summary", needsGist && "gist", needsHeadline && "headline"].filter(Boolean).join(", ");
       const note = section?.prompt?.trim();
       return `<a i="${article.i}" source="${article.source}"${section ? ` section="${escapeXml(section.label)}"` : ""} needs="${needs}">
 <headline>${escapeXml(article.title)}</headline>
@@ -245,5 +247,9 @@ Gists — write one for every article whose "needs" includes gist:
 - At most 14 words, printed directly under the headline. It must add what the headline leaves out: the number, the name, the place, the outcome or what happens next. Never reword or repeat the headline. If the text adds nothing beyond the headline, leave "gist" empty.
 - If the headline is cut off (it ends mid-word or mid-phrase) or doesn't say what happened, also return "headline": a complete headline of at most 14 words from the text. Otherwise leave "headline" out.
 
-Return JSON: "items", one entry per article above, with "i" and whichever of "summary" (plus "why") and "gist" (plus "headline" when needed) it needs.`;
+Headlines — for every article whose "needs" includes headline (it prints as a headline alone, with nothing under it):
+- If the headline is cut off, a teaser or question, or wouldn't tell a reader what happened on its own, return "headline": a complete headline of at most 16 words from the text that says who did what. Keep names and figures exact.
+- If it already does that, leave "headline" out.
+
+Return JSON: "items", one entry per article above, with "i" and whichever of "summary" (plus "why"), "gist" and "headline" it needs.`;
 }

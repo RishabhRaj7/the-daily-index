@@ -47,7 +47,7 @@ const status = (s: string) => {
 
 const INCIDENT =
   /^(FIA STEWARDS: )?(?:(.+?) )?INCIDENT INVOLVING CARS? (.+?) (NOTED|UNDER INVESTIGATION|WILL BE INVESTIGATED AFTER THE (?:RACE|SESSION|SPRINT)|REVIEWED NO FURTHER (?:INVESTIGATION|ACTION)|NO FURTHER (?:ACTION|INVESTIGATION)) - (.+)$/;
-const PENALTY = /^FIA STEWARDS: (PENALTY SERVED - )?(.+?(?:PENALTY|REPRIMAND|WARNING|DISQUALIFIED|DISQUALIFICATION)) (?:FOR|TO) CARS? \d+ \((\w{3})\)(?: - (.+))?$/;
+const PENALTY = /^FIA STEWARDS: (PENALTY SERVED - )?(.+?(?:PENALTY|REPRIMAND|WARNING|DISQUALIFIED|DISQUALIFICATION)(?: \([A-Z ]+\))?) (?:FOR|TO) CARS? \d+ \((\w{3})\)(?: - (.+))?$/;
 const DELETED = /^CAR \d+ \((\w{3})\) (?:TIME ([\d:.]+) DELETED|LAP DELETED) - (.+?) AT TURN (\d+) LAP (\d+)/;
 const BLUE = /^WAVED BLUE FLAG FOR CAR \d+ \((\w{3})\)/;
 const BW = /^BLACK AND WHITE FLAG FOR CAR \d+ \((\w{3})\)(?: - (.+))?$/;
@@ -199,4 +199,103 @@ export function deletedLaps(items: LiveRaceControl[]): Deleted[] {
     by.set(code, d);
   }
   return [...by.values()].filter((d) => d.laps.length).sort((a, b) => b.limits - a.limits || b.laps.length - a.laps.length);
+}
+
+// ---- the stewards' tally, per driver ---------------------------------------------
+//
+// Everything race control has had to say about each driver this session,
+// counted: laps deleted (track limits, and anything else such as a yellow),
+// the black and white flag, the stewards' warnings, incidents noted, taken
+// under investigation (now or after the session) and closed with no further
+// action, reprimands and penalties. An incident is one set of cars and one
+// reason, the clock time in brackets included (two separate "crossing the
+// line at pit entry" calls are two incidents), followed through its messages.
+
+export type TallyKey = "limits" | "deleted" | "blackWhite" | "warnings" | "noted" | "investigated" | "cleared" | "reprimands" | "penalties";
+
+export interface TallyEvent {
+  utc: string;
+  lap: number | null;
+  key: TallyKey;
+  /** In plain words: "Track limits, turn 14, lap 18". */
+  text: string;
+}
+
+export interface DriverTally {
+  code: string;
+  counts: Record<TallyKey, number>;
+  /** Penalties as given: "5 second time penalty", "Drive through penalty"; served ones marked. */
+  penalties: { what: string; served: boolean }[];
+  /** Newest first. */
+  events: TallyEvent[];
+  total: number;
+}
+
+const SANCTION = /^FIA STEWARDS: (PENALTY SERVED - )?(.+?) (?:FOR|TO) CARS? (.+?)(?: - (.+))?$/;
+const NFA = /NO FURTHER|NO INVESTIGATION NECESSARY/;
+const emptyCounts = (): Record<TallyKey, number> => ({ limits: 0, deleted: 0, blackWhite: 0, warnings: 0, noted: 0, investigated: 0, cleared: 0, reprimands: 0, penalties: 0 });
+
+/** Race control up to `upToLap` (a replay holds the session's later messages too), tallied per driver. */
+export function stewardsTally(items: LiveRaceControl[] | undefined, upToLap?: number | null): DriverTally[] {
+  const by = new Map<string, DriverTally>();
+  const get = (code: string) => {
+    let t = by.get(code);
+    if (!t) by.set(code, (t = { code, counts: emptyCounts(), penalties: [], events: [], total: 0 }));
+    return t;
+  };
+  // Each incident's furthest step per driver, so a case counts once in each column it reached.
+  const seen = new Map<string, Set<TallyKey>>();
+  const once = (code: string, incident: string, key: TallyKey) => {
+    const k = `${code}|${incident}`;
+    const steps = seen.get(k) ?? new Set<TallyKey>();
+    seen.set(k, steps);
+    if (steps.has(key)) return false;
+    steps.add(key);
+    return true;
+  };
+  const add = (code: string, key: TallyKey, m: LiveRaceControl, text: string) => {
+    const t = get(code);
+    t.counts[key]++;
+    t.events.push({ utc: m.utc, lap: m.lap, key, text });
+  };
+  const messages = [...(items ?? [])]
+    .filter((m) => !upToLap || m.lap === null || m.lap <= upToLap)
+    .sort((a, b) => a.utc.localeCompare(b.utc));
+
+  for (const m of messages) {
+    const raw = m.message.trim();
+    let x: RegExpExecArray | null;
+    if ((x = DELETED.exec(raw))) {
+      const [, code, , why, turn, lap] = x;
+      const limits = /TRACK LIMITS/.test(why);
+      add(code, limits ? "limits" : "deleted", m, `${cap(lower(why))}, turn ${turn}, lap ${lap}`);
+    } else if ((x = BW.exec(raw))) {
+      add(x[1], "blackWhite", m, `Black and white flag${x[2] ? `, ${lower(x[2].replace(stamp, ""))}` : ""}`);
+    } else if ((x = INCIDENT.exec(raw))) {
+      const [, , where, cars, st, why] = x;
+      const incident = `${codes(cars).sort().join(",")}|${why}`;
+      const step: TallyKey = /^NOTED$/.test(st) ? "noted" : NFA.test(st) ? "cleared" : "investigated";
+      const label = `${cap(lower(why.replace(stamp, "")))}${where ? ` (${lower(where)})` : ""}: ${status(st)}`;
+      for (const code of codes(cars)) if (once(code, incident, step)) add(code, step, m, label);
+    } else if ((x = SANCTION.exec(raw)) && /PENALTY|REPRIMAND|WARNING|DISQUALIF/.test(x[2])) {
+      const [, served, what, cars, why] = x;
+      const key: TallyKey = /REPRIMAND/.test(what) ? "reprimands" : /WARNING/.test(what) && !/PENALTY/.test(what) ? "warnings" : "penalties";
+      const reason = why ? `, ${lower(why.replace(stamp, ""))}` : "";
+      for (const code of codes(cars)) {
+        if (served) {
+          const t = get(code);
+          const open = t.penalties.find((p) => !p.served && p.what === cap(lower(what)));
+          if (open) open.served = true;
+          t.events.push({ utc: m.utc, lap: m.lap, key: "penalties", text: `Served: ${lower(what)}${reason}` });
+          continue;
+        }
+        if (key === "penalties") get(code).penalties.push({ what: cap(lower(what)), served: false });
+        add(code, key, m, `${cap(lower(what))}${reason}`);
+      }
+    }
+  }
+  return [...by.values()]
+    .map((t) => ({ ...t, events: t.events.reverse(), total: Object.values(t.counts).reduce((a, b) => a + b, 0) }))
+    .filter((t) => t.total > 0)
+    .sort((a, b) => b.counts.penalties - a.counts.penalties || b.counts.investigated - a.counts.investigated || b.total - a.total);
 }

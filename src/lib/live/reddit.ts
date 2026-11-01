@@ -1,6 +1,5 @@
 import type { TrendingTopic } from "@/lib/types";
 import { getStore } from "@/lib/server/store";
-import { isPolitical } from "./politics-filter";
 import { decodeEntities } from "./rss";
 
 // ---------------------------------------------------------------------------
@@ -70,7 +69,18 @@ const stripHtml = (html: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
-function parseAtom(xml: string): RedditHit[] {
+// Threads that are about the subreddit rather than the news (daily and weekly
+// threads, megathreads, mod posts), and titles too short to say anything.
+const HOUSEKEEPING =
+  /\b(daily|weekly|monthly|weekend)\s+(discussion|thread|general|questions?|chat|megathread)\b|\bmega ?thread\b|\bdiscussion thread\b|\bfree ?talk\b|\bsimple questions\b|\bask anything\b|^\s*\[?meta\]?\s|\bmod(erator)? (post|announcement)\b|\b(pre|post)-?(race|qualifying|quali|sprint|session|match) (discussion|thread)\b|\b(race|qualifying|sprint|match|game) thread\b/i;
+
+/** Worth a reader's time: says something on its own and isn't the subreddit's own housekeeping. */
+export function worthReading(title: string): boolean {
+  const t = title.replace(/\s+/g, " ").trim();
+  return t.replace(/[^\p{L}\p{N}]/gu, "").length >= 10 && !HOUSEKEEPING.test(t);
+}
+
+export function parseAtom(xml: string): RedditHit[] {
   const out: RedditHit[] = [];
   for (const [i, m] of [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].entries()) {
     const e = m[1];
@@ -136,7 +146,7 @@ async function readFeed(key: string, subs: string[], sort: "new" | "hot" | "top"
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const hits = parseAtom(await res.text()).filter((h) => !isPolitical(h.title));
+    const hits = parseAtom(await res.text()).filter((h) => worthReading(h.title));
     const fresh = { at: now, hits };
     memory.set(key, fresh);
     await store.set(key, fresh, { ttlSeconds: KEEP_S }).catch(() => {});
@@ -173,6 +183,42 @@ function interleave<T>(lists: T[][]): T[] {
   return out;
 }
 
+/**
+ * What Reddit's front page is reading: r/popular's hot list, for India
+ * (Reddit's own geo filter) or everywhere. Kept 10 minutes for everyone, like
+ * the subreddit feeds.
+ */
+export async function popularFeed(geo: "IN" | "GLOBAL"): Promise<RedditHit[] | null> {
+  if (!enabled()) return null;
+  const key = `reddit:rss:v1:popular:${geo}`;
+  const now = Date.now();
+  const mem = memory.get(key);
+  if (mem && now - mem.at < FRESH_MS) return mem.hits;
+  const store = getStore();
+  const kept = await store.get<{ at: number; hits: RedditHit[] }>(key).catch(() => null);
+  if (kept && now - kept.at < FRESH_MS) {
+    memory.set(key, kept);
+    return kept.hits;
+  }
+  try {
+    const res = await fetch(`https://www.reddit.com/r/popular/hot/.rss?geo_filter=${geo}&limit=50`, {
+      headers: { "User-Agent": USER_AGENT, Accept: "application/atom+xml,application/xml" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const hits = parseAtom(await res.text()).filter((h) => worthReading(h.title));
+    const fresh = { at: now, hits };
+    memory.set(key, fresh);
+    await store.set(key, fresh, { ttlSeconds: KEEP_S }).catch(() => {});
+    return hits;
+  } catch (err) {
+    console.error(`[reddit] r/popular (${geo}) failed:`, err);
+    if (kept) memory.set(key, { at: now - FRESH_MS + 60_000, hits: kept.hits });
+    return kept?.hits ?? null;
+  }
+}
+
 /** The Grapevine's Reddit column: the day's top posts across the reader's subreddits, a fair share each. */
 export async function getRedditTrending(limit = 5, subreddits?: string[]): Promise<RedditResult> {
   const fetchedAt = new Date().toISOString();
@@ -189,7 +235,7 @@ export async function getRedditTrending(limit = 5, subreddits?: string[]): Promi
   for (const h of hits) by.set(h.subreddit.toLowerCase(), [...(by.get(h.subreddit.toLowerCase()) ?? []), h]);
   const topics = interleave([...by.values()]).slice(0, limit).map(toTopic);
   if (topics.length === 0) {
-    return { topics: [], status: "unavailable", note: `r/${toFetch.join(", r/")} had nothing non-political worth printing today.`, fetchedAt };
+    return { topics: [], status: "unavailable", note: `r/${toFetch.join(", r/")} had nothing worth printing today.`, fetchedAt };
   }
   return { topics, status: "live", note: null, fetchedAt };
 }

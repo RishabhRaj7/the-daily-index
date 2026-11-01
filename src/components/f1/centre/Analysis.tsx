@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { LiveSnapshot, LiveStats, LiveStints } from "@/lib/f1-live-types";
 import { stewardsCases, type StewardsCase } from "@/lib/f1-race-control";
-import TrackLimits from "./TrackLimits";
+import StewardsTable from "./StewardsTable";
 import TyreIcon, { TYRE } from "../TyreIcon";
 import RaceStory from "../RaceStory";
 import { LapAxis, StintKey, StintLine } from "../Stints";
@@ -299,8 +299,9 @@ function Stewards({ snap }: { snap: LiveSnapshot }) {
   const open = cases.filter((c) => !c.decided);
   const decided = cases.filter((c) => c.decided);
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-      <div className="space-y-6">
+    <div className="space-y-6">
+      <StewardsTable snap={snap} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         <Panel label="Open cases" meta={`${open.length}`}>
           {open.length ? <ol>{open.map((c, i) => <CaseRow key={i} c={c} />)}</ol> : <Empty>Nothing open with the stewards.</Empty>}
         </Panel>
@@ -308,7 +309,6 @@ function Stewards({ snap }: { snap: LiveSnapshot }) {
           {decided.length ? <ol>{decided.map((c, i) => <CaseRow key={i} c={c} />)}</ol> : <Empty>No decisions yet.</Empty>}
         </Panel>
       </div>
-      <TrackLimits snap={snap} />
     </div>
   );
 }

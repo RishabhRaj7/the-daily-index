@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { IpoDetail, IpoEntry, IpoStage, PriceBar } from "@/lib/types";
 import Sheet from "@/components/extras/Sheet";
 import { SocialList, SourceLogo, useSocial } from "@/components/extras/SocialFeed";
+import { FeedEditor } from "@/components/extras/FeedEditor";
+import { describeFeed, feedQuery, useFeed } from "@/lib/feeds";
 import PriceChart from "./PriceChart";
 import { sortIpos } from "@/lib/ipo-order";
 import { ipoDriver, ipoMood, type IpoMood } from "@/lib/ipo-mood";
@@ -154,7 +156,10 @@ function asOf(iso: string | null | undefined): string | null {
 // default; read only once opened.
 function Chatter({ name, stage }: { name: string; stage: IpoEntry["stage"] }) {
   const [open, setOpen] = useState(false);
-  const data = useSocial(open ? `/api/social?kind=ipo&name=${encodeURIComponent(name)}` : null);
+  const [editing, setEditing] = useState(false);
+  // Where it looks (Edit feeds; lib/feeds.ts): IPO subreddits and any X accounts the reader added.
+  const feed = useFeed("ipo");
+  const data = useSocial(open && feed ? `/api/social?kind=ipo&name=${encodeURIComponent(name)}&${feedQuery(feed.config)}` : null);
   return (
     <details className="mt-8 rounded-2xl border hairline group" onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
       <summary className="cursor-pointer select-none list-none flex items-center justify-between gap-3 px-4 py-3">
@@ -169,10 +174,23 @@ function Chatter({ name, stage }: { name: string; stage: IpoEntry["stage"] }) {
         </span>
       </summary>
       <div className="px-4 pb-4">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <span className="font-mono text-[10px] text-ink-faint truncate">{feed ? describeFeed(feed.config) : ""}</span>
+          <button type="button" onClick={() => setEditing((v) => !v)} className="chip h-7 px-2.5 text-[11.5px] shrink-0">
+            {editing ? "Close" : "Edit feeds"}
+          </button>
+        </div>
+        {/* Inside the IPO sheet already: the editor opens in place. */}
+        {editing && (
+          <div className="mb-4 rounded-xl border hairline p-4">
+            <FeedEditor section="ipo" onDone={() => setEditing(false)} />
+          </div>
+        )}
         <SocialList
           data={data}
           compact
-          max={10}
+          max={8}
+          more="inline"
           filterKey="ipo-chatter"
           empty={stage === "upcoming" ? "No one's talking about it yet." : "No posts naming this issue in the last week."}
         />

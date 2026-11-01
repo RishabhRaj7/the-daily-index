@@ -11,6 +11,35 @@
 const BASE = "https://livetiming.formula1.com";
 const RS = "\x1e"; // SignalR's record separator
 
+/**
+ * F1's archive (livetiming.formula1.com/static: every session's timing,
+ * car data and positions, past seasons too) answers only a signed-in F1
+ * account: 401 without one. F1TV_TOKEN is that account's subscription token
+ * (see .env.example), sent as a Bearer token the way FastF1 sends it; F1
+ * accepts it whatever the subscription's status, until it expires (a few
+ * days). Without it, or once it has expired, the archive refuses and every
+ * caller falls back to what it does without.
+ */
+export function f1Fetch(url: string, init: RequestInit & { next?: { revalidate?: number } } = {}): Promise<Response> {
+  const token = process.env.F1TV_TOKEN?.trim();
+  const headers = new Headers(init.headers);
+  if (token && url.startsWith(`${BASE}/`)) headers.set("Authorization", `Bearer ${token}`);
+  return fetch(url, { ...init, headers });
+}
+
+/** When F1TV_TOKEN stops working (its `exp`), or null when there's none or it can't be read. */
+export function f1TokenExpiry(): { expires: string; expired: boolean } | null {
+  const token = process.env.F1TV_TOKEN?.trim();
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")) as { exp?: number };
+    if (!payload.exp) return null;
+    return { expires: new Date(payload.exp * 1000).toISOString(), expired: payload.exp * 1000 < Date.now() };
+  } catch {
+    return null;
+  }
+}
+
 export const LIVE_TOPICS = [
   "SessionInfo",
   "SessionStatus",
