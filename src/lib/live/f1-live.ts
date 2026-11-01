@@ -167,6 +167,23 @@ const mark = (v: Obj): LapMark => (v.OverallFastest === true ? "fastest" : v.Per
 // Mini-sector status codes as the timing screens use them.
 const SEGMENT: Record<number, SegmentMark> = { 2048: "slower", 2049: "personal", 2051: "fastest", 2064: "pit", 2052: "slower" };
 
+/**
+ * The track's state. F1's TrackStatus usually says, but under a red flag it
+ * can keep saying "Yellow" (the Mexico race, 1 Nov 2026: "RED FLAG - RACE
+ * SUSPENDED" from race control and the session Aborted, TrackStatus 2), so a
+ * suspended session, or a red flag race control hasn't lifted since, reads red.
+ */
+function trackNow(code: string, status: string, rc: LiveRaceControl[]): { tone: TrackTone; label: string } {
+  if (status === "Aborted" || status === "Suspended") return TRACK["5"];
+  if (!/^(Finished|Finalised|Ends)$/.test(status)) {
+    // Newest first: a red flag counts until a restart or green light comes after it.
+    const red = rc.findIndex((m) => m.flag === "RED" || /\bRED FLAG\b/i.test(m.message));
+    const resumed = rc.findIndex((m) => m.flag === "GREEN" || /\b(SESSION|RACE) RESUMED\b|PIT EXIT (IS )?OPEN|\b(ROLLING|STANDING) START\b|\bTRACK CLEAR\b/i.test(m.message));
+    if (red >= 0 && (resumed < 0 || resumed > red) && !/RESUME/i.test(rc[red].message)) return TRACK["5"];
+  }
+  return TRACK[code] ?? TRACK["1"];
+}
+
 const TRACK: Record<string, { tone: TrackTone; label: string }> = {
   "1": { tone: "green", label: "Track clear" },
   "2": { tone: "yellow", label: "Yellow flag" },
@@ -394,7 +411,7 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
     part,
     partLabel: part ? `${/^Sprint/.test(session) ? "SQ" : "Q"}${part}` : null,
     cutoff,
-    track: TRACK[str(obj(state.TrackStatus).Status)] ?? TRACK["1"],
+    track: trackNow(str(obj(state.TrackStatus).Status), status, raceControl),
     lap,
     remaining: str(clock.Remaining) || null,
     clockAt: str(clock.Utc) || null,

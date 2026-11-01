@@ -48,8 +48,21 @@ export interface SocialAnswer {
   waiting?: boolean;
 }
 
-/** X copies count as fresh for five minutes (a reader's refresh: one). */
+/** trends24 copies are fresh for five minutes (a reader's refresh: one). */
 const FRESH_MS = 5 * 60_000;
+/**
+ * X is read through RSSHub as a logged-in burner account, so it is read
+ * gently whatever the page asks: each account or search at most once every
+ * ten minutes (a refresh button included; it gets the newest copy), and at
+ * most X_PER_HOUR reads an hour across the whole site (deploy/rsshub/README.md).
+ * Past that, lists show their last copies until the hour turns.
+ */
+const X_EVERY_MS = 10 * 60_000;
+const X_PER_HOUR = 100;
+async function xBudget(): Promise<boolean> {
+  const used = await getStore().incr(`social:x:hour:${Math.floor(Date.now() / 3_600_000)}`, 3600).catch(() => 0);
+  return used <= X_PER_HOUR;
+}
 /** RSSHub runs on one free instance: at most this many reads at once. */
 const X_AT_ONCE = 4;
 let xRunning = 0;
@@ -106,8 +119,7 @@ async function rsshub(route: string, where: string): Promise<SocialPost[] | null
   const key = `social:x:v1:${route}`;
   const store = getStore();
   const kept = await store.get<{ at: number; posts: SocialPost[] }>(key).catch(() => null);
-  const freshFor = socialCtx()?.force ? 60_000 : FRESH_MS;
-  if ((kept && Date.now() - kept.at < freshFor) || (xBackoff.get(route) ?? 0) > Date.now()) {
+  if ((kept && Date.now() - kept.at < X_EVERY_MS) || (xBackoff.get(route) ?? 0) > Date.now() || !(await xBudget())) {
     noteCopy(kept?.at, !kept);
     return kept?.posts ?? null;
   }
