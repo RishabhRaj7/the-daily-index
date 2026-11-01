@@ -8,39 +8,111 @@ import Sheet from "./Sheet";
 
 // X and Reddit posts as a list (lib/live/social.ts, /api/social): the
 // Grapevine's feeds, IPO chatter, Clutch's transfer window. Read when shown,
-// again every 10 minutes and whenever the tab comes back into view, so what
-// is on screen is never older than the server's own 10-minute copy. Each post
+// again every five minutes while the page is in view and whenever the tab
+// comes back, and at once from the list's ↻ (which asks the server for copies
+// newer than a minute; Reddit still answers one read a minute, in turn). A
+// feed with nothing yet, waiting its turn with Reddit, is asked again after
+// half a minute. Each post
 // carries its platform's mark, and a list can offer an All / X / Reddit filter.
 // A list shows the few that fit; "See all" opens the rest in the paper's sheet
 // (or, inside a sheet already, unfolds them in place).
 
-const REFRESH_MS = 10 * 60_000;
+const REFRESH_MS = 5 * 60_000;
+const WAITING_RETRY_MS = 30_000;
 
-/** One /api/social answer, kept current; null until the first arrives. Pass null to read nothing. */
-export function useSocial(url: string | null): SocialAnswer | null {
-  const [data, setData] = useState<SocialAnswer | null>(null);
+export interface SocialFeed<T> {
+  data: T | null;
+  /** Read again now, asking the server for copies newer than a minute. */
+  refresh: () => void;
+  busy: boolean;
+}
+
+/**
+ * Any /api/social answer (a list, or the trends), kept current: on show,
+ * every five minutes while in view, on coming back to the tab, on refresh(),
+ * and after half a minute while the answer says a feed is waiting its turn.
+ * Null until the first arrives; a null url reads nothing.
+ */
+export function useSocialFeed<T extends { waiting?: boolean }>(url: string | null): SocialFeed<T> {
+  const [data, setData] = useState<T | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [nonce, setNonce] = useState(0);
   useEffect(() => {
     if (!url) return;
     let cancelled = false;
     let last = 0;
-    const load = () => {
+    let retry: number | undefined;
+    let waits = 0;
+    const load = (fresh = false) => {
+      if (document.visibilityState === "hidden" && !fresh) return;
       last = Date.now();
-      fetch(url)
-        .then((r) => (r.ok ? (r.json() as Promise<SocialAnswer>) : null))
-        .then((d) => !cancelled && d && setData(d))
-        .catch(() => {});
+      window.clearTimeout(retry);
+      fetch(fresh ? `${url}&fresh=1` : url)
+        .then((r) => (r.ok ? (r.json() as Promise<T>) : null))
+        .then((d) => {
+          if (cancelled) return;
+          if (d) setData(d);
+          // Waiting for Reddit's turn: ask again shortly (a few times), not in five minutes.
+          if (d?.waiting && waits++ < 6) retry = window.setTimeout(() => load(), WAITING_RETRY_MS);
+        })
+        .catch(() => {})
+        .finally(() => !cancelled && setBusy(false));
     };
-    load();
-    const id = window.setInterval(load, REFRESH_MS);
+    load(nonce > 0);
+    const id = window.setInterval(() => load(), REFRESH_MS);
     const onShow = () => document.visibilityState === "visible" && Date.now() - last > 60_000 && load();
     document.addEventListener("visibilitychange", onShow);
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      window.clearTimeout(retry);
       document.removeEventListener("visibilitychange", onShow);
     };
-  }, [url]);
-  return url ? data : null;
+  }, [url, nonce]);
+  return {
+    data: url ? data : null,
+    busy,
+    refresh: () => {
+      setBusy(true);
+      setNonce((n) => n + 1);
+    },
+  };
+}
+
+/** One /api/social list, kept current (useSocialFeed without the refresh control). */
+export function useSocial(url: string | null): SocialAnswer | null {
+  return useSocialFeed<SocialAnswer>(url).data;
+}
+
+const minuteTick = (fn: () => void) => {
+  const t = setInterval(fn, 30_000);
+  return () => clearInterval(t);
+};
+
+/** "Updated 3m ago" and a ↻ that reads the list again; spins while it does. */
+export function RefreshStamp({ asOf, busy, onRefresh, className = "" }: { asOf?: string | null; busy: boolean; onRefresh: () => void; className?: string }) {
+  const now = useSyncExternalStore(minuteTick, () => Math.floor(Date.now() / 30_000), () => 0) * 30_000;
+  const at = asOf ? Date.parse(asOf) : NaN;
+  const mins = now && Number.isFinite(at) ? Math.max(0, Math.round((now - at) / 60_000)) : null;
+  const label = mins === null ? "" : mins < 1 ? "Updated just now" : mins < 60 ? `Updated ${mins}m ago` : `Updated ${Math.floor(mins / 60)}h ago`;
+  return (
+    <span className={`inline-flex items-center gap-1.5 font-mono text-[10px] text-ink-faint ${className}`}>
+      {label && <span>{label}</span>}
+      <button
+        type="button"
+        onClick={onRefresh}
+        disabled={busy}
+        className="w-6 h-6 rounded-full grid place-items-center text-ink-soft hover:text-ink hover:bg-[var(--card-bg)] disabled:opacity-60"
+        aria-label="Refresh"
+        title="Read it again now"
+      >
+        <svg viewBox="0 0 16 16" className={`w-3.5 h-3.5 ${busy ? "animate-spin" : ""}`} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M13.5 8a5.5 5.5 0 1 1-1.7-4" />
+          <path d="M13.5 2.5v3h-3" />
+        </svg>
+      </button>
+    </span>
+  );
 }
 
 /** Where a post comes from, in the platform's own mark: X's black tile, Reddit's orange disc. */
@@ -190,6 +262,7 @@ export function SocialList({
   max,
   filterKey,
   more,
+  refresh,
 }: {
   data: SocialAnswer | null;
   /** What to say when everything answered and nothing matched. */
@@ -200,6 +273,8 @@ export function SocialList({
   filterKey?: string;
   /** Past `max`: open the rest in a sheet with this title, or unfold them in place ("inline", for a list already inside a sheet). */
   more?: { title: string; kicker?: string } | "inline";
+  /** The list's ↻ and "updated" time (from useSocialFeed). */
+  refresh?: { refresh: () => void; busy: boolean };
 }) {
   const [pick, setPick] = useSourcePick(filterKey);
   const [all, setAll] = useState(false);
@@ -223,15 +298,22 @@ export function SocialList({
   const hidden = shown.length - posts.length;
   return (
     <>
-      {filterKey && counts.all > 0 && (
+      {((filterKey && counts.all > 0) || refresh) && (
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-3">
-          <SourceFilter value={quiet ? "all" : pick} counts={counts} onChange={setPick} />
-          {quiet && <span className="font-mono text-[10px] text-ink-faint">Nothing from {pick === "x" ? "X" : "Reddit"} right now, so showing all</span>}
+          {filterKey && counts.all > 0 ? <SourceFilter value={quiet ? "all" : pick} counts={counts} onChange={setPick} /> : <span />}
+          {refresh && <RefreshStamp asOf={data.asOf} busy={refresh.busy} onRefresh={refresh.refresh} />}
+          {quiet && <span className="basis-full font-mono text-[10px] text-ink-faint">Nothing from {pick === "x" ? "X" : "Reddit"} right now, so showing all</span>}
         </div>
       )}
       {posts.length === 0 ? (
         <p className="font-body italic text-sm text-ink-soft">
-          {data.status === "unconfigured" ? "X feeds aren't wired up yet (RSSHub)." : data.status === "unavailable" ? "The feeds didn't answer this time; they'll be asked again shortly." : empty}
+          {data.waiting
+            ? "Waiting for Reddit (it answers one read a minute); this fills in shortly."
+            : data.status === "unconfigured"
+              ? "X feeds aren't wired up yet (RSSHub)."
+              : data.status === "unavailable"
+                ? "The feeds didn't answer this time; they'll be asked again shortly."
+                : empty}
         </p>
       ) : (
         <ul className="divide-y hairline">

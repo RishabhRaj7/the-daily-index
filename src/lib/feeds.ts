@@ -43,7 +43,7 @@ export const FEED_META: Record<FeedSection, { title: string; kicker: string; sea
     kicker: "Clutch · Valorant",
     searches: true,
     hint: "Roster talk from these subreddits (kept ten days), plus these accounts and searches. Posts naming your teams rank first.",
-    suggest: { x: ["ValorantEsports"], subs: ["ValorantCompetitive", "VALORANT"] },
+    suggest: { x: ["ValorantUpdated", "PolymarketVAL", "VALORANTLeaksEN", "ValorantEsports"], subs: ["ValorantCompetitive", "VALORANT"] },
   },
   ipo: {
     title: "IPO chatter feeds",

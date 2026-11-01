@@ -3,7 +3,8 @@
 import { useF1Favourites } from "@/components/f1/LiveTiming";
 import { describeFeed, feedQuery, useFeed } from "@/lib/feeds";
 import { EditFeedsButton } from "./FeedEditor";
-import { SocialList, useSocial } from "./SocialFeed";
+import { SocialList, useSocialFeed } from "./SocialFeed";
+import type { SocialAnswer } from "@/lib/live/social";
 
 // The paddock talking, under Paddock Notes' stories: by default r/formula1 and
 // r/F1Technical's top of the day, F1, the FIA, the reader's team and three
@@ -15,7 +16,7 @@ export default function PaddockChatter() {
   const fav = useF1Favourites();
   const feed = useFeed("paddock");
   const drivers = [...fav.codes].join(",").toLowerCase();
-  const data = useSocial(feed ? `/api/social?kind=f1&drivers=${encodeURIComponent(drivers)}&team=${encodeURIComponent(fav.team)}&${feedQuery(feed.config)}` : null);
+  const live = useSocialFeed<SocialAnswer>(feed ? `/api/social?kind=f1&drivers=${encodeURIComponent(drivers)}&team=${encodeURIComponent(fav.team)}&${feedQuery(feed.config)}` : null);
   return (
     <div className="mt-8 pt-4 border-t hairline min-w-0" data-reveal>
       <div className="flex items-center justify-between gap-3 mb-3">
@@ -26,7 +27,8 @@ export default function PaddockChatter() {
         <EditFeedsButton section="paddock" />
       </div>
       <SocialList
-        data={data}
+        data={live.data}
+        refresh={live}
         compact
         max={5}
         filterKey="paddock"

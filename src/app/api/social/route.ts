@@ -1,3 +1,4 @@
+import { withSocial } from "@/lib/live/social-context";
 import { cleanHandle, DEFAULT_X_ACCOUNTS, f1Chatter, grapevineFeeds, ipoChatter, socialTrends, validHandle, valorantMoves, warmSocial } from "@/lib/live/social";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,8 @@ export const maxDuration = 30;
 // GET /api/social?kind=val&teams=Paper Rex,…[&x=…&q=…&r=…]            Valorant transfer window
 // GET /api/social?kind=f1&drivers=rus,ver&team=Mercedes[&x=…&q=…&r=…]  the paddock on X and Reddit
 // GET /api/social?kind=trends                                       trending on X and Reddit (India and everywhere)
+// &fresh=1 (a reader's refresh button): copies older than a minute are read
+//   again (Reddit's still in turn: it allows one read a minute)
 // GET /api/social?kind=warm[&only=rsshub]                         wakes RSSHub, tops up the Reddit archives
 //
 // Everything upstream is kept 10 minutes in the store and shared by every
@@ -27,6 +30,10 @@ const list = (raw: string | null, sep: string | RegExp, max: number) =>
 
 export async function GET(req: Request) {
   const p = new URL(req.url).searchParams;
+  return withSocial(p.get("fresh") === "1", () => answer(p));
+}
+
+async function answer(p: URLSearchParams): Promise<Response> {
   const kind = p.get("kind");
   const headers = { "Cache-Control": "no-store" };
   const handles = [...new Set(list(p.get("x"), ",", 12).map(cleanHandle).filter(validHandle))];
@@ -59,8 +66,10 @@ export async function GET(req: Request) {
       return Response.json(await f1Chatter(drivers, team, feed), { headers });
     }
     if (kind === "trends") {
-      // The same for every reader: the edge keeps it a few minutes.
-      return Response.json(await socialTrends(), { headers: { "Cache-Control": "public, max-age=120, s-maxage=300, stale-while-revalidate=900" } });
+      // The same for every reader: the edge keeps it a couple of minutes (not while a list waits its turn, or on a refresh).
+      const trends = await socialTrends();
+      const share = !trends.waiting && p.get("fresh") !== "1";
+      return Response.json(trends, { headers: share ? { "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=600" } : headers });
     }
     if (kind === "warm") return Response.json(await warmSocial(p.get("only") !== "rsshub"), { headers });
     return Response.json({ error: "kind" }, { status: 400, headers });

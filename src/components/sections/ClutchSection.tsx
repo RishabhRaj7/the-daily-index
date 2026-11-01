@@ -7,7 +7,8 @@ import Sheet from "@/components/extras/Sheet";
 import { loadPersonalization, savePersonalization } from "@/lib/personalization";
 import { EditFeedsButton } from "@/components/extras/FeedEditor";
 import { describeFeed, feedQuery, useFeed } from "@/lib/feeds";
-import { SocialList, useSocial } from "@/components/extras/SocialFeed";
+import { SocialList, useSocialFeed } from "@/components/extras/SocialFeed";
+import type { SocialAnswer } from "@/lib/live/social";
 import ClutchSheet, { Logo, type ClutchView } from "@/components/widgets/ClutchSheets";
 
 // Clutch: Valorant, kept small. One band, three columns:
@@ -374,7 +375,7 @@ function Wire({ data, teams, now }: { data: ValorantData; teams: ValTeam[]; now:
 
 function TransferWindow({ teams }: { teams: ValTeam[] }) {
   const feed = useFeed("clutch");
-  const data = useSocial(feed ? `/api/social?kind=val&teams=${encodeURIComponent(teams.map((t) => t.name).join(","))}&${feedQuery(feed.config)}` : null);
+  const live = useSocialFeed<SocialAnswer>(feed ? `/api/social?kind=val&teams=${encodeURIComponent(teams.map((t) => t.name).join(","))}&${feedQuery(feed.config)}` : null);
   return (
     <div className="module min-w-0 h-full" data-reveal>
       <div className="flex items-center justify-between gap-3 mb-3">
@@ -384,7 +385,7 @@ function TransferWindow({ teams }: { teams: ValTeam[] }) {
         </span>
         <EditFeedsButton section="clutch" />
       </div>
-      <SocialList data={data} compact max={6} filterKey="transfer-window" more={{ title: "Transfer window", kicker: "Clutch · r/ValorantCompetitive and X" }} empty="No roster moves talked about this week." />
+      <SocialList data={live.data} refresh={live} compact max={6} filterKey="transfer-window" more={{ title: "Transfer window", kicker: "Clutch · r/ValorantCompetitive and X" }} empty="No roster moves talked about this week." />
     </div>
   );
 }

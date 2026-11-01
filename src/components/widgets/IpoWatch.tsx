@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { IpoDetail, IpoEntry, IpoStage, PriceBar } from "@/lib/types";
 import Sheet from "@/components/extras/Sheet";
-import { SocialList, SourceLogo, useSocial } from "@/components/extras/SocialFeed";
+import { SocialList, SourceLogo, useSocialFeed } from "@/components/extras/SocialFeed";
+import type { SocialAnswer } from "@/lib/live/social";
 import { FeedEditor } from "@/components/extras/FeedEditor";
 import { describeFeed, feedQuery, useFeed } from "@/lib/feeds";
 import PriceChart from "./PriceChart";
@@ -159,13 +160,13 @@ function Chatter({ name, stage }: { name: string; stage: IpoEntry["stage"] }) {
   const [editing, setEditing] = useState(false);
   // Where it looks (Edit feeds; lib/feeds.ts): IPO subreddits and any X accounts the reader added.
   const feed = useFeed("ipo");
-  const data = useSocial(open && feed ? `/api/social?kind=ipo&name=${encodeURIComponent(name)}&${feedQuery(feed.config)}` : null);
+  const live = useSocialFeed<SocialAnswer>(open && feed ? `/api/social?kind=ipo&name=${encodeURIComponent(name)}&${feedQuery(feed.config)}` : null);
   return (
     <details className="mt-8 rounded-2xl border hairline group" onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
       <summary className="cursor-pointer select-none list-none flex items-center justify-between gap-3 px-4 py-3">
         <span className="font-label text-[10px] text-ink-soft">What people are saying</span>
         <span className="font-mono text-[10px] text-ink-faint flex items-center gap-2">
-          {data ? `${data.posts.length} post${data.posts.length === 1 ? "" : "s"}` : ""}
+          {live.data ? `${live.data.posts.length} post${live.data.posts.length === 1 ? "" : "s"}` : ""}
           <SourceLogo source="reddit" size={13} />
           <SourceLogo source="x" size={13} />
           <span className="transition-transform group-open:rotate-180" aria-hidden>
@@ -187,7 +188,8 @@ function Chatter({ name, stage }: { name: string; stage: IpoEntry["stage"] }) {
           </div>
         )}
         <SocialList
-          data={data}
+          data={live.data}
+          refresh={live}
           compact
           max={8}
           more="inline"

@@ -1,6 +1,7 @@
 import type { TrendingTopic } from "@/lib/types";
 import { getStore } from "@/lib/server/store";
 import { decodeEntities } from "./rss";
+import { noteCopy, socialCtx } from "./social-context";
 
 // ---------------------------------------------------------------------------
 // Reddit through its public RSS feeds (Atom): /r/<a+b+c>/<sort>/.rss. The API
@@ -20,8 +21,9 @@ import { decodeEntities } from "./rss";
 // ---------------------------------------------------------------------------
 
 const GLOBAL_FALLBACK_SUBREDDIT = "popular";
-const FRESH_MS = 10 * 60_000;
-const KEEP_S = 86_400;
+const FRESH_MS = 5 * 60_000;
+/** A copy is served while a new one waits its turn, for up to three days. */
+const KEEP_S = 3 * 86_400;
 const USER_AGENT =
   process.env.REDDIT_USER_AGENT ??
   "web:the-daily-index:v1.2 (personal newspaper; by /u/the_daily_index)";
@@ -109,53 +111,132 @@ export function parseAtom(xml: string): RedditHit[] {
 
 /**
  * One feed of posts from the given subreddits together: "new" (newest first),
- * "hot", or "top" of the day. Kept 10 minutes for everyone; null only when
- * Reddit has never answered for it.
+ * "hot", or "top" of the day. Null only when Reddit has never answered for it.
+ * `force` (a reader's refresh button) asks for a new read of a copy older
+ * than a minute; it still waits its turn (readGated).
  */
-export function redditFeed(subreddits: string[], sort: "new" | "hot" | "top" = "new"): Promise<RedditHit[] | null> {
+export function redditFeed(subreddits: string[], sort: "new" | "hot" | "top" = "new", opts: { force?: boolean } = {}): Promise<RedditHit[] | null> {
   if (!enabled() || subreddits.length === 0) return Promise.resolve(null);
   const subs = [...new Set(subreddits.map((s) => s.toLowerCase()))].sort();
-  const key = `reddit:rss:v1:${sort}:${subs.join("+")}`;
-  // Two asks at once (the page and the browser, say) share one read: Reddit's
-  // RSS turns a burst away.
-  const going = inflight.get(key);
-  if (going) return going;
-  const p = readFeed(key, subs, sort).finally(() => inflight.delete(key));
-  inflight.set(key, p);
-  return p;
+  const qs = sort === "top" ? "?t=day&limit=100" : "?limit=100";
+  return readGated(`reddit:rss:v1:${sort}:${subs.join("+")}`, `https://www.reddit.com/r/${subs.map(encodeURIComponent).join("+")}/${sort}/.rss${qs}`, opts.force);
 }
 
-const inflight = new Map<string, Promise<RedditHit[] | null>>();
+// ---- one read a minute ------------------------------------------------------------
+//
+// Reddit's public RSS allows one read per minute per address: its answers say
+// so (x-ratelimit-remaining 0 after the first, x-ratelimit-reset counting down
+// to the next minute) and every other read in that minute gets 429. Measured
+// 1 Nov 2026. So every Reddit read here takes the one slot first, shared by
+// every server through the store; Reddit's own headers then say when the next
+// may go (sooner, if it ever allows more). A feed that can't have the slot
+// serves its last copy at once (kept three days), so a page never waits on
+// Reddit; a feed with no copy yet says it is waiting and the page asks again
+// shortly. Copies count as fresh for five minutes.
 
-async function readFeed(key: string, subs: string[], sort: "new" | "hot" | "top"): Promise<RedditHit[] | null> {
+const SLOT = "reddit:slot:v1";
+const inflight = new Map<string, Promise<RedditHit[] | null>>();
+/** Feeds still waiting for their first read (the page asks again soon). */
+const waitingFirst = new Set<string>();
+
+/** When each feed's copy was read (ms), for "updated 3m ago". */
+export function redditCopyAt(key: string): number | null {
+  return memory.get(key)?.at ?? null;
+}
+export const redditKey = (subreddits: string[], sort: "new" | "hot" | "top") =>
+  `reddit:rss:v1:${sort}:${[...new Set(subreddits.map((s) => s.toLowerCase()))].sort().join("+")}`;
+export const popularKey = (geo: "IN" | "GLOBAL") => `reddit:rss:v1:popular:${geo}`;
+/** True when any of these feeds has nothing yet and is waiting for its turn. */
+export const redditWaiting = (keys: string[]) => keys.some((k) => waitingFirst.has(k));
+
+/** Feeds with nothing to show yet, shared by every server: they get the next slot before a feed that has a copy. */
+const FIRST = "reddit:first:v1";
+
+async function takeSlot(key: string, hasCopy: boolean): Promise<boolean> {
+  const store = getStore();
+  const first = (await store.get<string[]>(FIRST).catch(() => null)) ?? [];
+  if (!hasCopy && !first.includes(key)) await store.set(FIRST, [...first, key].slice(-20), { ttlSeconds: 600 }).catch(() => {});
+  // A feed with a copy steps aside while one with none is waiting.
+  if (hasCopy && first.some((k) => k !== key)) return false;
+  return store.setIfAbsent(SLOT, 1, 61).catch(() => true);
+}
+
+async function doneFirst(key: string): Promise<void> {
+  const store = getStore();
+  const first = (await store.get<string[]>(FIRST).catch(() => null)) ?? [];
+  if (first.includes(key)) await store.set(FIRST, first.filter((k) => k !== key), { ttlSeconds: 600 }).catch(() => {});
+}
+
+/** After a read: hold the slot until Reddit says the next may go, or free it when Reddit allows more. */
+async function settleSlot(res: Response | null): Promise<void> {
+  const store = getStore();
+  if (!res) return void (await store.set(SLOT, 1, { ttlSeconds: 30 }).catch(() => {}));
+  const remaining = Number(res.headers.get("x-ratelimit-remaining"));
+  const reset = Number(res.headers.get("x-ratelimit-reset"));
+  const retry = Number(res.headers.get("retry-after"));
+  if (res.status !== 429 && Number.isFinite(remaining) && remaining >= 1) return void (await store.del(SLOT).catch(() => {}));
+  const wait = res.status === 429 && retry > 0 ? retry : reset > 0 ? reset : 60;
+  await store.set(SLOT, 1, { ttlSeconds: Math.min(300, Math.ceil(wait) + 1) }).catch(() => {});
+}
+
+function readGated(key: string, url: string, force = false): Promise<RedditHit[] | null> {
+  const asked = force || !!socialCtx()?.force;
+  // Two asks at once (the page and the browser, say) share one read.
+  let p = inflight.get(key);
+  if (!p) {
+    p = readFeed(key, url, asked).finally(() => inflight.delete(key));
+    inflight.set(key, p);
+  }
+  // Each asker learns how old the copy it got is, or that there's none yet.
+  return p.then((hits) => {
+    const copy = memory.get(key);
+    noteCopy(copy?.at ?? null, !copy && hits === null);
+    return hits;
+  });
+}
+
+async function readFeed(key: string, url: string, force: boolean): Promise<RedditHit[] | null> {
   const now = Date.now();
+  const fresh = (at: number) => (force ? now - at < 60_000 : now - at < FRESH_MS);
   const mem = memory.get(key);
-  if (mem && now - mem.at < FRESH_MS) return mem.hits;
+  if (mem && fresh(mem.at)) return mem.hits;
   const store = getStore();
   const kept = await store.get<{ at: number; hits: RedditHit[] }>(key).catch(() => null);
-  if (kept && now - kept.at < FRESH_MS) {
-    memory.set(key, kept);
-    return kept.hits;
+  if (kept) memory.set(key, kept);
+  if (kept && fresh(kept.at)) return kept.hits;
+  // Not our turn: the last copy now, a new one when the slot comes round.
+  if (!(await takeSlot(key, !!kept))) {
+    if (!kept) waitingFirst.add(key);
+    return kept?.hits ?? null;
   }
-
-  const qs = sort === "top" ? "?t=day&limit=100" : "?limit=100";
+  let res: Response | null = null;
   try {
-    const res = await fetch(`https://www.reddit.com/r/${subs.map(encodeURIComponent).join("+")}/${sort}/.rss${qs}`, {
+    res = await fetch(url, {
       headers: { "User-Agent": USER_AGENT, Accept: "application/atom+xml,application/xml" },
       cache: "no-store",
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const hits = parseAtom(await res.text()).filter((h) => worthReading(h.title));
-    const fresh = { at: now, hits };
-    memory.set(key, fresh);
-    await store.set(key, fresh, { ttlSeconds: KEEP_S }).catch(() => {});
+    const copy = { at: now, hits };
+    memory.set(key, copy);
+    waitingFirst.delete(key);
+    await Promise.all([store.set(key, copy, { ttlSeconds: KEEP_S }).catch(() => {}), doneFirst(key)]);
     return hits;
   } catch (err) {
-    console.error(`[reddit] r/${subs.join("+")} (${sort}) failed:`, err);
-    // Ask again in a minute, not on every read.
-    if (kept) memory.set(key, { at: now - FRESH_MS + 60_000, hits: kept.hits });
+    console.error(`[reddit] ${url.replace("https://www.reddit.com", "")} failed:`, err instanceof Error ? err.message : err);
+    // A subreddit that doesn't exist (or is private or banned) won't answer next time either: kept as empty, out of the queue.
+    if (res && [403, 404, 451].includes(res.status)) {
+      const copy = { at: now, hits: [] as RedditHit[] };
+      memory.set(key, copy);
+      waitingFirst.delete(key);
+      await Promise.all([store.set(key, copy, { ttlSeconds: KEEP_S }).catch(() => {}), doneFirst(key)]);
+      return [];
+    }
+    if (!kept) waitingFirst.add(key);
     return kept?.hits ?? null;
+  } finally {
+    await settleSlot(res);
   }
 }
 
@@ -185,38 +266,12 @@ function interleave<T>(lists: T[][]): T[] {
 
 /**
  * What Reddit's front page is reading: r/popular's hot list, for India
- * (Reddit's own geo filter) or everywhere. Kept 10 minutes for everyone, like
- * the subreddit feeds.
+ * (Reddit's own geo filter) or everywhere. Read through the same one-a-minute
+ * slot as the subreddit feeds.
  */
-export async function popularFeed(geo: "IN" | "GLOBAL"): Promise<RedditHit[] | null> {
-  if (!enabled()) return null;
-  const key = `reddit:rss:v1:popular:${geo}`;
-  const now = Date.now();
-  const mem = memory.get(key);
-  if (mem && now - mem.at < FRESH_MS) return mem.hits;
-  const store = getStore();
-  const kept = await store.get<{ at: number; hits: RedditHit[] }>(key).catch(() => null);
-  if (kept && now - kept.at < FRESH_MS) {
-    memory.set(key, kept);
-    return kept.hits;
-  }
-  try {
-    const res = await fetch(`https://www.reddit.com/r/popular/hot/.rss?geo_filter=${geo}&limit=50`, {
-      headers: { "User-Agent": USER_AGENT, Accept: "application/atom+xml,application/xml" },
-      cache: "no-store",
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const hits = parseAtom(await res.text()).filter((h) => worthReading(h.title));
-    const fresh = { at: now, hits };
-    memory.set(key, fresh);
-    await store.set(key, fresh, { ttlSeconds: KEEP_S }).catch(() => {});
-    return hits;
-  } catch (err) {
-    console.error(`[reddit] r/popular (${geo}) failed:`, err);
-    if (kept) memory.set(key, { at: now - FRESH_MS + 60_000, hits: kept.hits });
-    return kept?.hits ?? null;
-  }
+export function popularFeed(geo: "IN" | "GLOBAL", opts: { force?: boolean } = {}): Promise<RedditHit[] | null> {
+  if (!enabled()) return Promise.resolve(null);
+  return readGated(popularKey(geo), `https://www.reddit.com/r/popular/hot/.rss?geo_filter=${geo}&limit=50`, opts.force);
 }
 
 /** The Grapevine's Reddit column: the day's top posts across the reader's subreddits, a fair share each. */

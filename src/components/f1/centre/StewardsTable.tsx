@@ -184,12 +184,19 @@ export default function StewardsTable({ snap, className = "" }: { snap: LiveSnap
             </div>
           )}
           <div className="overflow-x-auto -mx-1 px-1 [scrollbar-width:thin]">
-            <table className="w-full min-w-[34rem] border-collapse text-[12px]">
+            {/* Driver a fixed width, the nine counts sharing the rest; on a phone it scrolls with Driver pinned. */}
+            <table className="w-full min-w-[34rem] table-fixed border-collapse text-[12px]">
+              <colgroup>
+                <col className="w-[7.5rem]" />
+                {COLUMNS.map((c) => (
+                  <col key={c.key} />
+                ))}
+              </colgroup>
               <thead>
                 <tr className="text-ink-soft">
-                  <th className="text-left font-label font-normal text-[9.5px] text-ink-faint py-2 pr-2 sticky left-0 bg-[var(--card-bg)]">Driver</th>
+                  <th className="text-left font-label font-normal text-[9.5px] text-ink-faint py-2 pr-2 sticky left-0 [background:linear-gradient(var(--card-bg),var(--card-bg)),var(--paper)]">Driver</th>
                   {COLUMNS.map((c) => (
-                    <th key={c.key} className="font-normal py-2 px-1 w-[2.6rem]" title={c.tip}>
+                    <th key={c.key} className="font-normal py-2 px-1" title={c.tip}>
                       <span className="inline-flex justify-center">
                         <StewardIcon k={c.key} size={16} />
                       </span>
@@ -209,7 +216,7 @@ export default function StewardsTable({ snap, className = "" }: { snap: LiveSnap
                         onClick={() => setOpen(isOpen ? null : t.code)}
                         aria-expanded={isOpen}
                       >
-                        <td className="py-2 pr-2 sticky left-0 bg-[var(--card-bg)]">
+                        <td className="py-2 pr-2 sticky left-0 [background:linear-gradient(var(--card-bg),var(--card-bg)),var(--paper)]">
                           <span className="flex items-center gap-2 whitespace-nowrap">
                             <TeamGlyph team={row?.team ?? ""} colour={row?.colour ?? "var(--ink-faint)"} size={14} />
                             <b className="font-sans text-[13px]">{t.code}</b>

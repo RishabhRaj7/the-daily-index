@@ -43,7 +43,8 @@ export const F1_TEAM_X: Record<string, string> = {
   "Racing Bulls": "visacashapprb",
 };
 
-export const VAL_DEFAULT_X = ["ValorantEsports"];
+/** Game updates, the scene's Polymarket prices, leaks, and Riot's own esports account. */
+export const VAL_DEFAULT_X = ["ValorantUpdated", "PolymarketVAL", "VALORANTLeaksEN", "ValorantEsports"];
 export const VAL_SUBREDDITS = ["ValorantCompetitive"];
 
 /** Where Indian retail investors talk about issues; checked to exist and to allow IPO discussion. */

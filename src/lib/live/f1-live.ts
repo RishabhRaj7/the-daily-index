@@ -167,6 +167,23 @@ const mark = (v: Obj): LapMark => (v.OverallFastest === true ? "fastest" : v.Per
 // Mini-sector status codes as the timing screens use them.
 const SEGMENT: Record<number, SegmentMark> = { 2048: "slower", 2049: "personal", 2051: "fastest", 2064: "pit", 2052: "slower" };
 
+/**
+ * The track's state. F1's TrackStatus usually says, but under a red flag it
+ * can keep saying "Yellow" (the Mexico race, 1 Nov 2026: "RED FLAG - RACE
+ * SUSPENDED" from race control and the session Aborted, TrackStatus 2), so a
+ * suspended session, or a red flag race control hasn't lifted since, reads red.
+ */
+function trackNow(code: string, status: string, rc: LiveRaceControl[]): { tone: TrackTone; label: string } {
+  if (status === "Aborted" || status === "Suspended") return TRACK["5"];
+  if (!/^(Finished|Finalised|Ends)$/.test(status)) {
+    // Newest first: a red flag counts until a restart or green light comes after it.
+    const red = rc.findIndex((m) => m.flag === "RED" || /\bRED FLAG\b/i.test(m.message));
+    const resumed = rc.findIndex((m) => m.flag === "GREEN" || /\b(SESSION|RACE) RESUMED\b|PIT EXIT (IS )?OPEN|\b(ROLLING|STANDING) START\b|\bTRACK CLEAR\b/i.test(m.message));
+    if (red >= 0 && (resumed < 0 || resumed > red) && !/RESUME/i.test(rc[red].message)) return TRACK["5"];
+  }
+  return TRACK[code] ?? TRACK["1"];
+}
+
 const TRACK: Record<string, { tone: TrackTone; label: string }> = {
   "1": { tone: "green", label: "Track clear" },
   "2": { tone: "yellow", label: "Yellow flag" },
@@ -326,8 +343,13 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
     ];
   });
 
-  // Every pit stop so far: lap, time standing, time in the lane.
-  const pitStops: LivePitStop[] = Object.entries(obj(obj(state.PitStopSeries).PitTimes))
+  // Every pit stop so far: lap, time standing, time in the lane. F1 publishes
+  // PitStopSeries to its archive, but no longer during a live session; then
+  // the stops are read from the tyre stints (each new stint follows a stop at
+  // the end of the laps run before it), with the lane time from
+  // PitLaneTimeCollection when F1 sends it, and timed by the read that first
+  // saw them (mergeStops, from poll to poll).
+  const series: LivePitStop[] = Object.entries(obj(obj(state.PitStopSeries).PitTimes))
     .flatMap(([no, v]) => {
       const r = byNo.get(no);
       return list(v).map((e) => {
@@ -337,6 +359,22 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
       });
     })
     .sort((a, b) => b.utc.localeCompare(a.utc));
+  const lanes = Object.values(obj(obj(state.PitLaneTimeCollection).PitTimes)).map(obj);
+  const pitStops: LivePitStop[] = series.length
+    ? series
+    : Object.entries(app).flatMap(([no, raw]) => {
+        const r = byNo.get(no);
+        const stints = list(obj(raw).Stints).map(obj);
+        let laps = 0;
+        return stints.flatMap((s, i) => {
+          const lap = laps;
+          laps += Math.max(0, num(s.TotalLaps) - num(s.StartLaps));
+          if (i === 0 || lap === 0) return [];
+          const lane = lanes.find((p) => str(p.RacingNumber) === no && Math.abs(num(p.Lap) - lap) <= 1);
+          const d = lane ? Number.parseFloat(str(lane.Duration)) : NaN;
+          return [{ code: r?.code ?? no, colour: r?.colour ?? "#888888", lap, stationary: null, lane: Number.isFinite(d) ? d : null, utc: "" }];
+        });
+      });
 
   const cp = obj(state.ChampionshipPrediction);
   const teamColour = new Map(rows.map((r) => [r.team, r.colour]));
@@ -373,7 +411,7 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
     part,
     partLabel: part ? `${/^Sprint/.test(session) ? "SQ" : "Q"}${part}` : null,
     cutoff,
-    track: TRACK[str(obj(state.TrackStatus).Status)] ?? TRACK["1"],
+    track: trackNow(str(obj(state.TrackStatus).Status), status, raceControl),
     lap,
     remaining: str(clock.Remaining) || null,
     clockAt: str(clock.Utc) || null,
@@ -413,6 +451,43 @@ const lapSecs = (t: string): number | null => {
  * car's latest lap, filed under the lap it closed, and the lap now running if
  * it's behind a safety car, VSC or red flag.
  */
+/**
+ * Pit stops read from the stints carry no time: each keeps the time of the
+ * read that first saw it, and a lane time once one arrives. Stops F1 sent
+ * itself (PitStopSeries, with their own times) pass through as they are.
+ */
+export function mergeStops(prev: LivePitStop[] | undefined, now: LivePitStop[] | undefined, at: string, rc: LiveRaceControl[] = []): LivePitStop[] {
+  const cur = now ?? [];
+  if (cur.some((p) => p.utc)) return cur;
+  const was = new Map((prev ?? []).map((p) => [`${p.code}:${p.lap}`, p]));
+  // Stops made before this session was first read: timed by race control's
+  // clock for the lap after (its earliest message on that lap).
+  const lapClock = new Map<number, string>();
+  for (const m of rc) if (m.lap !== null && (!lapClock.has(m.lap) || m.utc < lapClock.get(m.lap)!)) lapClock.set(m.lap, m.utc);
+  const ms = (t: string) => Date.parse(/Z|[+-]\d{2}:?\d{2}$/.test(t) ? t : `${t}Z`);
+  const known = [...lapClock].map(([lap, t]) => [lap, ms(t)] as const).filter(([, t]) => Number.isFinite(t)).sort((a, b) => a[0] - b[0]);
+  // A lap race control said nothing on sits between the laps it did, in proportion.
+  const utcOf = (lap: number) => {
+    const want = lap + 1;
+    const before = [...known].reverse().find(([l]) => l <= want);
+    const after = known.find(([l]) => l >= want);
+    if (before && after && after[0] !== before[0]) return new Date(before[1] + ((after[1] - before[1]) * (want - before[0])) / (after[0] - before[0])).toISOString();
+    // Past the last lap race control spoke on: carried on at the race's average lap.
+    const span = known.length >= 2 ? (known.at(-1)![1] - known[0][1]) / Math.max(1, known.at(-1)![0] - known[0][0]) : 0;
+    const one = before ?? after;
+    if (!one) return at;
+    const t = Math.min(one[1] + span * (want - one[0]), Date.parse(at));
+    return new Date(t).toISOString();
+  };
+  const first = !prev?.length;
+  return cur
+    .map((p) => {
+      const old = was.get(`${p.code}:${p.lap}`);
+      return { ...p, utc: old?.utc || (first ? utcOf(p.lap) : at), lane: p.lane ?? old?.lane ?? null };
+    })
+    .sort((a, b) => b.utc.localeCompare(a.utc) || b.lap - a.lap);
+}
+
 export function addLaps(prev: LiveLapHistory | undefined, snap: LiveSnapshot): LiveLapHistory {
   const times: LiveLapHistory["times"] = Object.fromEntries(Object.entries(prev?.times ?? {}).map(([k, v]) => [k, [...v]]));
   for (const r of snap.rows) {
@@ -759,7 +834,13 @@ export async function getLive(opts: { fresh?: boolean; withLast?: boolean } = {}
     if (!state) return cached && cached.sessionKey === info.Key ? { live: true, snapshot: cached } : { live: false, next: null };
     // The lap history: kept from the last read of this session, with this read's laps added.
     const parsed = parse(state, info);
-    const snap = withVersions({ ...parsed, versions: undefined, lapTimes: addLaps(cached?.sessionKey === info.Key ? cached.lapTimes : undefined, parsed) });
+    const same = cached?.sessionKey === info.Key;
+    const snap = withVersions({
+      ...parsed,
+      versions: undefined,
+      lapTimes: addLaps(same ? cached.lapTimes : undefined, parsed),
+      pitStops: mergeStops(same ? cached.pitStops : undefined, parsed.pitStops, parsed.at, parsed.raceControl),
+    });
     const readings = latestReadings(cars?.["CarData.z" as keyof LiveState]);
     if (Object.keys(readings).length) {
       const codes = new Map(snap.rows.map((r) => [r.number, r.code]));

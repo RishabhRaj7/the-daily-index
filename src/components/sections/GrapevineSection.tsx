@@ -1,7 +1,8 @@
 "use client";
 
 import type { GrapevineData } from "@/lib/types";
-import { SocialList, useSocial } from "@/components/extras/SocialFeed";
+import { SocialList, useSocialFeed } from "@/components/extras/SocialFeed";
+import type { SocialAnswer } from "@/lib/live/social";
 import SectionHeader from "@/components/story/SectionHeader";
 import LiveBadge from "@/components/widgets/LiveBadge";
 import PuzzleDesk from "@/components/widgets/PuzzleDesk";
@@ -51,7 +52,8 @@ export default function GrapevineSection({
   const puzzleHeadlines = data.picks.map((p) => p.title);
   // The reader's feeds (Edit feeds), else the paper's defaults (lib/feeds.ts).
   const feed = useFeed("grapevine");
-  const feeds = useSocial(feed ? `/api/social?kind=grapevine&${feedQuery(feed.config)}` : null);
+  const live = useSocialFeed<SocialAnswer>(feed ? `/api/social?kind=grapevine&${feedQuery(feed.config)}` : null);
+  const feeds = live.data;
   const sub = feed ? describeFeed(feed.config) : "";
 
   return (
@@ -76,7 +78,7 @@ export default function GrapevineSection({
               </span>
             }
           />
-          <SocialList data={feeds} filterKey="grapevine" max={6} more={{ title: "You Should See This", kicker: `The Grapevine · ${sub}` }} empty="Nothing new from your feeds today." />
+          <SocialList data={feeds} refresh={live} filterKey="grapevine" max={6} more={{ title: "You Should See This", kicker: `The Grapevine · ${sub}` }} empty="Nothing new from your feeds today." />
         </div>
 
         <div className="md:pl-10 min-w-0">

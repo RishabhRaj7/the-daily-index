@@ -61,7 +61,10 @@ export default async function Home() {
   // browser remembers its edition in a cookie, and the preferences that
   // built it are stored with it. Started now, awaited after the feeds.
   const initialDigestPromise = loadInitialDigest(cookieStore.get(EDITION_COOKIE)?.value);
-  const redditEnabled = process.env.REDDIT_ENABLED === "true";
+  // The page no longer prints the server-side Reddit column (the Grapevine's
+  // lists are read in the browser through /api/social), and Reddit allows one
+  // read a minute: none is spent here.
+  const redditEnabled = false;
 
   // Subreddits preference
   const subredditsCookie = cookieStore.get("daily-index:subreddits");
