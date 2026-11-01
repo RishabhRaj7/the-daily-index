@@ -1,5 +1,6 @@
 import type { Personalization, ReaderInterests } from "./types";
 import { PREVIOUS_DEFAULT_ORDER, SECTION_ORDER } from "./sections";
+import { normalizeFeed } from "./feeds-shared";
 
 const STORAGE_KEY = "daily-index:personalization";
 
@@ -95,6 +96,16 @@ export function loadPersonalization(): Personalization {
     merged.xAccounts = strings(merged.xAccounts);
     merged.xSearches = strings(merged.xSearches);
     merged.valorantX = strings(merged.valorantX);
+    merged.feedSources = Object.fromEntries(
+      Object.entries(merged.feedSources && typeof merged.feedSources === "object" ? merged.feedSources : {}).filter(
+        (e): e is [string, "all" | "x" | "reddit"] => e[1] === "all" || e[1] === "x" || e[1] === "reddit",
+      ),
+    );
+    for (const k of ["feedsGrapevine", "feedsPaddock", "feedsClutch", "feedsIpo"] as const) {
+      const f = normalizeFeed(merged[k]);
+      if (f) merged[k] = f;
+      else delete merged[k];
+    }
     merged.oddsPins = (Array.isArray(merged.oddsPins) ? merged.oddsPins : []).filter((p) => p && typeof p.id === "string");
     merged.sectionOrder = [
       ...savedOrder,

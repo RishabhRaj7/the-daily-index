@@ -379,13 +379,15 @@ The digest is no longer generated per browser visit. The server builds one
 
 ## Settings (current)
 
-Five short tabs with one Save bar: **News** (always prioritise / never show
-me tags, summary length and voice presets), **Sections** (one collapsed card
-per section — name + a one-line summary; "Edit" expands it: story count or
-countries, watched entities, note to the editor; "+ Add a section" makes a
-free-text section; raw JSON under "Advanced"), **Sports** and
-**Page & Reddit** (the `PersonalizationForm` chapters, via its `parts` prop —
-onboarding still renders all chapters). `/settings#sections` deep-links a tab.
+Four short tabs with one Save bar (Round 11): **News** (home city, always
+prioritise / never show me tags, summary length and voice presets, "Why it
+matters"), **Sections** (page order, then one collapsed card per section —
+name + a one-line summary; "Edit" expands it: story count or countries,
+watched entities, note to the editor; "+ Add a section" makes a free-text
+section; raw JSON under "Advanced"), **Sports** (the `PersonalizationForm`
+chapters, via its `parts` prop — onboarding still renders city, sports and
+order) and **Devices** (sync, and what the paper remembers / Forget me). The
+old Page & Reddit tab is gone (`#page` opens Sections); each social list has its own "Edit feeds" (Round 11). `/settings#sections` deep-links a tab.
 Save writes both preference stores and POSTs `/api/edition` so the new
 edition starts building before the reader is back on the paper. Save writes
 only the fields edited on the page, over the settings as they are now (sync
@@ -543,8 +545,9 @@ SyncRuntime.tsx`, controls in `components/settings/SyncCard.tsx`).
   full screen with the running order).
 - Past sessions: `/api/f1/sessions` lists the season's finished sessions from
   F1's archive index; `/api/f1/live?full=1&session=<path>` returns one in
-  full (kept 45 days under `f1:past:v1:<path>`); `/f1/live?session=<path>`
-  shows it (the picker keeps it in the address).
+  full; `/f1/live?session=<path>` shows it. F1's archive answers only with
+  the F1 TV token (`f1Fetch`, Round 11); without it the list falls back to
+  the sessions kept here.
 - Team radio transcripts (`lib/live/f1-radio.ts`, `/api/f1/radio`, three new
   per call, kept 120 days): radio has its own model pool, apart from the
   news summaries' (`GEMINI_MODEL`, Flash-Lite): gemini-3.1-flash-lite first (shared with the news, capped at 60 radio calls a day), then gemini-3.8-flash, 3.6-flash,
@@ -962,3 +965,21 @@ Built Oct 1 2026 after the reader's review of round 9: more odds but only the re
 | Why it moved | browser → `/api/odds/why` | on opening a sheet | fetch cache 30 min; sentence in Redis for the day |
 | Valorant archive | browser → `/api/valorant/team` | on opening a team or match | Redis `val:archive:v2` 12 h, older pages a day in the fetch cache |
 | Google Trends | browser → `/api/trends` | on load, every 10 min | fetch cache 10 min |
+
+### Round 11: stewards, the paddock on X and Reddit, settings in four tabs (Nov 1 2026)
+
+- **Rehearsal data isn't a session** (`f1-live.ts` `isOver`, `droppedIfEarly`): F1 runs rehearsal data through the live feed under sessions still to come, already marked "Ends" (the Mexico race appeared at "lap 3 of 56" the day before it ran, and was kept as the last session). A session now counts as over only after its scheduled start, and a kept copy taken before the start is dropped and read again.
+- **F1's archive with the F1 TV token** (`f1Fetch` in `f1-signalr.ts`): every request to `livetiming.formula1.com/static` carries `Authorization: Bearer <F1TV_TOKEN>`, as FastF1 sends it. F1 accepts it whatever the subscription's status, until the token expires (a few days), and then serves everything: the season index, each session's state, the `.jsonStream`s (replay), `CarData.z` (finished-session telemetry) and `Position.z` (track and pit-lane tracing), past seasons too. `/api/health` reports `f1tv: ok | expired | missing` with the expiry; a fresh token goes in Vercel only (`.env.example` holds none). Team radio clips stay public.
+- **No more recording**: the GitHub jobs (`f1-capture.yml`, `f1-keep.yml`) and `/api/f1/keep` are gone, and the live feed is no longer sampled for replay (`captureLiveSample` and the captured timeline): replay reads F1's archive. The last session is still kept when the live centre reads it after the flag.
+- **Stewards table** (`centre/StewardsTable.tsx`, `stewardsTally` in `f1-race-control.ts`) replaces Track limits, on the Live view and Analysis → Stewards, for every session: per driver, track limits, other deleted laps, the black and white flag, warnings, incidents noted / investigated / closed with no further action, reprimands and penalties, each with its own 16-unit icon (`StewardIcon`) and a key; a tap lists the messages. An incident is one set of cars and one reason, its clock stamp included. "REPRIMAND (DRIVING)" now parses in the cases list too.
+- **In Brief** prints headlines alone. The writer is asked (`needsHeadline`) for a complete headline when the feed's is cut off, a teaser or unclear; the answer (or the original, when it stood on its own) is cached under `head:`. No gist is written for In Brief. `BUILD_VERSION` 6.
+- **X and Reddit**: no politics filter on social posts; Reddit's housekeeping threads (daily/weekly threads, megathreads, race and discussion threads, mod posts) and near-empty titles are dropped (`worthReading`); X posts lose links and repost furniture and need some words; near-identical posts are de-duplicated. Lists return up to 20 per source; the page shows a few, and "See all" opens a `Sheet` (inline inside a sheet already, e.g. IPO chatter).
+- **Edit feeds** (`lib/feeds.ts`, `lib/feeds-shared.ts`, `extras/FeedEditor.tsx`): the Grapevine, From the paddock, Clutch's transfer window and IPO chatter each read X accounts (up to 12), X searches (up to 4; not IPO, which searches for the company itself) and subreddits (up to 10), edited from an "Edit feeds" button beside the list (in place inside the IPO sheet). Until edited a section reads the paper's defaults (the Grapevine's from the older `xAccounts` / `xSearches` / `subreddits`, Clutch's from `valorantX`); saved as `feedsGrapevine`, `feedsPaddock`, `feedsClutch`, `feedsIpo` in personalization, one field each, so sync carries each section's feeds separately. `/api/social` takes `x`, `q`, `r` for every kind; a parameter left out means the default, an empty one means none. Custom subreddit lists get their own rolling Reddit archive. Each list's All / X / Reddit filter is kept in personalization too (`feedSources`, by list), so it syncs; a choice made earlier on one device (localStorage `daily-index:feed-source:*`) still counts there until changed.
+- **From the paddock** (`extras/PaddockChatter.tsx`, `f1Chatter`, `/api/social?kind=f1`): r/formula1 and r/F1Technical's top of the day, F1, the FIA, the reader's team and three reporters on X, last 48 h, fading by half every 12 h, posts naming the reader's drivers or team doubled and tagged; under Paddock Notes' F1 stories.
+- **Trending on X and Reddit** (`widgets/SocialTrends.tsx`, `socialTrends`, `/api/social?kind=trends`): under the Search Bar, India or World; X from trends24.in's hourly lists (with hours trending of the last 24), Reddit from r/popular's hot list (geo_filter IN / GLOBAL), read one after the other (Reddit 429s a burst). Kept 10 minutes, last good copy a day.
+
+| Data | Fetched where | When | Stored |
+|---|---|---|---|
+| X trends (trends24) | browser → `/api/social?kind=trends` | on load, every 10 min | Redis `social:x-trends:v1:*` 10 min fresh / a day |
+| Reddit popular | same | same | Redis `reddit:rss:v1:popular:*` 10 min fresh / a day |
+| Paddock chatter | browser → `/api/social?kind=f1` | on load, every 10 min | the shared X and Reddit feed copies |

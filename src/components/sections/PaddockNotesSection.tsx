@@ -12,6 +12,7 @@ import type {
 } from "@/lib/types";
 import { SECTION_META } from "@/lib/sections";
 import { teamAbbrev, isLightTeamColor } from "@/lib/personalization";
+import PaddockChatter from "@/components/extras/PaddockChatter";
 import SectionHeader from "@/components/story/SectionHeader";
 import StoryArticle from "@/components/story/StoryArticle";
 import F1Sidebar from "@/components/widgets/F1Sidebar";
@@ -183,6 +184,8 @@ export default function PaddockNotesSection({
                       No sports news found in the last day.
                     </p>
                   )}
+
+                  {sport === "f1" && <PaddockChatter />}
                 </div>
                 <div className="contents">{sidebarForSport(sport)}</div>
               </div>
@@ -224,6 +227,7 @@ export default function PaddockNotesSection({
                         ))}
                       </div>
                     )}
+                    {isF1 && <PaddockChatter />}
                   </div>
                   <div className="contents">{sidebarForSport(sport)}</div>
                 </div>

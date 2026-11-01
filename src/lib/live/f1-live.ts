@@ -1,6 +1,6 @@
 import { getStore } from "@/lib/server/store";
-import { currentSession, radioUrl, readLiveState, sessionTime, type CurrentSessionInfo, type LiveState } from "./f1-signalr";
-import { captureLiveSample, capturedReplay, capturedTimeline, type ReplayTimeline } from "./f1-replay";
+import { currentSession, f1Fetch, radioUrl, readLiveState, sessionTime, type CurrentSessionInfo, type LiveState } from "./f1-signalr";
+import type { ReplayTimeline } from "./f1-replay";
 import { driverPhoto } from "@/lib/f1-assets";
 import { rememberSectors } from "./f1-track";
 import { latestReadings } from "./f1-telemetry";
@@ -456,7 +456,7 @@ export async function archivedSession(path: string): Promise<LiveSnapshot | null
   const state: LiveState = {};
   await Promise.all(
     ARCHIVE_TOPICS.map(async (t) => {
-      const res = await fetch(`${base}${t}.json`, { next: { revalidate: 86_400 } }).catch(() => null);
+      const res = await f1Fetch(`${base}${t}.json`, { next: { revalidate: 86_400 } }).catch(() => null);
       if (res?.ok) state[t as keyof LiveState] = JSON.parse((await res.text()).replace(/^\uFEFF/, ""));
     }),
   );
@@ -469,14 +469,10 @@ export async function archivedSession(path: string): Promise<LiveSnapshot | null
 export async function replay(path: string, t?: number): Promise<LiveAnswer> {
   let snap: LiveSnapshot | null;
   if (t !== undefined && Number.isFinite(t)) {
-    const captured = await capturedReplay(path, t);
-    if (captured) snap = captured.snap;
-    else {
-      const { stateAt } = await import("./f1-replay");
-      const { state, laps } = await stateAt(path, t);
-      const info = infoFrom(state, path);
-      snap = info ? withVersions({ ...parse(state, info), versions: undefined, lapTimes: laps }) : null;
-    }
+    const { stateAt } = await import("./f1-replay");
+    const { state, laps } = await stateAt(path, t);
+    const info = infoFrom(state, path);
+    snap = info ? withVersions({ ...parse(state, info), versions: undefined, lapTimes: laps }) : null;
   } else {
     snap = await archivedSession(path);
   }
@@ -489,7 +485,7 @@ export async function replay(path: string, t?: number): Promise<LiveAnswer> {
 // control, radio, the title fight, the race story), and the past-sessions list
 // can open any of them. If nobody had the page open when the flag fell, it is
 // read once from the live feed, which holds a finished session's final state
-// until the next one starts (F1's yearly archive now refuses outside readers).
+// until the next one starts (F1's archive answers only with the F1 TV token).
 
 const SESSION_DAYS = 400;
 const LAST = "f1:session:last";
@@ -497,19 +493,8 @@ const LAST = "f1:session:last";
 const KEPT_INDEX = "f1:session:kept:v1";
 
 export async function replayTimeline(path: string): Promise<ReplayTimeline | null> {
-  const captured = await capturedTimeline(path);
-  if (captured) return captured;
   const { timeline } = await import("./f1-replay");
   return timeline(path);
-}
-
-async function recordReplaySample(info: CurrentSessionInfo, snap: LiveSnapshot): Promise<void> {
-  if (!info.Path || !snap.path) return;
-  try {
-    await captureLiveSample(info.Path, sessionTime(info.StartDate, info.GmtOffset), snap);
-  } catch (err) {
-    console.error("[f1/replay] live sample capture failed:", err);
-  }
 }
 
 interface KeptEntry {
@@ -568,6 +553,31 @@ async function keptEntries(): Promise<KeptEntry[]> {
 
 const OVER = /^(Finished|Finalised|Ends)$/;
 
+const startOf = (info: CurrentSessionInfo) => sessionTime(info.StartDate, info.GmtOffset);
+
+/**
+ * Over: F1 says so, or it is half an hour past its scheduled end — and never
+ * before its scheduled start. Between sessions F1 sometimes runs rehearsal
+ * data through the live feed under a session still to come, already marked
+ * "Ends" (the Mexico race showed up at "lap 3 of 56" the day before it ran),
+ * and that must not be kept as the session.
+ */
+function isOver(info: CurrentSessionInfo, now = Date.now()): boolean {
+  if (now < startOf(info)) return false;
+  return OVER.test(info.SessionStatus ?? "") || sessionTime(info.EndDate, info.GmtOffset) + AFTER_MS < now;
+}
+
+/** A copy kept before its session's scheduled start is rehearsal data: dropped, so the real session is read. */
+async function droppedIfEarly(kept: LiveSnapshot | null, info: CurrentSessionInfo): Promise<LiveSnapshot | null> {
+  if (!kept || kept.sessionKey !== info.Key || Date.parse(kept.at) >= startOf(info)) return kept;
+  const store = getStore();
+  await Promise.all([
+    store.del(`f1:session:v3:${info.Key}`),
+    store.del(`f1:session:settled:${info.Key}`),
+  ]).catch(() => {});
+  return null;
+}
+
 /**
  * The session F1's feed names as current, once it is over: its final state as
  * the feed still holds it, kept. One reader connects (a short lock); a feed
@@ -575,15 +585,13 @@ const OVER = /^(Finished|Finalised|Ends)$/;
  */
 async function finishedFromFeed(info: CurrentSessionInfo, prev?: LiveSnapshot | null): Promise<LiveSnapshot | null> {
   const store = getStore();
-  const over = OVER.test(info.SessionStatus ?? "") || sessionTime(info.EndDate, info.GmtOffset) + AFTER_MS < Date.now();
-  if (!over) return null;
+  if (!isOver(info)) return null;
   if (!(await store.setIfAbsent(`f1:session:feedread:${info.Key}`, 1, 300).catch(() => true))) return null;
   const state = await readLiveState().catch(() => null);
   if (!state || num(obj(state.SessionInfo).Key) !== info.Key || !state.TimingData) return null;
   // A re-read keeps the lap-by-lap history that was gathered while it ran (the feed's final state has no history).
   const lapTimes = prev?.sessionKey === info.Key ? prev.lapTimes : undefined;
   const snap = withVersions({ ...parse(state, info), versions: undefined, running: false, clockRunning: false, ...(lapTimes ? { lapTimes } : {}) });
-  await recordReplaySample(info, snap);
   await keepSession(snap, info, num(obj(obj(state.SessionInfo).Meeting).Number) || (info.Meeting?.Number ?? 0));
   return snap;
 }
@@ -601,7 +609,7 @@ async function latestFinished(): Promise<IndexSession | null> {
   const year = new Date().getUTCFullYear();
   for (const y of [year, year - 1]) {
     try {
-      const res = await fetch(`https://livetiming.formula1.com/static/${y}/Index.json`, { next: { revalidate: 900 } });
+      const res = await f1Fetch(`https://livetiming.formula1.com/static/${y}/Index.json`, { next: { revalidate: 900 } });
       if (!res.ok) continue;
       const idx = JSON.parse((await res.text()).replace(/^\uFEFF/, "")) as { Meetings?: { Sessions?: IndexSession[] }[] };
       const done = (idx.Meetings ?? [])
@@ -618,11 +626,12 @@ export async function lastSession(): Promise<LiveSnapshot | null> {
   const store = getStore();
   const [info, pointer] = await Promise.all([sessionInfo(), store.get<number>(LAST).catch(() => null)]);
   // The feed's own session, once over, is the latest; F1's index only if the feed names none.
-  const current = info && (OVER.test(info.SessionStatus ?? "") || sessionTime(info.EndDate, info.GmtOffset) + AFTER_MS < Date.now()) ? info : null;
+  const current = info && isOver(info) ? info : null;
   const latest = current ? null : await latestFinished();
   const want = current?.Key ?? latest?.Key ?? pointer;
   if (want) {
-    const kept = await store.get<LiveSnapshot>(`f1:session:v3:${want}`).catch(() => null);
+    const stored = await store.get<LiveSnapshot>(`f1:session:v3:${want}`).catch(() => null);
+    const kept = current ? await droppedIfEarly(stored, current) : stored;
     if (kept) {
       void rememberSectors(kept.circuitKey, kept.sectorRef);
       // Sessions kept before the index existed join it here.
@@ -646,55 +655,6 @@ export async function lastSession(): Promise<LiveSnapshot | null> {
   }
   // F1 hasn't published the newest yet: the one before, as kept.
   return pointer ? await store.get<LiveSnapshot>(`f1:session:v3:${pointer}`).catch(() => null) : null;
-}
-
-// ---- keeping every session, on a schedule ---------------------------------------
-// /api/f1/keep, every 15 minutes (.github/workflows/f1-keep.yml), so a session
-// is kept even if nobody opens the live centre before the next one starts.
-//
-//   over     F1 says the session is over (Finished, Finalised, Ends), or it is
-//            30 minutes past its scheduled end; while a red flag holds it, F1
-//            still says it is running, so the job waits and asks again
-//   first    kept as soon as it is over (from the feed, else F1's archive)
-//   settled  read once more two hours after its scheduled end, for late
-//            penalties and deleted laps, while the feed still holds it
-//
-// Every run before or between those is a look and nothing else.
-
-const SETTLED_MS = 2 * 3600_000;
-
-export type KeepResult = { done: "nothing" | "running" | "kept" | "saved" | "settled" | "pending"; session?: string };
-
-export async function keepFinished(): Promise<KeepResult> {
-  const info = await currentSession();
-  if (!info?.Key) return { done: "nothing" };
-  const session = `${info.Meeting?.Name ?? ""} · ${info.Name}`;
-  const end = sessionTime(info.EndDate, info.GmtOffset);
-  const over = OVER.test(info.SessionStatus ?? "") || end + AFTER_MS < Date.now();
-  if (!over) return { done: "running", session };
-
-  const store = getStore();
-  const kept = await store.get<LiveSnapshot>(`f1:session:v3:${info.Key}`).catch(() => null);
-  const settledKey = `f1:session:settled:${info.Key}`;
-  const due = Date.now() >= end + SETTLED_MS;
-  if (kept && (!due || (await store.get(settledKey).catch(() => null)))) {
-    await indexSession(kept, info, info.Meeting?.Number ?? 0);
-    return { done: "kept", session };
-  }
-
-  // The feed keeps what it reads; the archive's copy is kept here.
-  let read = await finishedFromFeed(info, kept);
-  if (!read && info.Path) {
-    const built = await archivedSession(info.Path);
-    if (built) {
-      read = kept?.lapTimes && !built.lapTimes ? { ...built, lapTimes: kept.lapTimes } : built;
-      await keepSession(read, info, info.Meeting?.Number ?? 0);
-    }
-  }
-  // Neither answered (or another run is reading it now): the next run tries again.
-  if (!read) return { done: kept ? "kept" : "pending", session };
-  if (due) await store.set(settledKey, 1, { ttlSeconds: SESSION_DAYS * 86_400 }).catch(() => {});
-  return { done: due ? "settled" : "saved", session };
 }
 
 export async function getLive(opts: { fresh?: boolean; withLast?: boolean } = {}): Promise<LiveAnswer> {
@@ -734,12 +694,9 @@ export async function getLive(opts: { fresh?: boolean; withLast?: boolean } = {}
       snap.telemetry = Object.fromEntries(Object.entries(readings).flatMap(([no, r]) => (codes.has(no) ? [[codes.get(no)!, r]] : [])));
     }
     await store.set(KEY, snap, { ttlSeconds: 3600 }).catch(() => {});
-    if (!cached || cached.sessionKey !== info.Key || Date.parse(snap.at) - Date.parse(cached.at) >= 10_000) {
-      await recordReplaySample(info, snap);
-    }
     await keepClassification(snap, info);
     // The flag has fallen: this is the session's final word, kept.
-    if (!snap.running && OVER.test(snap.status)) await keepSession(snap, info, num(obj(obj(state.SessionInfo).Meeting).Number) || (info.Meeting?.Number ?? 0));
+    if (!snap.running && OVER.test(snap.status) && Date.now() >= startOf(info)) await keepSession(snap, info, num(obj(obj(state.SessionInfo).Meeting).Number) || (info.Meeting?.Number ?? 0));
     return { live: true, snapshot: snap };
   } finally {
     await store.del(LOCK).catch(() => {});
@@ -772,7 +729,7 @@ async function keptSeason(year: number): Promise<PastMeeting[]> {
 /** Every finished session of a season, newest meeting first (F1's archive index, else what was kept). */
 export async function seasonSessions(year = new Date().getUTCFullYear()): Promise<PastMeeting[]> {
   try {
-    const res = await fetch(`https://livetiming.formula1.com/static/${year}/Index.json`, { next: { revalidate: 900 } });
+    const res = await f1Fetch(`https://livetiming.formula1.com/static/${year}/Index.json`, { next: { revalidate: 900 } });
     if (!res.ok) return keptSeason(year);
     const idx = JSON.parse((await res.text()).replace(/^\uFEFF/, "")) as {
       Meetings?: { Name: string; Location: string; Number?: number; Sessions?: (IndexSession & { Type?: string })[] }[];

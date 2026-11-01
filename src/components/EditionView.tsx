@@ -145,8 +145,6 @@ export default function EditionView({
   tennisStories: initialTennisStories = [],
   footballData = null,
   tennisData = null,
-  redditUser = null,
-  feedSubreddits,
 }: {
   edition: Edition;
   isArchive?: boolean;
@@ -161,8 +159,6 @@ export default function EditionView({
   tennisStories?: Story[];
   footballData?: { leagues: FootballLeagueData[] } | null;
   tennisData?: { rankings: TennisRanking[] } | null;
-  redditUser?: string | null;
-  feedSubreddits?: string[];
 }) {
   // Server-rendered edition, projected once for the initial state below.
   const [seed] = useState(() =>
@@ -966,7 +962,7 @@ export default function EditionView({
       />
     ),
     "straw-poll": () => <StrawPollSection poll={oddsLayout.poll} readAt={odds?.at ?? null} record={odds?.record ?? null} />,
-    clutch: () => <ClutchSection initial={edition.valorant ?? null} follows={personalization.valorantTeams} xAccounts={personalization.valorantX ?? []} />,
+    clutch: () => <ClutchSection initial={edition.valorant ?? null} follows={personalization.valorantTeams} />,
     "sky-report": () => (
       <SkyReportSection
         weather={weather}
@@ -994,15 +990,7 @@ export default function EditionView({
       />
     ),
     grapevine: () => (
-      <GrapevineSection
-        data={grapevine}
-        subreddits={feedSubreddits ?? personalization.subreddits}
-        redditUser={redditUser}
-        dateKey={edition.isoDate}
-        headlines={pageHeadlines}
-        xAccounts={personalization.xAccounts ?? []}
-        xSearches={personalization.xSearches ?? []}
-      />
+      <GrapevineSection data={grapevine} dateKey={edition.isoDate} headlines={pageHeadlines} />
     ),
   };
 

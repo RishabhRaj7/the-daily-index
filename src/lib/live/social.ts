@@ -1,7 +1,10 @@
 import { getStore } from "@/lib/server/store";
 import { decodeEntities } from "./rss";
-import { redditFeed, type RedditHit } from "./reddit";
-import { isPolitical } from "./politics-filter";
+import { popularFeed, redditFeed, worthReading, type RedditHit } from "./reddit";
+import { F1_DRIVERS } from "@/lib/config/f1-drivers";
+import { DEFAULT_X_ACCOUNTS, F1_DEFAULT_X, F1_OFFICIAL_X, F1_SUBREDDITS, F1_TEAM_X, IPO_SUBREDDITS, VAL_DEFAULT_X, VAL_SUBREDDITS, type FeedConfig } from "@/lib/feeds-shared";
+
+export { DEFAULT_X_ACCOUNTS };
 
 // What people are saying, from X and Reddit, as feeds:
 //
@@ -62,6 +65,17 @@ const text = (html: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
+/** A post's words without the links and the repost/quote furniture X adds. */
+function cleanPost(s: string): string {
+  return s
+    .replace(/^RT @\w+:\s*/i, "")
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/\bpic\.(twitter|x)\.com\/\S+/gi, "")
+    .replace(/\s*[—–-]?\s*Quote\s*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /** One RSSHub route as posts, kept 10 minutes (a failed read keeps the last good copy a day). */
 async function rsshub(route: string, where: string): Promise<SocialPost[] | null> {
   const base = process.env.RSSHUB_URL?.trim().replace(/\/+$/, "");
@@ -78,8 +92,9 @@ async function rsshub(route: string, where: string): Promise<SocialPost[] | null
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const feed = (await res.json()) as JsonFeed;
     const posts: SocialPost[] = (feed.items ?? []).flatMap((it) => {
-      const body = it.content_text ?? text(it.content_html ?? it.title ?? "");
-      if (!it.url || !body) return [];
+      const body = cleanPost(it.content_text ?? text(it.content_html ?? it.title ?? ""));
+      // A bare link, a lone emoji or a one-word reply says nothing on the page.
+      if (!it.url || body.replace(/[^\p{L}\p{N}]/gu, "").length < 15) return [];
       const author = it.authors?.[0]?.name ?? null;
       return [{ id: `x-${it.id ?? it.url}`, source: "x" as const, where, author, title: body.slice(0, 280), text: "", url: it.url.replace("https://twitter.com/", "https://x.com/"), at: it.date_published ?? new Date().toISOString() }];
     });
@@ -99,8 +114,15 @@ const xSearch = (q: string) => rsshub(`/twitter/keyword/${encodeURIComponent(q)}
 
 // ---- Reddit, as a rolling archive -----------------------------------------------
 
+/** A rolling archive's name: the paper's own for its default list, else one per set of subreddits. */
+const rollName = (base: string, subs: string[], defaults: string[]) => {
+  const list = [...new Set(subs.map((s) => s.toLowerCase()))].sort().join("+");
+  return list === [...defaults.map((s) => s.toLowerCase())].sort().join("+") ? base : `${base}:${list}`;
+};
+
 /** The newest posts from these subreddits plus everything seen in the last `days`, newest first. */
 async function rolling(name: string, subs: string[], days: number, cap = 800): Promise<RedditHit[] | null> {
+  if (!subs.length) return null;
   const key = `social:reddit-roll:v1:${name}`;
   const store = getStore();
   const [fresh, kept] = await Promise.all([redditFeed(subs, "new"), store.get<RedditHit[]>(key).catch(() => null)]);
@@ -125,12 +147,15 @@ const fromReddit = (h: RedditHit, tags?: string[]): SocialPost => ({
   ...(tags?.length ? { tags } : {}),
 });
 
+/** One copy of each post: the same link, or the same words (a story two accounts posted alike). */
 function dedupe(posts: SocialPost[]): SocialPost[] {
   const seen = new Set<string>();
   return posts.filter((p) => {
     const k = p.url.replace(/[?#].*$/, "").toLowerCase();
-    if (seen.has(k)) return false;
+    const words = p.title.toLowerCase().replace(/[^\p{L}\p{N} ]/gu, "").replace(/\s+/g, " ").trim().slice(0, 70);
+    if (seen.has(k) || (words.length >= 30 && seen.has(words))) return false;
     seen.add(k);
+    if (words.length >= 30) seen.add(words);
     return true;
   });
 }
@@ -168,17 +193,17 @@ const answer = (posts: SocialPost[], asked: number, answered: number, note: stri
 // X: the last three days, newest first, one account at a time in turn so a
 // prolific one can't fill the column, searches after the accounts.
 // Reddit: the day's top posts across the reader's subreddits, each subreddit
-// taking its turn. The two then alternate, X first, so "All" always shows
-// both; up to `perSource` of each come back, so the reader's X / Reddit
-// filter still has a full column to show.
+// taking its turn, without the subreddits' own housekeeping threads. The two
+// then alternate, X first, so "All" always shows both; up to `perSource` of
+// each come back: the page shows the first few and opens the rest in a sheet.
 
-export async function grapevineFeeds(handles: string[], searches: string[], subreddits: string[], perSource = 8): Promise<SocialAnswer> {
+export async function grapevineFeeds(handles: string[], searches: string[], subreddits: string[], perSource = 20): Promise<SocialAnswer> {
   const wantX = xConfigured() && handles.length + searches.length > 0;
   const [reddit, ...lists] = await Promise.all([
     subreddits.length ? redditFeed(subreddits, "top") : Promise.resolve(null),
     ...(wantX ? [...handles.map(xUser), ...searches.map(xSearch)] : []),
   ]);
-  const recent = lists.map((l) => (l ?? []).filter((p) => ageH(p.at) <= 72 && !isPolitical(p.title)).sort((a, b) => b.at.localeCompare(a.at)));
+  const recent = lists.map((l) => (l ?? []).filter((p) => ageH(p.at) <= 72).sort((a, b) => b.at.localeCompare(a.at)));
   const x = dedupe(interleave(recent)).slice(0, perSource);
   const bySub = new Map<string, RedditHit[]>();
   for (const h of reddit ?? []) bySub.set(h.subreddit.toLowerCase(), [...(bySub.get(h.subreddit.toLowerCase()) ?? []), h]);
@@ -192,10 +217,9 @@ export async function grapevineFeeds(handles: string[], searches: string[], subr
 
 // ---- IPO chatter ----------------------------------------------------------------
 //
-// Where Indian retail investors talk about issues; checked to exist and to
-// allow IPO discussion. One feed for all of them, kept a week.
-
-export const IPO_SUBREDDITS = ["IndianStockMarket", "StockMarketIndia", "IndiaInvestments", "IndianStreetBets"];
+// Where Indian retail investors talk about issues (IPO_SUBREDDITS, or the
+// reader's own list): one feed for all of them, kept a week. The reader's X
+// accounts count too, when a post names the issue.
 
 // Words too common to identify a company on their own.
 const COMMON = new Set(["india", "indian", "bharat", "national", "global", "international", "new", "shree", "shri", "sri", "the", "first", "united", "bombay", "delhi", "mumbai", "smart", "super", "star", "royal", "classic", "modern", "prime", "premier", "capital", "finance", "industries", "industrial", "engineering", "infra", "power", "energy", "tech", "technologies", "solutions", "services", "systems", "products", "enterprises"]);
@@ -219,9 +243,15 @@ function namePatterns(name: string): { core: string; phrase: RegExp; word: RegEx
  * an X post that matched the search — fading by half each day, so a fresh
  * allotment thread beats last week's RHP read.
  */
-export async function ipoChatter(name: string, limit = 10): Promise<SocialAnswer> {
+export async function ipoChatter(name: string, feed: Partial<FeedConfig> = {}, limit = 20): Promise<SocialAnswer> {
   const { core, phrase, word } = namePatterns(name);
-  const [reddit, x] = await Promise.all([rolling("ipo", IPO_SUBREDDITS, 7), xConfigured() ? xSearch(`"${core}" IPO`) : Promise.resolve(null)]);
+  const subs = feed.subs ?? IPO_SUBREDDITS;
+  const handles = feed.x ?? [];
+  const [reddit, x, ...accounts] = await Promise.all([
+    rolling(rollName("ipo", subs, IPO_SUBREDDITS), subs, 7),
+    xConfigured() ? xSearch(`"${core}" IPO`) : Promise.resolve(null),
+    ...(xConfigured() ? handles.map(xUser) : []),
+  ]);
   type Scored = { post: SocialPost; score: number };
   const scored: Scored[] = [];
   for (const h of reddit ?? []) {
@@ -231,20 +261,20 @@ export async function ipoChatter(name: string, limit = 10): Promise<SocialAnswer
     const s = (inTitle ? 2 : 1) + (IPO_WORDS.test(`${h.title} ${h.text}`) ? 1 : 0);
     scored.push({ post: fromReddit(h), score: s * decay(h.createdAt, 24) });
   }
-  for (const p of x ?? []) {
+  for (const p of [...(x ?? []), ...accounts.flatMap((l) => l ?? [])]) {
     if (!phrase.test(p.title) && !(word && word.test(p.title))) continue;
     scored.push({ post: p, score: (IPO_WORDS.test(p.title) ? 2.5 : 1.5) * decay(p.at, 24) });
   }
   const posts = topPerSource(scored, limit);
-  const asked = 1 + (xConfigured() ? 1 : 0);
-  const answered = (reddit ? 1 : 0) + (x ? 1 : 0);
+  const asked = (subs.length ? 1 : 0) + (xConfigured() ? 1 + accounts.length : 0);
+  const answered = (reddit ? 1 : 0) + (x ? 1 : 0) + accounts.filter(Boolean).length;
   return answer(posts, asked, answered, xConfigured() ? null : "Reddit only — X needs RSSHub.");
 }
 
 // ---- Valorant: the transfer window ------------------------------------------------
 //
-// r/ValorantCompetitive kept ten days, plus the X accounts the reader follows
-// for it. A post counts when its title reads like a move (signs, parts ways,
+// r/ValorantCompetitive (or the reader's subreddits) kept ten days, plus the
+// X accounts and searches the reader follows for it. A post counts when its title reads like a move (signs, parts ways,
 // benched, free agent, a rumour…), or its body says so plainly, and it isn't
 // a match or discussion thread; one naming a team the reader follows ranks
 // double. Fades by half every two days.
@@ -254,10 +284,16 @@ const MOVE = /\b(roster|transfer|sign(s|ed|ing)?|join(s|ed|ing)?|part(s|ed|ing)?
 const STRONG_MOVE = /\b(part(s|ed|ing)? ways|sign(s|ed|ing)|join(s|ed)|free agents?|transfer(s|red)?|rumou?rs?|reportedly|benched|released|departure)\b/i;
 const MATCH_THREAD = /\b(vs\.?|post-match|match thread|discussion thread|megathread|pick'?em|predictions?|highlights?)\b/i;
 
-export async function valorantMoves(teams: string[], handles: string[], limit = 10): Promise<SocialAnswer> {
+export async function valorantMoves(teams: string[], feed: Partial<FeedConfig> = {}, limit = 20): Promise<SocialAnswer> {
   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const followed = teams.map((t) => ({ name: t, re: new RegExp(`\\b${esc(t)}\\b`, "i") }));
-  const [reddit, ...xs] = await Promise.all([rolling("valcomp", ["ValorantCompetitive"], 10), ...(xConfigured() ? handles.map(xUser) : [])]);
+  const subs = feed.subs ?? VAL_SUBREDDITS;
+  const handles = feed.x ?? VAL_DEFAULT_X;
+  const searches = feed.searches ?? [];
+  const [reddit, ...xs] = await Promise.all([
+    rolling(rollName("valcomp", subs, VAL_SUBREDDITS), subs, 10),
+    ...(xConfigured() ? [...handles.map(xUser), ...searches.map(xSearch)] : []),
+  ]);
   type Scored = { post: SocialPost; score: number };
   const scored: Scored[] = [];
   const rank = (title: string, body: string, at: string, base: number, post: SocialPost) => {
@@ -274,9 +310,130 @@ export async function valorantMoves(teams: string[], handles: string[], limit = 
     scored.push({ post: { ...p, ...(hit.length ? { tags: hit } : {}) }, score: (MOVE.test(p.title) ? 1.5 : 0.6) * (hit.length ? 2 : 1) * decay(p.at, 48) });
   }
   const posts = topPerSource(scored, limit);
-  const asked = 1 + xs.length;
+  const asked = (subs.length ? 1 : 0) + xs.length;
   const answered = (reddit ? 1 : 0) + xs.filter(Boolean).length;
-  return answer(posts, asked, answered, xConfigured() || handles.length === 0 ? null : "Reddit only — X needs RSSHub.");
+  return answer(posts, asked, answered, xConfigured() || handles.length + searches.length === 0 ? null : "Reddit only — X needs RSSHub.");
+}
+
+// ---- F1: the paddock talking ------------------------------------------------------
+//
+// By default r/formula1 and r/F1Technical (the day's top posts, no race or
+// discussion threads), and on X: F1 and the FIA, the reader's team, and three
+// reporters who break paddock news; the reader can change all of it (Edit
+// feeds). The last two days count; a post fades by half every 12 hours. A
+// post naming the reader's drivers or team ranks double, and official
+// accounts edge ahead of everything else at the same age.
+
+export async function f1Chatter(driverCodes: string[], team: string, feed: Partial<FeedConfig> = {}, limit = 20): Promise<SocialAnswer> {
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const names = driverCodes
+    .map((c) => F1_DRIVERS.find((d) => d.nameAcronym.toLowerCase() === c.toLowerCase())?.lastName)
+    .filter((n): n is string => Boolean(n));
+  const teamWord = team.replace(/ (Racing|F1 Team)$/, "");
+  const follows = [...names, ...(teamWord ? [teamWord] : [])].map((n) => ({ name: n, re: new RegExp(`\\b${esc(n)}\\b`, "i") }));
+  const teamX = F1_TEAM_X[team];
+  const handles = feed.x ?? [...F1_DEFAULT_X.slice(0, 2), ...(teamX ? [teamX] : []), ...F1_DEFAULT_X.slice(2)];
+  const searches = feed.searches ?? [];
+  const subs = feed.subs ?? F1_SUBREDDITS;
+  const [reddit, ...xs] = await Promise.all([
+    subs.length ? redditFeed(subs, "top") : Promise.resolve(null),
+    ...(xConfigured() ? [...handles.map(xUser), ...searches.map(xSearch)] : []),
+  ]);
+  type Scored = { post: SocialPost; score: number };
+  const scored: Scored[] = [];
+  const tagged = (post: SocialPost, words: string) => {
+    const hit = follows.filter((f) => f.re.test(words)).map((f) => f.name);
+    return { post: hit.length ? { ...post, tags: hit } : post, boost: hit.length ? 2 : 1 };
+  };
+  for (const h of reddit ?? []) {
+    if (ageH(h.createdAt) > 48) continue;
+    const { post, boost } = tagged(fromReddit(h), `${h.title} ${h.text}`);
+    // The feed's own order stands in for upvotes: the top of the day first.
+    scored.push({ post, score: (1 - Math.min(h.rank, 80) / 160) * boost * decay(h.createdAt, 12) });
+  }
+  xs.forEach((list, i) => {
+    const handle = handles[i] ?? "";
+    const base = F1_OFFICIAL_X.some((h) => h.toLowerCase() === handle.toLowerCase()) ? 1.2 : handle === teamX ? 1.1 : 1;
+    for (const p of list ?? []) {
+      if (ageH(p.at) > 48) continue;
+      const { post, boost } = tagged(p, p.title);
+      scored.push({ post, score: base * boost * decay(p.at, 12) });
+    }
+  });
+  const posts = topPerSource(scored, limit);
+  const asked = (subs.length ? 1 : 0) + xs.length;
+  const answered = (reddit ? 1 : 0) + xs.filter(Boolean).length;
+  return answer(posts, asked, answered, xConfigured() ? null : "Reddit only — X needs RSSHub.");
+}
+
+// ---- trending on X and Reddit -------------------------------------------------------
+//
+// X: trends24.in's hourly copy of X's trending list (X's own trends need a paid
+// API), for India and worldwide: the latest hour's list, each trend with how
+// many of the last 24 hours it has been on it. Reddit: r/popular's hot list,
+// for India and everywhere. Kept 10 minutes; a failed read keeps the last
+// good copy for a day.
+
+export interface XTrend {
+  name: string;
+  url: string;
+  /** Posts about it, when trends24 has the count. */
+  count: number | null;
+  /** Hours of the last 24 it has been trending. */
+  hours: number;
+}
+
+export interface SocialTrends {
+  x: { india: XTrend[] | null; world: XTrend[] | null };
+  reddit: { india: SocialPost[] | null; world: SocialPost[] | null };
+  at: string;
+}
+
+async function xTrends(region: "india" | "world"): Promise<XTrend[] | null> {
+  const key = `social:x-trends:v1:${region}`;
+  const store = getStore();
+  const kept = await store.get<{ at: number; trends: XTrend[] }>(key).catch(() => null);
+  if (kept && Date.now() - kept.at < FRESH_MS) return kept.trends;
+  try {
+    const res = await fetch(`https://trends24.in/${region === "india" ? "india/" : ""}`, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; the-daily-index)" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const html = await res.text();
+    // One list per hour, the newest first.
+    const lists = [...html.matchAll(/<ol class=["']?trend-card__list["']?>([\s\S]*?)<\/ol>/g)].map((m) =>
+      [...m[1].matchAll(/<a href="([^"]+)"[^>]*class=["']?trend-link["']?[^>]*>([^<]+)<\/a>(?:<span class=["']?tweet-count["']? data-count="?(\d*)"?)?/g)].map((t) => ({
+        href: t[1],
+        name: decodeEntities(t[2]).trim(),
+        count: t[3] ? Number(t[3]) : null,
+      })),
+    );
+    if (!lists.length || !lists[0].length) throw new Error("no trends in the page");
+    const seen = new Map<string, number>();
+    for (const list of lists.slice(0, 24)) for (const name of new Set(list.map((t) => t.name.toLowerCase()))) seen.set(name, (seen.get(name) ?? 0) + 1);
+    const trends: XTrend[] = lists[0].slice(0, 30).map((t) => ({
+      name: t.name,
+      url: `https://x.com/search?q=${encodeURIComponent(t.name)}`,
+      count: t.count && Number.isFinite(t.count) ? t.count : null,
+      hours: seen.get(t.name.toLowerCase()) ?? 1,
+    }));
+    await store.set(key, { at: Date.now(), trends }, { ttlSeconds: 86_400 }).catch(() => {});
+    return trends;
+  } catch (err) {
+    console.error(`[social] X trends (${region}) failed:`, err);
+    if (kept) await store.set(key, { at: Date.now() - FRESH_MS + 2 * 60_000, trends: kept.trends }, { ttlSeconds: 86_400 }).catch(() => {});
+    return kept?.trends ?? null;
+  }
+}
+
+export async function socialTrends(): Promise<SocialTrends> {
+  // Reddit's RSS turns a burst away (429), so its two lists are read one after the other.
+  const reddit = popularFeed("IN").then(async (india) => [india, await popularFeed("GLOBAL")] as const);
+  const [xIndia, xWorld, [rIndia, rWorld]] = await Promise.all([xTrends("india"), xTrends("world"), reddit]);
+  const posts = (hits: RedditHit[] | null) => (hits ? hits.slice(0, 30).map((h) => fromReddit(h)) : null);
+  return { x: { india: xIndia, world: xWorld }, reddit: { india: posts(rIndia), world: posts(rWorld) }, at: new Date().toISOString() };
 }
 
 /**
@@ -290,7 +447,7 @@ export async function warmSocial(reddit = true): Promise<{ ipo: number | null; v
   const access = process.env.RSSHUB_ACCESS_KEY?.trim();
   const [ipo, val, hub] = await Promise.all([
     reddit ? rolling("ipo", IPO_SUBREDDITS, 7) : Promise.resolve(undefined),
-    reddit ? rolling("valcomp", ["ValorantCompetitive"], 10) : Promise.resolve(undefined),
+    reddit ? rolling("valcomp", VAL_SUBREDDITS, 10) : Promise.resolve(undefined),
     // A cold start takes most of a minute; the request alone wakes it.
     base ? fetch(`${base}/healthz${access ? `?key=${encodeURIComponent(access)}` : ""}`, { cache: "no-store", signal: AbortSignal.timeout(25_000) }).then((r) => r.ok, () => false) : Promise.resolve(null),
   ]);

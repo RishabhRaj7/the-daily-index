@@ -1,3 +1,4 @@
+import { f1Fetch } from "./f1-signalr";
 import { inflateRawSync } from "node:zlib";
 import type { CarNow, LapTrace } from "@/lib/f1-live-types";
 
@@ -75,7 +76,7 @@ const archives = new Map<string, Promise<Archive | null>>();
 
 async function text(url: string): Promise<string | null> {
   try {
-    const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(30_000) });
+    const res = await f1Fetch(url, { cache: "no-store", signal: AbortSignal.timeout(30_000) });
     return res.ok ? (await res.text()).replace(/^﻿/, "") : null;
   } catch {
     return null;

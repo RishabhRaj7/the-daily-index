@@ -2,20 +2,18 @@
 
 import { useState } from "react";
 import type { F1RosterEntry, Personalization } from "@/lib/types";
-import { cleanXHandle, F1_TEAM_COLORS } from "@/lib/personalization";
+import { F1_TEAM_COLORS } from "@/lib/personalization";
 import { SECTION_ORDER } from "@/lib/sections";
 import PageOrderList from "./PageOrderList";
 
 type Sport = "f1" | "football" | "tennis";
-export type FormPart = "basics" | "sports" | "grapevine" | "order";
+export type FormPart = "basics" | "sports" | "order";
 
 const SPORT_LABELS: Record<Sport, string> = {
   f1: "Formula 1",
   football: "Football",
   tennis: "Tennis",
 };
-
-const MAX_SUBS = 8;
 
 // Top-10 suggestion lists — quick picks shown as chips above each free-fill input.
 const FOOTBALL_CLUBS = [
@@ -34,11 +32,6 @@ const TENNIS_PLAYERS = [
   "Sinner", "Alcaraz", "Djokovic", "Zverev",
   "Swiatek", "Sabalenka", "Gauff", "Rybakina", "Medvedev", "Fritz",
 ];
-const SUBREDDIT_SUGGESTIONS = [
-  "formula1", "soccer", "tennis", "cricket", "india",
-  "personalfinanceindia", "IndiaInvestments", "technology", "gadgets", "science",
-];
-
 // A numbered chapter: one decision per chapter, with a plain-language line
 // explaining what it changes in tomorrow's paper.
 function Chapter({
@@ -111,120 +104,6 @@ function Chip({
   );
 }
 
-// Generic comma/Enter tag input. `format` normalizes entries (subreddits get
-// lowercased + validated); topics are kept as typed.
-function TagInput({
-  value,
-  onChange,
-  max,
-  placeholder,
-  prefix,
-  validate,
-  invalidHint,
-}: {
-  value: string[];
-  onChange: (v: string[]) => void;
-  max: number;
-  placeholder: string;
-  prefix?: string;
-  validate?: (tag: string) => string | null;
-  invalidHint?: string;
-}) {
-  const [inputVal, setInputVal] = useState("");
-  const [rejected, setRejected] = useState(false);
-
-  const addTag = (raw: string) => {
-    const cleaned = validate ? validate(raw) : raw.trim();
-    if (!cleaned) {
-      setInputVal("");
-      return;
-    }
-    if (!value.includes(cleaned) && value.length < max) {
-      onChange([...value, cleaned]);
-      setRejected(false);
-    }
-    setInputVal("");
-  };
-
-  const removeTag = (tag: string) => onChange(value.filter((t) => t !== tag));
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" || e.key === "Tab" || e.key === ",") {
-      e.preventDefault();
-      if (validate && inputVal.trim() && !validate(inputVal)) {
-        setRejected(true);
-        return;
-      }
-      addTag(inputVal);
-    }
-    if (e.key === "Backspace" && !inputVal && value.length > 0) {
-      removeTag(value[value.length - 1]);
-    }
-  };
-
-  return (
-    <div>
-      <div className="min-h-[42px] border hairline rounded-lg px-2 py-1.5 flex flex-wrap gap-1.5 items-center bg-transparent focus-within:border-accent/60 transition-colors">
-        {value.map((tag) => (
-          <span
-            key={tag}
-            className="flex items-center gap-1 text-xs bg-card-bg border hairline rounded-full px-1.5 py-0.5"
-          >
-            {prefix}
-            {tag}
-            <button
-              type="button"
-              onClick={() => removeTag(tag)}
-              className="text-ink-soft hover:text-ink leading-none"
-              aria-label={`Remove ${prefix}${tag}`}
-            >
-              ×
-            </button>
-          </span>
-        ))}
-        {value.length < max && (
-          <input
-            type="text"
-            value={inputVal}
-            onChange={(e) => {
-              setInputVal(e.target.value);
-              setRejected(false);
-            }}
-            onKeyDown={handleKeyDown}
-            onBlur={() => {
-              if (inputVal.trim()) addTag(inputVal);
-            }}
-            placeholder={value.length === 0 ? placeholder : "add more…"}
-            className="flex-1 min-w-[120px] bg-transparent text-sm outline-none"
-          />
-        )}
-      </div>
-      <span className="block font-sans text-[11px] text-ink-soft mt-1.5">
-        {rejected && invalidHint ? (
-          <span className="text-accent">{invalidHint}</span>
-        ) : value.length === 0 ? (
-          "None yet."
-        ) : (
-          `${max - value.length} slot${max - value.length !== 1 ? "s" : ""} left — Enter or , to add.`
-        )}
-      </span>
-    </div>
-  );
-}
-
-function cleanXSearch(raw: string): string | null {
-  const cleaned = raw.replace(/\s+/g, " ").trim();
-  return cleaned.length >= 2 && cleaned.length <= 60 && !cleaned.includes("|") ? cleaned : null;
-}
-
-const MAX_X = 10;
-const MAX_X_SEARCHES = 3;
-
-function cleanSubreddit(raw: string): string | null {
-  const cleaned = raw.replace(/^r\//i, "").trim().toLowerCase().replace(/\s+/g, "");
-  return /^[a-z0-9_]{3,21}$/.test(cleaned) ? cleaned : null;
-}
-
 /** One followed sport: its name, then its few fields in a compact grid. */
 function SportCard({ name, accent, children }: { name: string; accent?: string; children: React.ReactNode }) {
   return (
@@ -294,16 +173,12 @@ export default function PersonalizationForm({
   value,
   onChange,
   f1Roster,
-  redditPanel,
   parts,
   bare = false,
 }: {
   value: Personalization;
   onChange: (next: Personalization) => void;
   f1Roster: F1RosterEntry[];
-  /** Rendered inside the Grapevine chapter (Settings passes the Reddit
-   *  connect panel; onboarding shows a pointer to Settings instead). */
-  redditPanel?: React.ReactNode;
   /** Render only these chapters (Settings splits them across tabs); all
    *  chapters, numbered, when omitted (onboarding). */
   parts?: FormPart[];
@@ -341,12 +216,12 @@ export default function PersonalizationForm({
 
   return (
     <div>
-      {/* I. The Basics */}
+      {/* I. Your city */}
       {show("basics") && (
       <Chapter
         bare={bare}
         numeral={num("I.")}
-        title="The Basics"
+        title="Your city"
         effect="Your city sets the weather page and boosts local stories."
       >
         <label className="block">
@@ -499,87 +374,11 @@ export default function PersonalizationForm({
       </Chapter>
       )}
 
-      {/* III. The Grapevine */}
-      {show("grapevine") && (
-      <Chapter
-        bare={bare}
-        numeral={num("III.")}
-        title="The Grapevine"
-        effect="Two columns: X accounts and searches you name, and the Reddit list below."
-      >
-        <div>
-          {redditPanel ?? (
-            <Hint>
-              You can connect your Reddit account later, in Settings — the list below works on
-              its own.
-            </Hint>
-          )}
-        </div>
-        <div>
-          <FieldLabel>Subreddits, by hand {value.subreddits.length > 0 && `(${value.subreddits.length})`}</FieldLabel>
-          <TagInput
-            value={value.subreddits}
-            onChange={(subs) => onChange({ ...value, subreddits: subs })}
-            max={MAX_SUBS}
-            placeholder="e.g. technology"
-            prefix="r/"
-            validate={cleanSubreddit}
-            invalidHint="Use 3–21 lowercase letters, numbers or underscores."
-          />
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {SUBREDDIT_SUGGESTIONS.filter((s) => !value.subreddits.includes(s)).map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() =>
-                  value.subreddits.length < MAX_SUBS &&
-                  onChange({ ...value, subreddits: [...value.subreddits, s] })
-                }
-                className="font-sans text-[11px] px-2 py-0.5 border hairline rounded-full text-ink-soft hover:bg-card-bg transition-colors"
-              >
-                + r/{s}
-              </button>
-            ))}
-          </div>
-          <Hint>
-            {value.subreddits.length === 0
-              ? "Empty — the column reads globally trending posts, matched to your sports."
-              : "Your picks print first; connected subscriptions fill the rest."}
-          </Hint>
-        </div>
-        <div>
-          <FieldLabel>X accounts {(value.xAccounts?.length ?? 0) > 0 && `(${value.xAccounts!.length})`}</FieldLabel>
-          <TagInput
-            value={value.xAccounts ?? []}
-            onChange={(xAccounts) => onChange({ ...value, xAccounts })}
-            max={MAX_X}
-            placeholder="e.g. elonmusk or x.com/…"
-            prefix="@"
-            validate={cleanXHandle}
-            invalidHint="An X handle: up to 15 letters, numbers or underscores."
-          />
-          <FieldLabel>X searches {(value.xSearches?.length ?? 0) > 0 && `(${value.xSearches!.length})`}</FieldLabel>
-          <TagInput
-            value={value.xSearches ?? []}
-            onChange={(xSearches) => onChange({ ...value, xSearches })}
-            max={MAX_X_SEARCHES}
-            placeholder="e.g. Nvidia earnings"
-            validate={cleanXSearch}
-            invalidHint="2–60 characters."
-          />
-          <Hint>
-            Their newest posts from the last three days, one account at a time so no one fills the column, then your
-            searches. Read every 10 minutes at most.
-          </Hint>
-        </div>
-      </Chapter>
-      )}
-
-      {/* IV. Page order */}
+      {/* III. Page order */}
       {show("order") && (
       <Chapter
         bare={bare}
-        numeral={num("IV.")}
+        numeral={num("III.")}
         title="Page order"
         effect="What prints, and in what order — top of the list prints first."
       >

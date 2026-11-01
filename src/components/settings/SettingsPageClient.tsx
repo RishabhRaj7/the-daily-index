@@ -15,7 +15,6 @@ import { withSportsSettings } from "@/lib/preferences/paper";
 import { requestEdition } from "@/lib/edition-client";
 import PersonalizationForm from "@/components/onboarding/PersonalizationForm";
 import DigestPreferencesEditor from "@/components/settings/DigestPreferencesEditor";
-import RedditConnect from "@/components/settings/RedditConnect";
 import SyncCard from "@/components/settings/SyncCard";
 import { loadSync } from "@/lib/sync";
 import Link from "next/link";
@@ -24,18 +23,21 @@ import { RisingWords } from "@/components/story/SectionHeader";
 import { clearMemory, loadMemory } from "@/lib/reader-memory";
 import { SETTINGS_RETURN_KEY } from "@/components/chrome/SettingsLink";
 
-const MAX_SUBS = 8;
-
-// Football / tennis favourites chosen under "Your paper" also steer any news
+// Football / tennis favourites chosen under Sports also steer any news
 // section that feeds the sports page, so the reader sets them once.
-// Four short tabs instead of one long scroll; one Save covers all of them.
+// Four short tabs, one question each; one Save covers all of them:
+//   News      where you are and what the editor reads for you, and how it writes
+//   Sections  what prints, in what order, and what fills each section
+//   Sports    the sports pages
+//   Devices   sync, and what this browser remembers
 const TABS = [
-  { key: "news", label: "News", blurb: "What the AI editor prioritises everywhere, and how it writes." },
-  { key: "sections", label: "Sections", blurb: "What each section of the paper is filled with. Tap one to edit it." },
+  { key: "news", label: "News", blurb: "Where you are, what the AI editor prioritises everywhere, and how it writes." },
+  { key: "sections", label: "Sections", blurb: "What prints, in what order, and what fills each section. Tap one to edit it." },
   { key: "sports", label: "Sports", blurb: "Which sports get a page, whose stories lead it, and your rivals." },
-  { key: "page", label: "Page & Reddit", blurb: "Your city, the order pages print in, and the Reddit column." },
-  { key: "devices", label: "Devices", blurb: "The same paper on every device you read on." },
+  { key: "devices", label: "Devices", blurb: "The same paper on every device you read on, and what this one remembers." },
 ] as const;
+/** Tabs that were merged into others still open from old links. */
+const MOVED: Record<string, TabKey> = { page: "sections" };
 type TabKey = (typeof TABS)[number]["key"];
 
 export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEntry[] }) {
@@ -62,6 +64,7 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
     // Deep links like /settings#sections open that tab.
     const fromHash = window.location.hash.slice(1);
     if (TABS.some((t) => t.key === fromHash)) setTab(fromHash as TabKey);
+    else if (MOVED[fromHash]) setTab(MOVED[fromHash]);
     if (fromHash.startsWith("sync=")) setTab("devices");
   }, []);
 
@@ -134,14 +137,6 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
     }, 600);
   };
 
-  const handleImportSubs = (subs: string[]) => {
-    const clean = subs
-      .map((s) => s.replace(/^r\//i, "").trim().toLowerCase())
-      .filter((s) => /^[a-z0-9_]{3,21}$/.test(s) && !draft.subreddits.includes(s));
-    if (clean.length === 0) return;
-    setDraft((d) => ({ ...d, subreddits: [...d.subreddits, ...clean].slice(0, MAX_SUBS) }));
-  };
-
   return (
     <>
     <TopBar sections={[]} alwaysShowLogo />
@@ -176,9 +171,21 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
           </button>
         ))}
       </div>
-      {/* The paper chapters carry their own one-line explanation. */}
+      <p className="font-body text-sm text-ink-soft mb-6">{active.blurb}</p>
+
+      {/* News opens with where the reader is; Sections with what prints and in what order. */}
       {(tab === "news" || tab === "sections") && (
-        <p className="font-body text-sm text-ink-soft mb-6">{active.blurb}</p>
+        <div className="mb-8">
+          <PersonalizationForm
+            parts={tab === "news" ? ["basics"] : ["order"]}
+            value={draft}
+            onChange={(next) => {
+              setDraft(next);
+              setSaved(false);
+            }}
+            f1Roster={f1Roster}
+          />
+        </div>
       )}
 
       {(tab === "news" || tab === "sections") &&
@@ -215,22 +222,21 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
         </label>
       )}
 
-      {(tab === "sports" || tab === "page") && (
+      {tab === "sports" && (
         <PersonalizationForm
-          parts={tab === "sports" ? ["sports"] : ["basics", "order", "grapevine"]}
+          parts={["sports"]}
           value={draft}
           onChange={(next) => {
             setDraft(next);
             setSaved(false);
           }}
           f1Roster={f1Roster}
-          redditPanel={<RedditConnect onImport={handleImportSubs} />}
         />
       )}
 
       {tab === "devices" && <SyncCard />}
 
-      {tab === "page" && (
+      {tab === "devices" && (
       <section className="mt-10 module">
         <div className="font-label text-[10px] text-accent mb-1">What the paper remembers</div>
         <p className="font-body text-sm text-ink-soft leading-relaxed">
