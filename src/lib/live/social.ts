@@ -448,6 +448,33 @@ export interface SocialTrends {
   waiting?: boolean;
 }
 
+/**
+ * getdaytrends.com, read when trends24 won't answer (it turns Vercel's servers
+ * away): its current ranking, each trend's hours from the points on its
+ * eight-hour chart (8 means at least that). Asked openly as the paper; its
+ * robots.txt sets no restriction for this use.
+ */
+async function fromGetDayTrends(region: "india" | "world"): Promise<XTrend[]> {
+  const res = await fetch(`https://getdaytrends.com/${region === "india" ? "india/" : ""}`, {
+    headers: { "User-Agent": "Mozilla/5.0 (compatible; the-daily-index)" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const html = await res.text();
+  const table = html.slice(html.indexOf("<table"), html.indexOf("</table>"));
+  const trends = [...table.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].flatMap((m) => {
+    const raw = /<td class="main">\s*<a[^>]*>([^<]+)<\/a>/.exec(m[1])?.[1];
+    if (!raw) return [];
+    const lines = [...m[1].matchAll(/<polyline points="([^"]+)"\s*\/>/g)];
+    const points = (lines.at(-1)?.[1] ?? "").trim().split(/\s+/).filter(Boolean).length;
+    const name = decodeEntities(raw).trim();
+    return [{ name, url: `https://x.com/search?q=${encodeURIComponent(name)}`, count: null, hours: Math.max(1, Math.min(8, points - 1)) }];
+  });
+  if (!trends.length) throw new Error("no trends in the page");
+  return trends.slice(0, 30);
+}
+
 async function xTrends(region: "india" | "world"): Promise<XTrend[] | null> {
   const key = `social:x-trends:v1:${region}`;
   const store = getStore();
@@ -485,7 +512,16 @@ async function xTrends(region: "india" | "world"): Promise<XTrend[] | null> {
     noteCopy(Date.now());
     return trends;
   } catch (err) {
-    console.error(`[social] X trends (${region}) failed:`, err);
+    console.error(`[social] X trends (${region}) from trends24 failed:`, err instanceof Error ? err.message : err);
+    try {
+      const trends = await fromGetDayTrends(region);
+      const at = Date.now();
+      await store.set(key, { at, trends }, { ttlSeconds: 86_400 }).catch(() => {});
+      noteCopy(at);
+      return trends;
+    } catch (err2) {
+      console.error(`[social] X trends (${region}) from getdaytrends failed:`, err2 instanceof Error ? err2.message : err2);
+    }
     if (kept) await store.set(key, { at: Date.now() - FRESH_MS + 2 * 60_000, trends: kept.trends }, { ttlSeconds: 86_400 }).catch(() => {});
     noteCopy(kept?.at);
     return kept?.trends ?? null;
