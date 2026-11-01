@@ -52,9 +52,78 @@ async function sessionInfo(): Promise<CurrentSessionInfo | null> {
     infoMemo = shared;
     return shared.info;
   }
-  const info = await currentSession();
+  const info = await resolveSession();
   infoMemo = { at: Date.now(), info };
   await store.set(INFO_KEY, infoMemo, { ttlSeconds: 60 }).catch(() => {});
+  return info;
+}
+
+/**
+ * Which session is current. F1's public static/SessionInfo.json used to say,
+ * but F1 stopped updating it (it still named Saturday's qualifying while the
+ * Mexico race ran on Sunday), so it is only one witness now:
+ *
+ *   schedule  the season's index in F1's archive (with the F1 TV token): the
+ *             session whose window (15 minutes before its start to half an
+ *             hour after its end) holds now, else the next one to start
+ *   feed      when there's no token and the static file looks stale, the live
+ *             feed is asked which session it is serving (its SessionInfo and
+ *             SessionStatus only, at most every two minutes)
+ *
+ * Whichever names the later session wins.
+ */
+async function resolveSession(): Promise<CurrentSessionInfo | null> {
+  const now = Date.now();
+  const [stat, sched] = await Promise.all([currentSession().catch(() => null), scheduledSession(now).catch(() => null)]);
+  const later = (a: CurrentSessionInfo | null, b: CurrentSessionInfo | null) =>
+    !a ? b : !b ? a : sessionTime(b.StartDate, b.GmtOffset) > sessionTime(a.StartDate, a.GmtOffset) ? b : a;
+  let info = later(stat, sched);
+  if (!sched && (!stat || sessionTime(stat.EndDate, stat.GmtOffset) + AFTER_MS < now)) info = later(info, await peekedSession());
+  // The schedule knows when, the static file (when it's the same session) knows its status.
+  if (info && stat && info.Key === stat.Key && !info.SessionStatus) info = { ...info, SessionStatus: stat.SessionStatus };
+  return info;
+}
+
+type IndexMeeting = { Name: string; Location: string; Number?: number; Sessions?: Array<{ Key: number; Type?: string; Name: string; StartDate: string; EndDate: string; GmtOffset: string; Path?: string }> };
+
+/** From F1's season index (needs the token): the session on now, else the next one, else the last one. */
+async function scheduledSession(now: number): Promise<CurrentSessionInfo | null> {
+  if (!process.env.F1TV_TOKEN?.trim()) return null;
+  const year = new Date(now).getUTCFullYear();
+  const res = await f1Fetch(`https://livetiming.formula1.com/static/${year}/Index.json`, { next: { revalidate: 900 }, signal: AbortSignal.timeout(6000) });
+  if (!res.ok) return null;
+  const idx = JSON.parse((await res.text()).replace(/^\uFEFF/, "")) as { Meetings?: IndexMeeting[] };
+  const all = (idx.Meetings ?? []).flatMap((m) =>
+    (m.Sessions ?? []).map((x) => ({
+      Key: x.Key,
+      Type: x.Type ?? x.Name,
+      Name: x.Name,
+      StartDate: x.StartDate,
+      EndDate: x.EndDate,
+      GmtOffset: x.GmtOffset,
+      Path: x.Path,
+      Meeting: { Key: 0, Name: m.Name, Location: m.Location, Number: m.Number },
+    })),
+  );
+  const start = (x: CurrentSessionInfo) => sessionTime(x.StartDate, x.GmtOffset);
+  const end = (x: CurrentSessionInfo) => sessionTime(x.EndDate, x.GmtOffset);
+  const on = all.filter((x) => now >= start(x) - BEFORE_MS && now <= end(x) + AFTER_MS).sort((a, b) => start(b) - start(a))[0];
+  if (on) return on;
+  const next = all.filter((x) => start(x) > now).sort((a, b) => start(a) - start(b))[0];
+  return next ?? all.filter((x) => end(x) < now).sort((a, b) => end(b) - end(a))[0] ?? null;
+}
+
+/** The session the live feed is serving, asked directly (two small topics), shared for two minutes. */
+async function peekedSession(): Promise<CurrentSessionInfo | null> {
+  const store = getStore();
+  const kept = await store.get<{ at: number; info: CurrentSessionInfo | null }>("f1:live:peek:v1").catch(() => null);
+  if (kept && Date.now() - kept.at < 120_000) return kept.info;
+  const state = await readLiveState(["SessionInfo", "SessionStatus"], 5000).catch(() => null);
+  const si = obj(state?.SessionInfo);
+  const info = si.Key
+    ? ({ ...(si as unknown as CurrentSessionInfo), SessionStatus: str(obj(state?.SessionStatus).Status) || str(si.SessionStatus) } as CurrentSessionInfo)
+    : null;
+  await store.set("f1:live:peek:v1", { at: Date.now(), info }, { ttlSeconds: 300 }).catch(() => {});
   return info;
 }
 
@@ -659,7 +728,10 @@ export async function lastSession(): Promise<LiveSnapshot | null> {
 
 export async function getLive(opts: { fresh?: boolean; withLast?: boolean } = {}): Promise<LiveAnswer> {
   const info = await sessionInfo();
-  if (!info || !inWindow(info)) {
+  // A session still running past its window (a red flag) stays live while the last read says so.
+  const held = info ? await getStore().get<LiveSnapshot>(KEY).catch(() => null) : null;
+  const overrun = !!info && held?.sessionKey === info.Key && held.running && Date.now() - Date.parse(held.at) < 10 * 60_000;
+  if (!info || !(inWindow(info) || overrun)) {
     const start = info ? sessionTime(info.StartDate, info.GmtOffset) : 0;
     const next = start > Date.now() ? new Date(start).toISOString() : null;
     return { live: false, next, ...(opts.withLast ? { last: await lastSession().catch(() => null) } : {}) };
