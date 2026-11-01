@@ -1,16 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { SocialPost, SocialTrends as Trends, XTrend } from "@/lib/live/social";
-import { SourceLogo } from "@/components/extras/SocialFeed";
+import { RefreshStamp, SourceLogo, useSocialFeed } from "@/components/extras/SocialFeed";
 
 // Trending on X and Reddit, under the Search Bar and built like it: India or
 // the world, the top five of each side by side, twenty on request. X's list
 // is trends24's hourly copy of X's own (with how many of the last 24 hours a
-// trend has been on it); Reddit's is r/popular's hot list. Refreshed every ten
-// minutes while the page is open (lib/live/social.ts, socialTrends).
+// trend has been on it); Reddit's is r/popular's hot list. Refreshed every five
+// minutes while the page is in view, and from its ↻ (lib/live/social.ts,
+// socialTrends; Reddit answers one read a minute, in turn).
 
-const REFRESH_MS = 10 * 60_000;
 const FEW = 5;
 const MANY = 20;
 type Region = "india" | "world";
@@ -52,38 +52,27 @@ function RedditRow({ p, i }: { p: SocialPost; i: number }) {
   );
 }
 
-function Column({ source, title, children, empty }: { source: SocialPost["source"]; title: string; children: React.ReactNode; empty: boolean }) {
+function Column({ source, title, children, empty, waiting = false }: { source: SocialPost["source"]; title: string; children: React.ReactNode; empty: boolean; waiting?: boolean }) {
   return (
     <div className="min-w-0">
       <div className="flex items-center gap-2 pt-3 pb-1">
         <SourceLogo source={source} size={15} />
         <span className="font-label text-[10px] text-ink-soft">{title}</span>
       </div>
-      {empty ? <p className="font-body italic text-sm text-ink-soft py-2.5">Didn&rsquo;t answer this time; asked again shortly.</p> : <ol className="divide-y hairline">{children}</ol>}
+      {empty ? (
+        <p className="font-body italic text-sm text-ink-soft py-2.5">
+          {waiting ? "Waiting for Reddit (one read a minute); this fills in shortly." : "Didn’t answer this time; asked again shortly."}
+        </p>
+      ) : <ol className="divide-y hairline">{children}</ol>}
     </div>
   );
 }
 
 export default function SocialTrends() {
-  const [data, setData] = useState<Trends | null>(null);
+  const live = useSocialFeed<Trends>("/api/social?kind=trends");
+  const data = live.data;
   const [region, setRegion] = useState<Region>("india");
   const [all, setAll] = useState(false);
-  useEffect(() => {
-    let live = true;
-    const load = () => {
-      if (document.hidden) return;
-      fetch("/api/social?kind=trends")
-        .then((r) => (r.ok ? (r.json() as Promise<Trends>) : null))
-        .then((d) => live && d && setData(d))
-        .catch(() => {});
-    };
-    load();
-    const id = window.setInterval(load, REFRESH_MS);
-    return () => {
-      live = false;
-      window.clearInterval(id);
-    };
-  }, []);
 
   if (!data || (!data.x.india && !data.x.world && !data.reddit.india && !data.reddit.world)) return null;
   const x = (data.x[region] ?? []).slice(0, all ? MANY : FEW);
@@ -97,9 +86,9 @@ export default function SocialTrends() {
           <h3 className="font-display font-extrabold text-[1.9rem] leading-none">Trending on X and Reddit</h3>
           <p className="font-body italic text-xs text-ink-soft mt-0.5">
             What {region === "india" ? "India" : "the world"} is posting about right now
-            {` · ${new Date(data.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })} IST`}
           </p>
         </div>
+        <RefreshStamp asOf={data.asOf ?? data.at} busy={live.busy} onRefresh={live.refresh} className="ml-auto" />
         <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Where">
           {(["india", "world"] as const).map((r) => (
             <button
@@ -122,7 +111,7 @@ export default function SocialTrends() {
             <XRow key={t.name} t={t} i={i} />
           ))}
         </Column>
-        <Column source="reddit" title={region === "india" ? "Hot on Reddit in India" : "Hot on Reddit"} empty={!data.reddit[region]}>
+        <Column source="reddit" title={region === "india" ? "Hot on Reddit in India" : "Hot on Reddit"} empty={!data.reddit[region]} waiting={!!data.waiting}>
           {reddit.map((p, i) => (
             <RedditRow key={p.id} p={p} i={i} />
           ))}

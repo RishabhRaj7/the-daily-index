@@ -1,6 +1,7 @@
 import { getStore } from "@/lib/server/store";
 import { decodeEntities } from "./rss";
 import { popularFeed, redditFeed, worthReading, type RedditHit } from "./reddit";
+import { noteCopy, socialCtx } from "./social-context";
 import { F1_DRIVERS } from "@/lib/config/f1-drivers";
 import { DEFAULT_X_ACCOUNTS, F1_DEFAULT_X, F1_OFFICIAL_X, F1_SUBREDDITS, F1_TEAM_X, IPO_SUBREDDITS, VAL_DEFAULT_X, VAL_SUBREDDITS, type FeedConfig } from "@/lib/feeds-shared";
 
@@ -41,9 +42,28 @@ export interface SocialAnswer {
   status: "live" | "partial" | "unconfigured" | "unavailable";
   note: string | null;
   at: string;
+  /** When the oldest copy in this answer was read, for "updated 3m ago". */
+  asOf?: string | null;
+  /** A feed has nothing yet and is waiting its turn (Reddit allows one read a minute): ask again shortly. */
+  waiting?: boolean;
 }
 
-const FRESH_MS = 10 * 60_000;
+/** X copies count as fresh for five minutes (a reader's refresh: one). */
+const FRESH_MS = 5 * 60_000;
+/** RSSHub runs on one free instance: at most this many reads at once. */
+const X_AT_ONCE = 4;
+let xRunning = 0;
+const xQueue: Array<() => void> = [];
+async function xTurn<T>(fn: () => Promise<T>): Promise<T> {
+  if (xRunning >= X_AT_ONCE) await new Promise<void>((go) => xQueue.push(go));
+  xRunning++;
+  try {
+    return await fn();
+  } finally {
+    xRunning--;
+    xQueue.shift()?.();
+  }
+}
 const HOUR = 3_600_000;
 const ageH = (iso: string) => Math.max(0, (Date.now() - Date.parse(iso)) / HOUR);
 /** Half the weight every `half` hours. */
@@ -76,14 +96,26 @@ function cleanPost(s: string): string {
     .trim();
 }
 
-/** One RSSHub route as posts, kept 10 minutes (a failed read keeps the last good copy a day). */
+/** Routes that failed lately, and when to try again (ms): a sleeping or broken RSSHub isn't asked on every read. */
+const xBackoff = new Map<string, number>();
+
+/** One RSSHub route as posts, fresh for five minutes (a refresh: one); a failed read keeps the last good copy three days. */
 async function rsshub(route: string, where: string): Promise<SocialPost[] | null> {
   const base = process.env.RSSHUB_URL?.trim().replace(/\/+$/, "");
   if (!base) return null;
   const key = `social:x:v1:${route}`;
   const store = getStore();
   const kept = await store.get<{ at: number; posts: SocialPost[] }>(key).catch(() => null);
-  if (kept && Date.now() - kept.at < FRESH_MS) return kept.posts;
+  const freshFor = socialCtx()?.force ? 60_000 : FRESH_MS;
+  if ((kept && Date.now() - kept.at < freshFor) || (xBackoff.get(route) ?? 0) > Date.now()) {
+    noteCopy(kept?.at, !kept);
+    return kept?.posts ?? null;
+  }
+  return xTurn(() => readX(base, route, where, key, kept));
+}
+
+async function readX(base: string, route: string, where: string, key: string, kept: { at: number; posts: SocialPost[] } | null): Promise<SocialPost[] | null> {
+  const store = getStore();
   const access = process.env.RSSHUB_ACCESS_KEY?.trim();
   const url = `${base}${route}${route.includes("?") ? "&" : "?"}format=json${access ? `&key=${encodeURIComponent(access)}` : ""}`;
   try {
@@ -98,11 +130,16 @@ async function rsshub(route: string, where: string): Promise<SocialPost[] | null
       const author = it.authors?.[0]?.name ?? null;
       return [{ id: `x-${it.id ?? it.url}`, source: "x" as const, where, author, title: body.slice(0, 280), text: "", url: it.url.replace("https://twitter.com/", "https://x.com/"), at: it.date_published ?? new Date().toISOString() }];
     });
-    await store.set(key, { at: Date.now(), posts }, { ttlSeconds: 86_400 }).catch(() => {});
+    const at = Date.now();
+    await store.set(key, { at, posts }, { ttlSeconds: 3 * 86_400 }).catch(() => {});
+    xBackoff.delete(route);
+    noteCopy(at);
     return posts;
   } catch (err) {
-    console.error(`[social] RSSHub ${route} failed:`, err);
-    if (kept) await store.set(key, { at: Date.now() - FRESH_MS + 2 * 60_000, posts: kept.posts }, { ttlSeconds: 86_400 }).catch(() => {});
+    console.error(`[social] RSSHub ${route} failed:`, err instanceof Error ? err.message : err);
+    // Ask again in two minutes, not on every read.
+    xBackoff.set(route, Date.now() + 2 * 60_000);
+    noteCopy(kept?.at, !kept);
     return kept?.posts ?? null;
   }
 }
@@ -181,12 +218,18 @@ function topPerSource(scored: { post: SocialPost; score: number }[], limit: numb
   return ranked.map((s) => s.post).filter((p) => kept.delete(p));
 }
 
-const answer = (posts: SocialPost[], asked: number, answered: number, note: string | null = null): SocialAnswer => ({
-  posts,
-  status: asked === 0 || answered === asked ? "live" : answered > 0 ? "partial" : "unavailable",
-  note,
-  at: new Date().toISOString(),
-});
+const answer = (posts: SocialPost[], asked: number, answered: number, note: string | null = null): SocialAnswer => {
+  const ctx = socialCtx();
+  const oldest = ctx?.copies.length ? Math.min(...ctx.copies) : null;
+  return {
+    posts,
+    status: asked === 0 || answered === asked ? "live" : answered > 0 ? "partial" : "unavailable",
+    note: ctx?.waiting && !note ? "Some feeds are still waiting their turn with Reddit (one read a minute)." : note,
+    at: new Date().toISOString(),
+    asOf: oldest ? new Date(oldest).toISOString() : null,
+    waiting: !!ctx?.waiting,
+  };
+};
 
 // ---- the Grapevine: the reader's X accounts and searches, and their subreddits --
 //
@@ -387,13 +430,20 @@ export interface SocialTrends {
   x: { india: XTrend[] | null; world: XTrend[] | null };
   reddit: { india: SocialPost[] | null; world: SocialPost[] | null };
   at: string;
+  /** When the oldest list was read. */
+  asOf?: string | null;
+  /** A list has nothing yet and is waiting its turn: ask again shortly. */
+  waiting?: boolean;
 }
 
 async function xTrends(region: "india" | "world"): Promise<XTrend[] | null> {
   const key = `social:x-trends:v1:${region}`;
   const store = getStore();
   const kept = await store.get<{ at: number; trends: XTrend[] }>(key).catch(() => null);
-  if (kept && Date.now() - kept.at < FRESH_MS) return kept.trends;
+  if (kept && Date.now() - kept.at < (socialCtx()?.force ? 60_000 : FRESH_MS)) {
+    noteCopy(kept.at);
+    return kept.trends;
+  }
   try {
     const res = await fetch(`https://trends24.in/${region === "india" ? "india/" : ""}`, {
       headers: { "User-Agent": "Mozilla/5.0 (compatible; the-daily-index)" },
@@ -420,10 +470,12 @@ async function xTrends(region: "india" | "world"): Promise<XTrend[] | null> {
       hours: seen.get(t.name.toLowerCase()) ?? 1,
     }));
     await store.set(key, { at: Date.now(), trends }, { ttlSeconds: 86_400 }).catch(() => {});
+    noteCopy(Date.now());
     return trends;
   } catch (err) {
     console.error(`[social] X trends (${region}) failed:`, err);
     if (kept) await store.set(key, { at: Date.now() - FRESH_MS + 2 * 60_000, trends: kept.trends }, { ttlSeconds: 86_400 }).catch(() => {});
+    noteCopy(kept?.at);
     return kept?.trends ?? null;
   }
 }
@@ -433,7 +485,15 @@ export async function socialTrends(): Promise<SocialTrends> {
   const reddit = popularFeed("IN").then(async (india) => [india, await popularFeed("GLOBAL")] as const);
   const [xIndia, xWorld, [rIndia, rWorld]] = await Promise.all([xTrends("india"), xTrends("world"), reddit]);
   const posts = (hits: RedditHit[] | null) => (hits ? hits.slice(0, 30).map((h) => fromReddit(h)) : null);
-  return { x: { india: xIndia, world: xWorld }, reddit: { india: posts(rIndia), world: posts(rWorld) }, at: new Date().toISOString() };
+  const ctx = socialCtx();
+  const oldest = ctx?.copies.length ? Math.min(...ctx.copies) : null;
+  return {
+    x: { india: xIndia, world: xWorld },
+    reddit: { india: posts(rIndia), world: posts(rWorld) },
+    at: new Date().toISOString(),
+    asOf: oldest ? new Date(oldest).toISOString() : null,
+    waiting: !!ctx?.waiting,
+  };
 }
 
 /**

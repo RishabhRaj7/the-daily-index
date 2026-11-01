@@ -56,6 +56,7 @@ export const LIVE_TOPICS = [
   "ChampionshipPrediction",
   "LapSeries",
   "PitStopSeries",
+  "PitLaneTimeCollection",
   "AudioStreams",
 ] as const;
 
