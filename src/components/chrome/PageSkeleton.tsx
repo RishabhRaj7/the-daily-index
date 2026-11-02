@@ -3,14 +3,17 @@ import TopBar from "@/components/chrome/TopBar";
 // What shows the moment a link is followed, while the page is put together
 // on the server (each route's loading.tsx): the top bar straight away and the
 // page's shape in quiet blocks, so a click always answers at once.
+// The top bar and the page are zoomed together on big screens (one
+// .page-scale wrapper, as on the front page), so their edges line up.
 
 const Block = ({ className = "" }: { className?: string }) => <div className={`rounded-xl bg-[var(--card-bg)] animate-pulse ${className}`} />;
 
 export default function PageSkeleton({ kind, label }: { kind: "edition" | "live" | "archive"; label: string }) {
   return (
     <>
+      <div className="page-scale flex-1 flex flex-col w-full">
       <TopBar sections={[]} alwaysShowLogo />
-      <main className="page-skeleton flex-1 page-scale page-wrap px-4 sm:px-6 pt-10 pb-28 w-full" aria-busy="true" aria-label={label}>
+      <main className="page-skeleton flex-1 page-wrap px-4 sm:px-6 pt-10 pb-28 w-full" aria-busy="true" aria-label={label}>
         <p className="font-label text-[10px] text-ink-faint mb-6">{label}</p>
         {kind === "edition" && (
           <>
@@ -42,6 +45,7 @@ export default function PageSkeleton({ kind, label }: { kind: "edition" | "live"
           </>
         )}
       </main>
+      </div>
     </>
   );
 }

@@ -8,6 +8,10 @@ import { EDITION_COOKIE } from "@/lib/edition-client";
 
 export const dynamic = "force-dynamic";
 
+// One back issue, read from the archive.
+// The top bar and the page are zoomed together on big screens (one
+// .page-scale wrapper, as on the front page), so their edges line up.
+
 function fmt(iso: string, opts: Intl.DateTimeFormatOptions) {
   return new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-GB", { ...opts, timeZone: "UTC" });
 }
@@ -51,8 +55,9 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
 
   return (
     <>
+    <div className="page-scale flex-1 flex flex-col w-full">
     <TopBar sections={[]} isArchive alwaysShowLogo />
-    <main className="flex-1 page-scale page-wrap px-4 sm:px-6 pt-10 pb-20 w-full">
+    <main className="flex-1 page-wrap px-4 sm:px-6 pt-10 pb-20 w-full">
       <nav className="flex items-center justify-between gap-4 font-sans text-[13px] font-semibold mb-8">
         <span className="flex flex-wrap gap-2">
           <Link href="/" className="chip chip-signal">
@@ -230,6 +235,7 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
         )}
       </div>
     </main>
+    </div>
     </>
   );
 }
