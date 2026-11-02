@@ -3,6 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { SocialAnswer, SocialPost, SocialSource, SourceState } from "@/lib/live/social";
 import { isPaused, pausedSources, readHealth, report, RETRY_AFTER_MS, SOCIAL_RETRY_EVENT, sourceView, useSocialHealth } from "@/lib/social-health";
+import { useFitRows } from "@/lib/use-fit-rows";
 import Ago from "./Ago";
 import { loadPersonalization, PERSONALIZATION_CHANGED_EVENT, savePersonalization } from "@/lib/personalization";
 import Sheet from "./Sheet";
@@ -190,14 +191,20 @@ export function SourceLogo({ source, size = 14 }: { source: SocialPost["source"]
   );
 }
 
-export function SocialItem({ post, compact = false }: { post: SocialPost; compact?: boolean }) {
+export function SocialItem({ post, compact = false, clamp = false, hidden = false }: { post: SocialPost; compact?: boolean; /** A small card: three lines, the whole post on hover. */ clamp?: boolean; /** Laid out but not shown (a list filling a height). */ hidden?: boolean }) {
   return (
-    <li className={`grid grid-cols-[1.1rem_minmax(0,1fr)] gap-x-2.5 ${compact ? "py-2.5" : "py-3 first:pt-0 last:pb-0"}`}>
+    <li data-fit-row aria-hidden={hidden || undefined} className={`grid grid-cols-[1.1rem_minmax(0,1fr)] gap-x-2.5 ${compact ? "py-2.5" : "py-3 first:pt-0 last:pb-0"} ${hidden ? "max-lg:hidden invisible" : ""}`}>
       <span className={compact ? "pt-[1px]" : "pt-[3px]"}>
         <SourceLogo source={post.source} size={compact ? 15 : 17} />
       </span>
       <div className="min-w-0">
-        <a href={post.url} target="_blank" rel="noopener noreferrer" className={`group ${compact ? "font-sans text-[13px] leading-snug" : "font-headline text-[1.05rem] leading-snug"}`}>
+        <a
+          href={post.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={clamp ? post.title : undefined}
+          className={`group ${compact ? "font-sans text-[13px] leading-snug" : "font-headline text-[1.05rem] leading-snug"} ${clamp ? "line-clamp-3" : ""}`}
+        >
           <span className="headline-link">{post.title}</span>
         </a>
         {post.text && !compact && <p className="font-body text-[13px] leading-relaxed text-ink-soft mt-1 line-clamp-2">{post.text}</p>}
@@ -342,6 +349,7 @@ export function SocialList({
   more,
   refresh,
   filterInSheet = false,
+  fill,
 }: {
   data: SocialAnswer | null;
   compact?: boolean;
@@ -354,11 +362,18 @@ export function SocialList({
   refresh?: { refresh: () => void; busy: boolean };
   /** A small card: the filter only in the "See all" sheet, the list itself always All. */
   filterInSheet?: boolean;
+  /**
+   * Fill the height the card is given (from `lg`): as many of `max` as fit,
+   * `min` at least, each clamped to three lines (lib/use-fit-rows.ts). The
+   * card's parent sets the height; below `lg` it shows `min`.
+   */
+  fill?: { min: number };
 }) {
   const [kept, setPick] = useSourcePick(filterKey);
   const pick = filterInSheet ? "all" : kept;
   const [all, setAll] = useState(false);
   const { posts: visible, view } = useSocialView(data);
+  const { box, fit, minHeight } = useFitRows(fill?.min ?? 0, [visible.length, view], !!fill && view === "show", "(min-width: 1024px)");
   if (view === "hide") return null;
   if (!data || view === "wait") return <SocialSkeleton />;
   const counts: Record<SourcePick, number> = {
@@ -370,7 +385,9 @@ export function SocialList({
   const quiet = pick !== "all" && counts[pick] === 0 && counts.all > 0;
   const shown = pick === "all" || quiet ? visible : visible.filter((p) => p.source === pick);
   const posts = max && !(all && more === "inline") ? shown.slice(0, max) : shown;
-  const hidden = shown.length - posts.length;
+  // Filling a height: the posts that fit whole show, the rest wait in the sheet.
+  const showing = fill ? Math.min(posts.length, fit) : posts.length;
+  const hidden = shown.length - showing;
   // One source only: the filter has nothing to choose between.
   const both = counts.x > 0 && counts.reddit > 0;
   return (
@@ -381,13 +398,23 @@ export function SocialList({
           {refresh && <RefreshStamp asOf={data.asOf} busy={refresh.busy} onRefresh={refresh.refresh} />}
         </div>
       )}
-      <ul className="divide-y hairline">
-        {posts.map((p) => (
-          <SocialItem key={p.id} post={p} compact={compact} />
-        ))}
-      </ul>
+      {fill ? (
+        <div ref={box} className="relative lg:flex-1 overflow-hidden" style={{ minHeight }}>
+          <ul className="lg:absolute lg:inset-x-0 lg:top-0 divide-y hairline">
+            {posts.map((p, i) => (
+              <SocialItem key={p.id} post={p} compact={compact} clamp hidden={i >= showing} />
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <ul className="divide-y hairline">
+          {posts.map((p) => (
+            <SocialItem key={p.id} post={p} compact={compact} />
+          ))}
+        </ul>
+      )}
       {more && (hidden > 0 || (all && more === "inline")) && (
-        <button type="button" onClick={() => setAll((v) => !v)} className="font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-2">
+        <button type="button" onClick={() => setAll((v) => !v)} className="self-start font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-2">
           {more === "inline" && all ? "Show fewer ↑" : `See all ${shown.length} posts ${more === "inline" ? "↓" : "→"}`}
         </button>
       )}

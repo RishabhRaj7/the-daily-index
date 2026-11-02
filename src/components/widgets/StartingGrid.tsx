@@ -47,10 +47,10 @@ function Countdown({ target }: { target: string }) {
           { label: "sec", value: Math.floor(ms / 1000) % 60 },
         ];
   return (
-    <div className="grid grid-cols-4 gap-1.5 mt-3" aria-label={ms === null ? undefined : formatCountdown(ms)}>
+    <div className="grid grid-cols-4 gap-1.5 mt-2" aria-label={ms === null ? undefined : formatCountdown(ms)}>
       {(parts ?? [{ label: "days" }, { label: "hrs" }, { label: "min" }, { label: "sec" }]).map((p) => (
-        <div key={p.label} className="rounded-lg bg-card-bg border hairline px-2 pt-2 pb-1.5 text-center overflow-hidden">
-          <div className="font-display font-extrabold text-[2rem] leading-none tabular-nums h-8 overflow-hidden">
+        <div key={p.label} className="rounded-lg bg-card-bg border hairline px-2 pt-1.5 pb-1 text-center overflow-hidden">
+          <div className="font-display font-extrabold text-[1.6rem] leading-none tabular-nums h-[1.6rem] overflow-hidden">
             {"value" in p ? (
               <span key={p.value} className="block animate-[tick-in_0.45s_var(--ease-out)]">
                 {String(p.value).padStart(2, "0")}
@@ -347,9 +347,11 @@ export default function StartingGrid({
         <div className="font-mono text-[10px] text-ink-soft mt-1">{displayedRace.circuit}</div>
 
         {!live && track && (
-          // Just the circuit, turning slowly in 3D.
-          <div className="my-4 mx-auto max-w-[20rem] [perspective:900px]">
-            <div className="track-turn">
+          // Just the circuit, turning slowly in 3D. Tilted back it reads about
+          // two-thirds as tall as it is wide, so the box is that tall (the
+          // map overflows it, unclipped) rather than the square it lays out as.
+          <div className="my-2 h-36 flex items-center justify-center [perspective:900px]">
+            <div className="track-turn w-full max-w-[13rem] shrink-0">
               <TrackMap model={track} minimal corners={false} label={`${nextRace.circuit} track layout`} />
             </div>
           </div>

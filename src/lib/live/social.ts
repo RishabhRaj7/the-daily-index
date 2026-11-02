@@ -112,6 +112,15 @@ function cleanPost(s: string): string {
     .trim();
 }
 
+/** The whole post (X's long posts run past 280), clipped only past this, at a word, with "…". */
+const X_MAX = 1000;
+function clip(s: string, max: number): string {
+  if (s.length <= max) return s;
+  const cut = s.slice(0, max);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > max * 0.8 ? cut.slice(0, space) : cut).replace(/[\s,;:.\-–—]+$/, "")}…`;
+}
+
 /** Routes that failed lately, and when to try again (ms): a sleeping or broken RSSHub isn't asked on every read. */
 const xBackoff = new Map<string, number>();
 
@@ -119,7 +128,8 @@ const xBackoff = new Map<string, number>();
 async function rsshub(route: string, where: string): Promise<SocialPost[] | null> {
   const base = process.env.RSSHUB_URL?.trim().replace(/\/+$/, "");
   if (!base) return null;
-  const key = `social:x:v1:${route}`;
+  // v2: posts kept whole (v1 cut them at 280 characters).
+  const key = `social:x:v2:${route}`;
   const store = getStore();
   if (skipped("x")) return null;
   const kept = await store.get<{ at: number; posts: SocialPost[] }>(key).catch(() => null);
@@ -152,7 +162,7 @@ async function readX(base: string, route: string, where: string, key: string, ke
       // A bare link, a lone emoji or a one-word reply says nothing on the page.
       if (!it.url || body.replace(/[^\p{L}\p{N}]/gu, "").length < 15) return [];
       const author = it.authors?.[0]?.name ?? null;
-      return [{ id: `x-${it.id ?? it.url}`, source: "x" as const, where, author, title: body.slice(0, 280), text: "", url: it.url.replace("https://twitter.com/", "https://x.com/"), at: it.date_published ?? new Date().toISOString() }];
+      return [{ id: `x-${it.id ?? it.url}`, source: "x" as const, where, author, title: clip(body, X_MAX), text: "", url: it.url.replace("https://twitter.com/", "https://x.com/"), at: it.date_published ?? new Date().toISOString() }];
     });
     const at = Date.now();
     await store.set(key, { at, posts }, { ttlSeconds: 3 * 86_400 }).catch(() => {});

@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useFitRows } from "@/lib/use-fit-rows";
 import type { TrendCountry, TrendItem } from "@/lib/live/trends";
 import LiveBadge from "./LiveBadge";
 
 // The Search Bar: what India, the US and the world are typing into Google
-// right now (Google Trends' live feed), a tab per country, the top five
-// with a way to see twenty. Each search shows roughly
+// right now (Google Trends' live feed), a tab per country: as many as fit the
+// height of Trending on X and Reddit beside it (never fewer than five; five
+// when it stands alone; lib/use-fit-rows.ts), with a way to see twenty. Each search shows roughly
 // how many searched, how long it's been climbing, and the story behind it;
 // one that's also in today's paper says so. "World" is the paper's own:
 // the searches trending in the most countries at once (lib/live/trends.ts). Refreshed every ten
@@ -45,11 +47,11 @@ function termCase(term: string): string {
     .join(" ");
 }
 
-function Row({ t, i, max, inPaper, now }: { t: TrendItem; i: number; max: number; inPaper: boolean; now: number }) {
+function Row({ t, i, max, inPaper, now, hidden = false }: { t: TrendItem; i: number; max: number; inPaper: boolean; now: number; hidden?: boolean }) {
   const story = t.news[0];
   const width = max > 0 ? Math.max(6, (Math.log10(t.volume + 1) / Math.log10(max + 1)) * 100) : 6;
   return (
-    <li className="py-2.5 grid grid-cols-[1.8rem_minmax(0,1fr)] gap-x-2">
+    <li data-fit-row className={`py-2.5 grid grid-cols-[1.8rem_minmax(0,1fr)] gap-x-2 ${hidden ? "invisible" : ""}`} aria-hidden={hidden || undefined}>
       <span className="font-display font-extrabold text-[1.35rem] leading-none tabular-nums text-ink-faint">{String(i + 1).padStart(2, "0")}</span>
       <span className="min-w-0">
         <span className="flex items-baseline justify-between gap-3">
@@ -125,18 +127,21 @@ export default function SearchBar({ headlines = [], home = "IN", className = "" 
   }, []);
 
   const paper = useMemo(() => headlines.map(norm).join(" | "), [headlines]);
-  if (!countries || countries.length === 0) return null;
-  const country = countries.find((c) => c.geo === geo) ?? countries[0];
-  const items = country.items.slice(0, all ? MANY : FEW);
+  const country = countries?.find((c) => c.geo === geo) ?? countries?.[0];
+  // Folded: as many as fit the row's height (the trends beside it), five at least.
+  const { box, fit, minHeight } = useFitRows(FEW, [country, at], !all);
+  if (!countries || !country) return null;
+  const items = country.items.slice(0, MANY);
+  const shown = all ? items.length : Math.min(fit, items.length);
   const half = Math.ceil(items.length / 2);
-  const max = Math.max(...items.map((t) => t.volume), 1);
+  const max = Math.max(...items.slice(0, shown).map((t) => t.volume), 1);
   const inPaper = (t: TrendItem) => {
     const k = norm(t.term);
     return k.length >= 4 && paper.includes(k);
   };
 
   return (
-    <div className={`@container min-w-0 ${className}`} data-reveal>
+    <div className={`@container min-w-0 flex flex-col ${className}`} data-reveal>
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 pb-3 border-b hairline">
         <div>
           <div className="flex items-center gap-3">
@@ -164,30 +169,35 @@ export default function SearchBar({ headlines = [], home = "IN", className = "" 
           ))}
         </div>
       </div>
-      <div>
-        <div>
-          {/* Five in one column; twenty in two when it has the whole width. */}
-          <div className={`grid gap-x-10 ${all ? "@2xl:grid-cols-2" : ""}`}>
-            <ol className="divide-y hairline">
-              {(all ? items.slice(0, half) : items).map((t, i) => (
-                <Row key={t.term} t={t} i={i} max={max} inPaper={inPaper(t)} now={at} />
-              ))}
-            </ol>
-            {all && (
-              <ol className="divide-y hairline @2xl:border-t-0 border-t hairline">
-                {items.slice(half).map((t, i) => (
-                  <Row key={t.term} t={t} i={i + half} max={max} inPaper={inPaper(t)} now={at} />
-                ))}
-              </ol>
-            )}
-          </div>
-          {country.items.length > FEW && (
-            <button type="button" onClick={() => setAll((v) => !v)} className="font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-2">
-              {all ? "Show the top five ↑" : `Show the top ${Math.min(MANY, country.items.length)} ↓`}
-            </button>
-          )}
+      {all ? (
+        // Twenty: in two columns when it has the whole width.
+        <div className="grid gap-x-10 @2xl:grid-cols-2">
+          <ol className="divide-y hairline">
+            {items.slice(0, half).map((t, i) => (
+              <Row key={t.term} t={t} i={i} max={max} inPaper={inPaper(t)} now={at} />
+            ))}
+          </ol>
+          <ol className="divide-y hairline @2xl:border-t-0 border-t hairline">
+            {items.slice(half).map((t, i) => (
+              <Row key={t.term} t={t} i={i + half} max={max} inPaper={inPaper(t)} now={at} />
+            ))}
+          </ol>
         </div>
-      </div>
+      ) : (
+        // Folded: every row laid out, those past the height hidden, so the list fills the row and no more.
+        <div ref={box} className="relative flex-1 overflow-hidden" style={{ minHeight: minHeight ?? FEW * 74 }}>
+          <ol className="absolute inset-x-0 top-0 divide-y hairline">
+            {items.map((t, i) => (
+              <Row key={t.term} t={t} i={i} max={max} inPaper={inPaper(t)} now={at} hidden={i >= shown} />
+            ))}
+          </ol>
+        </div>
+      )}
+      {items.length > shown || all ? (
+        <button type="button" onClick={() => setAll((v) => !v)} className="self-start font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-2">
+          {all ? `Show the top ${Math.min(fit, items.length)} ↑` : `Show the top ${items.length} ↓`}
+        </button>
+      ) : null}
     </div>
   );
 }
