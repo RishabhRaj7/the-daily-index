@@ -100,6 +100,13 @@ export function useF1Live(opts: { sessions?: F1Session[]; full?: boolean; always
             }
             s = { ...s, ...Object.fromEntries(s.same.map((k) => [k, from[k as keyof LiveSnapshot]])) };
           }
+          // An answer older than the one shown (another server's slower copy) is passed over: it
+          // would swap the message list back, and the newest messages would seem to come twice.
+          if (!replay && held && held.sessionKey === s.sessionKey && Date.parse(s.at) < Date.parse(held.at)) {
+            setChecked(true);
+            if (!session) schedule(POLL_MS);
+            return;
+          }
           held = s;
           const age = s.servedAt ? Math.max(0, Date.parse(s.servedAt) - Date.parse(s.at)) : 0;
           setSnapshot({ ...s, localAt: Date.now() - age });

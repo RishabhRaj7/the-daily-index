@@ -173,6 +173,23 @@ function StewardMarks({ s, code, compact = false }: { s: Stewards | undefined; c
   );
 }
 
+/**
+ * The chequered flag, once a driver has taken it: marked live by the server
+ * (lib/live/f1-live.ts, withFlags); a session that's over, read without that,
+ * gives it to every car still running (not the knocked out in qualifying).
+ */
+function Chequered({ r, race, running, status }: { r: LiveRow; race: boolean; running: boolean; status: string }) {
+  const took = r.flag || (!running && /^(Finished|Finalised|Ends)$/.test(status) && !r.out && (race || !r.knockedOut));
+  if (!took) return null;
+  return (
+    <svg viewBox="0 0 12 12" className="w-3 h-3 shrink-0 text-ink" role="img" aria-label="Has taken the chequered flag">
+      <title>Has taken the chequered flag</title>
+      <rect x="0.5" y="0.5" width="11" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1" />
+      <path d="M0.5 0.5h2.75v2.75H0.5zM6 0.5h2.75v2.75H6zM3.25 3.25H6V6H3.25zM8.75 3.25h2.75V6H8.75zM0.5 6h2.75v2.75H0.5zM6 6h2.75v2.75H6zM3.25 8.75H6v2.75H3.25zM8.75 8.75h2.75v2.75H8.75z" fill="currentColor" />
+    </svg>
+  );
+}
+
 function Status({ r, race, running }: { r: LiveRow; race: boolean; running: boolean }) {
   // Once the flag has fallen everyone is in the pits; only the out and the
   // knocked out are worth a word.
@@ -443,6 +460,7 @@ export default function LiveTiming({
                     <span className="font-sans font-bold tracking-[0.02em] shrink-0">{r.code}</span>
                     {showName && !(layout === "roomy" && sectors) && <span className="font-sans text-ink-soft truncate min-w-0">{r.name}</span>}
                   </DriverName>
+                  <Chequered r={r} race={race} running={snap.running} status={snap.status} />
                   <Status r={r} race={race} running={snap.running} />
                   <StewardMarks s={stewards.get(r.code)} code={r.code} compact={layout === "narrow" || layout === "medium"} />
                 </span>

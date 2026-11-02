@@ -32,7 +32,7 @@ import { SETTINGS_RETURN_KEY } from "@/components/chrome/SettingsLink";
 //   Devices   sync, and what this browser remembers
 const TABS = [
   { key: "news", label: "News", blurb: "Where you are, what the AI editor prioritises everywhere, and how it writes." },
-  { key: "sections", label: "Sections", blurb: "What prints, in what order, and what fills each section. Tap one to edit it." },
+  { key: "sections", label: "Sections", blurb: "What prints, in what order, and what fills each section. Edit opens a section's settings." },
   { key: "sports", label: "Sports", blurb: "Which sports get a page, whose stories lead it, and your rivals." },
   { key: "devices", label: "Devices", blurb: "The same paper on every device you read on, and what this one remembers." },
 ] as const;
@@ -184,6 +184,11 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
               setSaved(false);
             }}
             f1Roster={f1Roster}
+            news={tab === "sections" ? news : undefined}
+            onNewsChange={(next) => {
+              setNews(next);
+              setSaved(false);
+            }}
           />
         </div>
       )}

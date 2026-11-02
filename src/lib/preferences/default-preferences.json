@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "global": {
     "tone": "No-fluff newspaper briefs: fact first, concrete detail, no hype, no filler.",
     "watchTopics": [],
@@ -9,7 +9,7 @@
       "clickbait"
     ],
     "maxAgeHours": 30,
-    "summaryLengthWords": 140,
+    "summaryLengthWords": 90,
     "avoidPolitics": true,
     "rivals": []
   },

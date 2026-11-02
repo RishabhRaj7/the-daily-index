@@ -1,4 +1,4 @@
-import { withSocial } from "@/lib/live/social-context";
+import { withSocial, type SocialSource } from "@/lib/live/social-context";
 import { cleanHandle, DEFAULT_X_ACCOUNTS, f1Chatter, grapevineFeeds, ipoChatter, socialTrends, validHandle, valorantMoves, warmSocial } from "@/lib/live/social";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +15,8 @@ export const maxDuration = 30;
 // GET /api/social?kind=trends                                       trending on X and Reddit (India and everywhere)
 // &fresh=1 (a reader's refresh button): copies older than a minute are read
 //   again (Reddit's still in turn: it allows one read a minute)
+// &skip=x,reddit: sources the page has paused after they kept failing (lib/social-health.ts); not read at all
+// Every answer says how each source fared (sources: { x, reddit }: ok · failed · waiting · off).
 // GET /api/social?kind=warm[&only=rsshub]                         wakes RSSHub, tops up the Reddit archives
 //
 // Everything upstream is kept 10 minutes in the store and shared by every
@@ -30,10 +32,11 @@ const list = (raw: string | null, sep: string | RegExp, max: number) =>
 
 export async function GET(req: Request) {
   const p = new URL(req.url).searchParams;
-  return withSocial(p.get("fresh") === "1", () => answer(p));
+  const skip = list(p.get("skip"), ",", 2).filter((s): s is SocialSource => s === "x" || s === "reddit");
+  return withSocial(p.get("fresh") === "1", () => answer(p, skip), skip);
 }
 
-async function answer(p: URLSearchParams): Promise<Response> {
+async function answer(p: URLSearchParams, skip: SocialSource[]): Promise<Response> {
   const kind = p.get("kind");
   const headers = { "Cache-Control": "no-store" };
   const handles = [...new Set(list(p.get("x"), ",", 12).map(cleanHandle).filter(validHandle))];
@@ -75,6 +78,7 @@ async function answer(p: URLSearchParams): Promise<Response> {
     return Response.json({ error: "kind" }, { status: 400, headers });
   } catch (err) {
     console.error("[social] failed:", err);
-    return Response.json({ posts: [], status: "unavailable", note: null, at: new Date().toISOString() }, { headers });
+    const state = (src: SocialSource) => (skip.includes(src) ? "off" : "failed");
+    return Response.json({ posts: [], status: "unavailable", note: null, at: new Date().toISOString(), sources: { x: state("x"), reddit: state("reddit") } }, { headers });
   }
 }

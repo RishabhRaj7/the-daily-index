@@ -13,7 +13,9 @@ import { Empty, Seg, clock } from "./ui";
 // (a header as each starts); each message a line with a soft mark in its
 // topic's colour, and when and what under it. Filed under
 // All · Flags · Stewards · Track limits · Pits · Radio · Info, with a switch
-// for just the reader's drivers. Blue flags come one line a lap in All (a
+// for just the reader's drivers. A stewards' incident is one line that moves
+// up as it goes from "noted" to the decision, its earlier stages under it, and
+// a message F1 sends twice shows once. Blue flags come one line a lap in All (a
 // race has dozens), each on its own in Flags. The Live view carries it too, filters and all, beside the map (it
 // scrolls in its own panel there), so it can be read without leaving the order.
 
@@ -164,6 +166,12 @@ function RcRow({ it, t }: { it: RcItem; t: number }) {
           {it.text}
           {it.cleared && <span className="font-mono text-[10.5px] text-ink-faint"> · cleared {clock(it.cleared)}</span>}
         </span>
+        {/* An incident's earlier stages, under its latest word. */}
+        {it.history?.length ? (
+          <span className="block font-mono text-[10px] text-ink-faint mt-0.5 tabular-nums">
+            {it.history.map((h) => `${h.text.split(": ").at(-1)} ${clock(h.utc)}`).join(" → ")}
+          </span>
+        ) : null}
         <Caption t={t} label={it.tone === "penalty" ? "Penalty" : it.tone === "sc" ? "Safety car" : KIND_LABEL[it.kind]} colour={it.tone === "info" ? undefined : c} />
       </span>
     </div>

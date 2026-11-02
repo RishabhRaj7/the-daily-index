@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import type { LiveRaceControl, LiveSnapshot } from "@/lib/f1-live-types";
-import { readRaceControl, type RcTone } from "@/lib/f1-race-control";
+import type { LivePitStop, LiveRaceControl, LiveSnapshot } from "@/lib/f1-live-types";
+import { incidentKey, readRaceControl, type RcTone } from "@/lib/f1-race-control";
 import { TONE_COLOUR } from "./Feed";
 
 // Alerts for a live session (never a replay or a past one, and only in the
@@ -87,7 +87,13 @@ function events(snap: LiveSnapshot, mine: Set<string>): Map<string, Omit<Alert, 
   const numbers = new Map(snap.rows.map((r) => [r.number, r.code]));
   for (const m of snap.raceControl ?? []) {
     const a = fromRc(m, numbers, mine);
-    if (a) out.set(`rc:${m.utc}:${m.message}`, { ...a, utc: m.utc });
+    if (!a) continue;
+    // A stewards' incident alerts when it opens and when it's decided (and a penalty when served), not at every
+    // message about it; any other message once, however often F1 sends it.
+    const inc = incidentKey(m);
+    const stage = /SERVED/i.test(m.message) ? "served" : a.label === "Investigation" ? "open" : "decided";
+    const id = inc ? `inc:${inc.key}:${stage}` : `rc:${m.lap ?? ""}:${m.message.trim()}`;
+    if (!out.has(id)) out.set(id, { ...a, utc: m.utc });
   }
   if (snap.weather?.rain) out.set("rain", { label: "Rain", text: "Rain at the track", colour: "#3b82f6", long: true });
   const race = snap.type === "Race";
@@ -96,9 +102,14 @@ function events(snap: LiveSnapshot, mine: Set<string>): Map<string, Omit<Alert, 
     if (r.out) out.set(`out:${r.code}`, { label: r.code, text: race ? `${r.code} is out of the race` : `${r.code} has stopped`, colour: r.colour, long: true });
     if (r.bestFastest && r.best) out.set(`fl:${r.code}:${r.best}`, { label: r.code, text: race ? `${r.code}: fastest lap, ${r.best}` : `${r.code} goes fastest: ${r.best}`, colour: r.colour, long: false });
   }
+  // A stop is its driver's first, second…: its lap can be read a lap apart from one read to the next.
+  const nth = new Map<LivePitStop, number>();
+  const byCode = new Map<string, LivePitStop[]>();
+  for (const p of snap.pitStops ?? []) byCode.set(p.code, [...(byCode.get(p.code) ?? []), p]);
+  for (const stops of byCode.values()) [...stops].sort((a, b) => a.lap - b.lap).forEach((p, i) => nth.set(p, i + 1));
   for (const p of snap.pitStops ?? []) {
     if (!mine.has(p.code)) continue;
-    out.set(`pit:${p.code}:${p.lap}`, {
+    out.set(`pit:${p.code}:${nth.get(p)}`, {
       label: p.code,
       text: p.redFlag ? `${p.code} changes tyres under the red flag` : `${p.code} pits on lap ${p.lap}${p.stationary !== null ? ` · ${p.stationary.toFixed(1)} s` : ""}`,
       colour: snap.rows.find((r) => r.code === p.code)?.colour ?? "var(--f1-pit)",
@@ -109,7 +120,7 @@ function events(snap: LiveSnapshot, mine: Set<string>): Map<string, Omit<Alert, 
   return out;
 }
 
-const seenKey = (snap: LiveSnapshot) => `f1-alerts-seen:${snap.sessionKey}`;
+const seenKey = (snap: LiveSnapshot) => `f1-alerts-seen:v2:${snap.sessionKey}`;
 const when = (utc: string) => Date.parse(/Z|[+-]\d{2}:?\d{2}$/.test(utc) ? utc : `${utc}Z`) || 0;
 
 /**

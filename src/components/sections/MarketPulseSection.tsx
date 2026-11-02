@@ -9,6 +9,7 @@ import MoodGauge from "@/components/widgets/MoodGauge";
 import SparklineChart from "@/components/widgets/SparklineChart";
 import MarketChartSheet, { type ChartTarget } from "@/components/widgets/MarketChartSheet";
 import IpoWatch from "@/components/widgets/IpoWatch";
+import SocialPausedNote from "@/components/extras/SocialPausedNote";
 import RatesRow from "@/components/widgets/RatesRow";
 import StaleTag from "@/components/widgets/StaleTag";
 import { moodZone } from "@/lib/mood-zones";
@@ -255,6 +256,7 @@ export default function MarketPulseSection({
           </ul>
 
           <IpoWatch />
+          <SocialPausedNote place="market-pulse" className="mt-3" />
 
           {(commodities.length > 0 || crypto.length > 0) && (
             <div className="mt-12">

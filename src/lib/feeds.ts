@@ -49,7 +49,7 @@ export const FEED_META: Record<FeedSection, { title: string; kicker: string; sea
     title: "IPO chatter feeds",
     kicker: "IPO watch",
     searches: false,
-    hint: "Where the paper looks for talk about each issue (kept a week): posts must name the company. An X search for the company runs on its own.",
+    hint: "Applies to every IPO. Where the paper looks for talk about each issue (kept a week): posts must name the company. Posts from these X accounts come first. An X search for each company's name runs on its own.",
     suggest: { x: [], subs: ["IndianStockMarket", "StockMarketIndia", "IndiaInvestments", "IndianStreetBets", "DalalStreetTalks"] },
   },
 };
