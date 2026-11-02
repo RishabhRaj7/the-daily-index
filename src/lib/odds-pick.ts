@@ -12,7 +12,13 @@ import type { OddsMarket, OddsSubject, SectionKey } from "@/lib/types";
 //   3. worth a look: watched, followed, in today's news, moved on a tight
 //      market, settling within a week, among the day's busiest, or one of
 //      the big standing questions ($1M+ traded).
+//   4. still open: a question already decided (one answer at 97% or more
+//      with the next at 3% or less; a yes/no at 97%+, or 3%- due within 90
+//      days) never prints, the reader's watchlist included.
 // Elections abroad need the money of a big one ($2M+) unless they're news.
+// F1's own markets are small once the titles are settled: when its strip
+// would hold fewer than two, it takes "spare" F1 questions down to $1k traded
+// (the reader's drivers first), which print nowhere else.
 // AI & tech and the world weigh most, then sport, then money and film.
 //
 // Where it prints:
@@ -53,6 +59,8 @@ export interface OddsPick {
   watched?: boolean;
   /** The day's move that counted: 0 on a loose market, a date ladder or a quiet day's trade. */
   move: number;
+  /** Below the usual bar: only to fill F1's strip when it would be nearly empty. */
+  spare?: boolean;
 }
 
 export const SUBJECT_LABEL: Record<OddsSubject, string> = {
@@ -104,6 +112,9 @@ const WEIGHT: Record<OddsSubject, number> = {
 const FLOOR: Partial<Record<OddsSubject, number>> = { f1: 20_000, india: 5_000, valorant: 5_000, tennis: 50_000 };
 const DEFAULT_FLOOR = 100_000;
 const FOLLOW_FLOOR = 5_000;
+/** F1's spares: questions this small fill its strip only when it would be nearly empty. */
+const F1_SPARE_FLOOR = 1_000;
+const SPARE_FILL = 2;
 const BUSY_TODAY = 500_000;
 const STANDING = 1_000_000;
 const BIG_ELECTION = 2_000_000;
@@ -194,6 +205,25 @@ const pts = (n: number) => `${n > 0 ? "▲" : "▼"} ${Math.abs(Math.round(n))} 
 const isMatch = (m: OddsMarket) => /\bvs?\.?\s/i.test(m.title);
 const rolling = (m: OddsMarket) => /\b(this week|week of|today|tonight)\b/i.test(m.title);
 
+/**
+ * A question already settled in all but name: one answer at 97% or more with
+ * the next at 3% or less; a yes/no at 97%+, or at 3%- with under 90 days to
+ * go (a long shot further out, "China invades Taiwan by 2028", is still a
+ * question). A ladder (dates or prices) is decided only when every level is. Markets where several answers
+ * can all come true (nominations, "which countries…") have more than one high
+ * answer, so they never read as decided.
+ */
+export function decided(m: OddsMarket, now = Date.now()): boolean {
+  const sure = (p: number) => p >= 97 || p <= 3;
+  if (m.ladder || m.hit) return m.outcomes.length > 0 && m.outcomes.every((o) => sure(o.prob));
+  if (m.binary) {
+    const closes = m.closes ? Date.parse(m.closes) : NaN;
+    return m.lead.prob >= 97 || (m.lead.prob <= 3 && Number.isFinite(closes) && closes - now < 90 * 86_400_000);
+  }
+  const [a, b] = [...m.outcomes].sort((x, y) => y.prob - x.prob);
+  return !!a && a.prob >= 97 && (b?.prob ?? 0) <= 3;
+}
+
 export function scoreOdds(markets: OddsMarket[], profile: OddsProfile, now = Date.now()): OddsPick[] {
   const sportOk = (s: OddsSubject) =>
     s === "f1" || s === "football" || s === "tennis" || s === "valorant" ? profile.sports.includes(s) : profile.subjects.includes(s as never);
@@ -201,13 +231,19 @@ export function scoreOdds(markets: OddsMarket[], profile: OddsProfile, now = Dat
 
   const picks: OddsPick[] = [];
   for (const m of markets) {
+    if (decided(m, now)) continue;
     const watched = watchedIds.has(m.id);
     const follow = followOf(m, profile.follows);
     if (!watched && !follow && !sportOk(m.subject)) continue;
     if (!watched && !follow && (isMatch(m) || rolling(m))) continue; // single matches and weekly charts: only for a follow
     if (!watched && !follow && TRIVIA.test(m.title)) continue;
     const floor = watched || follow ? FOLLOW_FLOOR : (FLOOR[m.subject] ?? DEFAULT_FLOOR);
-    if (Math.max(m.vol, m.vol24) < floor) continue;
+    // F1 below its bar: kept as a spare for its own strip.
+    const spare = m.subject === "f1" && Math.max(m.vol, m.vol24) >= F1_SPARE_FLOOR;
+    if (Math.max(m.vol, m.vol24) < floor) {
+      if (spare) picks.push(sparePick(m, follow, watched));
+      continue;
+    }
 
     const headline = headlineOf(m, profile.headlines);
     // An election abroad earns a place by its size or by being news.
@@ -219,7 +255,10 @@ export function scoreOdds(markets: OddsMarket[], profile: OddsProfile, now = Dat
     const busy = m.vol24 >= BUSY_TODAY;
     const standing = m.vol >= STANDING && !rolling(m);
     const worth = watched || !!follow || !!headline || Math.abs(move) >= 5 || soon || busy || standing;
-    if (!worth) continue;
+    if (!worth) {
+      if (spare) picks.push(sparePick(m, follow, watched));
+      continue;
+    }
 
     let score = Math.log10(Math.max(m.vol24, 1)) * 4 + Math.log10(Math.max(m.vol, 1)) * 2;
     if (watched) score += 60;
@@ -248,6 +287,12 @@ export function scoreOdds(markets: OddsMarket[], profile: OddsProfile, now = Dat
     picks.push({ market: m, score, why, follow, headline, watched, move });
   }
   return picks.sort((a, b) => b.score - a.score);
+}
+
+/** An F1 question below the usual bar, for its strip on a quiet day: the reader's drivers first, then the money on it. */
+function sparePick(m: OddsMarket, follow: OddsFollow | undefined, watched: boolean): OddsPick {
+  const score = Math.log10(Math.max(m.vol, 1)) + (follow ? 10 : 0) + (watched ? 10 : 0);
+  return { market: m, score, why: follow ? `You follow ${follow.name}` : `$${compactMoney(m.vol)} riding on it`, follow, watched, move: 0, spare: true };
 }
 
 export function compactMoney(n: number): string {
@@ -296,7 +341,9 @@ export function layoutOdds(picks: OddsPick[], hidden: SectionKey[] = [], underSt
     placed.push(p.market);
     return p;
   };
-  const eligible = picks.filter((p) => p.market.subject !== "valorant"); // Clutch carries its own
+  // Clutch carries its own; spares only ever fill F1's strip.
+  const eligible = picks.filter((p) => p.market.subject !== "valorant" && !p.spare);
+  const spares = picks.filter((p) => p.spare).sort((a, b) => b.score - a.score);
 
   // Sections first, so each keeps its standing questions (watchlist first).
   const sections: OddsLayout["sections"] = {};
@@ -312,6 +359,13 @@ export function layoutOdds(picks: OddsPick[], hidden: SectionKey[] = [], underSt
       if (list.length >= quota) break;
       if (!free(p)) continue;
       list.push(take(p));
+    }
+    // A strip of settled titles and little else: F1's smaller open questions fill it.
+    if (key === "paddock-notes" && list.length < SPARE_FILL) {
+      for (const p of spares) {
+        if (list.length >= quota) break;
+        if (free(p)) list.push(take(p));
+      }
     }
     if (list.length) sections[key] = list;
   }

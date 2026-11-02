@@ -473,7 +473,8 @@ export default function F1Sidebar({
     // championship tables run full width underneath, so the stories column
     // is never outgrown by a tall sidebar.
     <div className="contents">
-      <div className="space-y-4 min-w-0 lg:col-start-2 lg:row-start-1">
+      {/* A column: the paddock card at its foot grows to the stories' height (PaddockChatter). */}
+      <div className="flex flex-col gap-4 min-w-0 lg:col-start-2 lg:row-start-1">
       {/* Pit wall header — the single section-scoped refresh control. It
           asks the server afresh (OpenF1 first, then the kept copy, then
           Jolpica), and a failed answer never blanks a table on screen. */}

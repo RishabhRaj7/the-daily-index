@@ -10,11 +10,15 @@ import type { SocialAnswer } from "@/lib/live/social";
 // by default r/formula1 and r/F1Technical's top of the day, F1, the FIA, the
 // reader's team and three reporters on X; the sliders mark changes any of it
 // (lib/feeds.ts, synced). Posts about the reader's drivers or team rank first
-// and carry their name (lib/live/social.ts, f1Chatter). Three show; "See all"
-// opens the rest, with the X / Reddit filter. When X and Reddit have nothing
+// and carry their name (lib/live/social.ts, f1Chatter). On the wide layout
+// the card runs down to the foot of the stories beside the Pit wall, showing
+// as many posts as fit (two at least, six at most, three lines each), so the
+// two columns end level; on a phone, two. "See all" opens the rest, with the
+// X / Reddit filter. When X and Reddit have nothing
 // (or keep failing; lib/social-health.ts) the card isn't there.
 
-const SHOW = 3;
+const MOST = 6;
+const LEAST = 2;
 
 export default function PaddockChatter() {
   const fav = useF1Favourites();
@@ -27,7 +31,7 @@ export default function PaddockChatter() {
   const data = live.data ? { ...live.data, posts: [...live.data.posts.filter((p) => p.tags?.length), ...live.data.posts.filter((p) => !p.tags?.length)] } : null;
   const sources = new Set(posts.map((p) => p.source));
   return (
-    <div className="module min-w-0" data-reveal>
+    <div className="module min-w-0 flex flex-col lg:flex-1" data-reveal>
       <div className="flex items-center justify-between gap-2 mb-2">
         <span className="flex items-center gap-1.5 min-w-0" title={describeFeed(feed.config)}>
           {(sources.size ? [...sources] : (["x", "reddit"] as const)).map((s) => (
@@ -37,7 +41,7 @@ export default function PaddockChatter() {
         </span>
         <EditFeedsButton section="paddock" iconOnly />
       </div>
-      <SocialList data={data} compact max={SHOW} filterKey="paddock" filterInSheet more={{ title: "Paddock chatter", kicker: `Paddock Notes · ${describeFeed(feed.config)}` }} />
+      <SocialList data={data} compact max={MOST} fill={{ min: LEAST }} filterKey="paddock" filterInSheet more={{ title: "Paddock chatter", kicker: `Paddock Notes · ${describeFeed(feed.config)}` }} />
     </div>
   );
 }
