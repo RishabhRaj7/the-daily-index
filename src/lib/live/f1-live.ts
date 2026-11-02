@@ -531,13 +531,29 @@ function cleanStops(stops: LivePitStop[], rc: LiveRaceControl[]): LivePitStop[] 
 
 /**
  * Pit stops read from the stints carry no time: each keeps the time of the
- * read that first saw it, and a lane time once one arrives. Stops F1 sent
- * itself (PitStopSeries, with their own times) pass through as they are.
+ * read that first saw it, and a lane time once one arrives. Stops F1 timed
+ * itself (PitStopSeries) keep F1's time. A stop is matched to the last read's
+ * by its driver and number (first, second…), not its lap, which can read a
+ * lap apart from one read to the next: so a stop seen before is never
+ * stamped again as just made (it would jump to the top of the feed).
  */
 export function mergeStops(prev: LivePitStop[] | undefined, now: LivePitStop[] | undefined, at: string, rc: LiveRaceControl[] = []): LivePitStop[] {
   const cur = now ?? [];
-  if (cur.some((p) => p.utc)) return cur;
-  const was = new Map((prev ?? []).map((p) => [`${p.code}:${p.lap}`, p]));
+  const before = new Map<string, LivePitStop[]>();
+  for (const p of prev ?? []) before.set(p.code, [...(before.get(p.code) ?? []), p]);
+  for (const list of before.values()) list.sort((a, b) => a.lap - b.lap);
+  const used = new Set<LivePitStop>();
+  const nth = new Map<LivePitStop, number>();
+  const byCode = new Map<string, LivePitStop[]>();
+  for (const p of cur) byCode.set(p.code, [...(byCode.get(p.code) ?? []), p]);
+  for (const list of byCode.values()) [...list].sort((a, b) => a.lap - b.lap).forEach((p, i) => nth.set(p, i));
+  const oldOf = (p: LivePitStop): LivePitStop | undefined => {
+    const list = before.get(p.code) ?? [];
+    const same = list[nth.get(p) ?? -1];
+    const hit = same && !used.has(same) && Math.abs(same.lap - p.lap) <= 1 ? same : list.find((q) => !used.has(q) && Math.abs(q.lap - p.lap) <= 1);
+    if (hit) used.add(hit);
+    return hit;
+  };
   // Stops made before this session was first read: timed by race control's
   // clock for the lap after (its earliest message on that lap).
   const lapClock = new Map<number, string>();
@@ -560,12 +576,46 @@ export function mergeStops(prev: LivePitStop[] | undefined, now: LivePitStop[] |
   const first = !prev?.length;
   return cur
     .map((p) => {
-      const old = was.get(`${p.code}:${p.lap}`);
+      const old = oldOf(p);
       // A lane time carried over only when it is a pit stop's (never under a red flag).
       const oldLane = !p.redFlag && old?.lane != null && old.lane >= 10 && old.lane <= 90 ? old.lane : null;
-      return { ...p, utc: old?.utc || (first ? utcOf(p.lap) : at), lane: p.lane ?? oldLane };
+      // F1's own time, else the one it was first seen with, else (new) now.
+      return { ...p, utc: p.utc || old?.utc || (first ? utcOf(p.lap) : at), lane: p.lane ?? oldLane };
     })
     .sort((a, b) => b.utc.localeCompare(a.utc) || b.lap - a.lap);
+}
+
+/** When the chequered flag still out fell (ms): the latest, unless a later green (the next qualifying part) took it in. */
+function chequeredAt(rc: LiveRaceControl[]): number | null {
+  // Newest first.
+  for (const m of rc) {
+    if (m.flag === "GREEN" || /PIT EXIT OPEN|GREEN LIGHT/i.test(m.message)) return null;
+    if (m.flag === "CHEQUERED") {
+      const t = Date.parse(/Z|[+-]\d{2}:?\d{2}$/.test(m.utc) ? m.utc : `${m.utc}Z`);
+      return Number.isFinite(t) ? t : null;
+    }
+  }
+  return null;
+}
+
+/**
+ * Who has taken the chequered flag. F1's timing has no such mark, so each
+ * car's lap count is followed from read to read (lapSeen: the count and the
+ * read that first saw it); once the flag is out, a car whose count went up
+ * after it has crossed the line under it. A session first read with the flag
+ * already out can't tell, and marks no one (the table marks everyone still
+ * running once the session is over).
+ */
+export function withFlags(prev: LiveSnapshot | undefined, snap: LiveSnapshot): LiveSnapshot {
+  const seen: NonNullable<LiveSnapshot["lapSeen"]> = { ...(prev?.lapSeen ?? {}) };
+  for (const r of snap.rows) {
+    const s = seen[r.code];
+    if (!s) seen[r.code] = { laps: r.laps, at: prev ? snap.at : new Date(0).toISOString() };
+    else if (s.laps !== r.laps) seen[r.code] = { laps: r.laps, at: snap.at };
+  }
+  const flag = chequeredAt(snap.raceControl ?? []);
+  const rows = snap.rows.map((r) => ({ ...r, flag: flag !== null && !r.out && Date.parse(seen[r.code].at) > flag }));
+  return { ...snap, rows, lapSeen: seen };
 }
 
 export function addLaps(prev: LiveLapHistory | undefined, snap: LiveSnapshot): LiveLapHistory {
@@ -644,7 +694,8 @@ async function keepClassification(snap: LiveSnapshot, info: CurrentSessionInfo):
 
 /** Pit wall size: the table and its header, nothing else. */
 export function compact(s: LiveSnapshot): LiveSnapshot {
-  const { raceControl, radio, stints, prediction, photos, lapPositions, transcripts, stats, pitStops, versions, telemetry, lapTimes, ...rest } = s;
+  const { raceControl, radio, stints, prediction, photos, lapPositions, transcripts, stats, pitStops, versions, telemetry, lapTimes, lapSeen, ...rest } = s;
+  void lapSeen;
   void versions;
   void lapTimes;
   void telemetry;
@@ -915,12 +966,14 @@ export async function getLive(opts: { fresh?: boolean; withLast?: boolean } = {}
     // The lap history: kept from the last read of this session, with this read's laps added.
     const parsed = parse(state, info);
     const same = cached?.sessionKey === info.Key;
-    const snap = withVersions({
-      ...parsed,
-      versions: undefined,
-      lapTimes: addLaps(same ? cached.lapTimes : undefined, parsed),
-      pitStops: mergeStops(same ? cached.pitStops : undefined, parsed.pitStops, parsed.at, parsed.raceControl),
-    });
+    const snap = withVersions(
+      withFlags(same ? cached : undefined, {
+        ...parsed,
+        versions: undefined,
+        lapTimes: addLaps(same ? cached.lapTimes : undefined, parsed),
+        pitStops: mergeStops(same ? cached.pitStops : undefined, parsed.pitStops, parsed.at, parsed.raceControl),
+      }),
+    );
     const readings = latestReadings(cars?.["CarData.z" as keyof LiveState]);
     if (Object.keys(readings).length) {
       const codes = new Map(snap.rows.map((r) => [r.number, r.code]));

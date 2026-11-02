@@ -1,11 +1,12 @@
 import { getStore } from "@/lib/server/store";
 import { decodeEntities } from "./rss";
 import { popularFeed, redditFeed, worthReading, type RedditHit } from "./reddit";
-import { noteCopy, socialCtx } from "./social-context";
+import { noteCopy, noteSource, skipped, socialCtx, sourceStates, type SocialSource, type SourceState } from "./social-context";
 import { F1_DRIVERS } from "@/lib/config/f1-drivers";
 import { DEFAULT_X_ACCOUNTS, F1_DEFAULT_X, F1_OFFICIAL_X, F1_SUBREDDITS, F1_TEAM_X, IPO_SUBREDDITS, VAL_DEFAULT_X, VAL_SUBREDDITS, type FeedConfig } from "@/lib/feeds-shared";
 
 export { DEFAULT_X_ACCOUNTS };
+export type { SocialSource, SourceState };
 
 // What people are saying, from X and Reddit, as feeds:
 //
@@ -46,6 +47,8 @@ export interface SocialAnswer {
   asOf?: string | null;
   /** A feed has nothing yet and is waiting its turn (Reddit allows one read a minute): ask again shortly. */
   waiting?: boolean;
+  /** How each source fared in this answer (the page hides one that keeps failing). */
+  sources?: Record<SocialSource, SourceState>;
 }
 
 /** trends24 copies are fresh for five minutes (a reader's refresh: one). */
@@ -118,9 +121,18 @@ async function rsshub(route: string, where: string): Promise<SocialPost[] | null
   if (!base) return null;
   const key = `social:x:v1:${route}`;
   const store = getStore();
+  if (skipped("x")) return null;
   const kept = await store.get<{ at: number; posts: SocialPost[] }>(key).catch(() => null);
-  if ((kept && Date.now() - kept.at < X_EVERY_MS) || (xBackoff.get(route) ?? 0) > Date.now() || !(await xBudget())) {
-    noteCopy(kept?.at, !kept);
+  if (kept && Date.now() - kept.at < X_EVERY_MS) {
+    noteCopy(kept.at);
+    noteSource("x", "ok");
+    return kept.posts;
+  }
+  // Failed lately: the last copy, or a failure (it isn't asked again yet).
+  const backoff = (xBackoff.get(route) ?? 0) > Date.now();
+  if (backoff || !(await xBudget())) {
+    noteCopy(kept?.at, !kept && !backoff);
+    noteSource("x", kept ? "ok" : backoff ? "failed" : "waiting");
     return kept?.posts ?? null;
   }
   return xTurn(() => readX(base, route, where, key, kept));
@@ -146,20 +158,22 @@ async function readX(base: string, route: string, where: string, key: string, ke
     await store.set(key, { at, posts }, { ttlSeconds: 3 * 86_400 }).catch(() => {});
     xBackoff.delete(route);
     noteCopy(at);
+    noteSource("x", "ok");
     return posts;
   } catch (err) {
     console.error(`[social] RSSHub ${route} failed:`, err instanceof Error ? err.message : err);
     // Ask again in two minutes, not on every read.
     xBackoff.set(route, Date.now() + 2 * 60_000);
-    noteCopy(kept?.at, !kept);
+    noteCopy(kept?.at);
+    noteSource("x", kept ? "ok" : "failed");
     return kept?.posts ?? null;
   }
 }
 
 /** An account's own posts: no replies, no reposts. */
 const xUser = (handle: string) => rsshub(`/twitter/user/${handle}/excludeReplies=1&includeRts=0&count=20`, `@${handle}`);
-/** X's search for a phrase. */
-const xSearch = (q: string) => rsshub(`/twitter/keyword/${encodeURIComponent(q)}`, `“${q}”`);
+/** X's search for a phrase; labelled in curly quotes (a search with quotes of its own keeps them, curled). */
+const xSearch = (q: string) => rsshub(`/twitter/keyword/${encodeURIComponent(q)}`, q.includes('"') ? q.replace(/"([^"]*)"/g, "“$1”") : `“${q}”`);
 
 // ---- Reddit, as a rolling archive -----------------------------------------------
 
@@ -240,6 +254,7 @@ const answer = (posts: SocialPost[], asked: number, answered: number, note: stri
     at: new Date().toISOString(),
     asOf: oldest ? new Date(oldest).toISOString() : null,
     waiting: !!ctx?.waiting,
+    sources: sourceStates(),
   };
 };
 
@@ -316,9 +331,14 @@ export async function ipoChatter(name: string, feed: Partial<FeedConfig> = {}, l
     const s = (inTitle ? 2 : 1) + (IPO_WORDS.test(`${h.title} ${h.text}`) ? 1 : 0);
     scored.push({ post: fromReddit(h), score: s * decay(h.createdAt, 24) });
   }
-  for (const p of [...(x ?? []), ...accounts.flatMap((l) => l ?? [])]) {
+  for (const p of x ?? []) {
     if (!phrase.test(p.title) && !(word && word.test(p.title))) continue;
     scored.push({ post: p, score: (IPO_WORDS.test(p.title) ? 2.5 : 1.5) * decay(p.at, 24) });
+  }
+  // The accounts the reader follows for IPOs come first (still only when they name the issue).
+  for (const p of accounts.flatMap((l) => l ?? [])) {
+    if (!phrase.test(p.title) && !(word && word.test(p.title))) continue;
+    scored.push({ post: { ...p, tags: ["Following"] }, score: (IPO_WORDS.test(p.title) ? 2.5 : 1.5) * 3 * decay(p.at, 24) });
   }
   const posts = topPerSource(scored, limit);
   const asked = (subs.length ? 1 : 0) + (xConfigured() ? 1 + accounts.length : 0);
@@ -446,6 +466,8 @@ export interface SocialTrends {
   asOf?: string | null;
   /** A list has nothing yet and is waiting its turn: ask again shortly. */
   waiting?: boolean;
+  /** How each source fared (the page hides one that keeps failing). */
+  sources?: Record<SocialSource, SourceState>;
 }
 
 /**
@@ -478,9 +500,11 @@ async function fromGetDayTrends(region: "india" | "world"): Promise<XTrend[]> {
 async function xTrends(region: "india" | "world"): Promise<XTrend[] | null> {
   const key = `social:x-trends:v1:${region}`;
   const store = getStore();
+  if (skipped("x")) return null;
   const kept = await store.get<{ at: number; trends: XTrend[] }>(key).catch(() => null);
   if (kept && Date.now() - kept.at < (socialCtx()?.force ? 60_000 : FRESH_MS)) {
     noteCopy(kept.at);
+    noteSource("x", "ok");
     return kept.trends;
   }
   try {
@@ -510,6 +534,7 @@ async function xTrends(region: "india" | "world"): Promise<XTrend[] | null> {
     }));
     await store.set(key, { at: Date.now(), trends }, { ttlSeconds: 86_400 }).catch(() => {});
     noteCopy(Date.now());
+    noteSource("x", "ok");
     return trends;
   } catch (err) {
     console.error(`[social] X trends (${region}) from trends24 failed:`, err instanceof Error ? err.message : err);
@@ -518,12 +543,14 @@ async function xTrends(region: "india" | "world"): Promise<XTrend[] | null> {
       const at = Date.now();
       await store.set(key, { at, trends }, { ttlSeconds: 86_400 }).catch(() => {});
       noteCopy(at);
+      noteSource("x", "ok");
       return trends;
     } catch (err2) {
       console.error(`[social] X trends (${region}) from getdaytrends failed:`, err2 instanceof Error ? err2.message : err2);
     }
     if (kept) await store.set(key, { at: Date.now() - FRESH_MS + 2 * 60_000, trends: kept.trends }, { ttlSeconds: 86_400 }).catch(() => {});
     noteCopy(kept?.at);
+    noteSource("x", kept ? "ok" : "failed");
     return kept?.trends ?? null;
   }
 }
@@ -541,6 +568,7 @@ export async function socialTrends(): Promise<SocialTrends> {
     at: new Date().toISOString(),
     asOf: oldest ? new Date(oldest).toISOString() : null,
     waiting: !!ctx?.waiting,
+    sources: sourceStates(),
   };
 }
 

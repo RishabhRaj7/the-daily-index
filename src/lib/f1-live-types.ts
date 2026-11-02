@@ -53,6 +53,8 @@ export interface LiveRow {
   out: boolean;
   /** Eliminated in an earlier part of qualifying. */
   knockedOut: boolean;
+  /** Has taken the chequered flag (live reads; lib/live/f1-live.ts, withFlags). */
+  flag?: boolean;
   tyre: LiveTyre | null;
   sectors: LiveSector[];
 }
@@ -186,6 +188,8 @@ export interface LiveSnapshot {
   pitStops?: LivePitStop[];
   /** A finished session's pit stops have been read again from F1's archive (stints and PitStopSeries). */
   stopsFromArchive?: boolean;
+  /** Live: each car's lap count and when it last changed, read to read (who has crossed the line since the flag). */
+  lapSeen?: Record<string, { laps: number; at: string }>;
   /** Races: each driver's position at the end of every lap. */
   lapPositions?: { code: string; colour: string; positions: number[] }[];
   /** Team radio transcripts, by clip address (filled in as they are written). */

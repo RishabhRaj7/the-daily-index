@@ -13,9 +13,9 @@ import { useState } from "react";
 import { DEFAULT_DIGEST_PREFERENCES } from "@/lib/preferences/storage";
 import type { DigestPreferences, DigestSection } from "@/lib/preferences/types";
 
-const inputCls =
+export const inputCls =
   "w-full border hairline bg-surface rounded-lg px-3 py-2 text-sm font-body transition-colors focus:outline-none focus:border-accent";
-const labelCls = "font-label text-[10px] text-ink-soft block mb-1";
+export const labelCls = "font-label text-[10px] text-ink-soft block mb-1";
 
 const TONES = [
   { label: "Straight news", value: DEFAULT_DIGEST_PREFERENCES.global.tone },
@@ -37,7 +37,7 @@ const LENGTHS = [
 
 // ---- small controls -------------------------------------------------------------
 
-function TagInput({
+export function TagInput({
   values,
   onChange,
   placeholder,
@@ -88,7 +88,7 @@ function TagInput({
   );
 }
 
-function Stepper({
+export function Stepper({
   value,
   onChange,
   min = 1,
@@ -144,7 +144,7 @@ function Choice<T extends string | number>({
 // ---- editor ----------------------------------------------------------------------
 
 // One line per collapsed section card: "5 stories · 2 priorities".
-function sectionSummary(section: DigestSection): string {
+export function sectionSummary(section: DigestSection): string {
   const count =
     section.type === "grouped"
       ? `${section.articleCountPerGroup} per ${section.groupBy} · ${section.groups.length} ${section.groupBy === "country" ? "countries" : "groups"}`
@@ -161,53 +161,18 @@ export default function DigestPreferencesEditor({
 }: {
   value: DigestPreferences;
   onChange: (next: DigestPreferences) => void;
-  /** Settings shows the global rules and the section list on separate tabs. */
+  /** Settings shows the global rules on News, and the JSON under Sections (each section's own settings are in Page order). */
   view?: "all" | "general" | "sections";
 }) {
-  const [openId, setOpenId] = useState<string | null>(null);
   const [jsonText, setJsonText] = useState<string | null>(null);
   const [jsonError, setJsonError] = useState<string | null>(null);
 
   const g = value.global;
-  const sorted = [...value.sections].sort((a, b) => a.order - b.order);
   const toneMatch = TONES.find((t) => t.value === g.tone)?.value ?? null;
   const [customTone, setCustomTone] = useState(toneMatch === null);
 
   const updateGlobal = (patch: Partial<DigestPreferences["global"]>) =>
     onChange({ ...value, global: { ...g, ...patch } });
-
-  const updateSection = (id: string, patch: Partial<DigestSection>) =>
-    onChange({
-      ...value,
-      sections: value.sections.map((s) => (s.id === id ? ({ ...s, ...patch } as DigestSection) : s)),
-    });
-
-  const move = (id: string, dir: -1 | 1) => {
-    const i = sorted.findIndex((s) => s.id === id);
-    const self = sorted[i];
-    const other = sorted[i + dir];
-    if (!self || !other) return;
-    onChange({
-      ...value,
-      sections: value.sections.map((s) =>
-        s.id === self.id ? { ...s, order: other.order } : s.id === other.id ? { ...s, order: self.order } : s,
-      ),
-    });
-  };
-
-  const addSection = () => {
-    let id = "my-section";
-    for (let n = 2; value.sections.some((s) => s.id === id); n++) id = `my-section-${n}`;
-    const order = Math.max(0, ...value.sections.map((s) => s.order)) + 10;
-    onChange({
-      ...value,
-      sections: [
-        ...value.sections,
-        { id, type: "custom", label: "New section", order, instruction: "", articleCount: 3, watchEntities: [] },
-      ],
-    });
-    setOpenId(id);
-  };
 
   const applyJson = () => {
     try {
@@ -295,152 +260,6 @@ export default function DigestPreferencesEditor({
       </section>
       )}
 
-      {/* Sections */}
-      {view !== "general" && (
-      <section>
-        <div className="space-y-4">
-          {sorted.map((section, idx) => (
-            <div key={section.id} className="border hairline">
-              <div className="flex items-center gap-3 px-4 py-3">
-                {openId === section.id ? (
-                  <input
-                    aria-label="Section name"
-                    className="flex-1 min-w-0 bg-transparent font-headline text-lg font-semibold focus:outline-none border-b border-transparent focus:border-accent"
-                    value={section.label}
-                    onChange={(e) => updateSection(section.id, { label: e.target.value })}
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setOpenId(section.id)}
-                    className="flex-1 min-w-0 text-left"
-                  >
-                    <span className="block font-headline text-lg font-semibold leading-tight truncate">
-                      {section.label}
-                    </span>
-                    <span className="block font-mono text-[10px] text-ink-soft mt-0.5">
-                      {sectionSummary(section)}
-                    </span>
-                  </button>
-                )}
-                <div className="flex items-center gap-3 font-label text-[10px]">
-                  <button
-                    type="button"
-                    onClick={() => setOpenId(openId === section.id ? null : section.id)}
-                    className="underline"
-                    aria-expanded={openId === section.id}
-                  >
-                    {openId === section.id ? "Done" : "Edit"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => move(section.id, -1)}
-                    disabled={idx === 0}
-                    className="underline disabled:opacity-30"
-                    aria-label="Move up"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => move(section.id, 1)}
-                    disabled={idx === sorted.length - 1}
-                    className="underline disabled:opacity-30"
-                    aria-label="Move down"
-                  >
-                    ↓
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onChange({ ...value, sections: value.sections.filter((s) => s.id !== section.id) })
-                    }
-                    disabled={value.sections.length === 1}
-                    className="text-accent underline disabled:opacity-30"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-
-              {openId === section.id && (
-              <div className="px-4 pb-4 space-y-3">
-              {section.type === "custom" && (
-                <div>
-                  <span className={labelCls}>What belongs here?</span>
-                  <textarea
-                    className={`${inputCls} min-h-14`}
-                    value={section.instruction}
-                    onChange={(e) => updateSection(section.id, { instruction: e.target.value })}
-                    placeholder="e.g. The most surprising science story of the day"
-                  />
-                </div>
-              )}
-
-              {section.type === "grouped" ? (
-                <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-4 items-start">
-                  <div>
-                    <span className={labelCls}>Stories per {section.groupBy}</span>
-                    <Stepper
-                      value={section.articleCountPerGroup}
-                      max={5}
-                      onChange={(n) => updateSection(section.id, { articleCountPerGroup: n })}
-                    />
-                  </div>
-                  <div>
-                    <span className={labelCls}>{section.groupBy === "country" ? "Countries" : "Groups"}</span>
-                    <TagInput
-                      values={section.groups}
-                      onChange={(groups) => groups.length > 0 && updateSection(section.id, { groups })}
-                      placeholder="Add one"
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <span className={labelCls}>Stories</span>
-                  <Stepper
-                    value={section.articleCount}
-                    onChange={(n) => updateSection(section.id, { articleCount: n })}
-                  />
-                </div>
-              )}
-
-              <div>
-                <span className={labelCls}>Always prioritise here</span>
-                <TagInput
-                  values={section.watchEntities ?? []}
-                  onChange={(watchEntities) => updateSection(section.id, { watchEntities })}
-                  placeholder="e.g. a driver, a stock, a company"
-                />
-              </div>
-              {section.type !== "custom" && (
-                <div>
-                  <span className={labelCls}>Note to the editor</span>
-                  <textarea
-                    rows={2}
-                    className={`${inputCls} resize-y`}
-                    value={section.prompt ?? ""}
-                    onChange={(e) => updateSection(section.id, { prompt: e.target.value })}
-                    placeholder="e.g. Prefer race results over transfer rumours"
-                  />
-                </div>
-              )}
-              </div>
-              )}
-            </div>
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={addSection}
-          className="mt-4 font-label text-[10px] px-3 py-2 border hairline hover:bg-card-bg"
-        >
-          + Add a section
-        </button>
-      </section>
-      )}
-
       {view !== "general" && (
       <details className="border-t hairline pt-3">
         <summary className="font-label text-[10px] text-ink-soft cursor-pointer">Advanced — edit as JSON</summary>
@@ -478,6 +297,76 @@ export default function DigestPreferencesEditor({
           </div>
         </div>
       </details>
+      )}
+    </div>
+  );
+}
+
+/** What fills one news section: its story count, what it always puts first, and a note to the editor (Settings → Sections, under each row of Page order). */
+export function SectionSettings({ section, onChange }: { section: DigestSection; onChange: (next: DigestSection) => void }) {
+  const update = (patch: Partial<DigestSection>) => onChange({ ...section, ...patch } as DigestSection);
+  return (
+    <div className="space-y-3">
+      {section.type === "custom" && (
+        <div>
+          <span className={labelCls}>What belongs here?</span>
+          <textarea
+            className={`${inputCls} min-h-14`}
+            value={section.instruction}
+            onChange={(e) => update({ instruction: e.target.value })}
+            placeholder="e.g. The most surprising science story of the day"
+          />
+        </div>
+      )}
+
+      {section.type === "grouped" ? (
+        <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-4 items-start">
+          <div>
+            <span className={labelCls}>Stories per {section.groupBy}</span>
+            <Stepper
+              value={section.articleCountPerGroup}
+              max={5}
+              onChange={(n) => update({ articleCountPerGroup: n })}
+            />
+          </div>
+          <div>
+            <span className={labelCls}>{section.groupBy === "country" ? "Countries" : "Groups"}</span>
+            <TagInput
+              values={section.groups}
+              onChange={(groups) => groups.length > 0 && update({ groups })}
+              placeholder="Add one"
+            />
+          </div>
+        </div>
+      ) : (
+        <div>
+          <span className={labelCls}>Stories</span>
+          <Stepper
+            value={section.articleCount}
+            onChange={(n) => update({ articleCount: n })}
+          />
+        </div>
+      )}
+
+      <div>
+        <span className={labelCls}>Always prioritise here</span>
+        <TagInput
+          values={section.watchEntities ?? []}
+          onChange={(watchEntities) => update({ watchEntities })}
+          placeholder="e.g. a driver, a stock, a company"
+        />
+      </div>
+      {section.type !== "custom" && (
+        <div>
+          <span className={labelCls}>Note to the editor</span>
+          <textarea
+            rows={2}
+            className={`${inputCls} resize-y`}
+            value={section.prompt ?? ""}
+            onChange={(e) => update({ prompt: e.target.value })}
+            placeholder="e.g. Prefer race results over transfer rumours"
+          />
+        </div>
       )}
     </div>
   );

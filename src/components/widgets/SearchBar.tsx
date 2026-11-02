@@ -92,7 +92,7 @@ function Row({ t, i, max, inPaper, now }: { t: TrendItem; i: number; max: number
   );
 }
 
-export default function SearchBar({ headlines = [], home = "IN" }: { headlines?: string[]; home?: string }) {
+export default function SearchBar({ headlines = [], home = "IN", className = "" }: { headlines?: string[]; home?: string; className?: string }) {
   const [countries, setCountries] = useState<TrendCountry[] | null>(null);
   const [geo, setGeo] = useState(home);
   const [all, setAll] = useState(false);
@@ -136,7 +136,7 @@ export default function SearchBar({ headlines = [], home = "IN" }: { headlines?:
   };
 
   return (
-    <div className="mb-12" data-reveal>
+    <div className={`@container min-w-0 ${className}`} data-reveal>
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 pb-3 border-b hairline">
         <div>
           <div className="flex items-center gap-3">
@@ -166,15 +166,15 @@ export default function SearchBar({ headlines = [], home = "IN" }: { headlines?:
       </div>
       <div>
         <div>
-          {/* Five in one column; twenty in two. */}
-          <div className={`grid gap-x-10 ${all ? "md:grid-cols-2" : ""}`}>
+          {/* Five in one column; twenty in two when it has the whole width. */}
+          <div className={`grid gap-x-10 ${all ? "@2xl:grid-cols-2" : ""}`}>
             <ol className="divide-y hairline">
               {(all ? items.slice(0, half) : items).map((t, i) => (
                 <Row key={t.term} t={t} i={i} max={max} inPaper={inPaper(t)} now={at} />
               ))}
             </ol>
             {all && (
-              <ol className="divide-y hairline md:border-t-0 border-t hairline">
+              <ol className="divide-y hairline @2xl:border-t-0 border-t hairline">
                 {items.slice(half).map((t, i) => (
                   <Row key={t.term} t={t} i={i + half} max={max} inPaper={inPaper(t)} now={at} />
                 ))}

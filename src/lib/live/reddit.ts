@@ -1,7 +1,7 @@
 import type { TrendingTopic } from "@/lib/types";
 import { getStore } from "@/lib/server/store";
 import { decodeEntities } from "./rss";
-import { noteCopy, socialCtx } from "./social-context";
+import { noteCopy, noteSource, skipped, socialCtx } from "./social-context";
 
 // ---------------------------------------------------------------------------
 // Reddit through its public RSS feeds (Atom): /r/<a+b+c>/<sort>/.rss. The API
@@ -116,7 +116,7 @@ export function parseAtom(xml: string): RedditHit[] {
  * than a minute; it still waits its turn (readGated).
  */
 export function redditFeed(subreddits: string[], sort: "new" | "hot" | "top" = "new", opts: { force?: boolean } = {}): Promise<RedditHit[] | null> {
-  if (!enabled() || subreddits.length === 0) return Promise.resolve(null);
+  if (!enabled() || subreddits.length === 0 || skipped("reddit")) return Promise.resolve(null);
   const subs = [...new Set(subreddits.map((s) => s.toLowerCase()))].sort();
   const qs = sort === "top" ? "?t=day&limit=100" : "?limit=100";
   return readGated(`reddit:rss:v1:${sort}:${subs.join("+")}`, `https://www.reddit.com/r/${subs.map(encodeURIComponent).join("+")}/${sort}/.rss${qs}`, opts.force);
@@ -138,6 +138,8 @@ const SLOT = "reddit:slot:v1";
 const inflight = new Map<string, Promise<RedditHit[] | null>>();
 /** Feeds still waiting for their first read (the page asks again soon). */
 const waitingFirst = new Set<string>();
+/** Feeds whose last read failed with no copy to fall back on (the page counts these as Reddit failing). */
+const failedFirst = new Set<string>();
 
 /** When each feed's copy was read (ms), for "updated 3m ago". */
 export function redditCopyAt(key: string): number | null {
@@ -190,7 +192,9 @@ function readGated(key: string, url: string, force = false): Promise<RedditHit[]
   // Each asker learns how old the copy it got is, or that there's none yet.
   return p.then((hits) => {
     const copy = memory.get(key);
-    noteCopy(copy?.at ?? null, !copy && hits === null);
+    const failed = !copy && hits === null && failedFirst.has(key);
+    noteCopy(copy?.at ?? null, !copy && hits === null && !failed);
+    noteSource("reddit", copy || hits !== null ? "ok" : failed ? "failed" : "waiting");
     return hits;
   });
 }
@@ -221,6 +225,7 @@ async function readFeed(key: string, url: string, force: boolean): Promise<Reddi
     const copy = { at: now, hits };
     memory.set(key, copy);
     waitingFirst.delete(key);
+    failedFirst.delete(key);
     await Promise.all([store.set(key, copy, { ttlSeconds: KEEP_S }).catch(() => {}), doneFirst(key)]);
     return hits;
   } catch (err) {
@@ -233,7 +238,10 @@ async function readFeed(key: string, url: string, force: boolean): Promise<Reddi
       await Promise.all([store.set(key, copy, { ttlSeconds: KEEP_S }).catch(() => {}), doneFirst(key)]);
       return [];
     }
-    if (!kept) waitingFirst.add(key);
+    if (!kept) {
+      waitingFirst.add(key);
+      failedFirst.add(key);
+    }
     return kept?.hits ?? null;
   } finally {
     await settleSlot(res);
@@ -270,7 +278,7 @@ function interleave<T>(lists: T[][]): T[] {
  * slot as the subreddit feeds.
  */
 export function popularFeed(geo: "IN" | "GLOBAL", opts: { force?: boolean } = {}): Promise<RedditHit[] | null> {
-  if (!enabled()) return Promise.resolve(null);
+  if (!enabled() || skipped("reddit")) return Promise.resolve(null);
   return readGated(popularKey(geo), `https://www.reddit.com/r/popular/hot/.rss?geo_filter=${geo}&limit=50`, opts.force);
 }
 

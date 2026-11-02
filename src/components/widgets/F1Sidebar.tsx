@@ -27,6 +27,7 @@ import { useF1Live } from "@/lib/use-f1-live";
 import { TeamGlyph } from "@/components/f1/LiveTiming";
 import { DriverName } from "@/components/f1/DriverLink";
 import YourPaddock from "./YourPaddock";
+import PaddockChatter from "@/components/extras/PaddockChatter";
 
 // Progressive F1 sidebar.
 //
@@ -546,6 +547,9 @@ export default function F1Sidebar({
           )}
         </div>
       )}
+
+      {/* The paddock on X and Reddit: a small card, not a section of its own. */}
+      <PaddockChatter />
 
       </div>
 

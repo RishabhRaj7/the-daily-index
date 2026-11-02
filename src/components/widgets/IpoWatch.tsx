@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { IpoDetail, IpoEntry, IpoStage, PriceBar } from "@/lib/types";
 import Sheet from "@/components/extras/Sheet";
-import { SocialList, SourceLogo, useSocialFeed } from "@/components/extras/SocialFeed";
+import { SocialList, SourceLogo, useSocialFeed, useSocialView } from "@/components/extras/SocialFeed";
+import { isPaused, useSocialHealth } from "@/lib/social-health";
 import type { SocialAnswer } from "@/lib/live/social";
 import { FeedEditor } from "@/components/extras/FeedEditor";
 import { describeFeed, feedQuery, useFeed } from "@/lib/feeds";
@@ -152,31 +153,44 @@ function asOf(iso: string | null | undefined): string | null {
 
 // What retail investors are saying about the issue: r/IndianStockMarket,
 // r/StockMarketIndia, r/IndiaInvestments and r/IndianStreetBets (kept a week)
-// plus an X search when RSSHub is set up, ranked by how squarely each post is
-// about this issue and fading by half a day (lib/live/social.ts). Closed by
-// default; read only once opened.
+// plus an X search for the company when RSSHub is set up, ranked by how
+// squarely each post is about this issue and fading by half a day
+// (lib/live/social.ts). The subreddits and X accounts are one choice for
+// every IPO (Edit feeds; posts from the accounts come first); only the search
+// changes with the issue. Closed by default; read only once opened. When X
+// and Reddit are both paused (lib/social-health.ts), or nothing answered, it
+// isn't there.
 function Chatter({ name, stage }: { name: string; stage: IpoEntry["stage"] }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   // Where it looks (Edit feeds; lib/feeds.ts): IPO subreddits and any X accounts the reader added.
   const feed = useFeed("ipo");
   const live = useSocialFeed<SocialAnswer>(open && feed ? `/api/social?kind=ipo&name=${encodeURIComponent(name)}&${feedQuery(feed.config)}` : null);
+  const { health, now } = useSocialHealth();
+  const { view } = useSocialView(live.data);
+  const answered = live.data?.sources?.x === "ok" || live.data?.sources?.reddit === "ok";
+  if (isPaused(health.x, now) && isPaused(health.reddit, now)) return null;
+  if (open && live.data && view === "hide" && !answered) return null;
+  const search = ipoSearch(name);
   return (
-    <details className="mt-8 rounded-2xl border hairline group" onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
+    <details className="mt-8 rounded-2xl border hairline group/chatter" onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
       <summary className="cursor-pointer select-none list-none flex items-center justify-between gap-3 px-4 py-3">
         <span className="font-label text-[10px] text-ink-soft">What people are saying</span>
         <span className="font-mono text-[10px] text-ink-faint flex items-center gap-2">
-          {live.data ? `${live.data.posts.length} post${live.data.posts.length === 1 ? "" : "s"}` : ""}
-          <SourceLogo source="reddit" size={13} />
-          <SourceLogo source="x" size={13} />
-          <span className="transition-transform group-open:rotate-180" aria-hidden>
+          {live.data && view === "show" ? `${live.data.posts.length} post${live.data.posts.length === 1 ? "" : "s"}` : ""}
+          {!isPaused(health.reddit, now) && <SourceLogo source="reddit" size={13} />}
+          {!isPaused(health.x, now) && <SourceLogo source="x" size={13} />}
+          <span className="transition-transform group-open/chatter:rotate-180" aria-hidden>
             ▾
           </span>
         </span>
       </summary>
       <div className="px-4 pb-4">
         <div className="flex items-center justify-between gap-3 mb-3">
-          <span className="font-mono text-[10px] text-ink-faint truncate">{feed ? describeFeed(feed.config) : ""}</span>
+          <span className="font-mono text-[10px] text-ink-faint truncate" title="The accounts and subreddits are the same for every IPO; the X search is this issue's">
+            {feed ? describeFeed(feed.config) : ""}
+            {feed && !isPaused(health.x, now) ? ` · X search: ${search}` : ""}
+          </span>
           <button type="button" onClick={() => setEditing((v) => !v)} className="chip h-7 px-2.5 text-[11.5px] shrink-0">
             {editing ? "Close" : "Edit feeds"}
           </button>
@@ -187,21 +201,23 @@ function Chatter({ name, stage }: { name: string; stage: IpoEntry["stage"] }) {
             <FeedEditor section="ipo" onDone={() => setEditing(false)} />
           </div>
         )}
-        <SocialList
-          data={live.data}
-          refresh={live}
-          compact
-          max={8}
-          more="inline"
-          filterKey="ipo-chatter"
-          empty={stage === "upcoming" ? "No one's talking about it yet." : "No posts naming this issue in the last week."}
-        />
+        {view === "hide" ? (
+          <p className="font-body italic text-sm text-ink-soft">{stage === "upcoming" ? "No one's talking about it yet." : "No posts naming this issue in the last week."}</p>
+        ) : (
+          <SocialList data={live.data} refresh={live} compact max={8} more="inline" filterKey="ipo-chatter" />
+        )}
         <p className="font-sans text-[10.5px] text-ink-faint mt-3">
-          Most relevant first: posts that name the issue in the title, beside an IPO word, and recent ones rank higher. Opinions, not advice.
+          Most relevant first: posts from the accounts you follow, then posts that name the issue in the title, beside an IPO word, and recent ones. Opinions, not advice.
         </p>
       </div>
     </details>
   );
+}
+
+/** The X search IPO chatter runs for an issue, as the page shows it: “Bombay Coated” IPO. */
+function ipoSearch(name: string): string {
+  const words = name.replace(/\b(limited|ltd|pvt|private)\b\.?/gi, "").replace(/[^A-Za-z0-9& ]+/g, " ").replace(/\s+/g, " ").trim().split(" ");
+  return `“${words.slice(0, 2).join(" ")}” IPO`;
 }
 
 // ---- the detail sheet ----------------------------------------------------------

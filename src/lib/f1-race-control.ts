@@ -27,6 +27,8 @@ export interface RcItem {
   minor?: boolean;
   /** Shown under its own filter only, never in "All" (a clear with no yellow left to close). */
   quiet?: boolean;
+  /** A stewards' incident's earlier stages, oldest first ("noted" at 14:03, "under investigation" at 14:05); the item itself is the latest. */
+  history?: { utc: string; text: string }[];
 }
 
 const lower = (s: string) => s.toLowerCase().replace(/ - /g, ", ").replace(/track sector/g, "sector").replace(/\bdrs\b/g, "DRS").replace(/\bvsc\b/g, "VSC").replace(/\bfia\b/g, "FIA").replace(/race directors/g, "race director's");
@@ -105,9 +107,76 @@ function read(m: LiveRaceControl, numbers: Map<string, string>): RcItem {
   return { ...base, kind, tone, drivers: codes(raw), text };
 }
 
-/** Every message, newest first, read plainly; a yellow carries its all-clear. */
+/**
+ * One stewards' incident, whatever stage a message is about: the clock time F1
+ * stamps on every message about it, else its cars and reason. A penalty
+ * without a stamp is matched to an incident by its driver (see readRaceControl).
+ */
+export function incidentKey(m: LiveRaceControl): { key: string; drivers: string[]; reason: string; penalty: boolean } | null {
+  const raw = m.message.trim().replace(stamp, "");
+  const tag = stampOf(m.message);
+  let x: RegExpExecArray | null;
+  if ((x = INCIDENT.exec(raw))) {
+    const ds = codes(x[3]);
+    const reason = lower(x[5] ?? "");
+    return { key: tag ? `@${tag}` : `${[...ds].sort().join(",")}|${reason}`, drivers: ds, reason, penalty: false };
+  }
+  if ((x = PENALTY.exec(raw))) {
+    const reason = x[4] ? lower(x[4]) : "";
+    return { key: tag ? `@${tag}` : `${x[3]}|${reason}`, drivers: [x[3]], reason, penalty: true };
+  }
+  return null;
+}
+
+/** F1 sometimes sends a message twice: the same words, the same lap, within two minutes. */
+const REPEAT_MS = 120_000;
+const ms = (utc: string) => Date.parse(/Z|[+-]\d{2}:?\d{2}$/.test(utc) ? utc : `${utc}Z`) || 0;
+
+/**
+ * Every message, newest first, read plainly; a yellow carries its all-clear,
+ * a message F1 sent twice shows once, and each stewards' incident is one
+ * line that moves up as it goes from "noted" to the decision (its earlier
+ * stages in `history`).
+ */
 export function readRaceControl(items: LiveRaceControl[], numbers: Map<string, string> = new Map()): RcItem[] {
-  const read_ = items.map((m) => read(m, numbers));
+  // Oldest first: a repeat is dropped (sector flags excepted: a sector can go yellow again).
+  const lastSaid = new Map<string, number>();
+  const kept: LiveRaceControl[] = [];
+  for (const m of [...items].reverse()) {
+    const raw = m.message.trim();
+    const k = `${m.lap ?? ""}|${raw}`;
+    const t = ms(m.utc);
+    const before = lastSaid.get(k);
+    if (before !== undefined && !SECTOR.test(raw) && Math.abs(t - before) <= REPEAT_MS) continue;
+    lastSaid.set(k, t);
+    kept.push(m);
+  }
+  const incidents = new Map<string, RcItem>();
+  const byDriver = new Map<string, string>();
+  const folded: RcItem[] = [];
+  for (const m of kept) {
+    const it = read(m, numbers);
+    const inc = incidentKey(m);
+    if (!inc) {
+      folded.push(it);
+      continue;
+    }
+    // A penalty with no stamp decides the latest open incident of its driver with that reason (or any reason).
+    const key = incidents.has(inc.key) || !inc.penalty ? inc.key : (byDriver.get(`${inc.drivers[0]}|${inc.reason}`) ?? byDriver.get(`${inc.drivers[0]}|`) ?? inc.key);
+    const was = incidents.get(key);
+    if (was) {
+      const i = folded.indexOf(was);
+      if (i >= 0) folded.splice(i, 1);
+      it.history = [...(was.history ?? []), { utc: was.utc, text: was.text }];
+    }
+    incidents.set(key, it);
+    for (const d of inc.drivers) {
+      byDriver.set(`${d}|${inc.reason}`, key);
+      byDriver.set(`${d}|`, key);
+    }
+    folded.push(it);
+  }
+  const read_ = folded.reverse();
   // Oldest first, to fold each sector's flags into one line: yellows thrown
   // together (within 15 s) in neighbouring sectors are one incident ("Double
   // yellow in sectors 15 and 16"), a yellow upgraded to a double yellow is the

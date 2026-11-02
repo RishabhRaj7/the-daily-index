@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import type { SocialAnswer, SocialPost } from "@/lib/live/social";
+import type { SocialAnswer, SocialPost, SocialSource, SourceState } from "@/lib/live/social";
+import { isPaused, pausedSources, readHealth, report, RETRY_AFTER_MS, SOCIAL_RETRY_EVENT, sourceView, useSocialHealth } from "@/lib/social-health";
 import Ago from "./Ago";
 import { loadPersonalization, PERSONALIZATION_CHANGED_EVENT, savePersonalization } from "@/lib/personalization";
 import Sheet from "./Sheet";
@@ -15,7 +16,9 @@ import Sheet from "./Sheet";
 // half a minute. Each post
 // carries its platform's mark, and a list can offer an All / X / Reddit filter.
 // A list shows the few that fit; "See all" opens the rest in the paper's sheet
-// (or, inside a sheet already, unfolds them in place).
+// (or, inside a sheet already, unfolds them in place). A source that keeps
+// failing is paused and its posts hidden (lib/social-health.ts); a list with
+// nothing to show isn't there at all, so a failure never shows on the page.
 
 const REFRESH_MS = 5 * 60_000;
 const WAITING_RETRY_MS = 30_000;
@@ -27,13 +30,43 @@ export interface SocialFeed<T> {
   busy: boolean;
 }
 
+type Shape = { waiting?: boolean; sources?: Partial<Record<SocialSource, SourceState>> };
+
+/**
+ * A source that failed this time keeps what it showed last time: a list
+ * never blanks on one bad read. Lists (posts) keep that source's posts; the
+ * trends keep that side's lists.
+ */
+function keepFailed<T extends Shape>(prev: T | null, next: T): T {
+  if (!prev) return next;
+  const failed = (["x", "reddit"] as const).filter((src) => next.sources?.[src] === "failed");
+  if (!failed.length) return next;
+  const p = prev as unknown as Record<string, unknown>;
+  const n = next as unknown as Record<string, unknown>;
+  if (Array.isArray(n.posts) && Array.isArray(p.posts)) {
+    const posts = n.posts as SocialPost[];
+    const kept = (p.posts as SocialPost[]).filter((x) => failed.includes(x.source) && !posts.some((y) => y.id === x.id));
+    return kept.length ? ({ ...next, posts: [...posts, ...kept] } as T) : next;
+  }
+  const out: Record<string, unknown> = { ...n };
+  for (const src of failed) {
+    const was = p[src] as Record<string, unknown> | undefined;
+    const now = n[src] as Record<string, unknown> | undefined;
+    if (was && now) out[src] = Object.fromEntries(Object.entries(now).map(([k, v]) => [k, v ?? was[k] ?? null]));
+  }
+  return out as T;
+}
+
 /**
  * Any /api/social answer (a list, or the trends), kept current: on show,
  * every five minutes while in view, on coming back to the tab, on refresh(),
- * and after half a minute while the answer says a feed is waiting its turn.
- * Null until the first arrives; a null url reads nothing.
+ * after half a minute while the answer says a feed is waiting its turn, and
+ * when the reader presses "Try again". Each answer tells lib/social-health.ts
+ * how X and Reddit fared: a failing source is asked again after a minute,
+ * then three, and after three failures is paused for an hour (not asked:
+ * &skip=). Null until the first arrives; a null url reads nothing.
  */
-export function useSocialFeed<T extends { waiting?: boolean }>(url: string | null): SocialFeed<T> {
+export function useSocialFeed<T extends Shape>(url: string | null): SocialFeed<T> {
   const [data, setData] = useState<T | null>(null);
   const [busy, setBusy] = useState(false);
   const [nonce, setNonce] = useState(0);
@@ -45,28 +78,48 @@ export function useSocialFeed<T extends { waiting?: boolean }>(url: string | nul
     let waits = 0;
     const load = (fresh = false) => {
       if (document.visibilityState === "hidden" && !fresh) return;
-      last = Date.now();
       window.clearTimeout(retry);
-      fetch(fresh ? `${url}&fresh=1` : url)
+      const skip = pausedSources();
+      // Both paused: nothing to ask until a pause runs out (or "Try again").
+      if (skip.length === 2) return setBusy(false);
+      last = Date.now();
+      const q = `${fresh ? "&fresh=1" : ""}${skip.length ? `&skip=${skip.join(",")}` : ""}`;
+      fetch(`${url}${q}`)
         .then((r) => (r.ok ? (r.json() as Promise<T>) : null))
+        .catch(() => null)
         .then((d) => {
           if (cancelled) return;
-          if (d) setData(d);
+          // No answer at all: what's shown stays; both sources count it.
+          const states: Record<SocialSource, SourceState> = d
+            ? { x: d.sources?.x ?? "off", reddit: d.sources?.reddit ?? "off" }
+            : { x: skip.includes("x") ? "off" : "failed", reddit: skip.includes("reddit") ? "off" : "failed" };
+          if (d) setData((prev) => keepFailed(prev, d));
+          report("x", states.x);
+          report("reddit", states.reddit);
           // Waiting for Reddit's turn: ask again shortly (a few times), not in five minutes.
           if (d?.waiting && waits++ < 6) retry = window.setTimeout(() => load(), WAITING_RETRY_MS);
+          else {
+            // Failing but not yet paused: again after a minute, then three.
+            const h = readHealth();
+            const failing = (["x", "reddit"] as const).filter((src) => states[src] === "failed" && !isPaused(h[src]));
+            const fails = Math.max(0, ...failing.map((src) => h[src].fails));
+            if (failing.length && fails > 0) retry = window.setTimeout(() => load(), RETRY_AFTER_MS[Math.min(fails, RETRY_AFTER_MS.length) - 1]);
+          }
         })
-        .catch(() => {})
         .finally(() => !cancelled && setBusy(false));
     };
     load(nonce > 0);
     const id = window.setInterval(() => load(), REFRESH_MS);
     const onShow = () => document.visibilityState === "visible" && Date.now() - last > 60_000 && load();
+    const onRetry = () => load(true);
     document.addEventListener("visibilitychange", onShow);
+    window.addEventListener(SOCIAL_RETRY_EVENT, onRetry);
     return () => {
       cancelled = true;
       window.clearInterval(id);
       window.clearTimeout(retry);
       document.removeEventListener("visibilitychange", onShow);
+      window.removeEventListener(SOCIAL_RETRY_EVENT, onRetry);
     };
   }, [url, nonce]);
   return {
@@ -170,8 +223,8 @@ export function SocialItem({ post, compact = false }: { post: SocialPost; compac
 // All, X or Reddit, with how many of each there are. The choice is kept per
 // list in personalization (feedSources), so sync carries it to the reader's
 // other devices. A source with nothing right now can't be picked, and a
-// kept choice whose source has gone quiet falls back to All (and says so)
-// rather than leaving an empty column.
+// kept choice whose source has gone quiet falls back to All rather than
+// leaving an empty column. With only one source there, it isn't shown.
 
 export type SourcePick = "all" | SocialPost["source"];
 const PICK_KEY = (key: string) => `daily-index:feed-source:${key}`;
@@ -254,19 +307,43 @@ export function SourceFilter({ value, counts, onChange }: { value: SourcePick; c
   );
 }
 
-/** The list, with a quiet line for each way it can come back empty. */
+/**
+ * What of a list shows, given how X and Reddit are doing: the posts of the
+ * sources not paused, and whether the list shows ("show"), holds a quiet
+ * placeholder while it's still being tried ("wait"), or isn't there at all
+ * ("hide": nothing to show, or its sources failed). A list never says it
+ * failed; it just isn't there.
+ */
+export function useSocialView(data: SocialAnswer | null): { posts: SocialPost[]; view: "show" | "wait" | "hide" } {
+  const { health, now } = useSocialHealth();
+  const posts = (data?.posts ?? []).filter((p) => !isPaused(health[p.source], now));
+  if (posts.length) return { posts, view: "show" };
+  const views = (["x", "reddit"] as const).map((src) => sourceView(health[src], false, data ? (data.sources?.[src] ?? "off") : undefined, now));
+  return { posts, view: views.includes("wait") ? "wait" : "hide" };
+}
+
+/** The quiet placeholder a list shows while it's first read. */
+export function SocialSkeleton({ rows = 3 }: { rows?: number }) {
+  return (
+    <div className="space-y-3 animate-pulse" aria-label="Loading">
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="h-10 rounded bg-card-bg" />
+      ))}
+    </div>
+  );
+}
+
+/** The list: nothing at all when there's nothing to show (see useSocialView). */
 export function SocialList({
   data,
-  empty,
   compact = false,
   max,
   filterKey,
   more,
   refresh,
+  filterInSheet = false,
 }: {
   data: SocialAnswer | null;
-  /** What to say when everything answered and nothing matched. */
-  empty: React.ReactNode;
   compact?: boolean;
   max?: number;
   /** Shows the All / X / Reddit filter, remembering the choice under this name. */
@@ -275,62 +352,48 @@ export function SocialList({
   more?: { title: string; kicker?: string } | "inline";
   /** The list's ↻ and "updated" time (from useSocialFeed). */
   refresh?: { refresh: () => void; busy: boolean };
+  /** A small card: the filter only in the "See all" sheet, the list itself always All. */
+  filterInSheet?: boolean;
 }) {
-  const [pick, setPick] = useSourcePick(filterKey);
+  const [kept, setPick] = useSourcePick(filterKey);
+  const pick = filterInSheet ? "all" : kept;
   const [all, setAll] = useState(false);
-  if (!data)
-    return (
-      <div className="space-y-3 animate-pulse" aria-label="Loading">
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="h-10 rounded bg-card-bg" />
-        ))}
-      </div>
-    );
+  const { posts: visible, view } = useSocialView(data);
+  if (view === "hide") return null;
+  if (!data || view === "wait") return <SocialSkeleton />;
   const counts: Record<SourcePick, number> = {
-    all: data.posts.length,
-    x: data.posts.filter((p) => p.source === "x").length,
-    reddit: data.posts.filter((p) => p.source === "reddit").length,
+    all: visible.length,
+    x: visible.filter((p) => p.source === "x").length,
+    reddit: visible.filter((p) => p.source === "reddit").length,
   };
   // A kept choice whose source has nothing now: everything, with a word why.
   const quiet = pick !== "all" && counts[pick] === 0 && counts.all > 0;
-  const shown = pick === "all" || quiet ? data.posts : data.posts.filter((p) => p.source === pick);
+  const shown = pick === "all" || quiet ? visible : visible.filter((p) => p.source === pick);
   const posts = max && !(all && more === "inline") ? shown.slice(0, max) : shown;
   const hidden = shown.length - posts.length;
+  // One source only: the filter has nothing to choose between.
+  const both = counts.x > 0 && counts.reddit > 0;
   return (
     <>
-      {((filterKey && counts.all > 0) || refresh) && (
+      {((filterKey && both && !filterInSheet) || refresh) && (
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-3">
-          {filterKey && counts.all > 0 ? <SourceFilter value={quiet ? "all" : pick} counts={counts} onChange={setPick} /> : <span />}
+          {filterKey && both && !filterInSheet ? <SourceFilter value={quiet ? "all" : pick} counts={counts} onChange={setPick} /> : <span />}
           {refresh && <RefreshStamp asOf={data.asOf} busy={refresh.busy} onRefresh={refresh.refresh} />}
-          {quiet && <span className="basis-full font-mono text-[10px] text-ink-faint">Nothing from {pick === "x" ? "X" : "Reddit"} right now, so showing all</span>}
         </div>
       )}
-      {posts.length === 0 ? (
-        <p className="font-body italic text-sm text-ink-soft">
-          {data.waiting
-            ? "Waiting for Reddit (it answers one read a minute); this fills in shortly."
-            : data.status === "unconfigured"
-              ? "X feeds aren't wired up yet (RSSHub)."
-              : data.status === "unavailable"
-                ? "The feeds didn't answer this time; they'll be asked again shortly."
-                : empty}
-        </p>
-      ) : (
-        <ul className="divide-y hairline">
-          {posts.map((p) => (
-            <SocialItem key={p.id} post={p} compact={compact} />
-          ))}
-        </ul>
-      )}
+      <ul className="divide-y hairline">
+        {posts.map((p) => (
+          <SocialItem key={p.id} post={p} compact={compact} />
+        ))}
+      </ul>
       {more && (hidden > 0 || (all && more === "inline")) && (
         <button type="button" onClick={() => setAll((v) => !v)} className="font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-2">
           {more === "inline" && all ? "Show fewer ↑" : `See all ${shown.length} posts ${more === "inline" ? "↓" : "→"}`}
         </button>
       )}
-      {data.note && posts.length > 0 && <p className="font-body italic text-xs text-ink-faint mt-3">{data.note}</p>}
       {all && more && more !== "inline" && (
         <Sheet title={more.title} kicker={more.kicker} onClose={() => setAll(false)} width={720}>
-          <SocialList data={data} empty={empty} filterKey={filterKey} />
+          <SocialList data={data} filterKey={filterKey} />
         </Sheet>
       )}
     </>

@@ -123,7 +123,7 @@ export function FeedEditor({ section, onDone }: { section: FeedSection; onDone: 
     <div>
       <p className="font-sans text-[13px] text-ink-soft mb-5">{meta.hint}</p>
       <ChipField
-        label="X accounts"
+        label={section === "ipo" ? "Preferred X accounts" : "X accounts"}
         logo="x"
         values={draft.x}
         max={FEED_LIMITS.x}
@@ -191,18 +191,24 @@ export function FeedEditor({ section, onDone }: { section: FeedSection; onDone: 
 }
 
 /** "Edit feeds": opens the section's editor in the paper's sheet. */
-export function EditFeedsButton({ section, className = "" }: { section: FeedSection; className?: string }) {
+export function EditFeedsButton({ section, className = "", iconOnly = false }: { section: FeedSection; className?: string; /** Just the sliders mark (a small card's header). */ iconOnly?: boolean }) {
   const [open, setOpen] = useState(false);
   const meta = FEED_META[section];
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={`chip h-7 px-2.5 text-[11.5px] gap-1.5 shrink-0 ${className}`} title="Choose the X accounts, searches and subreddits this list reads">
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={iconOnly ? `w-7 h-7 rounded-full grid place-items-center text-ink-soft hover:text-ink hover:bg-[var(--card-bg)] shrink-0 ${className}` : `chip h-7 px-2.5 text-[11.5px] gap-1.5 shrink-0 ${className}`}
+        title="Choose the X accounts, searches and subreddits this list reads"
+        aria-label={iconOnly ? "Edit feeds" : undefined}
+      >
         <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M2.5 4.5h6M11.5 4.5h2M2.5 11.5h2M7.5 11.5h6" />
           <circle cx="10" cy="4.5" r="1.5" />
           <circle cx="6" cy="11.5" r="1.5" />
         </svg>
-        Edit feeds
+        {!iconOnly && "Edit feeds"}
       </button>
       {open && (
         <Sheet title={meta.title} kicker={meta.kicker} onClose={() => setOpen(false)} width={640}>

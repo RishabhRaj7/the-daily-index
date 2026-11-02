@@ -5,6 +5,7 @@ import type { F1RosterEntry, Personalization } from "@/lib/types";
 import { F1_TEAM_COLORS } from "@/lib/personalization";
 import { SECTION_ORDER } from "@/lib/sections";
 import PageOrderList from "./PageOrderList";
+import type { DigestPreferences } from "@/lib/preferences/types";
 
 type Sport = "f1" | "football" | "tennis";
 export type FormPart = "basics" | "sports" | "order";
@@ -175,6 +176,8 @@ export default function PersonalizationForm({
   f1Roster,
   parts,
   bare = false,
+  news,
+  onNewsChange,
 }: {
   value: Personalization;
   onChange: (next: Personalization) => void;
@@ -184,6 +187,9 @@ export default function PersonalizationForm({
   parts?: FormPart[];
   /** Chapters without their own headings (the onboarding steps name them). */
   bare?: boolean;
+  /** Settings: what fills each section, edited in Page order under its row. */
+  news?: DigestPreferences | null;
+  onNewsChange?: (next: DigestPreferences) => void;
 }) {
   const show = (part: FormPart) => !parts || parts.includes(part);
   const num = (n: string) => (parts ? undefined : n);
@@ -380,13 +386,15 @@ export default function PersonalizationForm({
         bare={bare}
         numeral={num("III.")}
         title="Page order"
-        effect="What prints, and in what order — top of the list prints first."
+        effect={news ? "What prints, in what order, and what fills each section — top of the list prints first." : "What prints, and in what order — top of the list prints first."}
       >
         <PageOrderList
           order={value.sectionOrder}
           hidden={value.hiddenSections}
           onMove={moveSection}
           onToggle={toggleSection}
+          news={news}
+          onNewsChange={onNewsChange}
         />
       </Chapter>
       )}

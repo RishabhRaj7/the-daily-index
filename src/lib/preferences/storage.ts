@@ -91,6 +91,15 @@ function upgradeV2ToV3(raw: Record<string, unknown>): Record<string, unknown> {
   return { ...raw, sections, version: 3 };
 }
 
+// v3 → v4: summaries default to Standard (90 words), not Detailed (140). A
+// saved copy still on Detailed moves to Standard once; choosing Detailed
+// again afterwards (a v4 save) sticks.
+function upgradeV3ToV4(raw: Record<string, unknown>): Record<string, unknown> {
+  const global = { ...((raw.global ?? {}) as Record<string, unknown>) };
+  if (global.summaryLengthWords === 140) global.summaryLengthWords = 90;
+  return { ...raw, global, version: 4 };
+}
+
 // The length presets grew (35/60/100 → 50/90/140). Saved preferences that
 // picked an old preset move to its new size, so the setting stays selected.
 const LEGACY_LENGTHS: Record<number, number> = { 35: 50, 60: 90, 100: 140 };
@@ -216,6 +225,8 @@ export function migratePreferences(raw: unknown): DigestPreferences {
   switch (version) {
     case PREFERENCES_VERSION:
       return normalizePreferences(raw);
+    case 3:
+      return migratePreferences(upgradeV3ToV4(raw as Record<string, unknown>));
     case 2:
       return migratePreferences(upgradeV2ToV3(raw as Record<string, unknown>));
     case 1:

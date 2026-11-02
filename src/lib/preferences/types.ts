@@ -8,7 +8,7 @@
  * migration case in `migratePreferences()` (storage.ts) so old stored copies
  * are upgraded instead of silently discarded.
  */
-export const PREFERENCES_VERSION = 3;
+export const PREFERENCES_VERSION = 4;
 
 /**
  * Display slots of the paper's existing news sections. A digest section whose
