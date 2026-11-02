@@ -343,12 +343,17 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
     ];
   });
 
-  // Every pit stop so far: lap, time standing, time in the lane. F1 publishes
-  // PitStopSeries to its archive, but no longer during a live session; then
-  // the stops are read from the tyre stints (each new stint follows a stop at
-  // the end of the laps run before it), with the lane time from
-  // PitLaneTimeCollection when F1 sends it, and timed by the read that first
-  // saw them (mergeStops, from poll to poll).
+  // Every pit stop: the tyre stints say which stops happened (each new stint
+  // follows a stop at the end of the laps run before it, and they add up to
+  // the race), and F1's PitStopSeries (in its archive and replays; no longer
+  // sent live) lends the times. Neither is whole on its own: the series can
+  // leave a driver out entirely (Pérez at Mexico, five stops) or skip a
+  // red-flag tyre change, and the stints know nothing of time. So the stints
+  // set the list; each series entry gives its stationary and lane times to the
+  // stint stop on its lap (else one either side, nearest first, once each);
+  // a series entry no stint matches is added. Live, a lane time from
+  // PitLaneTimeCollection goes to the stop on its own lap only (or the lap
+  // before, F1 counting the in-lap), never to a neighbour.
   const series: LivePitStop[] = Object.entries(obj(obj(state.PitStopSeries).PitTimes))
     .flatMap(([no, v]) => {
       const r = byNo.get(no);
@@ -357,25 +362,42 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
         const n = (x: unknown) => (Number.isFinite(Number(str(x))) && str(x) !== "" ? Number(str(x)) : null);
         return { code: r?.code ?? no, colour: r?.colour ?? "#888888", lap: num(p.Lap), stationary: n(p.PitStopTime), lane: n(p.PitLaneTime), utc: str(obj(e).Timestamp) };
       });
-    })
-    .sort((a, b) => b.utc.localeCompare(a.utc));
-  const lanes = Object.values(obj(obj(state.PitLaneTimeCollection).PitTimes)).map(obj);
-  const stops: LivePitStop[] = series.length
-    ? series
-    : Object.entries(app).flatMap(([no, raw]) => {
-        const r = byNo.get(no);
-        const stints = list(obj(raw).Stints).map(obj);
-        let laps = 0;
-        return stints.flatMap((s, i) => {
-          const lap = laps;
-          laps += Math.max(0, num(s.TotalLaps) - num(s.StartLaps));
-          if (i === 0 || lap === 0) return [];
-          const lane = lanes.find((p) => str(p.RacingNumber) === no && Math.abs(num(p.Lap) - lap) <= 1);
-          const d = lane ? Number.parseFloat(str(lane.Duration)) : NaN;
-          return [{ code: r?.code ?? no, colour: r?.colour ?? "#888888", lap, stationary: null, lane: Number.isFinite(d) ? d : null, utc: "" }];
-        });
-      });
-  const pitStops = cleanStops(stops, raceControl);
+    });
+  const fromStints: LivePitStop[] = Object.entries(app).flatMap(([no, raw]) => {
+    const r = byNo.get(no);
+    const stints = list(obj(raw).Stints).map(obj);
+    let laps = 0;
+    return stints.flatMap((s, i) => {
+      const lap = laps;
+      laps += Math.max(0, num(s.TotalLaps) - num(s.StartLaps));
+      if (i === 0 || lap === 0) return [];
+      const same = str(s.TyresNotChanged) === "1";
+      return [{ code: r?.code ?? no, colour: r?.colour ?? "#888888", lap, stationary: null, lane: null, utc: "", ...(same ? { sameTyres: true } : {}) }];
+    });
+  });
+  for (const p of Object.values(obj(obj(state.PitLaneTimeCollection).PitTimes)).map(obj)) {
+    const code = byNo.get(str(p.RacingNumber))?.code;
+    const lap = num(p.Lap);
+    const d = Number.parseFloat(str(p.Duration));
+    const stop = fromStints.find((s) => s.code === code && s.lap === lap) ?? fromStints.find((s) => s.code === code && s.lap === lap - 1);
+    if (stop && Number.isFinite(d)) stop.lane = d;
+  }
+  const lent = new Set<LivePitStop>();
+  const unmatched: LivePitStop[] = [];
+  for (const e of series) {
+    const stop = fromStints
+      .filter((s) => s.code === e.code && !lent.has(s) && Math.abs(s.lap - e.lap) <= 1)
+      .sort((a, b) => Math.abs(a.lap - e.lap) - Math.abs(b.lap - e.lap))[0];
+    if (!stop) {
+      unmatched.push(e);
+      continue;
+    }
+    lent.add(stop);
+    stop.stationary = e.stationary;
+    stop.lane = e.lane;
+    stop.utc = e.utc;
+  }
+  const pitStops = cleanStops([...fromStints, ...unmatched], raceControl);
 
   const cp = obj(state.ChampionshipPrediction);
   const teamColour = new Map(rows.map((r) => [r.team, r.colour]));
@@ -455,6 +477,25 @@ const lapSecs = (t: string): number | null => {
 /** A session kept by older code, served with today's reading of its pit stops (red-flag tyre changes, lane times). */
 export function tidy(s: LiveSnapshot | null): LiveSnapshot | null {
   return s?.pitStops?.length ? { ...s, pitStops: cleanStops(s.pitStops, s.raceControl ?? []) } : s;
+}
+
+/**
+ * A finished session's pit stops, read again from F1's archive once it has
+ * the session: its final stints and PitStopSeries give every stop with its
+ * times, where the copy kept from the live feed was gathered poll by poll
+ * (and lane times could land on the wrong stop). The kept copy is updated so
+ * this happens once. Without the token, or before F1 has filed the session,
+ * the kept copy stands, tidied.
+ */
+export async function withArchiveStops(s: LiveSnapshot | null, keep = false): Promise<LiveSnapshot | null> {
+  // F1 files a session's archive over the hour after it; read too soon, it can be partial.
+  const settled = !!s && Date.now() - Date.parse(s.at) > 3600_000;
+  if (!s || s.running || s.stopsFromArchive || !settled || !s.path || !process.env.F1TV_TOKEN?.trim()) return tidy(s);
+  const archived = await archivedSession(s.path).catch(() => null);
+  if (!archived?.pitStops?.length) return tidy(s);
+  const fixed: LiveSnapshot = { ...s, pitStops: archived.pitStops, stopsFromArchive: true };
+  if (keep) await getStore().set(`f1:session:v3:${s.sessionKey}`, fixed, { ttlSeconds: SESSION_DAYS * 86_400 }).catch(() => {});
+  return withVersions({ ...fixed, versions: undefined });
 }
 
 /** Laps a red flag held the session, from race control (a flag still out runs on). */
@@ -848,7 +889,7 @@ export async function getLive(opts: { fresh?: boolean; withLast?: boolean } = {}
   if (!info || !(inWindow(info) || overrun)) {
     const start = info ? sessionTime(info.StartDate, info.GmtOffset) : 0;
     const next = start > Date.now() ? new Date(start).toISOString() : null;
-    return { live: false, next, ...(opts.withLast ? { last: tidy(await lastSession().catch(() => null)) } : {}) };
+    return { live: false, next, ...(opts.withLast ? { last: await withArchiveStops(await lastSession().catch(() => null), true) } : {}) };
   }
 
   const store = getStore();

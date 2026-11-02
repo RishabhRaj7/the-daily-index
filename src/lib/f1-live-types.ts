@@ -105,6 +105,8 @@ export interface LivePitStop {
   utc: string;
   /** Tyres changed while a red flag held the session (no lane time: the timer ran through the stoppage). */
   redFlag?: boolean;
+  /** A stop that kept the same tyres (a penalty served, say). */
+  sameTyres?: boolean;
 }
 
 export interface LivePrediction {
@@ -182,6 +184,8 @@ export interface LiveSnapshot {
   photos?: Record<string, string>;
   stats?: LiveStats[];
   pitStops?: LivePitStop[];
+  /** A finished session's pit stops have been read again from F1's archive (stints and PitStopSeries). */
+  stopsFromArchive?: boolean;
   /** Races: each driver's position at the end of every lap. */
   lapPositions?: { code: string; colour: string; positions: number[] }[];
   /** Team radio transcripts, by clip address (filled in as they are written). */

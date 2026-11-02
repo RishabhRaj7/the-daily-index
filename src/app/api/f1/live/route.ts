@@ -1,4 +1,4 @@
-import { compact, getLive, pastSession, replay, replayTimeline, tidy, without } from "@/lib/live/f1-live";
+import { compact, getLive, pastSession, replay, replayTimeline, withArchiveStops, without } from "@/lib/live/f1-live";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 20;
@@ -39,7 +39,7 @@ export async function GET(req: Request) {
           { headers: { "Cache-Control": "no-store" } },
         );
       }
-      const last = tidy(await pastSession(past));
+      const last = await withArchiveStops(await pastSession(past));
       return Response.json({ live: false, next: null, last }, { headers: { "Cache-Control": "public, max-age=300" } });
     }
     const answer = path
