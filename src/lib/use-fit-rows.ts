@@ -12,6 +12,10 @@ import { useEffect, useRef, useState } from "react";
 //
 // Rows are the box's descendants marked `data-fit-row`. With `media`, it
 // fills only while that query matches (the wide layout); otherwise `min`.
+//
+// Measured in the page's own pixels: on big screens the page is zoomed
+// (.page-scale), and the rows' screen boxes carry that zoom while the box's
+// height doesn't, so the zoom is taken back out (it had shown 6 where 8 fit).
 
 export function useFitRows(min: number, deps: unknown[], enabled = true, media?: string): { box: React.RefObject<HTMLDivElement | null>; fit: number; minHeight: number | undefined } {
   const box = useRef<HTMLDivElement>(null);
@@ -28,8 +32,10 @@ export function useFitRows(min: number, deps: unknown[], enabled = true, media?:
       }
       const rows = [...el.querySelectorAll<HTMLElement>("[data-fit-row]")];
       if (!rows.length) return;
-      const top = el.getBoundingClientRect().top;
-      const bottoms = rows.map((r) => r.getBoundingClientRect().bottom - top);
+      const r0 = el.getBoundingClientRect();
+      // The page's zoom here: the box's screen height over its own height.
+      const z = el.offsetHeight > 0 && r0.height > 0 ? r0.height / el.offsetHeight : 1;
+      const bottoms = rows.map((r) => (r.getBoundingClientRect().bottom - r0.top) / z);
       const base = Math.ceil(bottoms[Math.min(min, rows.length) - 1]);
       setMinHeight((h) => (h !== undefined && Math.abs(h - base) < 1 ? h : base));
       let n = 0;
