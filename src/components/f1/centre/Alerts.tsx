@@ -100,7 +100,7 @@ function events(snap: LiveSnapshot, mine: Set<string>): Map<string, Omit<Alert, 
     if (!mine.has(p.code)) continue;
     out.set(`pit:${p.code}:${p.lap}`, {
       label: p.code,
-      text: `${p.code} pits on lap ${p.lap}${p.stationary !== null ? ` · ${p.stationary.toFixed(1)} s` : ""}`,
+      text: p.redFlag ? `${p.code} changes tyres under the red flag` : `${p.code} pits on lap ${p.lap}${p.stationary !== null ? ` · ${p.stationary.toFixed(1)} s` : ""}`,
       colour: snap.rows.find((r) => r.code === p.code)?.colour ?? "var(--f1-pit)",
       long: false,
       utc: p.utc,

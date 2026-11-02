@@ -500,8 +500,8 @@ export async function pitLaneFor(circuitKey: number): Promise<Lane[] | null> {
     found = await measurePitLane(path).catch(() => null);
     if (found) break;
   }
-  // No race run here yet (a new circuit): ask again in a day.
-  await store.set(pitKey(circuitKey), found ?? "none", { ttlSeconds: found ? 120 * 86_400 : 86_400 }).catch(() => {});
+  // No race run here yet (a new circuit), or F1's archive refused (no F1 TV token): ask again in an hour.
+  await store.set(pitKey(circuitKey), found ?? "none", { ttlSeconds: found ? 120 * 86_400 : 3600 }).catch(() => {});
   return found;
 }
 

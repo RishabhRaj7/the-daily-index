@@ -1,10 +1,10 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+
 import type { LiveSnapshot } from "@/lib/f1-live-types";
-import { stewardsTally, type DriverTally, type TallyKey } from "@/lib/f1-race-control";
+import type { DriverTally, TallyKey } from "@/lib/f1-race-control";
 import { TeamGlyph } from "../LiveTiming";
-import { clock, Empty, Panel } from "./ui";
+import { clock } from "./ui";
 
 // The stewards, per driver: everything race control has said about each one
 // this session, counted (lib/f1-race-control.ts, stewardsTally), for every
@@ -105,16 +105,8 @@ export function StewardIcon({ k, size = 15, className = "" }: { k: TallyKey; siz
   );
 }
 
-function Count({ k, n }: { k: TallyKey; n: number }) {
-  if (!n) return <span className="text-[color:var(--rule)]">·</span>;
-  return (
-    <span className="font-display font-extrabold text-[15px] tabular-nums" style={{ color: COLOUR[k] }}>
-      {n}
-    </span>
-  );
-}
-
-function Details({ t }: { t: DriverTally }) {
+/** Every message race control sent about one driver, newest first, with the penalties as given. */
+export function StewardDetails({ t }: { t: DriverTally }) {
   return (
     <div className="py-2.5 pl-1 pr-2">
       {t.penalties.length > 0 && (
@@ -142,121 +134,5 @@ function Details({ t }: { t: DriverTally }) {
         ))}
       </ol>
     </div>
-  );
-}
-
-export default function StewardsTable({ snap, className = "" }: { snap: LiveSnapshot; className?: string }) {
-  const rc = snap.raceControl;
-  const upTo = snap.type === "Race" ? (snap.lap?.current ?? null) : null;
-  const tally = useMemo(() => stewardsTally(rc ?? [], upTo), [rc, upTo]);
-  const teams = useMemo(() => new Map(snap.rows.map((r) => [r.code, r])), [snap.rows]);
-  const [open, setOpen] = useState<string | null>(null);
-  const sum = (k: TallyKey) => tally.reduce((n, t) => n + t.counts[k], 0);
-  // The corners catching people out.
-  const corners = useMemo(() => {
-    const by = new Map<string, number>();
-    for (const t of tally) for (const e of t.events) if (e.key === "limits") {
-      const turn = /turn (\d+)/.exec(e.text)?.[1];
-      if (turn) by.set(turn, (by.get(turn) ?? 0) + 1);
-    }
-    return [...by.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
-  }, [tally]);
-
-  return (
-    <Panel
-      id="stewards"
-      label="Stewards"
-      className={className}
-      meta={tally.length ? `${sum("limits")} track limits · ${sum("investigated")} investigated · ${sum("penalties")} penalties` : snap.session}
-    >
-      {tally.length === 0 ? (
-        <Empty>Nothing from the stewards yet this session.</Empty>
-      ) : (
-        <>
-          {corners.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5 mb-3">
-              <span className="font-label text-[9.5px] text-ink-faint mr-1">Track limits at</span>
-              {corners.map(([turn, n]) => (
-                <span key={turn} className="font-mono text-[10.5px] rounded-full border hairline px-2 py-[2px] text-ink-soft">
-                  Turn {turn} <b className="text-ink">{n}</b>
-                </span>
-              ))}
-            </div>
-          )}
-          <div className="overflow-x-auto -mx-1 px-1 [scrollbar-width:thin]">
-            {/* Driver a fixed width, the nine counts sharing the rest; on a phone it scrolls with Driver pinned. */}
-            <table className="w-full min-w-[34rem] table-fixed border-collapse text-[12px]">
-              <colgroup>
-                <col className="w-[7.5rem]" />
-                {COLUMNS.map((c) => (
-                  <col key={c.key} />
-                ))}
-              </colgroup>
-              <thead>
-                <tr className="text-ink-soft">
-                  <th className="text-left font-label font-normal text-[9.5px] text-ink-faint py-2 pr-2 sticky left-0 [background:linear-gradient(var(--card-bg),var(--card-bg)),var(--paper)]">Driver</th>
-                  {COLUMNS.map((c) => (
-                    <th key={c.key} className="font-normal py-2 px-1" title={c.tip}>
-                      <span className="inline-flex justify-center">
-                        <StewardIcon k={c.key} size={16} />
-                      </span>
-                      <span className="sr-only">{c.label}</span>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {tally.map((t) => {
-                  const row = teams.get(t.code);
-                  const isOpen = open === t.code;
-                  return (
-                    <Fragment key={t.code}>
-                      <tr
-                        className="border-t hairline cursor-pointer hover:bg-[color:color-mix(in_srgb,var(--ink)_4%,transparent)]"
-                        onClick={() => setOpen(isOpen ? null : t.code)}
-                        aria-expanded={isOpen}
-                      >
-                        <td className="py-2 pr-2 sticky left-0 [background:linear-gradient(var(--card-bg),var(--card-bg)),var(--paper)]">
-                          <span className="flex items-center gap-2 whitespace-nowrap">
-                            <TeamGlyph team={row?.team ?? ""} colour={row?.colour ?? "var(--ink-faint)"} size={14} />
-                            <b className="font-sans text-[13px]">{t.code}</b>
-                            <span className={`text-ink-faint text-[10px] transition-transform ${isOpen ? "rotate-90" : ""}`} aria-hidden="true">
-                              ›
-                            </span>
-                          </span>
-                        </td>
-                        {COLUMNS.map((c) => (
-                          <td key={c.key} className="text-center py-2 px-1">
-                            <Count k={c.key} n={t.counts[c.key]} />
-                          </td>
-                        ))}
-                      </tr>
-                      {isOpen && (
-                        <tr>
-                          <td colSpan={COLUMNS.length + 1} className="pb-1">
-                            <Details t={t} />
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          {/* the key: every mark named once */}
-          <ul className="mt-3 pt-3 border-t hairline flex flex-wrap gap-x-4 gap-y-1.5 font-mono text-[10px] text-ink-faint">
-            {COLUMNS.map((c) => (
-              <li key={c.key} className="flex items-center gap-1.5" title={c.tip}>
-                <span style={{ color: c.colour }}>
-                  <StewardIcon k={c.key} size={12} />
-                </span>
-                {c.label}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-    </Panel>
   );
 }

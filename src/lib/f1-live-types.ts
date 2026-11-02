@@ -103,6 +103,8 @@ export interface LivePitStop {
   stationary: number | null;
   lane: number | null;
   utc: string;
+  /** Tyres changed while a red flag held the session (no lane time: the timer ran through the stoppage). */
+  redFlag?: boolean;
 }
 
 export interface LivePrediction {

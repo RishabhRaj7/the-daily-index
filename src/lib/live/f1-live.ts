@@ -178,7 +178,7 @@ function trackNow(code: string, status: string, rc: LiveRaceControl[]): { tone: 
   if (!/^(Finished|Finalised|Ends)$/.test(status)) {
     // Newest first: a red flag counts until a restart or green light comes after it.
     const red = rc.findIndex((m) => m.flag === "RED" || /\bRED FLAG\b/i.test(m.message));
-    const resumed = rc.findIndex((m) => m.flag === "GREEN" || /\b(SESSION|RACE) RESUMED\b|PIT EXIT (IS )?OPEN|\b(ROLLING|STANDING) START\b|\bTRACK CLEAR\b/i.test(m.message));
+    const resumed = rc.findIndex((m) => m.flag === "GREEN" || /\b(SESSION|RACE) RESUMED\b|PIT EXIT (IS )?OPEN|\b(ROLLING|STANDING) START\b/i.test(m.message));
     if (red >= 0 && (resumed < 0 || resumed > red) && !/RESUME/i.test(rc[red].message)) return TRACK["5"];
   }
   return TRACK[code] ?? TRACK["1"];
@@ -360,7 +360,7 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
     })
     .sort((a, b) => b.utc.localeCompare(a.utc));
   const lanes = Object.values(obj(obj(state.PitLaneTimeCollection).PitTimes)).map(obj);
-  const pitStops: LivePitStop[] = series.length
+  const stops: LivePitStop[] = series.length
     ? series
     : Object.entries(app).flatMap(([no, raw]) => {
         const r = byNo.get(no);
@@ -375,6 +375,7 @@ export function parse(state: LiveState, info: CurrentSessionInfo): LiveSnapshot 
           return [{ code: r?.code ?? no, colour: r?.colour ?? "#888888", lap, stationary: null, lane: Number.isFinite(d) ? d : null, utc: "" }];
         });
       });
+  const pitStops = cleanStops(stops, raceControl);
 
   const cp = obj(state.ChampionshipPrediction);
   const teamColour = new Map(rows.map((r) => [r.team, r.colour]));
@@ -451,6 +452,37 @@ const lapSecs = (t: string): number | null => {
  * car's latest lap, filed under the lap it closed, and the lap now running if
  * it's behind a safety car, VSC or red flag.
  */
+/** Laps a red flag held the session, from race control (a flag still out runs on). */
+function redFlagLaps(rc: LiveRaceControl[]): Array<{ from: number; to: number }> {
+  const out: Array<{ from: number; to: number }> = [];
+  let open: number | null = null;
+  for (const m of [...rc].sort((a, b) => a.utc.localeCompare(b.utc))) {
+    if ((m.flag === "RED" || /\bRED FLAG\b/i.test(m.message)) && open === null) open = m.lap ?? 0;
+    else if (open !== null && (m.flag === "GREEN" || /\b(SESSION|RACE) RESUMED\b|PIT EXIT (IS )?OPEN|\b(ROLLING|STANDING) START\b/i.test(m.message))) {
+      out.push({ from: open, to: m.lap ?? open });
+      open = null;
+    }
+  }
+  if (open !== null) out.push({ from: open, to: Infinity });
+  return out;
+}
+
+/**
+ * Pit stops as the feed should show them. Under a red flag cars wait in the
+ * pit lane and may change tyres; F1's lane timer then counts the whole
+ * stoppage (2,180 s at the Mexico race), so such a stop is marked a red-flag
+ * tyre change with no lane time. Any other lane time outside 10–90 s isn't a
+ * pit stop's either and is left out.
+ */
+function cleanStops(stops: LivePitStop[], rc: LiveRaceControl[]): LivePitStop[] {
+  const red = redFlagLaps(rc);
+  return stops.map((p) => {
+    const underRed = (p.lane !== null && p.lane > 120) || red.some((w) => p.lap >= w.from && p.lap <= w.to);
+    const lane = !underRed && p.lane !== null && p.lane >= 10 && p.lane <= 90 ? p.lane : null;
+    return { ...p, lane, ...(underRed ? { redFlag: true } : {}) };
+  });
+}
+
 /**
  * Pit stops read from the stints carry no time: each keeps the time of the
  * read that first saw it, and a lane time once one arrives. Stops F1 sent
@@ -483,7 +515,9 @@ export function mergeStops(prev: LivePitStop[] | undefined, now: LivePitStop[] |
   return cur
     .map((p) => {
       const old = was.get(`${p.code}:${p.lap}`);
-      return { ...p, utc: old?.utc || (first ? utcOf(p.lap) : at), lane: p.lane ?? old?.lane ?? null };
+      // A lane time carried over only when it is a pit stop's (never under a red flag).
+      const oldLane = !p.redFlag && old?.lane != null && old.lane >= 10 && old.lane <= 90 ? old.lane : null;
+      return { ...p, utc: old?.utc || (first ? utcOf(p.lap) : at), lane: p.lane ?? oldLane };
     })
     .sort((a, b) => b.utc.localeCompare(a.utc) || b.lap - a.lap);
 }

@@ -32,6 +32,21 @@ export interface Stewards {
 const RANK: Record<IncidentState, number> = { investigating: 0, after: 1, noted: 2 };
 
 /** What the message is about: the text after the first " - ", without a trailing clock time. */
+/**
+ * F1 stamps every message about one incident with the same clock time in
+ * brackets ("(14:03:57)"): noted, under investigation, the penalty, penalty
+ * served. That stamp is the incident; the text after " - " is often missing
+ * (the Mexico race: "TURN 4 INCIDENT INVOLVING CARS 44 (HAM) AND 16 (LEC)
+ * UNDER INVESTIGATION (14:03:57)", then "5 SECOND TIME PENALTY FOR CAR 16
+ * (LEC) - LEAVING THE TRACK… (14:03:57)"), so matching by reason left that
+ * investigation open after the penalty. The reason identifies it only when
+ * there is no stamp.
+ */
+function incidentOf(msg: string, why: string): string {
+  const t = /\((\d{1,2}:\d{2}(?::\d{2})?)\)\s*$/.exec(msg)?.[1];
+  return t ? `@${t}` : why;
+}
+
 function reasonOf(msg: string): string {
   const i = msg.indexOf(" - ");
   return (i >= 0 ? msg.slice(i + 3) : "").replace(/\s*\(\d{1,2}:\d{2}:\d{2}\)\s*$/, "").trim();
@@ -52,6 +67,13 @@ function penaltyOf(msg: string): string | null {
 export function stewardsByCode(rc: LiveRaceControl[] | undefined, upToLap?: number | null): Map<string, Stewards> {
   const out = new Map<string, Stewards>();
   const open = new Map<string, Map<string, IncidentState>>();
+  /** What each open incident is about, by its key (the stamp, else the reason). */
+  const about = new Map<string, string>();
+  /** A stamped incident is one case for every car in it; one keyed by reason is the driver's own. */
+  const closeAll = (id: string, mine: Map<string, IncidentState>) => {
+    if (id.startsWith("@")) for (const m of open.values()) m.delete(id);
+    else mine.delete(id);
+  };
   const get = (code: string) => {
     let s = out.get(code);
     if (!s) {
@@ -67,6 +89,8 @@ export function stewardsByCode(rc: LiveRaceControl[] | undefined, upToLap?: numb
     const codes = [...msg.matchAll(/\b\d{1,2} \(([A-Z]{3})\)/g)].map((x) => x[1]);
     if (!codes.length) continue;
     const why = reasonOf(msg);
+    const id = incidentOf(msg, why);
+    if (why && !about.has(id)) about.set(id, why);
     for (const code of codes) {
       const s = get(code);
       const mine = open.get(code) ?? new Map<string, IncidentState>();
@@ -86,15 +110,16 @@ export function stewardsByCode(rc: LiveRaceControl[] | undefined, upToLap?: numb
           if (i >= 0) s.penalties.splice(i, 1);
         }
         s.penalties.push({ label: penaltyOf(msg)!, why: nice(why) });
-        mine.delete(why);
+        // A decision closes the incident for everyone in it (the other car isn't named in the penalty).
+        closeAll(id, mine);
       } else if (/NO FURTHER ACTION|NO FURTHER INVESTIGATION|NO INVESTIGATION NECESSARY|REVIEWED|NO ACTION/.test(msg)) {
-        mine.delete(why);
+        closeAll(id, mine);
       } else if (/WILL BE INVESTIGATED AFTER THE (RACE|SESSION)/.test(msg)) {
-        mine.set(why, "after");
+        mine.set(id, "after");
       } else if (/UNDER INVESTIGATION/.test(msg)) {
-        mine.set(why, "investigating");
-      } else if (/\bNOTED\b/.test(msg) && !mine.has(why)) {
-        mine.set(why, "noted");
+        mine.set(id, "investigating");
+      } else if (/\bNOTED\b/.test(msg) && !mine.has(id)) {
+        mine.set(id, "noted");
       }
     }
   }
@@ -108,7 +133,7 @@ export function stewardsByCode(rc: LiveRaceControl[] | undefined, upToLap?: numb
   }
   for (const [code, mine] of open) {
     const s = get(code);
-    s.incidents = [...mine].map(([why, state]) => ({ state, why: nice(why) })).sort((a, b) => RANK[a.state] - RANK[b.state]);
+    s.incidents = [...mine].map(([id, state]) => ({ state, why: nice(about.get(id) || (id.startsWith("@") ? "Incident" : id)) })).sort((a, b) => RANK[a.state] - RANK[b.state]);
   }
   for (const [code, s] of out) if (!s.penalties.length && !s.incidents.length && !s.blackWhite && !s.trackLimits) out.delete(code);
   return out;
