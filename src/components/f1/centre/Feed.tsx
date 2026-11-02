@@ -90,7 +90,7 @@ function grouped(items: Item[]): Item[] {
 const listOf = (xs: string[]) => (xs.length <= 1 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`);
 
 const matches = (it: Item, f: Filter) =>
-  f === "all" ? true : f === "radio" ? it.kind === "radio" : f === "pits" ? it.kind === "pit" : it.kind === "rc" && it.rc.kind === f;
+  f === "all" ? !(it.kind === "rc" && it.rc.quiet) : f === "radio" ? it.kind === "radio" : f === "pits" ? it.kind === "pit" : it.kind === "rc" && it.rc.kind === f;
 
 const about = (it: Item): string[] => (it.kind === "rc" ? it.rc.drivers : it.kind === "radio" ? [it.radio.code] : [it.pit.code]);
 
@@ -177,7 +177,7 @@ function PitRow({ p, tyre, t }: { p: LivePitStop; tyre: { compound: keyof typeof
       <span className="min-w-0 flex-1 pt-[3px]">
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1 font-sans text-[13px] leading-snug">
           <span>
-            <b className="font-semibold">{p.code}</b> stops on lap {p.lap}
+            <b className="font-semibold">{p.code}</b> {p.redFlag ? `changes tyres under the red flag (lap ${p.lap})` : `stops on lap ${p.lap}`}
           </span>
           {p.stationary !== null && <span className="rounded-md px-1.5 font-mono text-[10.5px] tabular-nums bg-[color:var(--rule)]">{p.stationary.toFixed(1)} s</span>}
           {p.lane !== null && <span className="font-mono text-[10.5px] text-ink-soft tabular-nums">{p.lane.toFixed(1)} s in the lane</span>}

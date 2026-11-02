@@ -48,7 +48,7 @@ export function useTrack(circuitKey: number | null | undefined): TrackModel | nu
     let live = true;
     let p = cache.get(circuitKey);
     if (!p) {
-      p = fetch(`/api/f1/track?key=${circuitKey}&v=8`)
+      p = fetch(`/api/f1/track?key=${circuitKey}&v=9`)
         .then((r) => (r.ok ? (r.json() as Promise<TrackModel>) : null))
         .catch(() => null);
       cache.set(circuitKey, p);

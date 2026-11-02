@@ -18,7 +18,7 @@ import ReplayBar, { useReplay } from "./ReplayBar";
 import { LiveDot, SessionClock, TONE, sessionLine } from "./LiveCard";
 import Feed from "./centre/Feed";
 import Analysis, { type Sub } from "./centre/Analysis";
-import StewardsTable from "./centre/StewardsTable";
+import StewardsView from "./centre/StewardsView";
 import Weekend from "./centre/Weekend";
 import { ClipNote, Speedometer, TelemetrySheet, useTelemetry } from "./centre/Telemetry";
 import { Panel, Tile } from "./centre/ui";
@@ -507,7 +507,7 @@ function LiveView({ snap, live, replay, replayT }: { snap: LiveSnapshot; live: b
         </div>
       </Panel>
       {/* Every session: what the stewards have said about each driver. */}
-      <StewardsTable snap={snap} className="order-4 lg:col-span-2" />
+      <StewardsView snap={snap} className="order-4 lg:col-span-2" />
     </div>
   );
 }

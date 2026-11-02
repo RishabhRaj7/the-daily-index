@@ -400,7 +400,8 @@ export async function getIpoBoard(): Promise<IpoEntry[]> {
 //   after the last bidding day   until the final figure is in, every 15 minutes
 //   otherwise                    never (the kept figure stands)
 
-const SUB_KEY = (id: string) => `ipo:sub:v2:${id}`;
+// v3: at the upper price band (upperBandFactor).
+const SUB_KEY = (id: string) => `ipo:sub:v3:${id}`;
 const SUB_EVERY_MS = 15 * 60_000;
 
 interface KeptSubscription {
@@ -446,7 +447,7 @@ async function subscriptionFor(e: IpoEntry, today: string, now = Date.now()): Pr
   return next;
 }
 
-type NseRow = { category?: string; noOfTime?: string | number; noOfTotalMeant?: string | number };
+type NseRow = { category?: string; noOfTime?: string | number; noOfTotalMeant?: string | number; noOfShareOffered?: string | number; noOfSharesBid?: string | number };
 
 // The main categories only; NSE nests sub-rows under each.
 const CATEGORIES: Array<[RegExp, string]> = [
@@ -460,14 +461,35 @@ const CATEGORIES: Array<[RegExp, string]> = [
   [/^Total$/i, "Total"],
 ];
 
-/** Category-wise times subscribed from NSE's consolidated table (NSE's own table only if that is missing). */
+/**
+ * NSE counts each category's shares at the price band's lower end (its
+ * reserved amount ÷ the lower price), so its "times" run below the figure
+ * Chittorgarh, InvestorGain and the press quote, which count them at the
+ * upper end (where an issue is almost always priced): ₹78–₹82 puts NSE's
+ * 3.78× against their 3.98×, the same bids. The bids are re-divided at the
+ * upper price; without a readable band, NSE's own figure stands.
+ */
+function upperBandFactor(d: NseDetail): number | null {
+  const band = (d.issueInfo?.dataList ?? []).find((x) => /Price Range/i.test(x.title ?? ""))?.value ?? "";
+  const prices = [...band.replace(/,/g, "").matchAll(/(\d+(?:\.\d+)?)/g)].map((m) => Number(m[1])).filter((n) => n > 0);
+  if (prices.length < 2) return null;
+  const lower = Math.min(...prices);
+  const upper = Math.max(...prices);
+  return upper > lower && upper / lower < 1.5 ? lower / upper : null;
+}
+
+/** Category-wise times subscribed from NSE's consolidated table (NSE's own table only if that is missing), at the upper price band. */
 function categoriesOf(d: NseDetail): { categories: Array<{ category: string; times: number }>; asOf: string | null } {
   const consolidated = (d.activeCat?.dataList ?? []).filter((r) => r.srNo !== "Sr.No.");
   const rows: NseRow[] = consolidated.length ? consolidated : (d.bidDetails ?? []);
+  const factor = upperBandFactor(d);
   const categories: Array<{ category: string; times: number }> = [];
   for (const [re, label] of CATEGORIES) {
     const row = rows.find((r) => re.test(r.category ?? ""));
-    const times = num(String(row?.noOfTotalMeant ?? row?.noOfTime ?? ""));
+    const offered = num(String(row?.noOfShareOffered ?? ""));
+    const bid = num(String(row?.noOfSharesBid ?? ""));
+    const upper = factor && offered && bid !== null ? bid / (offered * factor) : null;
+    const times = upper ?? num(String(row?.noOfTotalMeant ?? row?.noOfTime ?? ""));
     if (row && times !== null && !categories.some((c) => c.category === label)) categories.push({ category: label, times });
   }
   return { categories, asOf: consolidated.length ? nseAsOf(d.activeCat?.updateTime) : null };
@@ -501,7 +523,7 @@ async function nseSubscription(symbol: string): Promise<Omit<KeptSubscription, "
 interface NseDetail {
   bidDetails?: Array<{ category?: string; noOfTime?: string | number; noOfSharesOffered?: string; noOfsharesBid?: string }>;
   /** NSE and BSE bids together; the first row repeats the column names. */
-  activeCat?: { updateTime?: string; dataList?: Array<{ category?: string; noOfTotalMeant?: string; srNo?: string | null }> };
+  activeCat?: { updateTime?: string; dataList?: Array<{ category?: string; noOfTotalMeant?: string; noOfShareOffered?: string; noOfSharesBid?: string; srNo?: string | null }> };
   issueInfo?: { dataList?: Array<{ title?: string | null; value?: string | null }> };
 }
 

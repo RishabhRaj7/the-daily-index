@@ -296,7 +296,7 @@ function IpoSheet({ ipo, onClose }: { ipo: IpoEntry; onClose: () => void }) {
         <section>
           <div className="flex items-baseline justify-between mb-3">
             <h3 className="font-label text-[10px] text-ink-soft">Subscription</h3>
-            <span className="font-mono text-[10px] text-ink-faint">{detail ? `NSE + BSE${asOf(d.subscriptionUpdated) ? ` · as of ${asOf(d.subscriptionUpdated)}` : ""}` : ""}</span>
+            <span className="font-mono text-[10px] text-ink-faint">{detail ? `NSE + BSE · at the upper price band${asOf(d.subscriptionUpdated) ? ` · as of ${asOf(d.subscriptionUpdated)}` : ""}` : ""}</span>
           </div>
           {!detail && !failed ? (
             <div className="space-y-2 animate-pulse">

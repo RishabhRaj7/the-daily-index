@@ -25,6 +25,8 @@ export interface RcItem {
   cleared?: string;
   /** Noise worth hiding from "All" (blue flags). */
   minor?: boolean;
+  /** Shown under its own filter only, never in "All" (a clear with no yellow left to close). */
+  quiet?: boolean;
 }
 
 const lower = (s: string) => s.toLowerCase().replace(/ - /g, ", ").replace(/track sector/g, "sector").replace(/\bdrs\b/g, "DRS").replace(/\bvsc\b/g, "VSC").replace(/\bfia\b/g, "FIA").replace(/race directors/g, "race director's");
@@ -46,7 +48,14 @@ const status = (s: string) => {
 };
 
 const INCIDENT =
-  /^(FIA STEWARDS: )?(?:(.+?) )?INCIDENT INVOLVING CARS? (.+?) (NOTED|UNDER INVESTIGATION|WILL BE INVESTIGATED AFTER THE (?:RACE|SESSION|SPRINT)|REVIEWED NO FURTHER (?:INVESTIGATION|ACTION)|NO FURTHER (?:ACTION|INVESTIGATION)) - (.+)$/;
+  /^(FIA STEWARDS: )?(?:(.+?) )?INCIDENT INVOLVING CARS? (.+?) (NOTED|UNDER INVESTIGATION|WILL BE INVESTIGATED AFTER THE (?:RACE|SESSION|SPRINT)|REVIEWED NO FURTHER (?:INVESTIGATION|ACTION)|NO FURTHER (?:ACTION|INVESTIGATION))(?: - (.+))?$/;
+/**
+ * The clock time F1 puts in brackets on every message about one incident
+ * ("(14:03:57)"): the incident's own key, since the reason after " - " is
+ * often left out ("… INCIDENT INVOLVING CARS 44 (HAM) AND 16 (LEC) UNDER
+ * INVESTIGATION (14:03:57)").
+ */
+const stampOf = (s: string): string | null => /\((\d{1,2}:\d{2}(?::\d{2})?)\)\s*$/.exec(s.trim())?.[1] ?? null;
 const PENALTY = /^FIA STEWARDS: (PENALTY SERVED - )?(.+?(?:PENALTY|REPRIMAND|WARNING|DISQUALIFIED|DISQUALIFICATION)(?: \([A-Z ]+\))?) (?:FOR|TO) CARS? \d+ \((\w{3})\)(?: - (.+))?$/;
 const DELETED = /^CAR \d+ \((\w{3})\) (?:TIME ([\d:.]+) DELETED|LAP DELETED) - (.+?) AT TURN (\d+) LAP (\d+)/;
 const BLUE = /^WAVED BLUE FLAG FOR CAR \d+ \((\w{3})\)/;
@@ -65,7 +74,7 @@ function read(m: LiveRaceControl, numbers: Map<string, string>): RcItem {
   if ((x = INCIDENT.exec(raw))) {
     const [, , where, cars, st, why] = x;
     const ds = codes(cars);
-    return { ...base, kind: "stewards", tone: "stewards", drivers: ds, text: `${and(ds)}${where ? `, ${lower(where)}` : ""}, ${lower(why)}: ${status(st)}` };
+    return { ...base, kind: "stewards", tone: "stewards", drivers: ds, text: `${and(ds)}${where ? `, ${lower(where)}` : ""}${why ? `, ${lower(why)}` : ", incident"}: ${status(st)}` };
   }
   if ((x = PENALTY.exec(raw))) {
     const [, served, what, code, why] = x;
@@ -99,22 +108,44 @@ function read(m: LiveRaceControl, numbers: Map<string, string>): RcItem {
 /** Every message, newest first, read plainly; a yellow carries its all-clear. */
 export function readRaceControl(items: LiveRaceControl[], numbers: Map<string, string> = new Map()): RcItem[] {
   const read_ = items.map((m) => read(m, numbers));
-  // Oldest first, to fold each sector's clear into the yellow before it.
+  // Oldest first, to fold each sector's flags into one line: yellows thrown
+  // together (within 15 s) in neighbouring sectors are one incident ("Double
+  // yellow in sectors 15 and 16"), a yellow upgraded to a double yellow is the
+  // same line upgraded, and the clears close it ("cleared 21:35"). A clear
+  // with no yellow left to close (thrown before the list begins) is kept for
+  // the Flags filter only (`quiet`).
   const out: RcItem[] = [];
-  const open = new Map<string, RcItem>();
+  const open = new Map<string, { item: RcItem; sectors: Set<string>; waiting: Set<string>; double: boolean }>();
+  const label = (g: { sectors: Set<string>; double: boolean }) => {
+    const s = [...g.sectors].sort((a, b) => Number(a) - Number(b));
+    return `${g.double ? "Double yellow" : "Yellow"} in sector${s.length > 1 ? "s" : ""} ${s.length > 1 ? `${s.slice(0, -1).join(", ")} and ${s.at(-1)}` : s[0]}`;
+  };
   for (const it of [...read_].reverse()) {
     const sector = /in sector (\d+)$/.exec(it.text)?.[1];
     if (sector && it.tone === "green") {
-      const y = open.get(sector);
-      if (y) {
-        y.cleared = it.utc;
+      const g = open.get(sector);
+      if (g) {
+        g.waiting.delete(sector);
         open.delete(sector);
-        continue;
-      }
+        if (g.waiting.size === 0) g.item.cleared = it.utc;
+      } else out.push({ ...it, quiet: true });
+      continue;
     }
     if (sector && it.tone === "yellow") {
-      // A double yellow after a yellow in the same sector: the newer one stands.
-      open.set(sector, it);
+      const double = /^Double/.test(it.text);
+      const same = open.get(sector);
+      // Another yellow still out, thrown moments ago: the same incident.
+      const near = same ?? [...open.values()].find((g) => Date.parse(it.utc) - Date.parse(g.item.utc) <= 15_000);
+      if (near) {
+        near.sectors.add(sector);
+        near.waiting.add(sector);
+        near.double = near.double || double;
+        open.set(sector, near);
+        near.item.text = label(near);
+        continue;
+      }
+      const g = { item: it, sectors: new Set([sector]), waiting: new Set([sector]), double };
+      open.set(sector, g);
     }
     out.push(it);
   }
@@ -143,11 +174,13 @@ export function stewardsCases(items: LiveRaceControl[]): StewardsCase[] {
   for (const m of [...items].reverse()) {
     const raw = m.message.trim().replace(stamp, "");
     let x: RegExpExecArray | null;
+    const tag = stampOf(m.message);
     if ((x = INCIDENT.exec(raw))) {
-      const [, , where, cars, st, why] = x;
+      const [, , where, cars, st, why = ""] = x;
       const ds = codes(cars);
-      const key = `${[...ds].sort().join(",")}|${lower(why)}`;
+      const key = tag ? `@${tag}` : `${[...ds].sort().join(",")}|${lower(why)}`;
       const c = cases.get(key) ?? { drivers: ds, where: where ? cap(lower(where)) : null, reason: lower(why), status: "", decided: false, penalty: null, served: false, utc: m.utc };
+      if (why && !c.reason) c.reason = lower(why);
       c.status = status(st);
       c.decided = /no further/.test(c.status);
       c.utc = m.utc;
@@ -155,7 +188,10 @@ export function stewardsCases(items: LiveRaceControl[]): StewardsCase[] {
     } else if ((x = PENALTY.exec(raw))) {
       const [, served, what, code, why] = x;
       const reason = why ? lower(why) : "";
-      const found = [...cases.entries()].find(([, c]) => c.drivers.includes(code) && (!reason || c.reason === reason));
+      // The incident it decides: the one with the same stamp, else the same driver and reason.
+      const byTag = tag ? cases.get(`@${tag}`) : undefined;
+      const found: [string, StewardsCase] | undefined = byTag ? [`@${tag}`, byTag] : [...cases.entries()].find(([, c]) => c.drivers.includes(code) && (!reason || c.reason === reason));
+      if (found && reason && !found[1].reason) found[1].reason = reason;
       const c = found?.[1] ?? { drivers: [code], where: null, reason, status: "", decided: true, penalty: null, served: false, utc: m.utc };
       c.penalty = lower(what);
       c.decided = true;
@@ -271,11 +307,12 @@ export function stewardsTally(items: LiveRaceControl[] | undefined, upToLap?: nu
       add(code, limits ? "limits" : "deleted", m, `${cap(lower(why))}, turn ${turn}, lap ${lap}`);
     } else if ((x = BW.exec(raw))) {
       add(x[1], "blackWhite", m, `Black and white flag${x[2] ? `, ${lower(x[2].replace(stamp, ""))}` : ""}`);
-    } else if ((x = INCIDENT.exec(raw))) {
-      const [, , where, cars, st, why] = x;
-      const incident = `${codes(cars).sort().join(",")}|${why}`;
+    } else if ((x = INCIDENT.exec(raw.replace(stamp, "")))) {
+      const [, , where, cars, st, why = ""] = x;
+      const tag = stampOf(raw);
+      const incident = tag ? `@${tag}` : `${codes(cars).sort().join(",")}|${why}`;
       const step: TallyKey = /^NOTED$/.test(st) ? "noted" : NFA.test(st) ? "cleared" : "investigated";
-      const label = `${cap(lower(why.replace(stamp, "")))}${where ? ` (${lower(where)})` : ""}: ${status(st)}`;
+      const label = `${why ? cap(lower(why)) : "Incident"}${where ? ` (${lower(where)})` : ""}: ${status(st)}`;
       for (const code of codes(cars)) if (once(code, incident, step)) add(code, step, m, label);
     } else if ((x = SANCTION.exec(raw)) && /PENALTY|REPRIMAND|WARNING|DISQUALIF/.test(x[2])) {
       const [, served, what, cars, why] = x;
