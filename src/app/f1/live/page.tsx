@@ -9,15 +9,19 @@ export const metadata = { title: "Live centre — The Daily Index" };
 // the page — full timing with sectors, strategy, race control, team radio,
 // the projected title fight and the weather. Reached from the live timing
 // card; between sessions it says when the next one starts.
+// The top bar and the page are zoomed together on big screens (one
+// .page-scale wrapper, as on the front page), so their edges line up.
 
 export default async function LivePage() {
   const schedule = await getF1Schedule().catch(() => null);
   return (
     <>
+      <div className="page-scale flex-1 flex flex-col w-full">
       <TopBar sections={[]} alwaysShowLogo />
-      <main className="flex-1 page-scale page-wrap px-4 sm:px-6 pt-8 pb-28 w-full" style={{ ["--section-hue" as string]: "var(--hue-f1)" }}>
+      <main className="flex-1 page-wrap px-4 sm:px-6 pt-8 pb-28 w-full" style={{ ["--section-hue" as string]: "var(--hue-f1)" }}>
         <LiveCentre race={schedule?.nextRace ?? null} />
       </main>
+      </div>
     </>
   );
 }

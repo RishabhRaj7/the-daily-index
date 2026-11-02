@@ -14,6 +14,8 @@ export const metadata = { title: "The Archive — The Daily Index" };
 // The archive as a stack of back issues: each day's front page in one line —
 // its lead story, the next two headlines, how many stories ran in each desk,
 // and how the market closed that day. Newest first, the latest one large.
+// The top bar and the page are zoomed together on big screens (one
+// .page-scale wrapper, as on the front page), so their edges line up.
 
 const SHOWN = 60;
 
@@ -117,8 +119,9 @@ export default async function ArchivePage() {
 
   return (
     <>
+      <div className="page-scale flex-1 flex flex-col w-full">
       <TopBar sections={[]} isArchive alwaysShowLogo />
-      <main className="flex-1 page-scale page-wrap px-4 sm:px-6 pt-10 pb-28 w-full">
+      <main className="flex-1 page-wrap px-4 sm:px-6 pt-10 pb-28 w-full">
         <Link href="/" className="chip mb-10">
           <span aria-hidden="true">←</span> Back to today&rsquo;s edition
         </Link>
@@ -159,6 +162,7 @@ export default async function ArchivePage() {
           </>
         )}
       </main>
+      </div>
 
       {/* Always a way home, however far down the calendar the reader is. */}
       <Link
