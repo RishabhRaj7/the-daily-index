@@ -452,6 +452,11 @@ const lapSecs = (t: string): number | null => {
  * car's latest lap, filed under the lap it closed, and the lap now running if
  * it's behind a safety car, VSC or red flag.
  */
+/** A session kept by older code, served with today's reading of its pit stops (red-flag tyre changes, lane times). */
+export function tidy(s: LiveSnapshot | null): LiveSnapshot | null {
+  return s?.pitStops?.length ? { ...s, pitStops: cleanStops(s.pitStops, s.raceControl ?? []) } : s;
+}
+
 /** Laps a red flag held the session, from race control (a flag still out runs on). */
 function redFlagLaps(rc: LiveRaceControl[]): Array<{ from: number; to: number }> {
   const out: Array<{ from: number; to: number }> = [];
@@ -843,7 +848,7 @@ export async function getLive(opts: { fresh?: boolean; withLast?: boolean } = {}
   if (!info || !(inWindow(info) || overrun)) {
     const start = info ? sessionTime(info.StartDate, info.GmtOffset) : 0;
     const next = start > Date.now() ? new Date(start).toISOString() : null;
-    return { live: false, next, ...(opts.withLast ? { last: await lastSession().catch(() => null) } : {}) };
+    return { live: false, next, ...(opts.withLast ? { last: tidy(await lastSession().catch(() => null)) } : {}) };
   }
 
   const store = getStore();
