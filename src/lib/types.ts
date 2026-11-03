@@ -135,6 +135,8 @@ export interface IpoEntry {
   subscriptionAt?: string | null;
   gmpUrl: string | null;
   stage: IpoStage;
+  /** Last day (IST) NSE's current list or the GMP table named it; absent on boards stored before Round 18. */
+  lastSeen?: string;
 }
 
 export interface IpoDetail extends IpoEntry {

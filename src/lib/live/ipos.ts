@@ -11,7 +11,10 @@
 //
 // The board is kept in the store, so an IPO that has dropped off both
 // sources' "current" lists stays until two days after it lists, and each
-// IPO's GMP is recorded once a day to draw its trend.
+// IPO's GMP is recorded once a day to draw its trend. NSE's past-issues list
+// fills a symbol and dates the board is missing; names are matched across
+// sources allowing for a prefix or a small typo (sameIpo); and an entry with
+// no listing date that no source has named for ten days is dropped.
 
 import type { IpoDetail, IpoEntry, IpoStage } from "@/lib/types";
 import { stageOf } from "@/lib/ipo-order";
@@ -28,6 +31,8 @@ const GMP_PAGE = "https://www.investorgain.com/report/live-ipo-gmp/331/";
 const DAY = 86_400_000;
 /** How long a listed IPO stays on the board. */
 const KEEP_AFTER_LISTING_DAYS = 2;
+/** How long an IPO with no listing date stays once neither source names it. */
+const ORPHAN_AFTER_DAYS = 10;
 const BOARD_KEY = "ipo:board";
 const GMP_KEY = (id: string) => `ipo:gmp:${id}`;
 
@@ -96,10 +101,17 @@ async function nseIssues(): Promise<NseIssue[]> {
   }
 }
 
-/** Symbols of issues NSE has already closed or listed, by company id — for
- *  IPOs the board only knows from the GMP table (listing-day prices need
- *  the symbol). */
-async function nsePastSymbols(): Promise<Map<string, string>> {
+interface PastIssue {
+  symbol: string;
+  open: string | null;
+  close: string | null;
+  listing: string | null;
+}
+
+/** Issues NSE has already closed or listed, by company id: the symbol
+ *  (listing-day prices need it) and the dates, for IPOs the board only knows
+ *  from the GMP table or knows without dates. */
+async function nsePastIssues(): Promise<Map<string, PastIssue>> {
   try {
     const res = await fetch("https://www.nseindia.com/api/public-past-issues", {
       headers: NSE_HEADERS,
@@ -107,16 +119,64 @@ async function nsePastSymbols(): Promise<Map<string, string>> {
       signal: AbortSignal.timeout(12_000),
     });
     if (!res.ok) return new Map();
-    const rows = (await res.json()) as Array<{ company?: string; symbol?: string; securityType?: string }>;
+    const rows = (await res.json()) as Array<{
+      company?: string;
+      symbol?: string;
+      securityType?: string;
+      ipoStartDate?: string;
+      ipoEndDate?: string;
+      listingDate?: string;
+    }>;
     return new Map(
       rows
         .slice(0, 150)
         .filter((r) => r.company && r.symbol && r.securityType === "EQ")
-        .map((r) => [ipoId(r.company!), r.symbol!]),
+        .map((r) => [
+          ipoId(r.company!),
+          { symbol: r.symbol!, open: toIso(r.ipoStartDate), close: toIso(r.ipoEndDate), listing: toIso(r.listingDate) },
+        ]),
     );
   } catch {
     return new Map();
   }
+}
+
+// ---- matching names ------------------------------------------------------------
+//
+// The sources spell names their own way: "Acevector" against "AceVector
+// Limited" (one starts the other), or a typo, "Bonfigloli" against
+// "Bonfiglioli" (a letter or two apart). Short ids must match exactly, so
+// two small names never merge.
+
+const FUZZY_MIN_LENGTH = 10;
+const FUZZY_MAX_EDITS = 2;
+
+/** Edit distance, giving up once it passes `max`. */
+function editsWithin(a: string, b: string, max: number): boolean {
+  if (Math.abs(a.length - b.length) > max) return false;
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const row = [i];
+    for (let j = 1; j <= b.length; j++) {
+      row[j] = Math.min(prev[j] + 1, row[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    if (Math.min(...row) > max) return false;
+    prev = row;
+  }
+  return prev[b.length] <= max;
+}
+
+/** Whether two ids name the same company. */
+export function sameIpo(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (a.startsWith(b) || b.startsWith(a)) return true;
+  return Math.min(a.length, b.length) >= FUZZY_MIN_LENGTH && editsWithin(a, b, FUZZY_MAX_EDITS);
+}
+
+/** The key in `keys` naming the same company as `id`, an exact match first. */
+function findSame(id: string, keys: Iterable<string>): string | undefined {
+  const all = [...keys];
+  return all.includes(id) ? id : all.find((k) => sameIpo(k, id));
 }
 
 // ---- GMP table -----------------------------------------------------------------
@@ -274,15 +334,18 @@ function addWorkingDays(iso: string, days: number): string {
 export async function getIpoBoard(): Promise<IpoEntry[]> {
   const today = istToday();
   const stored = await getStore().get<Record<string, IpoEntry>>(BOARD_KEY).catch(() => null);
-  const [nse, gmp, pastSymbols] = await Promise.all([
+  const [nse, gmp, pastIssues] = await Promise.all([
     nseIssues(),
     gmpRows(Object.values(stored ?? {})),
-    nsePastSymbols(),
+    nsePastIssues(),
   ]);
   // Re-key what was stored, so a change in how names are matched never
-  // leaves the same IPO on the board twice.
+  // leaves the same IPO on the board twice. An entry stored before lastSeen
+  // was kept counts as seen today.
   const board: Record<string, IpoEntry> = {};
-  for (const e of Object.values(stored ?? {})) board[ipoId(e.name)] = { ...e, id: ipoId(e.name) };
+  for (const e of Object.values(stored ?? {})) {
+    board[ipoId(e.name)] = { ...e, id: ipoId(e.name), lastSeen: e.lastSeen ?? today };
+  }
 
   for (const n of nse) {
     const id = ipoId(n.companyName);
@@ -307,15 +370,15 @@ export async function getIpoBoard(): Promise<IpoEntry[]> {
       gmpUrl: prev?.gmpUrl ?? null,
       stage: "upcoming",
       listingEstimated: prev?.listingEstimated ?? true,
+      lastSeen: today,
     };
   }
 
   for (const g of gmp) {
     const id = ipoId(g.name);
-    // The GMP table lists names in its own style ("Acevector"); match by id
-    // or by an NSE name that starts the same way.
-    const key =
-      board[id] ? id : Object.keys(board).find((k) => k.startsWith(id) || id.startsWith(k)) ?? id;
+    // The GMP table lists names in its own style ("Acevector", or a typo);
+    // match it to the board's spelling (sameIpo).
+    const key = findSame(id, Object.keys(board)) ?? id;
     const prev = board[key];
     board[key] = {
       id: key,
@@ -334,17 +397,27 @@ export async function getIpoBoard(): Promise<IpoEntry[]> {
       subscription: g.subscription ?? prev?.subscription ?? null,
       gmpUrl: g.href ?? prev?.gmpUrl ?? null,
       stage: "upcoming",
+      lastSeen: today,
     };
   }
 
-  // Fill what is still unknown (SEBI's T+3: allotment the next working
-  // day after closing, listing three), work out each stage, and drop IPOs
-  // that listed more than two days ago.
+  // Fill what is still unknown (NSE's past issues for the symbol and the
+  // dates; then SEBI's T+3: allotment the next working day after closing,
+  // listing three), work out each stage, and drop IPOs that listed more than
+  // two days ago, and any with no listing date that no source has named for
+  // ORPHAN_AFTER_DAYS (a stray spelling the sources stopped using).
   const out: IpoEntry[] = [];
   for (const e of Object.values(board)) {
-    if (!e.symbol) {
-      const key = [...pastSymbols.keys()].find((k) => k === e.id || k.startsWith(e.id) || e.id.startsWith(k));
-      if (key) e.symbol = pastSymbols.get(key)!;
+    const pastKey = findSame(e.id, pastIssues.keys());
+    const past = pastKey ? pastIssues.get(pastKey) : undefined;
+    if (past) {
+      e.symbol ??= past.symbol;
+      e.open ??= past.open;
+      e.close ??= past.close;
+      if (!e.listing && past.listing) {
+        e.listing = past.listing;
+        e.listingEstimated = false;
+      }
     }
     if (e.close && !e.allotment) e.allotment = addWorkingDays(e.close, 1);
     if (e.close && !e.listing) {
@@ -353,7 +426,8 @@ export async function getIpoBoard(): Promise<IpoEntry[]> {
     }
     e.stage = stageOf(e, today);
     const done = e.listing && Date.parse(today) - Date.parse(e.listing) > KEEP_AFTER_LISTING_DAYS * DAY;
-    if (!done) out.push(e);
+    const orphan = !e.listing && !!e.lastSeen && Date.parse(today) - Date.parse(e.lastSeen) > ORPHAN_AFTER_DAYS * DAY;
+    if (!done && !orphan) out.push(e);
   }
   out.sort((a, b) => (a.open ?? "9").localeCompare(b.open ?? "9"));
 
