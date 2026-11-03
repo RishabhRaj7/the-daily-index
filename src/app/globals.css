@@ -784,8 +784,23 @@ html[data-edition="evening"] .invert-evening { filter: invert(1) hue-rotate(180d
     pointer-events: none;
   }
 }
+/* The way out (Sheet.tsx adds .sheet-closing, then unmounts on the panel's
+   animationend): the backdrop fades, the panel sinks on a desktop and drops
+   back off the bottom edge on a phone. Quicker than the way in. */
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes sheet-sink { to { opacity: 0; transform: translateY(16px) scale(0.98); } }
+@keyframes sheet-fall { to { transform: translateY(100%); } }
+.sheet-scale.sheet-closing {
+  pointer-events: none;
+  animation: fade-out 0.26s ease-in forwards;
+}
+.sheet-closing .sheet-panel { animation: sheet-sink 0.2s cubic-bezier(0.4, 0, 1, 1) forwards; }
+@media (max-width: 639.98px) {
+  .sheet-closing .sheet-panel { animation: sheet-fall 0.26s cubic-bezier(0.4, 0, 1, 1) forwards; }
+}
 @media (prefers-reduced-motion: reduce) {
-  .sheet-panel { animation: none; }
+  .sheet-panel,
+  .sheet-closing .sheet-panel { animation: none; }
 }
 
 /* "Why it matters": the one line after a summary. Hidden unless the
