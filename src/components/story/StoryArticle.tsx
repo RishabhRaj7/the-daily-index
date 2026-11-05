@@ -6,9 +6,13 @@ import StatCallout from "./StatCallout";
 import Ago from "@/components/extras/Ago";
 import CoverArt from "./CoverArt";
 import StoryOdds from "./StoryOdds";
+import CopyTag from "./CopyTag";
 import { SECTION_META } from "@/lib/sections";
 import ShareButton from "@/components/extras/ShareButton";
 import { recordEngagement } from "@/lib/reader-memory";
+
+// One story as a section prints it. A paragraph Gemini didn't write is labelled
+// (CopyTag), and when there's nothing fit to print the headline stands alone.
 
 export default function StoryArticle({
   story,
@@ -52,6 +56,7 @@ export default function StoryArticle({
             <Ago iso={story.postedAt} fallback={story.lastUpdated} />
             {story.readTimeMin > 1 ? ` · ${story.readTimeMin} min` : ""}
           </span>
+          <CopyTag copy={story.copy} />
         </div>
       </div>
 
@@ -88,7 +93,7 @@ export default function StoryArticle({
           lead ? "text-[16px] md:text-[17px]" : "text-[15px]"
         }`}
       >
-        <p className={lead ? "drop-cap" : undefined}>{firstParagraph}</p>
+        {firstParagraph && <p className={lead ? "drop-cap" : undefined}>{firstParagraph}</p>}
         {story.why && (
           <p className="why-line font-headline italic text-[15px] leading-snug text-ink break-inside-avoid-column">
             <span className="font-label not-italic text-[10px] text-ink-soft block mb-0.5">Why it matters</span>

@@ -52,13 +52,20 @@ reader preferences (browser)   ─┘                     (Gemini)              
 - **The AI never invents links.** It picks articles by index from the corpus,
   and the server fills in real titles and URLs. Without an API key, a
   deterministic fallback still produces a paper.
+- **Failures show on the page.** Gemini is retried, a few stories at a time, and
+  a rebuild that comes out worse never replaces a good paper. If it still can't
+  write a story, a notice at the top says how many and why, with "Try now"; the
+  story is labelled "Summary pending", and its summary appears by itself once
+  Gemini is back, without a reload.
 - **Live data is fetched client-side** where it changes quickly: markets every
   minute (`/api/markets`), weather from Open-Meteo, F1 standings in stages
   (`/api/f1`).
 
 - **Every build reports on itself.** Each feed's result, stage timings, the
-  corpus by pool, full-text and link-decoding counts, and anything degraded:
-  a summary on `/api/health`, the full report at `/api/health?report=1`.
+  corpus by pool, full-text and link-decoding counts, which stories Gemini
+  didn't write and why, and anything degraded: a summary on `/api/health`, the
+  full report at `/api/health?report=1` (`&date=` for another day, `&hash=` for
+  another edition; yours is in the `daily-index:edition` cookie).
 
 `ARCHITECTURE.md` has the full design notes and a table of what is fetched
 where, when, and where it is stored.
@@ -73,8 +80,9 @@ cp .env.example .env.local   # then fill in what you need (see below)
 npm run dev                  # http://localhost:3000
 ```
 
-The paper runs with an empty `.env.local`: summaries fall back to RSS text,
-editions live in memory until the dev server restarts, and Reddit is off.
+The paper runs with an empty `.env.local`: summaries fall back to RSS text (and
+the page says AI writing is off), editions live in memory until the dev server
+restarts, and Reddit is off.
 
 ### Environment variables
 

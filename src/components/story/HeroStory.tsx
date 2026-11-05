@@ -5,13 +5,16 @@ import { SECTION_META } from "@/lib/sections";
 import StatCallout from "./StatCallout";
 import Ago from "@/components/extras/Ago";
 import CoverArt from "./CoverArt";
+import CopyTag from "./CopyTag";
 import ShareButton from "@/components/extras/ShareButton";
 import { recordEngagement } from "@/lib/reader-memory";
 
 // The lead story: kicker, a headline sized to its length (a long one never
 // runs past about four lines), the standfirst and why it matters, with the
 // generated plate beside it. The full story is a click away, so the front
-// page carries the news, not the article.
+// page carries the news, not the article. A paragraph Gemini didn't write is
+// labelled (CopyTag), though format.ts only leads with one when nothing else
+// is written.
 
 function headlineSize(text: string): string {
   const n = text.length;
@@ -47,6 +50,7 @@ export default function HeroStory({ story }: { story: Story }) {
           {story.personal && (
             <span className="rounded-full px-2 py-0.5 bg-signal text-signal-ink text-[10px]">For you · {story.personal}</span>
           )}
+          <CopyTag copy={story.copy} />
         </div>
 
         <h2 className={`font-headline font-normal leading-[1.04] tracking-[-0.02em] text-balance ${headlineSize(story.headline)}`}>

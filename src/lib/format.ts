@@ -11,7 +11,8 @@ export function allStories(edition: Edition): Story[] {
 
 // A promoted-wire story with a one-sentence RSS teaser shouldn't get the
 // oversized drop-cap "Today's Lead" treatment — that's reserved for stories
-// with enough real content to justify it.
+// with enough real content to justify it. Gemini's own short paragraphs are
+// the exception: they still outrank anyone's raw text.
 const MIN_HERO_BODY_CHARS = 250;
 
 function bodyLength(story: Story): number {
@@ -32,10 +33,21 @@ export function pickHeroStory(
   const all = allStories(edition).filter((s) => s.section !== "two-cities");
   const promoted = all.find((s) => s.promoted);
   if (promoted) return promoted;
-  const eligible = all.filter((s) => bodyLength(s) >= MIN_HERO_BODY_CHARS);
   const score = (s: Story) =>
     s.significance + (preferPersonal && s.personal ? PERSONAL_HERO_BOOST : 0);
-  return [...eligible].sort((a, b) => score(b) - score(a))[0];
+  const best = (stories: Story[]) => [...stories].sort((a, b) => score(b) - score(a))[0];
+  const long = (stories: Story[]) => stories.filter((s) => bodyLength(s) >= MIN_HERO_BODY_CHARS);
+  // Who wrote it comes before how interesting it is: the lead is the one story
+  // nobody misses, so it goes to Gemini's writing whenever any exists, then to
+  // a story still waiting for it, and raw feed text only as a last resort.
+  // (Absent `copy` is an edition from before stories said who wrote them.)
+  const written = all.filter((s) => s.copy === "written" || s.copy === undefined);
+  return (
+    best(long(written)) ??
+    best(written.filter((s) => bodyLength(s) > 0)) ??
+    best(long(all.filter((s) => s.copy === "pending"))) ??
+    best(long(all))
+  );
 }
 
 export function formatIssue(volume: number, issue: number): string {

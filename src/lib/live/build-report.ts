@@ -2,9 +2,10 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 // What one edition build did, measured as it runs: every feed it read (ok,
 // items, how many survived the age window, time, error), each stage's time,
-// the corpus by pool, how full text and Google link decoding went, and the
-// copy checks on the model's writing. Stored beside the edition so "why is
-// today thin?" has an answer without reading function logs.
+// the corpus by pool, how full text and Google link decoding went, the copy
+// checks on the model's writing, and which stories it failed to write and
+// why. Stored beside the edition so "why is today thin?" has an answer without
+// reading function logs.
 //
 // Collection rides on AsyncLocalStorage: code deep in the pipeline (the RSS
 // fetcher) records into whichever build is running, without the report
@@ -21,6 +22,26 @@ export interface FeedStat {
   kept: number;
   ms: number;
   error?: string;
+}
+
+export interface WritingReport {
+  /** Stories that needed a paragraph. */
+  stories: number;
+  /** Paragraphs reused from the cache, and written in this build. */
+  cached: number;
+  written: number;
+  /** Still the publisher's text, with the reason for each. */
+  unwritten: Array<{ title: string; reason: string }>;
+  /** Calls to Gemini, those that failed, and the last failure's words. */
+  calls: number;
+  failedCalls: number;
+  lastError?: string;
+  /** Answers thrown out for claiming another story (code or headline echo). */
+  crossed: number;
+  /** Answers thrown out by the headline and fit checks, retried or not. */
+  rejected: number;
+  /** Repair passes run on the stored edition since it was built. */
+  repairs?: number;
 }
 
 export interface BuildReport {
@@ -41,6 +62,8 @@ export interface BuildReport {
   fullText?: { attempted: number; fetched: number };
   googleLinks?: { attempted: number; resolved: number; cached: number; failed: number; limited: boolean };
   copy?: { issues: number; repaired: number; fixed: number };
+  /** How Gemini's writing went: the stories it didn't write are named. */
+  writing?: WritingReport;
   /** Leading stories printed In Brief because no section had them. */
   briefs?: number;
   /** Printed stories, distinct publisher domains among them, and how many
@@ -105,6 +128,8 @@ export function finishReport(
   const feedsTotal = collector.feeds.length;
   if (feedsTotal > 0 && feedsOk / feedsTotal < 0.8) degraded.push(`feeds: ${feedsOk} of ${feedsTotal} answered`);
   if (base.engine === "heuristic" && collector.extra.fallback) degraded.push(`engine: ${collector.extra.fallback}`);
+  const unwritten = collector.extra.writing?.unwritten.length ?? 0;
+  if (unwritten > 0) degraded.push(`writing: ${unwritten} of ${collector.extra.writing?.stories} stories unwritten`);
   return {
     stages: {},
     ...collector.extra,

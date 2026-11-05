@@ -9,11 +9,14 @@ export const dynamic = "force-dynamic";
 // response. Postgres is optional (it only backs the connected-Reddit feature),
 // so a missing or unreachable database is reported but does not fail the check.
 export async function GET(req: Request) {
-  // ?report=1 → the default edition's full build report, every feed listed.
+  // ?report=1 → the default edition's full build report, every feed listed;
+  // &date= another day; &hash= another edition (the reader's own is in their
+  // `daily-index:edition` cookie).
   const params = new URL(req.url).searchParams;
   if (params.get("report")) {
     const date = /^\d{4}-\d{2}-\d{2}$/.test(params.get("date") ?? "") ? params.get("date")! : editionDate();
-    const report = await readBuildReport(date);
+    const hash = params.get("hash") ?? "";
+    const report = await readBuildReport(date, /^[0-9a-f]{16}$/.test(hash) ? hash : undefined);
     return Response.json(report ?? { error: `no build report for ${date}` }, {
       status: report ? 200 : 404,
       headers: { "Cache-Control": "no-store" },

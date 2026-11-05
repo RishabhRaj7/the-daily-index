@@ -3,13 +3,17 @@
 //   1. Selection — every candidate article as title + short snippet, plus the
 //      reader's preferences. The model only picks and orders; it writes
 //      nothing, so this pass is small (~10k tokens for ~130 articles).
-//   2. Writing — only the shortlisted articles, now with their full text.
-//      The model writes each summary / At a Glance gist.
+//   2. Writing — only the shortlisted articles, now with their full text, a
+//      few at a time. The model writes each summary / At a Glance gist.
 //
 // Splitting the work this way replaced one ~220k-token call (every article's
 // full page text, fetched up front) and lets each prompt say exactly one
-// job's rules. Both passes reference articles by corpus index only, so the
-// server rehydrates real titles and URLs and no link can be invented.
+// job's rules. Selection references articles by corpus index, so the server
+// rehydrates real titles and URLs and no link can be invented. A slip there
+// only picks a different story, whole. Writing is different: its answer is
+// tied to a headline by the reference alone, so each article gets a code that
+// isn't a number (a slip can't land on a neighbour), and the model must also
+// repeat the first words of the headline it is answering.
 
 import type { CorpusArticle, DigestPreferences, DigestSection } from "./types";
 
@@ -156,6 +160,10 @@ Return JSON: "sections" with one entry for every section id listed above (use an
 // ---- pass 2: writing ---------------------------------------------------------
 
 export interface WritingItem {
+  /** This article's code in the prompt and the reply (digest.ts, storyRef). */
+  ref: string;
+  /** Sent on a second try: what was wrong with the first paragraph. */
+  retryNote?: string;
   article: CorpusArticle;
   /** Full article text when the page matched its headline, else the snippet. */
   text: string;
@@ -210,12 +218,12 @@ export function buildWritingPrompt(prefs: DigestPreferences, items: WritingItem[
   const g = prefs.global;
 
   const articles = items
-    .map(({ article, text, section, needsSummary, needsGist, needsHeadline }) => {
+    .map(({ ref, retryNote, article, text, section, needsSummary, needsGist, needsHeadline }) => {
       const needs = [needsSummary && "summary", needsGist && "gist", needsHeadline && "headline"].filter(Boolean).join(", ");
       const note = section?.prompt?.trim();
-      return `<a i="${article.i}" source="${article.source}"${section ? ` section="${escapeXml(section.label)}"` : ""} needs="${needs}">
+      return `<a ref="${ref}" source="${article.source}"${section ? ` section="${escapeXml(section.label)}"` : ""} needs="${needs}">
 <headline>${escapeXml(article.title)}</headline>
-<text>${escapeXml(clip(text, WRITING_TEXT_CHARS)) || "(no text — write from the headline)"}</text>${note ? `\n<section_note>${escapeXml(note)}</section_note>` : ""}
+<text>${escapeXml(clip(text, WRITING_TEXT_CHARS)) || "(no text — write from the headline)"}</text>${note ? `\n<section_note>${escapeXml(note)}</section_note>` : ""}${retryNote ? `\n<last_attempt_rejected>${escapeXml(retryNote)}</last_attempt_rejected>` : ""}
 </a>`;
     })
     .join("\n");
@@ -230,7 +238,9 @@ ${UNTRUSTED_NOTE}
 
 Summaries — write one for every article whose "needs" includes summary:
 - About ${g.summaryLengthWords} words in ${sentenceRange(g.summaryLengthWords)} sentences. Shorter is right when the text is thin; never pad.
-- Open with the news itself: who did what, with the concrete detail that makes it real — names, numbers, places, dates. Don't restate the headline; the reader has just read it.
+- Each summary is about its own article's headline and text only. Never carry a fact from one article into another's summary, even when two articles share a subject.
+- Open with the news itself: who did what, with the concrete detail that makes it real — names, numbers, places, dates. Name the people, teams, companies or places the headline is about, but say it in your own words rather than repeating the headline's sentence.
+- Where an article has <last_attempt_rejected>, an earlier summary of it was thrown out for that reason: write it again and fix that.
 - Then add the one piece of context that matters most — what led here, what's at stake, or what happens next — but only if the text says it.
 - Keep figures exactly as written, with their currency and unit: "$5.7 billion", "Rs 15.99 lakh crore", "₹500", "€2m" — never a bare "5.7 billion".
 - Use only facts found in the headline and text. Never invent quotes, figures, reasons or outcomes. If the text is plainly about a different story than the headline (a paywall, homepage or wrong page), write one or two sentences from the headline alone.
@@ -251,5 +261,8 @@ Headlines — for every article whose "needs" includes headline (it prints as a 
 - If the headline is cut off, a teaser or question, or wouldn't tell a reader what happened on its own, return "headline": a complete headline of at most 16 words from the text that says who did what. Keep names and figures exact.
 - If it already does that, leave "headline" out.
 
-Return JSON: "items", one entry per article above, with "i" and whichever of "summary" (plus "why"), "gist" and "headline" it needs.`;
+Return JSON: "items", exactly one entry per article above, each with:
+- "ref": that article's ref, copied exactly;
+- "about": the first five words of that article's headline, copied exactly;
+- whichever of "summary" (plus "why"), "gist" and "headline" it needs.`;
 }

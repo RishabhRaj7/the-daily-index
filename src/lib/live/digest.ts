@@ -9,21 +9,29 @@
 //      "At a glance" picks. Small prompt, no writing.
 //   3. Full text — only the shortlisted articles' pages are fetched (a few
 //      dozen instead of ~130), each checked against its headline.
-//   4. Writing pass — the model writes each summary / gist from that text.
+//   4. Writing pass — the model writes each summary / gist from that text, a
+//      few articles to a call (writeAll): one bad call can't blank the paper,
+//      and whatever comes back missing or wrong is asked for again.
 //
-// Both passes answer with corpus indices; we rehydrate real article
-// metadata, so no link can be invented. Every step degrades on its own:
-// no model → deterministic heuristic; selection fails → heuristic; writing
-// fails → the selection stands with summaries condensed from the article.
+// Selection answers with corpus indices; we rehydrate real article metadata,
+// so no link can be invented. Writing answers with a per-article code plus the
+// first words of the headline, both checked, because a slip there would put a
+// paragraph under the wrong headline.
+//
+// Every step degrades on its own and says so (DigestResult.writing, printed by
+// chrome/WritingNotice.tsx): no model → deterministic heuristic; selection
+// fails → keyword picks, still written by the model; a story it can't write →
+// the publisher's own description, or just the headline, marked unwritten
+// (DigestArticle.written) for writeMissing to retry on the stored edition.
 
 import { createHash } from "node:crypto";
 import { isSponsored } from "./sponsored";
-import { aiEnabled, generateJson, summaryModels, Type, type Schema } from "@/lib/server/gemini";
+import { aiEnabled, generateJson, geminiFailure, summaryModels, Type, type Schema } from "@/lib/server/gemini";
 import { dedupeWires } from "./rss";
 import { getWorldIndiaWire, getIndiaWire, getMarketsWire, getMoneyWire } from "./news";
 import { getSignalStories, matchSignal, missingLeads, signalIndex } from "./signals";
 import { isGoogleNewsUrl, resolveGoogleLinks } from "./google-links";
-import { finishReport, recordExtra, runWithCollector, startCollector, timed, type BuildReport } from "./build-report";
+import { finishReport, recordExtra, runWithCollector, startCollector, timed, type BuildReport, type WritingReport } from "./build-report";
 import { copyIssues, fixCopy } from "./copy-check";
 import { isPolitical } from "./politics-filter";
 import { getF1News } from "./f1-news";
@@ -31,7 +39,7 @@ import { getFootballNews } from "./football-news";
 import { getTennisNews } from "./tennis-news";
 import { getTechNews } from "./tech-news";
 import { cityAliases, getCityWire } from "./cities";
-import { fetchArticleText, fetchedTextMatches, humanise, looksOnTopic } from "./summarize";
+import { aboutMatches, fetchArticle, fetchedTextMatches, fitsAnotherBetter, groundedIn, headlineFit, humanise, looksOnTopic, type FetchedArticle } from "./summarize";
 import { buildSelectionPrompt, buildWritingPrompt, isCitySection, isSportsSection, WRITING_TEXT_CHARS, type WritingItem, sectionTarget } from "@/lib/preferences/prompt";
 import type {
   AtAGlanceItem,
@@ -41,11 +49,19 @@ import type {
   DigestResult,
   DigestSection,
   NewsSlot,
+  WritingStatus,
 } from "@/lib/preferences/types";
 import type { WireBrief } from "@/lib/types";
 
 const SELECTION_TIMEOUT_MS = 45_000;
-const WRITING_TIMEOUT_MS = 70_000;
+/** Articles to one writing call, on the first pass and on the retry. */
+const WRITING_BATCH = 8;
+const WRITING_RETRY_BATCH = 3;
+const WRITING_CONCURRENCY = 3;
+/** One call, its own retries included. */
+const WRITING_CALL_TIMEOUT_MS = 45_000;
+/** No retry pass starts after this long, so a build ends inside its function. */
+const WRITING_BUDGET_MS = 150_000;
 const RSS_FALLBACK_CHARS = 2000;
 const MAX_GLANCE_PICKS = 6;
 
@@ -548,13 +564,14 @@ const WRITING_SCHEMA: Schema = {
       items: {
         type: Type.OBJECT,
         properties: {
-          i: { type: Type.INTEGER },
+          ref: { type: Type.STRING },
+          about: { type: Type.STRING },
           summary: { type: Type.STRING, nullable: true },
           why: { type: Type.STRING, nullable: true },
           gist: { type: Type.STRING, nullable: true },
           headline: { type: Type.STRING, nullable: true },
         },
-        required: ["i"],
+        required: ["ref", "about"],
       },
     },
   },
@@ -637,22 +654,32 @@ function rehydrateRivals(
   return out;
 }
 
+interface ArticlePage {
+  text?: string;
+  description?: string;
+}
+
 /**
- * Fetch each shortlisted page; keep it only when it matches its headline.
+ * Fetch each shortlisted page. Its text is kept only when the page is this
+ * headline's; its description is kept either way, and checked where it's used.
  * Google News links are fetched at their decoded publisher URL; one that
  * didn't decode is skipped (its page is Google's, not the story).
  */
-async function fullTextFor(articles: CorpusArticle[], links: Map<string, string>): Promise<Map<number, string>> {
-  const texts = await mapWithConcurrency(articles, 8, (a) => {
+async function fullTextFor(articles: CorpusArticle[], links: Map<string, string>): Promise<Map<number, ArticlePage>> {
+  const pages = await mapWithConcurrency(articles, 8, (a): Promise<FetchedArticle | null> => {
     const url = links.get(a.url) ?? a.url;
-    return isGoogleNewsUrl(url) ? Promise.resolve(null) : fetchArticleText(url, WRITING_TEXT_CHARS * 2);
+    return isGoogleNewsUrl(url) ? Promise.resolve(null) : fetchArticle(url, { maxChars: WRITING_TEXT_CHARS * 2, title: a.title });
   });
-  const out = new Map<number, string>();
+  const out = new Map<number, ArticlePage>();
+  let fetched = 0;
   articles.forEach((a, n) => {
-    const fetched = texts[n];
-    if (fetched && fetchedTextMatches(a.title, fetched)) out.set(a.i, fetched);
+    const page = pages[n];
+    if (!page) return;
+    const text = page.text && page.matches ? page.text : undefined;
+    if (text) fetched++;
+    out.set(a.i, { ...(text ? { text } : {}), ...(page.description ? { description: page.description } : {}) });
   });
-  recordExtra({ fullText: { attempted: articles.length, fetched: out.size } });
+  recordExtra({ fullText: { attempted: articles.length, fetched } });
   return out;
 }
 
@@ -662,36 +689,151 @@ function applyLinks(lists: Array<Array<{ url: string }>>, links: Map<string, str
   for (const list of lists) for (const a of list) a.url = links.get(a.url) ?? a.url;
 }
 
-async function runWriting(
-  prefs: DigestPreferences,
-  items: WritingItem[],
-): Promise<Map<number, Written>> {
-  const text = await generateJson(buildWritingPrompt(prefs, items), {
-    schema: WRITING_SCHEMA,
-    temperature: 0.3,
-    timeoutMs: WRITING_TIMEOUT_MS,
-    label: "writing",
-  });
-  const parsed = JSON.parse(text) as {
-    items?: Array<{ i?: unknown; summary?: unknown; why?: unknown; gist?: unknown; headline?: unknown }>;
-  };
-  const byIndex = new Map(items.map((it) => [it.article.i, it]));
-  const out = new Map<number, Written>();
+/**
+ * An article's code in the writing prompt. Not a number, so a slip in the
+ * model's reply lands on nothing rather than on the next story along.
+ */
+function storyRef(url: string, taken: Set<string>): string {
+  const hex = createHash("sha256").update(url).digest("hex");
+  for (let n = 5; ; n++) {
+    const ref = `s${hex.slice(0, n)}`;
+    if (!taken.has(ref)) {
+      taken.add(ref);
+      return ref;
+    }
+  }
+}
 
-  for (const entry of parsed?.items ?? []) {
-    const item = byIndex.get(toIndex(entry?.i));
-    if (!item) continue;
-    const written: Written = {};
+/**
+ * Split articles into calls of about `size`, dealing each section's stories
+ * out across them: two stories on one subject rarely share a call, which is
+ * where the model could confuse them.
+ */
+function dealBatches(items: WritingItem[], size: number): WritingItem[][] {
+  const count = Math.ceil(items.length / size);
+  const bySection = [...items].sort((x, y) => (x.section?.id ?? "").localeCompare(y.section?.id ?? ""));
+  const batches: WritingItem[][] = Array.from({ length: count }, () => []);
+  bySection.forEach((item, n) => batches[n % count].push(item));
+  return batches;
+}
+
+interface WriteLog {
+  out: Map<number, Written>;
+  /** Why a story has no summary yet, as a clause the page can print. */
+  problems: Map<number, string>;
+  /** Told to the model when it tries this story again. */
+  notes: Map<number, string>;
+  /** Articles whose call failed outright, so everything they need is asked again. */
+  failed: Set<number>;
+  calls: number;
+  failedCalls: number;
+  lastError?: string;
+  crossed: number;
+  rejected: number;
+}
+
+const emptyLog = (): WriteLog => ({ out: new Map(), problems: new Map(), notes: new Map(), failed: new Set(), calls: 0, failedCalls: 0, crossed: 0, rejected: 0 });
+
+/** Several calls have failed and none has come back: Gemini is down for now. */
+const geminiLooksDown = (log: WriteLog) => log.failedCalls >= 2 && log.failedCalls === log.calls;
+
+/** What's wrong with this paragraph under this headline, or null when it stands. */
+function summaryProblem(
+  item: WritingItem,
+  summary: string,
+  headlines: string[],
+  lastChance: boolean,
+): { reason: string; note: string } | null {
+  const title = item.article.title;
+  if (summary.length < 40) return { reason: "what it wrote was too short", note: "It was too short." };
+  // A crossed paragraph comes from another article's text. One drawn from this
+  // article's own stands, even if a vaguer headline shares fewer of its words.
+  const ownWords = item.text.length >= 300 && groundedIn(item.text, summary) >= 0.6;
+  const other = ownWords ? null : fitsAnotherBetter(title, summary, headlines);
+  if (other) {
+    return { reason: "what it wrote fitted a different headline", note: `It read like a different story ("${other}"). Write only about this article.` };
+  }
+  if (looksOnTopic(title, summary)) return null;
+  // A teaser or quote headline can share few words with a true summary. On the
+  // second try, one shared word will do if the paragraph clearly comes from
+  // this article's own text, and that text is itself about this headline.
+  if (lastChance && headlineFit(title, summary) > 0 && fetchedTextMatches(title, item.text) && groundedIn(item.text, summary) >= 0.5) return null;
+  return { reason: "what it wrote didn't match the headline", note: "It didn't name what the headline is about. Name the headline's main subject." };
+}
+
+/** One call to the writer. Records what it got; never throws. */
+async function writeBatch(
+  prefs: DigestPreferences,
+  batch: WritingItem[],
+  headlines: string[],
+  lastChance: boolean,
+  log: WriteLog,
+): Promise<void> {
+  // Don't queue the rest of the paper behind an outage.
+  if (geminiLooksDown(log)) {
+    for (const item of batch) {
+      log.failed.add(item.article.i);
+      if (item.needsSummary) log.problems.set(item.article.i, log.lastError ?? "the call to it failed");
+    }
+    return;
+  }
+  log.calls++;
+  let entries: Array<{ ref?: unknown; about?: unknown; summary?: unknown; why?: unknown; gist?: unknown; headline?: unknown }>;
+  try {
+    const text = await generateJson(buildWritingPrompt(prefs, batch), {
+      schema: WRITING_SCHEMA,
+      temperature: 0.3,
+      timeoutMs: WRITING_CALL_TIMEOUT_MS,
+      label: "writing",
+    });
+    entries = (JSON.parse(text) as { items?: typeof entries }).items ?? [];
+  } catch (err) {
+    log.failedCalls++;
+    log.lastError = geminiFailure(err);
+    console.warn(`[digest] writing call failed (${batch.length} articles):`, err instanceof Error ? err.message.slice(0, 160) : err);
+    for (const item of batch) {
+      log.failed.add(item.article.i);
+      if (item.needsSummary) log.problems.set(item.article.i, log.lastError);
+    }
+    return;
+  }
+
+  const byRef = new Map(batch.map((it) => [it.ref, it]));
+  const answered = new Set<number>();
+  for (const entry of entries) {
+    const item = byRef.get(String(entry?.ref));
+    if (!item) {
+      log.crossed++;
+      continue;
+    }
+    const i = item.article.i;
+    answered.add(i);
+    log.failed.delete(i);
+    // The code and the headline it repeated must name the same story.
+    if (!aboutMatches(item.article.title, entry.about)) {
+      log.crossed++;
+      console.warn("[digest] reply claimed another story:", item.article.title, "<-", entry.about);
+      if (item.needsSummary) log.problems.set(i, "its answer pointed at a different story");
+      continue;
+    }
+    const written: Written = { ...log.out.get(i) };
     if (item.needsSummary && typeof entry.summary === "string") {
       const summary = humanise(entry.summary);
-      // Reject thin or drifted paragraphs — the fallback below is better
-      // than a summary of the wrong story under this headline.
-      if (summary.length >= 40 && looksOnTopic(item.article.title, summary)) {
+      const problem = summaryProblem(item, summary, headlines, lastChance);
+      if (problem) {
+        log.rejected++;
+        log.problems.set(i, problem.reason);
+        log.notes.set(i, problem.note);
+        console.warn(`[digest] summary rejected (${problem.reason}):`, item.article.title);
+      } else {
         written.summary = summary;
+        log.problems.delete(i);
         // "Why it matters" only rides along with a summary we kept.
         const why = typeof entry.why === "string" ? humanise(entry.why) : "";
         if (why.length >= 12 && why.length <= 220) written.why = why;
       }
+    } else if (item.needsSummary) {
+      log.problems.set(i, "it left the story out of its reply");
     }
     if (item.needsGist && typeof entry.gist === "string") {
       const gist = entry.gist.trim();
@@ -701,9 +843,45 @@ async function runWriting(
       const headline = humanise(entry.headline).replace(/\.$/, "");
       if (headline.length >= 12 && headline.length <= 160 && looksOnTopic(item.article.title, headline)) written.headline = headline;
     }
-    out.set(item.article.i, written);
+    log.out.set(i, written);
   }
-  return repairCopy(out, byIndex);
+  for (const item of batch) {
+    if (item.needsSummary && !answered.has(item.article.i)) log.problems.set(item.article.i, "it left the story out of its reply");
+  }
+}
+
+/**
+ * Write every item: all of them in small calls, then once more, in smaller
+ * ones and with what went wrong spelled out, for whatever is still missing.
+ */
+async function writeAll(prefs: DigestPreferences, items: WritingItem[], headlines: string[]): Promise<WriteLog> {
+  const log = emptyLog();
+  const startedAt = Date.now();
+  await mapWithConcurrency(dealBatches(items, WRITING_BATCH), WRITING_CONCURRENCY, (batch) =>
+    writeBatch(prefs, batch, headlines, false, log),
+  );
+
+  const again = items.flatMap((item): WritingItem[] => {
+    const i = item.article.i;
+    const done = log.out.get(i);
+    const noSummary = item.needsSummary && !done?.summary;
+    if (!noSummary && !log.failed.has(i)) return [];
+    const note = log.notes.get(i);
+    return [{
+      ...item,
+      needsSummary: noSummary,
+      needsGist: item.needsGist && !done?.gist,
+      needsHeadline: item.needsHeadline && !done?.headline,
+      ...(note ? { retryNote: note } : {}),
+    }];
+  });
+  if (again.length > 0 && !geminiLooksDown(log) && Date.now() - startedAt < WRITING_BUDGET_MS) {
+    await mapWithConcurrency(dealBatches(again, WRITING_RETRY_BATCH), WRITING_CONCURRENCY, (batch) =>
+      writeBatch(prefs, batch, headlines, true, log),
+    );
+  }
+  await repairCopy(log.out, items);
+  return log;
 }
 
 const COPY_FIELDS = ["summary", "why", "gist"] as const;
@@ -716,12 +894,12 @@ const REPAIR_SCHEMA: Schema = {
       items: {
         type: Type.OBJECT,
         properties: {
-          i: { type: Type.INTEGER },
+          ref: { type: Type.STRING },
           summary: { type: Type.STRING, nullable: true },
           why: { type: Type.STRING, nullable: true },
           gist: { type: Type.STRING, nullable: true },
         },
-        required: ["i"],
+        required: ["ref"],
       },
     },
   },
@@ -734,7 +912,9 @@ const REPAIR_SCHEMA: Schema = {
  * tells and stays on the story. Whatever is left gets the mechanical fixes.
  * The repair never blocks the edition: on any failure the copy stands.
  */
-async function repairCopy(out: Map<number, Written>, byIndex: Map<number, WritingItem>): Promise<Map<number, Written>> {
+async function repairCopy(out: Map<number, Written>, items: WritingItem[]): Promise<void> {
+  const byIndex = new Map(items.map((it) => [it.article.i, it]));
+  const byRef = new Map(items.map((it) => [it.ref, it]));
   const flagged = [...out].flatMap(([i, w]) => {
     const problems = COPY_FIELDS.flatMap((f) => copyIssues(w[f]).map((p) => `${f}: ${p}`));
     return problems.length > 0 ? [{ i, w, problems }] : [];
@@ -746,7 +926,7 @@ async function repairCopy(out: Map<number, Written>, byIndex: Map<number, Writin
     const blocks = flagged
       .map(({ i, w, problems }) => {
         const fields = COPY_FIELDS.filter((f) => w[f]).map((f) => `<${f}>${escapeXmlText(w[f]!)}</${f}>`).join("\n");
-        return `<item i="${i}">
+        return `<item ref="${byIndex.get(i)?.ref ?? ""}">
 <headline>${escapeXmlText(byIndex.get(i)?.article.title ?? "")}</headline>
 ${fields}
 <problems>${problems.join("; ")}</problems>
@@ -755,16 +935,15 @@ ${fields}
       .join("\n");
     try {
       const text = await generateJson(
-        `These news items were written for a newspaper, but some sentences read as machine-written. Rewrite only the fields named in <problems>, fixing exactly those problems: no em dashes (use a comma, colon or full stop), none of the listed words (pick a plain, specific alternative), no ", highlighting..." style tails, no "not just X, but Y", no "experts say". Keep every fact, figure and name exactly as written, keep the length about the same, add nothing new. Return JSON "items" with "i" and only the rewritten fields.
+        `These news items were written for a newspaper, but some sentences read as machine-written. Rewrite only the fields named in <problems>, fixing exactly those problems: no em dashes (use a comma, colon or full stop), none of the listed words (pick a plain, specific alternative), no ", highlighting..." style tails, no "not just X, but Y", no "experts say". Keep every fact, figure and name exactly as written, keep the length about the same, add nothing new. Return JSON "items" with "ref" and only the rewritten fields.
 
 ${blocks}`,
         { schema: REPAIR_SCHEMA, temperature: 0.2, timeoutMs: 30_000, label: "copy repair" },
       );
       const parsed = JSON.parse(text) as { items?: Array<Record<string, unknown>> };
       for (const entry of parsed.items ?? []) {
-        const i = toIndex(entry.i);
-        const w = out.get(i);
-        const item = byIndex.get(i);
+        const item = byRef.get(String(entry.ref));
+        const w = item ? out.get(item.article.i) : undefined;
         if (!w || !item) continue;
         for (const f of COPY_FIELDS) {
           const next = typeof entry[f] === "string" ? humanise(entry[f] as string) : "";
@@ -795,7 +974,6 @@ ${blocks}`,
     }
   }
   recordExtra({ copy: { issues: before, repaired, fixed } });
-  return out;
 }
 
 function escapeXmlText(s: string): string {
@@ -848,11 +1026,13 @@ function gistKey(prefs: DigestPreferences, article: CorpusArticle): string {
   );
 }
 
+type WrittenPaper = Pick<DigestResult, "sections" | "atAGlance" | "rivals" | "briefs"> & { writing: WritingStatus };
+
 async function aiDigest(
   prefs: DigestPreferences,
   corpus: CorpusArticle[],
   cache?: WritingCache,
-): Promise<Pick<DigestResult, "sections" | "atAGlance" | "rivals" | "briefs">> {
+): Promise<WrittenPaper> {
   const selection = await timed("selection", () => runSelection(prefs, corpus));
 
   const usedUrls = new Set<string>();
@@ -911,7 +1091,21 @@ async function aiDigest(
     sections[RIVALS_SECTION.id] = rivals;
     for (const a of rivals) if (!sectionByUrl.has(a.url)) sectionByUrl.set(a.url, RIVALS_SECTION);
   }
+  return writePaper(prefs, corpus, sections, atAGlance, sectionByUrl, cache);
+}
 
+/**
+ * Print the stories already chosen (by the editor, or by keyword rules when
+ * the editor failed): reuse what's written, write the rest, mark the rest.
+ */
+async function writePaper(
+  prefs: DigestPreferences,
+  corpus: CorpusArticle[],
+  sections: Record<string, DigestArticle[]>,
+  atAGlance: AtAGlanceItem[],
+  sectionByUrl: Map<string, DigestSection>,
+  cache?: WritingCache,
+): Promise<WrittenPaper> {
   // Everything that needs writing, once each: section articles need a
   // summary, glance picks a gist, and an article can need both.
   const indexByUrl = new Map(corpus.map((a) => [a.url, a.i]));
@@ -972,7 +1166,7 @@ async function aiDigest(
   // in a summary already written from it): it comes off every list.
   const paid = new Set(
     shortlist
-      .filter((a) => isSponsored("", `${fullText.get(a.i) ?? ""} ${written.get(a.i)?.summary ?? ""}`, links.get(a.url) ?? ""))
+      .filter((a) => isSponsored("", `${fullText.get(a.i)?.text ?? ""} ${written.get(a.i)?.summary ?? ""}`, links.get(a.url) ?? ""))
       .map((a) => a.url),
   );
   if (paid.size > 0) {
@@ -980,51 +1174,44 @@ async function aiDigest(
     atAGlance.splice(0, atAGlance.length, ...atAGlance.filter((g) => !paid.has(g.url)));
     for (const [slot, list] of missed) missed.set(slot, list.filter((a) => !paid.has(a.url)));
   }
+  const refs = new Set<string>();
   const items: WritingItem[] = pending.map((article) => ({
+    ref: storyRef(article.url, refs),
     article,
-    text: fullText.get(article.i) ?? article.text,
+    text: fullText.get(article.i)?.text ?? article.text,
     section: sectionByUrl.get(article.url),
     needsSummary: sectionByUrl.has(article.url) && !written.get(article.i)?.summary,
     needsGist: gistUrls.has(article.url) && !written.get(article.i)?.gist,
     needsHeadline: briefUrls.has(article.url) && !written.get(article.i)?.headline,
   }));
 
-  try {
-    if (items.length > 0) {
-      const fresh = await timed("writing", () => runWriting(prefs, items));
-      const toStore = new Map<string, string>();
-      for (const [i, out] of fresh) {
-        const article = corpus[i];
-        const merged = { ...written.get(i), ...out };
-        written.set(i, merged);
-        if (out.summary) toStore.set(keysFor(article).summary, out.summary);
-        if (out.why) toStore.set(keysFor(article).why, out.why);
-        if (out.gist) toStore.set(keysFor(article).gist, out.gist);
-        if (out.headline) toStore.set(keysFor(article).headline, out.headline);
-        // A brief whose headline already stood on its own keeps it: stored as
-        // it is, so the next rebuild doesn't ask again.
-        else if (briefUrls.has(article.url)) toStore.set(keysFor(article).headline, article.title);
-      }
-      if (cache && toStore.size > 0) await cache.setMany(toStore).catch(() => {});
-    }
-  } catch (err) {
-    // The selection is still the reader's edition — print it with summaries
-    // condensed from the article text rather than throwing it away.
-    console.error("[digest] writing pass failed, keeping selection:", err);
+  const cachedSummaries = new Set([...written].filter(([, w]) => w.summary).map(([i]) => i));
+  const log = items.length > 0
+    ? await timed("writing", () => writeAll(prefs, items, shortlist.map((a) => a.title)))
+    : emptyLog();
+  const toStore = new Map<string, string>();
+  for (const [i, out] of log.out) {
+    const article = corpus[i];
+    written.set(i, { ...written.get(i), ...out });
+    if (out.summary) toStore.set(keysFor(article).summary, out.summary);
+    if (out.why) toStore.set(keysFor(article).why, out.why);
+    if (out.gist) toStore.set(keysFor(article).gist, out.gist);
+    if (out.headline) toStore.set(keysFor(article).headline, out.headline);
+    // A brief whose headline already stood on its own keeps it: stored as
+    // it is, so the next rebuild doesn't ask again.
+    else if (briefUrls.has(article.url)) toStore.set(keysFor(article).headline, article.title);
   }
+  if (cache && toStore.size > 0) await cache.setMany(toStore).catch(() => {});
 
-  const itemByUrl = new Map(items.map((it) => [it.article.url, it]));
   const words = prefs.global.summaryLengthWords;
   for (const list of Object.values(sections)) {
     for (const a of list) {
       const idx = indexByUrl.get(a.url);
       if (idx === undefined) continue;
-      const item = itemByUrl.get(a.url);
-      a.summary =
-        written.get(idx)?.summary ??
-        heuristicSummary({ ...corpus[idx], text: item?.text ?? corpus[idx].text }, words);
-      const why = written.get(idx)?.why;
-      if (why) a.why = why;
+      const done = written.get(idx);
+      a.written = Boolean(done?.summary);
+      a.summary = done?.summary ?? fallbackText(corpus[idx], fullText.get(idx), words);
+      if (done?.why) a.why = done.why;
     }
   }
   for (const g of atAGlance) {
@@ -1035,8 +1222,146 @@ async function aiDigest(
   const briefs = toBriefs(missed, (a) => written.get(a.i)?.headline);
   applyLinks([...Object.values(sections), atAGlance, ...Object.values(briefs ?? {})], links);
 
+  // What the page and the build report say about how that went. (Links were
+  // just swapped, so stories are matched back through the links map.)
+  const originalUrl = new Map([...links].map(([from, to]) => [to, from]));
+  const indexOf = (a: DigestArticle) => indexByUrl.get(a.url) ?? indexByUrl.get(originalUrl.get(a.url) ?? "") ?? -1;
+  const stories = Object.values(sections).flat();
+  const missing = stories.filter((a) => a.written === false);
+  const reasonFor = (a: DigestArticle) => log.problems.get(indexOf(a)) ?? "it left the story out of its reply";
+  const writing: WritingStatus = {
+    stories: stories.length,
+    unwritten: missing.length,
+    ...(missing.length > 0 ? { reason: reasonFor(missing[0]) } : {}),
+    attempts: 0,
+    triedAt: new Date().toISOString(),
+  };
+  if (missing.length > 0) console.warn(`[digest] ${missing.length} of ${stories.length} stories unwritten: ${writing.reason}`);
+  recordExtra({
+    writing: writingReport(log, {
+      stories: stories.length,
+      cached: stories.filter((a) => cachedSummaries.has(indexOf(a))).length,
+      unwritten: missing.map((a) => ({ title: a.title, reason: reasonFor(a) })),
+    }),
+  });
+
   const { [RIVALS_SECTION.id]: rivalStories = [], ...paperSections } = sections;
-  return { sections: paperSections, atAGlance, rivals: rivalStories, briefs };
+  return { sections: paperSections, atAGlance, rivals: rivalStories, briefs, writing };
+}
+
+function writingReport(log: WriteLog, counts: Pick<WritingReport, "stories" | "cached" | "unwritten">): WritingReport {
+  return {
+    ...counts,
+    written: counts.stories - counts.cached - counts.unwritten.length,
+    calls: log.calls,
+    failedCalls: log.failedCalls,
+    ...(log.lastError ? { lastError: log.lastError } : {}),
+    crossed: log.crossed,
+    rejected: log.rejected,
+  };
+}
+
+/**
+ * What prints under a headline Gemini didn't write: the publisher's own
+ * description, else its feed snippet, and only when it plainly belongs to this
+ * headline. Otherwise nothing, and the headline stands alone: a page's raw text
+ * can be its navigation or a neighbouring story, and is never printed.
+ */
+function fallbackText(article: CorpusArticle, page: ArticlePage | undefined, words: number): string {
+  const description = page?.description;
+  if (description && description.length >= 60 && looksOnTopic(article.title, description)) return description;
+  if (article.text && looksOnTopic(article.title, article.text)) return heuristicSummary(article, words);
+  return "";
+}
+
+/**
+ * Ask Gemini again for the stories a stored edition still has no paragraph
+ * for, and patch them in. Nothing else about the paper changes, so a repair
+ * can land while it's being read. Returns a new digest; a failed call just
+ * leaves the stories unwritten.
+ */
+export async function writeMissing(
+  prefs: DigestPreferences,
+  digest: DigestResult,
+  cache?: WritingCache,
+): Promise<{ digest: DigestResult; report: WritingReport }> {
+  const sections = Object.fromEntries(Object.entries(digest.sections).map(([id, list]) => [id, list.map((a) => ({ ...a }))]));
+  const rivals = (digest.rivals ?? []).map((a) => ({ ...a }));
+  const sectionOf = new Map<DigestArticle, DigestSection | undefined>();
+  for (const [id, list] of Object.entries(sections)) {
+    const section = prefs.sections.find((sec) => sec.id === id);
+    for (const a of list) sectionOf.set(a, section);
+  }
+  for (const a of rivals) sectionOf.set(a, RIVALS_SECTION);
+  const stories = [...sectionOf.keys()];
+  const open = stories.filter((a) => a.written === false);
+
+  // The corpus is gone by now; each story stands in as a corpus article, with
+  // the text it prints today as its snippet.
+  const corpus = open.map((a, i): CorpusArticle => ({
+    i,
+    title: a.title,
+    text: a.summary,
+    url: a.url,
+    source: a.source,
+    pool: "",
+    postedAgo: a.publishedAt,
+    ageHours: null,
+  }));
+  const keyOf = (c: CorpusArticle) => summaryKey(prefs, c, sectionOf.get(open[c.i]));
+  const place = (a: DigestArticle, summary: string, why?: string) => {
+    a.summary = summary;
+    a.written = true;
+    if (why) a.why = why;
+  };
+  // A rebuild, or another edition with the same settings, may have written it.
+  const cached = cache
+    ? await cache.getMany(corpus.map(keyOf)).catch(() => new Map<string, string>())
+    : new Map<string, string>();
+  const pending = corpus.filter((c) => {
+    const found = cached.get(keyOf(c));
+    if (found) place(open[c.i], found);
+    return !found;
+  });
+
+  const pages = await fullTextFor(pending, new Map());
+  const refs = new Set<string>();
+  const items: WritingItem[] = pending.map((article) => ({
+    ref: storyRef(article.url, refs),
+    article,
+    text: pages.get(article.i)?.text ?? article.text,
+    section: sectionOf.get(open[article.i]),
+    needsSummary: true,
+    needsGist: false,
+  }));
+  const log = items.length > 0 ? await writeAll(prefs, items, stories.map((a) => a.title)) : emptyLog();
+  const toStore = new Map<string, string>();
+  for (const [i, out] of log.out) {
+    if (!out.summary) continue;
+    place(open[i], out.summary, out.why);
+    const key = keyOf(corpus[i]);
+    toStore.set(key, out.summary);
+    if (out.why) toStore.set(`why:${key.slice(4)}`, out.why);
+  }
+  if (cache && toStore.size > 0) await cache.setMany(toStore).catch(() => {});
+
+  const missing = open.filter((a) => a.written === false);
+  const reasonFor = (a: DigestArticle) => log.problems.get(open.indexOf(a)) ?? log.lastError ?? "it left the story out of its reply";
+  const status: WritingStatus = { ...(digest.writing ?? { attempts: 0, triedAt: "", stories: stories.length, unwritten: 0 }) };
+  delete status.reason;
+  return {
+    digest: {
+      ...digest,
+      sections,
+      rivals,
+      writing: { ...status, unwritten: missing.length, ...(missing.length > 0 ? { reason: reasonFor(missing[0]) } : {}) },
+    },
+    report: writingReport(log, {
+      stories: stories.length,
+      cached: stories.length - pending.length,
+      unwritten: missing.map((a) => ({ title: a.title, reason: reasonFor(a) })),
+    }),
+  };
 }
 
 // Places a World story can be filed under when it's added without the
@@ -1304,16 +1629,26 @@ export async function generateDigest(
 
     if (!aiEnabled() || corpus.length === 0) {
       recordExtra({ fallback: corpus.length === 0 ? "empty corpus" : "AI not configured" });
-      return finish(await heuristic());
+      const paper = await heuristic();
+      const count = Object.values(paper.sections).flat().length;
+      return finish(aiEnabled() ? paper : { ...paper, writing: { stories: count, unwritten: 0, disabled: true, attempts: 0, triedAt: generatedAt } });
     }
 
     try {
-      const { sections, atAGlance, rivals, briefs } = await aiDigest(prefs, corpus, opts.writingCache);
-      return finish({ sections, atAGlance, rivals, briefs, generatedAt, engine: "ai", corpusSize: corpus.length });
+      const paper = await aiDigest(prefs, corpus, opts.writingCache);
+      return finish({ ...paper, generatedAt, engine: "ai", corpusSize: corpus.length });
     } catch (err) {
-      console.error("[digest] AI selection failed, falling back to heuristic:", err);
+      // The editor failed, not necessarily the writer: keyword rules choose
+      // the stories and Gemini still gets to write them.
+      console.error("[digest] AI selection failed, keyword rules pick instead:", err);
       recordExtra({ fallback: err instanceof Error ? err.message.slice(0, 160) : "AI selection failed" });
-      return finish(await heuristic());
+      const selectionFailed = geminiFailure(err);
+      const sections = heuristicDigest(prefs, corpus);
+      const atAGlance = heuristicAtAGlance(prefs, sections, corpus);
+      const sectionByUrl = new Map<string, DigestSection>();
+      for (const section of prefs.sections) for (const a of sections[section.id] ?? []) sectionByUrl.set(a.url, section);
+      const paper = await writePaper(prefs, corpus, sections, atAGlance, sectionByUrl, opts.writingCache);
+      return finish({ ...paper, writing: { ...paper.writing, selectionFailed }, generatedAt, engine: "heuristic", corpusSize: corpus.length });
     }
   });
 }

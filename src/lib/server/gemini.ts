@@ -1,9 +1,14 @@
-import { GoogleGenAI, Type, type Schema } from "@google/genai";
+import { GoogleGenAI, FinishReason, Type, type Schema } from "@google/genai";
 
 // The one place that talks to Gemini (Google's current SDK, @google/genai —
 // the old @google/generative-ai package is deprecated). Every caller asks
 // for JSON; a response schema, when given, makes the model answer in
 // exactly that shape so nothing needs cleaning before JSON.parse.
+//
+// A busy model is normal, so a call tries both models, waits a moment and
+// tries them again (three rounds, inside the caller's timeout) before it
+// gives up. geminiFailure() turns whatever finally went wrong into words the
+// paper can show its reader.
 
 export { Type };
 export type { Schema };
@@ -15,13 +20,36 @@ export type { Schema };
 // GEMINI_MODEL, if set, goes first; GEMINI_FALLBACK_MODEL replaces the second.
 const SUMMARY_MODELS = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite"];
 
+/** Waits between rounds of trying every model; a round more than there are waits. */
+const ROUND_WAITS_MS = [1500, 4000];
+
 export function summaryModels(): string[] {
   const list = [process.env.GEMINI_MODEL, ...SUMMARY_MODELS.slice(0, 1), process.env.GEMINI_FALLBACK_MODEL || SUMMARY_MODELS[1]].filter((m): m is string => Boolean(m));
   return [...new Set(list)];
 }
 
-/** Errors worth trying the next model for: spent, busy, or not offered. */
-const handOn = (err: unknown) => /"code":\s*(429|503|500|404)|RESOURCE_EXHAUSTED|UNAVAILABLE|overloaded|high demand/i.test(err instanceof Error ? err.message : String(err));
+/** Errors worth trying again for: spent, busy, not offered, or the line dropped. */
+const handOn = (err: unknown) =>
+  /"code":\s*(429|503|500|404)|RESOURCE_EXHAUSTED|UNAVAILABLE|overloaded|high demand|empty response|fetch failed|ECONNRESET|ETIMEDOUT|socket hang up/i.test(
+    err instanceof Error ? err.message : String(err),
+  );
+
+/**
+ * What went wrong with a Gemini call, as a clause the page can print after
+ * "Gemini failed on 3 of 36 summaries:". Never the raw error.
+ */
+export function geminiFailure(err: unknown): string {
+  const m = err instanceof Error ? err.message : String(err);
+  if (/"code":\s*429|RESOURCE_EXHAUSTED|quota/i.test(m)) return "its quota ran out (429)";
+  if (/"code":\s*503|UNAVAILABLE|overloaded|high demand/i.test(m)) return "it was overloaded (503)";
+  if (/"code":\s*500|INTERNAL/i.test(m)) return "it had a server error (500)";
+  if (/timeout/i.test(m)) return "it took too long to answer";
+  if (/cut off/i.test(m)) return "its reply was cut off";
+  if (/"code":\s*40[13]|PERMISSION_DENIED|API key|GEMINI_API_KEY/i.test(m)) return "it refused the API key";
+  if (/JSON|empty response|Unexpected/i.test(m)) return "its reply could not be read";
+  if (/fetch failed|ECONNRESET|ETIMEDOUT|socket hang up/i.test(m)) return "it could not be reached";
+  return "the call to it failed";
+}
 
 export function aiEnabled(): boolean {
   return process.env.AI_SUMMARIZE !== "false" && Boolean(process.env.GEMINI_API_KEY);
@@ -36,9 +64,20 @@ function getClient(): GoogleGenAI {
   return client;
 }
 
+function pause(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(resolve, ms);
+    signal.addEventListener("abort", () => {
+      clearTimeout(t);
+      reject(new Error("aborted"));
+    });
+  });
+}
+
 /**
  * Run one prompt and return the model's JSON text. Throws on a missing key,
- * an API error, an empty answer or the timeout — callers decide the fallback.
+ * an API error that survived the retries, an empty answer, a reply cut off by
+ * the token limit, or the timeout — callers decide the fallback.
  */
 export async function generateJson(
   prompt: string,
@@ -48,25 +87,35 @@ export async function generateJson(
   const timer = opts.timeoutMs ? setTimeout(() => controller.abort(), opts.timeoutMs) : undefined;
   try {
     const models = summaryModels();
-    for (let i = 0; ; i++) {
-      try {
-        const response = await getClient().models.generateContent({
-          model: models[i],
-          contents: prompt,
-          config: {
-            responseMimeType: "application/json",
-            ...(opts.schema ? { responseSchema: opts.schema } : {}),
-            ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
-            abortSignal: controller.signal,
-          },
-        });
-        const text = response.text;
-        if (!text) throw new Error(`${opts.label ?? "gemini"}: empty response`);
-        return text;
-      } catch (err) {
-        if (i + 1 >= models.length || controller.signal.aborted || !handOn(err)) throw err;
-        console.warn(`[gemini] ${models[i]} unavailable, trying ${models[i + 1]}`);
+    for (let round = 0; ; round++) {
+      let last: unknown;
+      for (const model of models) {
+        try {
+          const response = await getClient().models.generateContent({
+            model,
+            contents: prompt,
+            config: {
+              responseMimeType: "application/json",
+              ...(opts.schema ? { responseSchema: opts.schema } : {}),
+              ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
+              abortSignal: controller.signal,
+            },
+          });
+          // Half a JSON reply never parses; say why rather than "bad JSON".
+          if (response.candidates?.[0]?.finishReason === FinishReason.MAX_TOKENS) {
+            throw new Error(`${opts.label ?? "gemini"}: reply cut off at the token limit`);
+          }
+          const text = response.text;
+          if (!text) throw new Error(`${opts.label ?? "gemini"}: empty response`);
+          return text;
+        } catch (err) {
+          if (controller.signal.aborted || !handOn(err)) throw err;
+          console.warn(`[gemini] ${model} unavailable (round ${round + 1}):`, err instanceof Error ? err.message.slice(0, 120) : err);
+          last = err;
+        }
       }
+      if (round >= ROUND_WAITS_MS.length) throw last;
+      await pause(ROUND_WAITS_MS[round], controller.signal);
     }
   } catch (err) {
     if (controller.signal.aborted) throw new Error(`${opts.label ?? "gemini"} timeout`);

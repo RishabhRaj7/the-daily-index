@@ -1,13 +1,17 @@
 import { editionState, requestEdition, type EditionState } from "@/lib/server/editions";
 import { isEditionDate } from "@/lib/edition-date";
+import { digestRevision } from "@/lib/preferences/stories";
 
 export const dynamic = "force-dynamic";
-// Without Redis the build runs inline (~15s); with Redis it runs in after().
-export const maxDuration = 60;
+// Without Redis the build runs inline; with Redis it runs in after(), which
+// shares this limit. Retries while Gemini is busy can take minutes.
+export const maxDuration = 300;
 
-// POST /api/edition { preferences, force? }
+// POST /api/edition { preferences, force?, retry? }
 //   Returns today's edition for these preferences, starting a build when
-//   there is none. States: ready (with digest) | building | failed.
+//   there is none, or a repair when stories are still waiting for Gemini.
+//   `retry` is the page's "Try now". States: ready (with digest) | building |
+//   failed. `revision` changes whenever the stored edition does.
 // GET /api/edition?hash=…&date=…
 //   Poll an edition started by POST. Never starts a build.
 //
@@ -23,6 +27,7 @@ function toJson(s: EditionState) {
         date: s.date,
         hash: s.hash,
         builtAt: s.edition.builtAt,
+        revision: digestRevision(s.edition.digest),
         digest: s.edition.digest,
         refreshing: s.refreshing,
         ...(s.note ? { note: s.note } : {}),
@@ -44,9 +49,10 @@ function clientIp(req: Request): string | null {
 
 export async function POST(req: Request) {
   try {
-    const body = (await req.json().catch(() => null)) as { preferences?: unknown; force?: unknown } | null;
+    const body = (await req.json().catch(() => null)) as { preferences?: unknown; force?: unknown; retry?: unknown } | null;
     const state = await requestEdition(body?.preferences, {
       force: body?.force === true,
+      retry: body?.retry === true,
       ip: clientIp(req),
     });
     return Response.json(toJson(state), { headers: NO_STORE });

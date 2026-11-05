@@ -5,7 +5,7 @@ import { editionDate } from "@/lib/edition-date";
 import { updateOddsRecord } from "@/lib/live/odds-record";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 // GET /api/cron/daily — scheduled in vercel.json (00:00 UTC = 05:30 IST).
 //
