@@ -4,7 +4,7 @@ import { isCronAuthorized } from "@/lib/server/cron-auth";
 import { editionDate } from "@/lib/edition-date";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 // POST /api/cron/build { hash } — internal: rebuilds one reader's edition for
 // today from their stored preferences. Called only by /api/cron/daily.

@@ -1,9 +1,16 @@
 // Converts digest articles into the paper's Story shape so the AI-selected
 // content renders through the exact same components (and styling) as the
-// wire-built stories it replaces.
+// wire-built stories it replaces. Each story carries whether Gemini wrote it
+// (Story.copy), and digestRevision says which of two copies of an edition is
+// the newer.
 
 import type { Story, SectionKey } from "@/lib/types";
-import type { AtAGlanceItem, DigestArticle, DigestSection, NewsSlot } from "./types";
+import type { AtAGlanceItem, DigestArticle, DigestResult, DigestSection, NewsSlot } from "./types";
+
+/** Which version of an edition this is; later ones sort after earlier ones. */
+export function digestRevision(digest: Pick<DigestResult, "generatedAt" | "revisedAt">): string {
+  return digest.revisedAt ?? digest.generatedAt;
+}
 
 const SLOT_TO_KEY: Record<NewsSlot, SectionKey> = {
   dateline: "dateline",
@@ -40,6 +47,7 @@ export function digestArticleToStory(
     sourceUrl: article.url,
     sourceName: article.source,
     ...(article.why ? { why: article.why } : {}),
+    ...(article.written === true ? { copy: "written" as const } : article.written === false ? { copy: "pending" as const } : {}),
   };
 }
 
@@ -76,7 +84,7 @@ export function deriveBriefFromDigest(
   for (const section of [...prefs.sections].sort((a, b) => a.order - b.order)) {
     const top = (result.sections[section.id] ?? [])[0];
     if (!top) continue;
-    let text = top.summary.replace(/\s+/g, " ").trim();
+    let text = (top.summary || top.title).replace(/\s+/g, " ").trim();
     const words = text.split(" ");
     if (words.length > 20) text = words.slice(0, 20).join(" ") + "…";
     bullets.push({ section: section.label, text, url: top.url, headline: top.title });

@@ -141,8 +141,9 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
                         {a.source}
                         {a.group && a.group !== "f1" ? ` · ${a.group}` : ""}
                         {a.matchedEntity ? ` · for you: ${a.matchedEntity}` : ""}
+                        {a.written === false ? " · Gemini didn't write this one: the publisher's text" : ""}
                       </p>
-                      <p className="font-body text-[15px] leading-relaxed mt-1.5">{a.summary}</p>
+                      {a.summary && <p className="font-body text-[15px] leading-relaxed mt-1.5">{a.summary}</p>}
                     </article>
                   ))}
                 </div>

@@ -3,6 +3,10 @@
 // Keyed by edition date AND a hash of the preferences that produced the
 // digest — so editing settings in /settings automatically invalidates the
 // stored digest and the next visit generates a fresh one.
+//
+// This copy is only a first paint for when the server's HTML had no edition.
+// It is never the last word: EditionView always asks the server afterwards,
+// and the newer revision wins (digestRevision).
 
 import type { DigestResult } from "./preferences/types";
 

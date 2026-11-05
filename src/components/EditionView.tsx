@@ -88,7 +88,7 @@ import type {
   DigestSection,
   NewsSlot,
 } from "@/lib/preferences/types";
-import { deriveBriefFromDigest } from "@/lib/preferences/stories";
+import { deriveBriefFromDigest, digestRevision } from "@/lib/preferences/stories";
 import { projectDigest, withProjection } from "@/lib/preferences/project";
 import {
   consumeEditionRefresh,
@@ -96,6 +96,7 @@ import {
   writeDigestCache,
 } from "@/lib/digest-cache";
 import EditionPrepOverlay from "@/components/chrome/EditionPrepOverlay";
+import WritingNotice from "@/components/chrome/WritingNotice";
 import TopBar, { type NavSection } from "@/components/chrome/TopBar";
 import Briefing from "@/components/story/Briefing";
 import { digestArticleToStory } from "@/lib/preferences/stories";
@@ -113,8 +114,13 @@ const WEATHER_TIMEOUT_MS = 9000;
 // At a Glance panel shows a loading hint while /api/summarize runs.
 type SummaryState = "idle" | "loading";
 const SUMMARIZE_TIMEOUT_MS = 90_000;
-// Edition polling gives up after 180s; this backstop sits just past it.
-const DIGEST_TIMEOUT_MS = 200_000;
+// Edition polling gives up after 300s; this backstop sits just past it.
+const DIGEST_TIMEOUT_MS = 320_000;
+// While stories wait for Gemini, how often the page asks the server (which
+// repairs at most every 5 minutes), and how long a page can sit in a background
+// tab before it checks for a newer edition on coming back.
+const REPAIR_RECHECK_MS = 5 * 60_000 + 10_000;
+const RETURN_RECHECK_MS = 10 * 60_000;
 
 /** A colour for a reader-made section, from what it seems to be about. */
 function digestHue(label: string): string {
@@ -199,6 +205,16 @@ export default function EditionView({
   // Set at mount when this visit follows "Refresh edition": the server must
   // rebuild rather than hand back the edition the reader already had.
   const forceRebuildRef = useRef(false);
+  // Which version of which edition is on the page, so nothing older replaces it.
+  const [firstShown] = useState(() =>
+    initialDigest ? { hash: hashPreferences(initialDigest.prefs), revision: digestRevision(initialDigest.result) } : null,
+  );
+  const shownRef = useRef(firstShown);
+  const lastCheckRef = useRef(0);
+  // What the page tells the reader went wrong (chrome/WritingNotice.tsx).
+  const [serverNote, setServerNote] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
 
   // --- edition prep overlay ("cooking today's edition") -------------------
   // boot     — first render (SSR included): the opaque overlay is already on
@@ -591,11 +607,12 @@ export default function EditionView({
   }, [runSummarize]);
 
   // --- preference-driven digest ----------------------------------------------
-  // Sends the reader's stored preferences to /api/digest, which collates every
-  // wire the paper fetches and has the AI filter/prioritise/summarise them per
-  // section in one pass. When the result arrives it waits in pendingDigestRef
-  // Digest results wait here until the reader taps "tap to update".
+  // Sends the reader's stored preferences to /api/edition, which builds or
+  // returns today's edition. The saved copy (digest-cache) only gives a first
+  // paint when there's nothing better: the server is always asked, and the
+  // newest revision wins, so a copy saved during a failure can't outlive it.
   const applyDigest = useCallback((result: DigestResult, prefs: DigestPreferences) => {
+    shownRef.current = { hash: hashPreferences(prefs), revision: digestRevision(result) };
     const projection = projectDigest(result, prefs);
     const { paddock, standalone } = projection;
     setEdition((prev) => ({ ...prev, sections: withProjection(prev.sections, projection) }));
@@ -608,18 +625,20 @@ export default function EditionView({
   }, []);
 
   const runDigest = useCallback(
-    (force: boolean) => {
+    (force: boolean, retry = false) => {
       if (isArchive) return;
       const prefs = loadDigestPreferences();
       const hash = hashPreferences(prefs);
+      lastCheckRef.current = Date.now();
 
-      // Today's digest for these exact preferences is cached: apply silently.
+      // A saved copy paints at once, if it's newer than what's on the page.
+      // Either way the server gets asked below.
       if (!force) {
         const cached = readDigestCache(edition.isoDate, hash);
-        if (cached) {
+        const shown = shownRef.current;
+        if (cached && (shown?.hash !== hash || digestRevision(cached) > shown.revision)) {
           applyDigest(cached, prefs);
           setBrief(deriveBriefFromDigest(cached, prefs));
-          return;
         }
       }
 
@@ -636,9 +655,12 @@ export default function EditionView({
       // landing) it simply swaps in.
       const deliver = (result: DigestResult) => {
         if (controller.signal.aborted) return;
-        writeDigestCache(edition.isoDate, hash, result);
+        const revision = digestRevision(result);
+        const shown = shownRef.current;
+        const sameEdition = shown?.hash === hash;
+        if (force || !sameEdition || revision >= shown.revision) writeDigestCache(edition.isoDate, hash, result);
         const total = Object.values(result.sections).reduce((n, a) => n + a.length, 0);
-        if (total > 0) {
+        if (total > 0 && (force || !sameEdition || revision > shown.revision)) {
           applyDigest(result, prefs);
           setBrief(deriveBriefFromDigest(result, prefs));
         }
@@ -646,40 +668,54 @@ export default function EditionView({
       };
 
       (async () => {
-        const first = await requestEdition(prefs, { force, signal: controller.signal });
+        const first = await requestEdition(prefs, { force, retry, signal: controller.signal });
+        setServerNote(first.note ?? null);
         if (first.state === "failed") throw new Error(first.error ?? "edition failed");
+        // A tab left open past midnight keeps the day it's showing.
+        if (!force && !prepActiveRef.current && first.date && first.date !== edition.isoDate) {
+          setSyncError(null);
+          return;
+        }
 
         if (first.state === "ready" && first.digest) {
           // After "Refresh edition" the reader asked for a new paper — hold
           // the overlay until the fresh build lands instead of reprinting
           // the one they already had.
           if (!(force && first.refreshing)) deliver(first.digest);
-          if (!first.refreshing) return;
+          if (!first.refreshing) {
+            setSyncError(null);
+            return;
+          }
         }
 
         // Building (or refreshing in the background): poll the server.
         const final = await waitForEdition(first.hash!, first.date!, {
           signal: controller.signal,
           waitForFresh: first.state === "ready",
-          after: first.builtAt,
+          after: first.revision,
         });
         if (final.state !== "ready" || !final.digest) {
           throw new Error(final.error ?? "edition failed");
         }
-        if (final.builtAt !== first.builtAt || first.state !== "ready" || force) {
+        if (final.revision !== first.revision || first.state !== "ready" || force) {
           deliver(final.digest);
         }
+        setSyncError(null);
       })()
         .catch((err) => {
           if (controller.signal.aborted && digestInFlightRef.current !== controller) return;
           console.warn("[edition] failed:", err);
           // The overlay swaps the animation for a retry. Once the page is
-          // showing, a failed background refresh just keeps what is there.
+          // showing, it keeps what's there and says the check failed.
           if (prepActiveRef.current) setPrep("failed");
+          else setSyncError(controller.signal.aborted ? "the server took too long" : err instanceof TypeError ? "the server didn't answer" : err instanceof Error ? err.message : "the server didn't answer");
         })
         .finally(() => {
           clearTimeout(timer);
-          if (digestInFlightRef.current === controller) digestInFlightRef.current = null;
+          if (digestInFlightRef.current === controller) {
+            digestInFlightRef.current = null;
+            setRetrying(false);
+          }
         });
     },
     [isArchive, edition.isoDate, applyDigest, revealEdition],
@@ -689,6 +725,33 @@ export default function EditionView({
   useEffect(() => {
     runDigestRef.current = runDigest;
   }, [runDigest]);
+
+  // Stories are waiting for Gemini, or the last rebuild or check failed: keep
+  // asking while the page is in view, so the fix lands without a reload.
+  const writing = appliedDigest?.writing;
+  const awaitingFix =
+    !isArchive &&
+    (Boolean(syncError) || Boolean(writing && !writing.disabled && !writing.gaveUp && (writing.unwritten > 0 || writing.selectionFailed || writing.rebuildFailed)));
+  useEffect(() => {
+    if (isArchive) return;
+    const check = () => {
+      if (!document.hidden && !digestInFlightRef.current) runDigestRef.current(false);
+    };
+    const timer = awaitingFix ? setInterval(check, REPAIR_RECHECK_MS) : undefined;
+    const onReturn = () => {
+      if (Date.now() - lastCheckRef.current >= (awaitingFix ? REPAIR_RECHECK_MS : RETURN_RECHECK_MS)) check();
+    };
+    document.addEventListener("visibilitychange", onReturn);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onReturn);
+    };
+  }, [isArchive, awaitingFix]);
+
+  const retryNow = useCallback(() => {
+    setRetrying(true);
+    runDigestRef.current(false, true);
+  }, []);
 
   // Decide at mount whether this visit needs the pressroom overlay at all.
   // Runs before paint effects matter: a warm cache, an archive view, or a
@@ -1050,6 +1113,22 @@ export default function EditionView({
   // pipeline (progress + retry), so the floating pill stays out of the way.
   const prepBlocking = prep === "boot" || prep === "cooking" || prep === "failed";
 
+  // Stories on the page still waiting for Gemini: a spare that isn't printed,
+  // or a section the reader hid, is no failure of theirs to read about.
+  const printedById = new Map<string, Story>();
+  for (const s of [
+    ...Object.values(edition.sections).flatMap((list) => list ?? []),
+    ...f1Stories,
+    ...footballStories,
+    ...tennisStories,
+    ...visibleStandalone.flatMap(({ section, articles }) => articles.map((a, i) => digestArticleToStory(section, a, i))),
+  ]) {
+    printedById.set(s.id, s);
+  }
+  const pendingCount = [...printedById.values()].filter(
+    (s) => s.copy === "pending" && (!s.reserve || s.id === hero?.id) && !personalization.hiddenSections.includes(s.section),
+  ).length;
+
   return (
     <main className="flex-1 page-scale">
       <SparksContext.Provider value={sparks}>
@@ -1072,6 +1151,17 @@ export default function EditionView({
         weather={(travelling && travelWeather) || weather || undefined}
       />
       <div className="page-wrap px-4 sm:px-6">
+        {!isArchive && !prepBlocking && (
+          <WritingNotice
+            writing={writing}
+            printedAt={appliedDigest?.generatedAt}
+            pending={pendingCount}
+            note={serverNote}
+            syncError={syncError}
+            retrying={retrying}
+            onRetry={retryNow}
+          />
+        )}
         {/* Front page: the briefing beside the lead, then the day's extras
             (editor's note, on this day, word of the day) in one slim strip;
             on an ultrawide the extras become a third column instead.

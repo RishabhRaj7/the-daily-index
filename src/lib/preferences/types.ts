@@ -150,6 +150,36 @@ export interface DigestArticle {
   /** One line on what the story means for this reader; absent when there is
    *  no honest answer. */
   why?: string;
+  /** true: Gemini wrote `summary`. false: it couldn't, and `summary` is the
+   *  publisher's own text (or empty); the page labels it and the server keeps
+   *  retrying. Absent on editions from before Round 19, and with AI off. */
+  written?: boolean;
+}
+
+/**
+ * How the AI's work on this edition went, so the page can say so instead of
+ * quietly printing the publisher's text. Absent on editions from before
+ * Round 19.
+ */
+export interface WritingStatus {
+  /** Stories that need a paragraph (the sections and Schadenfreude). */
+  stories: number;
+  /** Of those, how many still carry the publisher's text. */
+  unwritten: number;
+  /** Why they're unwritten, as a clause after "Gemini failed on 3 of 36…:". */
+  reason?: string;
+  /** Selection failed, so keyword rules picked the stories: why it failed. */
+  selectionFailed?: string;
+  /** No Gemini key (or AI_SUMMARIZE=false): nothing was attempted. */
+  disabled?: boolean;
+  /** Repair passes run so far (lib/server/editions.ts). */
+  attempts: number;
+  /** When Gemini was last asked (ISO). */
+  triedAt: string;
+  /** Repairs have stopped for today; only "Try now" or Refresh asks again. */
+  gaveUp?: boolean;
+  /** A later rebuild came out worse and was thrown away; this edition stands. */
+  rebuildFailed?: { at: string; reason: string };
 }
 
 /**
@@ -238,8 +268,14 @@ export interface DigestResult {
    */
   briefs?: Partial<Record<NewsSlot, BriefItem[]>>;
   generatedAt: string;
-  /** "ai" when the model produced it, "heuristic" for the offline fallback. */
+  /** "ai" when the model chose the stories, "heuristic" when keyword rules did
+   *  (no key, or selection failed; Gemini may still have written them). */
   engine: "ai" | "heuristic";
   /** How many collated articles the selection ran against. */
   corpusSize: number;
+  /** See WritingStatus. Absent on editions from before Round 19. */
+  writing?: WritingStatus;
+  /** Set whenever a stored edition changes without being rebuilt (a repair, a
+   *  failed rebuild noted). See digestRevision() in lib/preferences/stories.ts. */
+  revisedAt?: string;
 }

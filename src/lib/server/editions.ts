@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { after } from "next/server";
-import { generateDigest, type WritingCache } from "@/lib/live/digest";
+import { generateDigest, writeMissing, type WritingCache } from "@/lib/live/digest";
+import { aiEnabled, geminiFailure } from "./gemini";
 import type { BuildReport } from "@/lib/live/build-report";
 import { DEFAULT_DIGEST_PREFERENCES, normalizePreferences } from "@/lib/preferences/storage";
 import type { DigestPreferences, DigestResult } from "@/lib/preferences/types";
@@ -22,11 +23,26 @@ import { captureSnapshot, type EditionSnapshot } from "./snapshot";
 //                                        └────► failed (retryable)
 // A ready edition older than STALE_HOURS is served immediately while a fresh
 // build runs in the background (stale-while-revalidate).
+//
+// Failures never make the paper worse, and never pass in silence:
+//   - a rebuild that came out worse than the stored edition (Gemini down) is
+//     thrown away; the stored one stands, noting what happened
+//     (writing.rebuildFailed), and the next rebuild waits REBUILD_COOLDOWN_MS;
+//   - stories Gemini couldn't write are retried in place (repairEdition) every
+//     REPAIR_EVERY_MS while someone is reading, up to MAX_REPAIRS times, which
+//     changes the edition's revision but not its stories or their order.
 
 const DAY = 86_400;
 const STALE_HOURS = Number(process.env.EDITION_STALE_HOURS ?? 6);
 /** A build that has not finished in this long is presumed dead. */
-const LOCK_SECONDS = 180;
+const LOCK_SECONDS = 300;
+/** A repair pass runs at most this often, and this many times per edition. */
+const REPAIR_EVERY_MS = 5 * 60_000;
+const MAX_REPAIRS = 6;
+/** After a rebuild was thrown away, the next waits this long. */
+const REBUILD_COOLDOWN_MS = 15 * 60_000;
+/** A rebuild leaving this share of its stories unwritten is thrown away. */
+const WORSE_UNWRITTEN_SHARE = 0.25;
 /** Non-default editions expire; the default edition is the permanent archive. */
 const CUSTOM_EDITION_TTL = 60 * DAY;
 const PREFS_TTL = 14 * DAY;
@@ -87,9 +103,10 @@ export interface EditionRecord {
  * carries a spare story for the front-page lead). An edition from older
  * code is served as it is but rebuilt in the background, like a stale one.
  * (4: India and Money pools, Google News signal, decoded links. 5: In Brief.
- * 6: In Brief headlines that stand on their own, no gist.)
+ * 6: In Brief headlines that stand on their own, no gist. 7: every story says
+ * whether Gemini wrote it, and the edition how the writing went.)
  */
-const BUILD_VERSION = 6;
+const BUILD_VERSION = 7;
 
 export type EditionState =
   | { state: "ready"; date: string; hash: string; edition: EditionRecord; refreshing: boolean; note?: string }
@@ -119,10 +136,52 @@ function ageHours(iso: string): number {
 // A heuristic digest built while the AI was configured means the model call
 // failed — retry it much sooner than a normal refresh.
 function isStale(edition: EditionRecord): boolean {
-  const aiConfigured = Boolean(process.env.GEMINI_API_KEY) && process.env.AI_SUMMARIZE !== "false";
+  const thrownAway = edition.digest.writing?.rebuildFailed;
+  if (thrownAway && Date.now() - Date.parse(thrownAway.at) < REBUILD_COOLDOWN_MS) return false;
   if ((edition.v ?? 1) < BUILD_VERSION) return true;
-  const limit = edition.digest.engine === "heuristic" && aiConfigured ? 0.5 : STALE_HOURS;
+  const limit = edition.digest.engine === "heuristic" && aiEnabled() ? 0.5 : STALE_HOURS;
   return ageHours(edition.builtAt) > limit;
+}
+
+/** A rebuild this much worse than what's stored isn't worth printing. */
+function isWorse(next: DigestResult, kept: DigestResult): boolean {
+  if (kept.engine === "ai" && next.engine !== "ai") return true;
+  const unwritten = next.writing?.unwritten ?? 0;
+  return unwritten > (kept.writing?.unwritten ?? 0) && unwritten >= (next.writing?.stories ?? 0) * WORSE_UNWRITTEN_SHARE;
+}
+
+/** Stories are waiting for Gemini, and it's time to ask again. */
+function repairDue(edition: EditionRecord): boolean {
+  const w = edition.digest.writing;
+  if (!w || w.disabled || w.gaveUp || w.unwritten === 0 || !aiEnabled()) return false;
+  return Date.now() - Date.parse(w.triedAt) >= REPAIR_EVERY_MS;
+}
+
+async function saveEdition(record: EditionRecord): Promise<void> {
+  await getStore().set(
+    key.edition(record.date, record.hash),
+    record,
+    record.hash === DEFAULT_HASH ? undefined : { ttlSeconds: CUSTOM_EDITION_TTL },
+  );
+}
+
+/** The stored edition stands, and says a rebuild failed and why. */
+async function noteRebuildFailure(existing: EditionRecord, reason: string): Promise<EditionRecord> {
+  const at = new Date().toISOString();
+  const count = Object.values(existing.digest.sections).flat().length;
+  const record: EditionRecord = {
+    ...existing,
+    digest: {
+      ...existing.digest,
+      revisedAt: at,
+      writing: {
+        ...(existing.digest.writing ?? { stories: count, unwritten: 0, attempts: 0, triedAt: at }),
+        rebuildFailed: { at, reason },
+      },
+    },
+  };
+  await saveEdition(record);
+  return record;
 }
 
 export async function readEdition(date: string, hash: string): Promise<EditionRecord | null> {
@@ -158,10 +217,21 @@ export async function buildEdition(
   { ownsLock = false }: { ownsLock?: boolean } = {},
 ): Promise<EditionRecord | null> {
   const store = getStore();
+  let existing: EditionRecord | null = null;
   try {
+    existing = await readEdition(date, hash);
     // The build report stays out of the edition (readers download that);
     // it is kept beside it for /api/health.
     const [{ report, ...digest }] = await Promise.all([generateDigest(prefs, { writingCache }), ensureSnapshot(date)]);
+    // Gemini went down mid-rebuild: the good paper stays, and says so.
+    if (existing && isWorse(digest, existing.digest)) {
+      const reason = digest.writing?.selectionFailed ?? digest.writing?.reason ?? "the call to it failed";
+      console.warn(`[editions] ${date}/${hash} rebuild thrown away: ${reason}`);
+      const kept = await noteRebuildFailure(existing, reason);
+      await store.set(key.report(date, hash), report, { ttlSeconds: 14 * DAY }).catch(() => {});
+      await store.del(key.status(date, hash));
+      return kept;
+    }
     const record: EditionRecord = {
       date,
       hash,
@@ -172,11 +242,7 @@ export async function buildEdition(
         .sort((a, b) => a.order - b.order)
         .map((sec) => ({ id: sec.id, label: sec.label, order: sec.order, type: sec.type })),
     };
-    await store.set(
-      key.edition(date, hash),
-      record,
-      hash === DEFAULT_HASH ? undefined : { ttlSeconds: CUSTOM_EDITION_TTL },
-    );
+    await saveEdition(record);
     await store.set(key.report(date, hash), report, { ttlSeconds: 14 * DAY }).catch(() => {});
     if (report.degraded.length > 0) console.warn(`[editions] ${date}/${hash} degraded:`, report.degraded.join("; "));
     await store.zadd(key.archive, Date.parse(`${date}T00:00:00Z`) / 1000, date);
@@ -187,6 +253,13 @@ export async function buildEdition(
     return record;
   } catch (err) {
     console.error(`[editions] build ${date}/${hash} failed:`, err);
+    // With a paper already stored the reader keeps it, and is told.
+    if (existing) {
+      const stored = existing;
+      const kept = await noteRebuildFailure(stored, geminiFailure(err)).catch(() => stored);
+      await store.del(key.status(date, hash)).catch(() => {});
+      return kept;
+    }
     await store.set(
       key.status(date, hash),
       { state: "failed", at: new Date().toISOString(), error: "The edition could not be built." } satisfies StatusRecord,
@@ -203,6 +276,54 @@ export async function buildEdition(
  * build of the same edition is already running, so the two never duplicate
  * work — or double the Gemini calls — for one edition.
  */
+/**
+ * Ask Gemini again for the stories the stored edition has no paragraph for,
+ * and store the result. Only those stories change. Never throws. The caller
+ * holds the build lock; this releases it.
+ */
+async function repairEdition(record: EditionRecord, prefs: DigestPreferences): Promise<EditionRecord> {
+  const store = getStore();
+  const { date, hash } = record;
+  const now = () => new Date().toISOString();
+  const count = Object.values(record.digest.sections).flat().length;
+  const before = record.digest.writing ?? { stories: count, unwritten: 0, attempts: 0, triedAt: now() };
+  const attempts = before.attempts + 1;
+  try {
+    const { digest, report } = await writeMissing(prefs, record.digest, writingCache);
+    const writing = { ...before, ...digest.writing, attempts, triedAt: now() };
+    const repaired: EditionRecord = {
+      ...record,
+      digest: { ...digest, revisedAt: now(), writing: { ...writing, gaveUp: writing.unwritten > 0 && attempts >= MAX_REPAIRS } },
+    };
+    await saveEdition(repaired);
+    const buildReport = await store.get<BuildReport>(key.report(date, hash)).catch(() => null);
+    if (buildReport) {
+      const degraded = [
+        ...buildReport.degraded.filter((d) => !d.startsWith("writing:")),
+        ...(writing.unwritten > 0 ? [`writing: ${writing.unwritten} of ${writing.stories} stories unwritten`] : []),
+      ];
+      await store.set(key.report(date, hash), { ...buildReport, degraded, writing: { ...report, repairs: attempts } }, { ttlSeconds: 14 * DAY }).catch(() => {});
+    }
+    console.warn(`[editions] ${date}/${hash} repair ${attempts}: ${writing.unwritten} of ${writing.stories} still unwritten`);
+    return repaired;
+  } catch (err) {
+    console.error(`[editions] repair ${date}/${hash} failed:`, err);
+    const failed: EditionRecord = {
+      ...record,
+      digest: {
+        ...record.digest,
+        revisedAt: now(),
+        writing: { ...before, attempts, triedAt: now(), reason: geminiFailure(err), gaveUp: attempts >= MAX_REPAIRS },
+      },
+    };
+    await saveEdition(failed).catch(() => {});
+    return failed;
+  } finally {
+    await store.del(key.status(date, hash)).catch(() => {});
+    await store.del(key.lock(date, hash)).catch(() => {});
+  }
+}
+
 export async function buildIfIdle(
   date: string,
   hash: string,
@@ -230,6 +351,9 @@ export interface RequestOptions {
   ip: string | null;
   /** Cron and other trusted callers skip the visitor limits. */
   trusted?: boolean;
+  /** The reader pressed "Try now": ask Gemini again without waiting for the
+   *  next scheduled try, for whatever went wrong. */
+  retry?: boolean;
 }
 
 /**
@@ -253,12 +377,30 @@ export async function requestEdition(
   ]);
 
   const existing = await readEdition(date, hash);
-  const wantsBuild = !existing || opts.force || isStale(existing);
+  // "Try now" after the editor failed, or a rebuild was thrown away, means
+  // another whole build: the stories themselves may change.
+  const retryBuild = opts.retry && existing && (existing.digest.writing?.rebuildFailed || existing.digest.writing?.selectionFailed);
+  const wantsBuild = !existing || opts.force || retryBuild || isStale(existing);
   if (!wantsBuild) {
     // Say so when a rebuild someone else started (Refresh, cron) is running,
     // so a poller knows a newer edition is on its way.
     const running = await store.get<StatusRecord>(key.status(date, hash));
-    return { state: "ready", date, hash, edition: existing, refreshing: running?.state === "building" };
+    if (running?.state === "building") return { state: "ready", date, hash, edition: existing, refreshing: true };
+    const unwritten = (existing.digest.writing?.unwritten ?? 0) > 0 && aiEnabled();
+    if (opts.retry ? unwritten : repairDue(existing)) {
+      if (opts.retry && !(await withinLimits(date, opts.ip))) {
+        return { state: "ready", date, hash, edition: existing, refreshing: false, note: "Today's retry limit is reached." };
+      }
+      if (await store.setIfAbsent(key.lock(date, hash), 1, LOCK_SECONDS)) {
+        await store.set(key.status(date, hash), { state: "building", at: new Date().toISOString() } satisfies StatusRecord, {
+          ttlSeconds: LOCK_SECONDS,
+        });
+        if (!store.persistent) return { state: "ready", date, hash, edition: await repairEdition(existing, prefs), refreshing: false };
+        after(() => repairEdition(existing, prefs));
+        return { state: "ready", date, hash, edition: existing, refreshing: true };
+      }
+    }
+    return { state: "ready", date, hash, edition: existing, refreshing: false };
   }
 
   // Only one build per edition at a time; a second request joins the first.
@@ -391,6 +533,7 @@ function reportSummary(r: BuildReport) {
     fullText: r.fullText,
     googleLinks: r.googleLinks,
     copy: r.copy,
+    writing: r.writing,
     printed: r.printed,
     degraded: r.degraded,
   };
@@ -414,7 +557,7 @@ export async function editionDiagnostics() {
       namespace: info.namespace,
       today: date,
       defaultEdition: edition
-        ? { state: "ready", builtAt: edition.builtAt, engine: edition.digest.engine }
+        ? { state: "ready", builtAt: edition.builtAt, engine: edition.digest.engine, writing: edition.digest.writing ?? null }
         : status
           ? { state: status.state, at: status.at, error: status.error }
           : { state: "missing" },

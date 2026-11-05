@@ -304,8 +304,10 @@ mount (EditionView)
                   3. writing — summaries + gists for the shortlist
                   Indices are rehydrated into real title/url/source; grouped
                   picks must mention their group. Heuristic fallback when no
-                  GEMINI_API_KEY or selection fails; if writing fails the
-                  selection stands with condensed article text)
+                  GEMINI_API_KEY; if selection fails keyword rules pick and
+                  Gemini still writes. Since Round 19 writing is many small
+                  calls, and a story it can't write is marked, never quietly
+                  given the page's raw text)
   ◄── { sections: { [sectionId]: [{ title, summary, source, url,
         publishedAt, group?, priority, matchedEntity? }] }, engine, … }
   └── banner "Your digest is ready — tap to update"
@@ -336,8 +338,9 @@ mount (EditionView)
   "Your digest is ready — tap to update". Tapping applies digest + pending
   summaries together.
 - Today's digest is cached in localStorage keyed by date + preferences hash
-  (`src/lib/digest-cache.ts`); a reload re-applies it silently, and editing
-  preferences invalidates it automatically. "Refresh edition" purges it.
+  (`src/lib/digest-cache.ts`). Since Round 19 it is only a first paint: the page
+  always asks the server too, and the newest revision wins. Editing preferences
+  invalidates it automatically. "Refresh edition" purges it.
 - `/api/summarize` still runs, but only for hate-watch stories, Editor's Picks
   blurbs, and the Editor's Desk note. The "at a glance" brief is derived from
   the digest itself (no extra model call).
@@ -440,7 +443,11 @@ SyncRuntime.tsx`, controls in `components/settings/SyncCard.tsx`).
   and only fetches their pages. Selection runs at temperature 0.
 - There is no "tap to update": a finished edition replaces the page as soon
   as it arrives — under the pressroom overlay before it fades, or in place
-  when a background rebuild lands.
+  when a background rebuild or a repair lands.
+- A failure never makes the paper worse and is never silent (Round 19): a
+  rebuild that comes out worse is thrown away, stories Gemini couldn't write
+  are labelled and retried in place, and `chrome/WritingNotice.tsx` says what
+  happened at the top of the page.
 
 ## Front page render (current)
 
@@ -760,8 +767,12 @@ SyncRuntime.tsx`, controls in `components/settings/SyncCard.tsx`).
 - `lib/server/gemini.ts` is the only module that talks to Gemini, on
   Google's current SDK (`@google/genai`; the old `@google/generative-ai` was
   deprecated). `generateJson(prompt, { schema, temperature, timeoutMs })`
-  returns JSON text; `aiEnabled()` is the single on/off check. Model:
-  `GEMINI_MODEL`, falling back to `gemini-3.1-flash-lite`.
+  returns JSON text; `aiEnabled()` is the single on/off check. Models:
+  `GEMINI_MODEL` if set, then `gemini-3.5-flash-lite`, then
+  `GEMINI_FALLBACK_MODEL` or `gemini-3.1-flash-lite`. A call tries them all in
+  up to three rounds (waits of 1.5 s and 4 s) when they're busy, inside the
+  caller's timeout. `geminiFailure(err)` puts what went wrong into words the
+  page can print.
 - Callers: the digest (selection + writing, with response schemas),
   `batchSummarize` (hate-watch), pick blurbs and the Editor's Desk note.
 - `/api/summarize` no longer writes an "at a glance" brief — the page always
@@ -849,7 +860,7 @@ numbered rails); colour from The Verge (near-black, mint signal, ultraviolet).
 
 | Data | Fetched where | When | Stored |
 |---|---|---|---|
-| Digest (all news sections, At a Glance, Schadenfreude) | server, `generateDigest` via `/api/edition` or the cron | first visit of the day per preferences hash; cron 05:30 IST; rebuild after 6 h or on Refresh | Redis `edition:{date}:{hash}` (default edition kept for the archive, others 60 days); summaries `w:*` 3 days |
+| Digest (all news sections, At a Glance, Schadenfreude) | server, `generateDigest` via `/api/edition` or the cron | first visit of the day per preferences hash; cron 05:30 IST; rebuild after 6 h or on Refresh; stories still unwritten retried in place every 5 min while being read, six times at most | Redis `edition:{date}:{hash}` (default edition kept for the archive, others 60 days); summaries `w:*` 3 days |
 | Raw RSS for the first HTML (World, Markets, Tech, sports) | server, `app/page.tsx` | every page render; `fetch` revalidates every 30 min | Next.js data cache |
 | F1 schedule | server, `app/page.tsx` | page render | Next.js data cache |
 | F1 standings / results | browser → `/api/f1` | after the page loads | Next.js data cache |
@@ -858,7 +869,7 @@ numbered rails); colour from The Verge (near-black, mint signal, ultraviolet).
 | Editor’s Desk note, pick blurbs | browser → `/api/summarize` | once per browser session per day | sessionStorage, keyed by date |
 | Reddit (Grapevine) | server | page render | Next.js data cache |
 | Reader's preferences | browser | settings save | localStorage (`daily-index:digest-preferences`, `daily-index:personalization`); a copy in Redis `prefs:{hash}` for the cron |
-| Digest copy for instant reloads | browser | after each edition arrives | localStorage, keyed by date + hash |
+| Digest copy, a first paint only (the server is always asked and the newest revision wins) | browser | after each edition arrives | localStorage, keyed by date + hash |
 
 ### Round 6
 
@@ -1059,3 +1070,21 @@ Built Oct 1 2026 after the reader's review of round 9: more odds but only the re
   - Names are matched by `sameIpo` (GMP rows to the board, and the board to past issues): equal, one a prefix of the other as before, or, for ids of 10+ characters, at most two letters apart (edit distance).
   - `IpoEntry.lastSeen` (types.ts): the last day NSE's current list or the GMP table named the IPO. One with no listing date that neither has named for 10 days (`ORPHAN_AFTER_DAYS`) is dropped. An entry stored before this release counts as seen on its first refresh.
   - No cache keys or versions change: `ipo:board` keeps its key and gains the optional `lastSeen`.
+
+### Round 19: Gemini's text, every time, and failures said out loud (Nov 5 2026)
+
+The reader kept seeing a publisher's raw text in place of Gemini's, sometimes only under the lead, with no sign of a failure and only Refresh fixing it. Four causes, all found in the code, the first also in production: on Nov 4 at 19:42 IST a 503 on selection replaced the whole default paper with feed text.
+
+- **No more silent downgrades** (`lib/server/editions.ts`): `buildEdition` overwrote the stored edition with whatever came back. Now `isWorse` (the editor failed where it had worked, or a quarter or more of the stories unwritten and more than before) throws the rebuild away, keeps the stored edition, and notes `writing.rebuildFailed`. `isStale` then waits 15 minutes (`REBUILD_COOLDOWN_MS`), so an outage can't burn the day's build limit. A build that throws does the same when an edition exists.
+- **The browser no longer pins a bad copy** (`EditionView.runDigest`, `lib/digest-cache.ts`): with a saved copy it applied that and never asked the server again that day, even over a newer edition the server had just rendered. Now the copy is only a first paint, the server is always asked, and the newest revision wins (`digestRevision`: `revisedAt`, else `generatedAt`; `/api/edition` sends it as `revision`). A page in view rechecks every 5 minutes while something is wrong, and on coming back to the tab after 10 minutes. A tab left open past midnight keeps its day.
+- **Single stories no longer fail in silence** (`lib/live/digest.ts`): one call wrote the whole paper, so one failure blanked it, still marked `engine: "ai"` and not retried for six hours; a story dropped from the reply or rejected by `looksOnTopic` quietly printed the first 100 words of its page. Now `writeAll` writes about 8 articles a call, 3 at a time (`dealBatches` spreads each section across the calls), then asks again for what's missing, 3 a call, with `<last_attempt_rejected>` saying what was wrong. A typical build goes from 1 writing call to about 6. If the first calls all fail (`geminiLooksDown`) the rest aren't queued behind them. If selection fails, keyword rules pick and `writePaper` still has Gemini write them (`engine: "heuristic"`, `writing.selectionFailed`).
+- **Repairs in place** (`repairEdition` in `editions.ts`, `writeMissing` in `digest.ts`): stories marked `DigestArticle.written === false` are retried on the stored edition every 5 minutes (`REPAIR_EVERY_MS`) when the page asks, up to 6 times (`MAX_REPAIRS`, then `writing.gaveUp`). Only those stories change, not the selection or the order, and `revisedAt` moves on, so the page swaps them in without a reload.
+- **The lead goes to Gemini's writing** (`pickHeroStory`, `lib/format.ts`): a raw wire story matching an interest scored 80 against a written top story's 70, and page text always passed the 250-character gate where a short paragraph might not. `Story.copy` ("written", "pending", "wire"; absent on older editions, treated as written) now comes before the score: written (a short one included), then pending, then raw feed text as a last resort.
+- **What prints instead** (`fallbackText`): the publisher's description, else its feed snippet, each only if it passes `looksOnTopic`; otherwise the headline alone. A page's raw text never prints.
+- **Failures shown** (`components/chrome/WritingNotice.tsx`, `components/story/CopyTag.tsx`, `DigestResult.writing`): a notice under the masthead names how many stories, why (`geminiFailure`), whether a retry is coming and when it last tried, with "Try now" (`POST /api/edition { retry: true }`: a repair, or a rebuild if selection or a rebuild failed; counted against the visitor limits). It also covers a server that can't be reached, the build limit (`note`, which the page used to drop) and AI being off. Each affected story is labelled "Summary pending", or "Publisher's text" for raw feed stories. The archive page notes it in the story's line.
+- **Headlines and paragraphs can't cross quietly**: selection keeps corpus indices (a slip only picks another whole story). Writing no longer uses them: each article gets a code from its URL (`storyRef`, `s` + hash, so a slip lands on nothing), and the reply must repeat the first five words of the headline (`about`, checked by `aboutMatches`). `repairCopy` uses the codes too. `fitsAnotherBetter` rejects a paragraph that fits another headline at least a quarter better and half or more of it, unless it's plainly from this article's own text (`groundedIn` 60%+). Measured on 108 stored stories: no good paragraph rejected; wrong paragraphs passing the text checks fell from 46 of 3,780 to 10, with the code and echo guarding those. The prompt now says to name the headline's subject, where it used to say not to restate the headline while `looksOnTopic` looked for its words.
+- **Cleaner source text** (`fetchArticle`, `lib/live/summarize.ts`): the writer gets the page's JSON-LD `articleBody` (the one whose headline matches), else its `<article>`, else the whole page, and the text itself must match the headline, not the page's title. **Known limit:** the Economic Times page behind the Nov 4 mismatch carries another story's body under its title in its own structured data. It shares words with the headline (0.38, level with real articles at 0.33 and 0.40), so no threshold catches it without rejecting good stories; the prompt's "write from the headline if the text is about something else" is the only guard.
+- **Time limits**: `maxDuration` 60 s to 300 s on `/api/edition`, `/api/cron/build` and `/api/cron/daily` (retries need the room); `LOCK_SECONDS` 180 to 300; the page's polling 180 s to 300 s.
+- **Diagnostics** (`lib/live/build-report.ts`): `BuildReport.writing` names each unwritten story and why, with calls, failures, `crossed` and `rejected`; repairs update it. `/api/health?report=1&hash=…` reads any edition's report. A report describes the last build attempt, so after a thrown-away rebuild it shows that failure while the stored paper is fine.
+- **Store keys and versions**: `BUILD_VERSION` 6 to 7, so an edition from older code is served as it is and rebuilt in the background. Its stories have no `written` flag, so they carry no label and count as written until then. The `edition:*`, `w:*` and localStorage digest keys don't change; saved copies stop being final, nothing is discarded. No new environment variables.
+- **Tested** with real feeds and real Gemini on the in-memory store, failures injected at the fetch layer, and in the browser on the real page. Worth knowing: real Gemini also produced a 45 s timeout and an unreadable reply during those runs, both healed by the retry pass, and a rejected paragraph was rescued in an otherwise healthy build.

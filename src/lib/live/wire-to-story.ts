@@ -24,6 +24,7 @@ function wireBriefToStory(
     personal: personalLabel ?? undefined,
     sourceUrl: brief.url,
     sourceName: brief.domain,
+    copy: "wire",
   };
 }
 

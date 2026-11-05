@@ -4,6 +4,8 @@
 // hashes them and answers with that edition's state. When it is still
 // building we poll until it is ready. The hash is mirrored into a cookie so
 // server-rendered pages (the archive) know which edition is this reader's.
+// `revision` tells two versions of one edition apart, including a repair that
+// changed a few stories without a rebuild.
 
 import type { DigestPreferences, DigestResult } from "@/lib/preferences/types";
 
@@ -13,6 +15,8 @@ export interface EditionResponse {
   hash?: string;
   digest?: DigestResult;
   builtAt?: string;
+  /** Changes whenever the stored edition does (a rebuild, a repair). */
+  revision?: string;
   /** Ready, but a fresher build is running in the background. */
   refreshing?: boolean;
   note?: string;
@@ -21,7 +25,7 @@ export interface EditionResponse {
 
 export const EDITION_COOKIE = "daily-index:edition";
 const POLL_INTERVAL_MS = 4000;
-const POLL_TIMEOUT_MS = 180_000;
+const POLL_TIMEOUT_MS = 300_000;
 
 function rememberHash(hash: string | undefined) {
   if (!hash) return;
@@ -38,7 +42,7 @@ async function parse(res: Response): Promise<EditionResponse> {
 /** Ask for today's edition for these preferences (starts a build if needed). */
 export async function requestEdition(
   preferences: DigestPreferences,
-  opts: { force?: boolean; signal?: AbortSignal; keepalive?: boolean } = {},
+  opts: { force?: boolean; retry?: boolean; signal?: AbortSignal; keepalive?: boolean } = {},
 ): Promise<EditionResponse> {
   const res = await fetch("/api/edition", {
     method: "POST",
@@ -47,7 +51,7 @@ export async function requestEdition(
     signal: opts.signal,
     // Lets a settings save kick off the build even as the page navigates away.
     keepalive: opts.keepalive,
-    body: JSON.stringify({ preferences, force: opts.force === true }),
+    body: JSON.stringify({ preferences, force: opts.force === true, retry: opts.retry === true }),
   });
   return parse(res);
 }
@@ -64,8 +68,8 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 
 /**
  * Poll until the edition is ready or failed. With `waitForFresh`, a ready
- * edition that is still refreshing keeps polling until the fresh build lands
- * (used after "Refresh edition").
+ * edition that is still refreshing keeps polling until a newer revision than
+ * `after` lands, or the work ends without one (a rebuild or a repair).
  */
 export async function waitForEdition(
   hash: string,
@@ -82,7 +86,7 @@ export async function waitForEdition(
     const body = await parse(res);
     if (body.state === "failed") return body;
     if (body.state === "ready") {
-      const fresh = !opts.after || (body.builtAt ?? "") > opts.after;
+      const fresh = !opts.after || (body.revision ?? "") > opts.after;
       if (!opts.waitForFresh || !body.refreshing || fresh) return body;
     }
     // "missing" right after a POST means the build record hasn't landed yet

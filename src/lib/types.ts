@@ -58,6 +58,12 @@ export interface Story {
   /** Picked as a spare: printed only when the front page borrowed one of
    *  this section's stories as its lead. */
   reserve?: boolean;
+  /** Whose words `body` is. "written": Gemini's. "pending": it couldn't write
+   *  this story, so the publisher's text (or nothing) prints until it does.
+   *  "wire": raw feed text, printed when the digest has nothing for a section.
+   *  Absent: an edition from before Round 19. Decides the label on the story
+   *  and who may lead the paper (lib/format.ts). */
+  copy?: "written" | "pending" | "wire";
 }
 
 export interface MarketIndex {
