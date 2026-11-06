@@ -2,7 +2,7 @@ import MoveArrow from "@/components/chrome/MoveArrow";
 import { ArrowLeftIcon, ArrowRightIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { cookies } from "next/headers";
-import TopBar from "@/components/chrome/TopBar";
+import SiteNav from "@/components/chrome/SiteNav";
 import { RisingWords } from "@/components/story/SectionHeader";
 import { archiveAvailable, archiveDates, archivedEdition, readSnapshot } from "@/lib/server/editions";
 import type { EditionRecord } from "@/lib/server/editions";
@@ -121,8 +121,8 @@ export default async function ArchivePage() {
 
   return (
     <>
-      <div className="page-scale flex-1 flex flex-col w-full">
-      <TopBar isArchive alwaysShowLogo />
+      <div className="page-scale with-rail flex-1 flex flex-col w-full">
+      <SiteNav />
       <main className="flex-1 page-wrap px-4 sm:px-6 pt-10 pb-28 w-full">
         <Link href="/" className="chip mb-10">
           <ArrowLeftIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" /> Back to today&rsquo;s edition

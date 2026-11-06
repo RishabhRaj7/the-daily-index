@@ -16,7 +16,7 @@ Two Cities, Sky Report), **Sport** (Paddock Notes, Clutch, Sports), **Money** (T
 Ledger, Market Pulse) and **Next** (The Circuit Board, Straw Poll, your own sections,
 The Week Ahead, The Grapevine), then the day's extras. A wider screen shows more of a
 section at once. Stories print in full from laptop width; on a phone or tablet they
-show their first sentence and open in place. On a phone, anything else that shows more
+show their first sentence and open in place. The menu stays in one place on every page. On a phone, anything else that shows more
 slides up in a sheet. Each story's source is its publisher's logo and name.
 
 | Section | What it carries |

@@ -276,7 +276,14 @@ html.theme-transition *::after {
   .edition-page { padding-left: 204px; }
   .edition-page .page-wrap { max-width: none; }
   .edition-page .top-bar-paper { display: none; }
+  /* The pages around the paper carry the same menu (chrome/SiteNav.tsx). */
+  .with-rail { padding-left: 204px; }
+  .with-rail .top-bar { display: none; }
+  .with-rail .settings-save { left: 196px; }
+  /* No top bar for the live centre's own bar to sit under. */
+  .with-rail #views { top: 0.75rem; }
 }
+.settings-save[data-held] { box-shadow: 0 -2px 0 var(--accent); }
 
 /* A boxed item: a strong top rule, hairline bottom, no fill. */
 .paper-box {

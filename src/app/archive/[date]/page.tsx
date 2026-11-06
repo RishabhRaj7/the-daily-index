@@ -1,7 +1,7 @@
 import { ArrowLeftIcon, CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react/ssr";
 import PublisherMark from "@/components/story/PublisherMark";
 import Link from "next/link";
-import TopBar from "@/components/chrome/TopBar";
+import SiteNav from "@/components/chrome/SiteNav";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { archiveDates, archivedEdition, readSnapshot } from "@/lib/server/editions";
@@ -58,8 +58,8 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
 
   return (
     <>
-    <div className="page-scale flex-1 flex flex-col w-full">
-    <TopBar isArchive alwaysShowLogo />
+    <div className="page-scale with-rail flex-1 flex flex-col w-full">
+    <SiteNav />
     <main className="flex-1 page-wrap px-4 sm:px-6 pt-10 pb-20 w-full">
       <nav className="flex items-center justify-between gap-4 font-sans text-[13px] font-semibold mb-8">
         <span className="flex flex-wrap gap-2">

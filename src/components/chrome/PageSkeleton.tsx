@@ -1,7 +1,7 @@
-import TopBar from "@/components/chrome/TopBar";
+import SiteNav from "@/components/chrome/SiteNav";
 
 // What shows the moment a link is followed, while the page is put together
-// on the server (each route's loading.tsx): the top bar straight away and the
+// on the server (each route's loading.tsx): the menu straight away and the
 // page's shape in quiet blocks, so a click always answers at once.
 // The top bar and the page are zoomed together on big screens (one
 // .page-scale wrapper, as on the front page), so their edges line up.
@@ -11,8 +11,8 @@ const Block = ({ className = "" }: { className?: string }) => <div className={`r
 export default function PageSkeleton({ kind, label }: { kind: "edition" | "live" | "archive"; label: string }) {
   return (
     <>
-      <div className="page-scale flex-1 flex flex-col w-full">
-      <TopBar alwaysShowLogo />
+      <div className="page-scale with-rail flex-1 flex flex-col w-full">
+      <SiteNav />
       <main className="page-skeleton flex-1 page-wrap px-4 sm:px-6 pt-10 pb-28 w-full" aria-busy="true" aria-label={label}>
         <p className="font-label text-[11px] text-ink-faint mb-6">{label}</p>
         {kind === "edition" && (

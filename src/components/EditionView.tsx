@@ -1184,7 +1184,7 @@ export default function EditionView({
           onSkip={handlePrepSkip}
         />
       )}
-      <PaperNav chapters={navChapters} isArchive={isArchive} date={edition.date} issue={`VOL. ${edition.volume} · NO. ${edition.issue}`} />
+      <PaperNav chapters={navChapters} date={edition.date} issue={`VOL. ${edition.volume} · NO. ${edition.issue}`} />
       <Masthead edition={edition} weather={(travelling && travelWeather) || weather || undefined} />
       <div className="page-wrap px-4 sm:px-6">
         {!isArchive && !prepBlocking && (

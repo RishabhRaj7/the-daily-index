@@ -1,10 +1,12 @@
 "use client";
 
 import { CaretDownIcon } from "@phosphor-icons/react";
+import Link from "next/link";
 import { createElement, useEffect, useRef, useState } from "react";
 import TopBar, { TopBarTools, type NavChapter } from "@/components/chrome/TopBar";
 import Sheet from "@/components/extras/Sheet";
 import { CHAPTER_ICONS, sectionIcon } from "@/components/chrome/nav-icons";
+import { saveMenu } from "@/lib/nav-menu";
 
 // The paper's menu: one list in three forms, so the words never differ. Everywhere
 // the icons are outlines when inactive and filled when current, in the section's
@@ -25,6 +27,11 @@ import { CHAPTER_ICONS, sectionIcon } from "@/components/chrome/nav-icons";
 // one. Elements are looked up on each scroll because sections stream in late. The
 // current section's colour goes on <html> as --now-hue: the reading progress bar
 // and every form of "you are here" wear it (globals.css).
+//
+// The pages around the paper carry the same side menu and words (chrome/SiteNav.tsx),
+// from the copy saved here (lib/nav-menu.ts). A link from one of them arrives with
+// the section in the address, perhaps before that section has printed, so it's
+// waited for.
 
 const TODAY = "masthead";
 /** How far down the window a section counts as reached. */
@@ -219,24 +226,27 @@ function RowNote({ note }: { note: NonNullable<NavChapter["sections"][number]["n
   );
 }
 
-function Rail({
+/** The side menu, from 1500px. `base` is "/" off the paper, so its links go back to it. */
+export function Rail({
   chapters,
   active,
   section,
-  isArchive,
   date,
   issue,
+  base = "",
 }: {
   chapters: NavChapter[];
   active: string;
   section: string | null;
-  isArchive: boolean;
   date?: string;
   issue?: string;
+  base?: string;
 }) {
+  const Anchor = base ? Link : "a";
+  const to = (id: string) => (base ? (id === TODAY ? base : `${base}#${id}`) : `#${id}`);
   return (
-    <aside className="paper-rail hidden wide:flex">
-      <a href={`#${TODAY}`} className="block">
+    <aside className="paper-rail hidden wide:flex" data-site-nav>
+      <Anchor href={to(TODAY)} className="block">
         <span className="rail-mark" aria-hidden="true">
           {Array.from({ length: 9 }).map((_, i) => (
             <span key={i} />
@@ -247,8 +257,8 @@ function Rail({
           <br />
           Index
         </span>
-      </a>
-      <p className="font-mono text-[11px] leading-[1.35] text-ink-soft mt-1.5 pb-2.5 border-b-2 border-[color:var(--ink)]">
+      </Anchor>
+      <p className="font-mono text-[11px] leading-[1.35] text-ink-soft mt-1.5 pb-2.5 border-b-2 border-[color:var(--ink)] min-h-[3.5em]" suppressHydrationWarning>
         {date}
         {issue && (
           <>
@@ -258,31 +268,31 @@ function Rail({
         )}
       </p>
       <nav aria-label="Chapters" className="mt-2 flex-1 min-h-0 overflow-y-auto [scrollbar-width:none]">
-        <a href={`#${TODAY}`} data-nav={TODAY} className="rail-row" style={{ ["--row-hue" as string]: "var(--accent)" }} aria-current={active === TODAY ? "true" : undefined}>
+        <Anchor href={to(TODAY)} data-nav={TODAY} className="rail-row" style={{ ["--row-hue" as string]: "var(--accent)" }} aria-current={active === TODAY ? "true" : undefined}>
           <span className="rail-row-name">
             <RowIcon id={TODAY} current={active === TODAY} />
             Today
           </span>
-        </a>
+        </Anchor>
         {chapters.map((c) => (
           <div key={c.id}>
-            <a href={`#${c.id}`} data-nav={c.id} className="rail-group" aria-current={active === c.id ? "true" : undefined}>
+            <Anchor href={to(c.id)} data-nav={c.id} className="rail-group" aria-current={active === c.id ? "true" : undefined}>
               {c.label}
-            </a>
+            </Anchor>
             {c.sections.map((s) => (
-              <a key={s.id} href={`#${s.id}`} className="rail-row" style={{ ["--row-hue" as string]: s.hue }} aria-current={section === s.id ? "true" : undefined}>
+              <Anchor key={s.id} href={to(s.id)} className="rail-row" style={{ ["--row-hue" as string]: s.hue }} aria-current={section === s.id ? "true" : undefined}>
                 <span className="rail-row-name">
                   <RowIcon id={s.id} current={section === s.id} />
                   {s.name}
                 </span>
                 {s.note && <RowNote note={s.note} />}
-              </a>
+              </Anchor>
             ))}
           </div>
         ))}
       </nav>
       <div className="pt-2.5 border-t hairline mt-2.5">
-        <TopBarTools isArchive={isArchive} />
+        <TopBarTools />
       </div>
     </aside>
   );
@@ -290,23 +300,57 @@ function Rail({
 
 export default function PaperNav({
   chapters,
-  isArchive = false,
   date,
   issue,
 }: {
   chapters: NavChapter[];
-  isArchive?: boolean;
   date?: string;
   /** "VOL. 1 · NO. 283", printed under the side menu's name. */
   issue?: string;
 }) {
   const { chapter, section } = useActive(chapters);
+
+  // The pages around the paper print this same menu.
+  useEffect(() => saveMenu({ chapters, date, issue }), [chapters, date, issue]);
+
+  // Arriving at a section from another page: it may print a moment after the page
+  // does, and sections above it can still grow as they load. So go to it, and go
+  // again whenever it moves, until it has held still for two seconds. Touching the
+  // page calls that off.
+  useEffect(() => {
+    const id = decodeURIComponent(window.location.hash.slice(1));
+    if (!id || id === TODAY) return;
+    let tries = 0;
+    let steady = 0;
+    let at: number | null = null;
+    const stop = () => window.clearInterval(timer);
+    const timer = window.setInterval(() => {
+      if (++tries > 120) return stop();
+      const el = document.getElementById(id);
+      if (!el || document.querySelector(".prep-overlay")) return;
+      if (at !== null && Math.abs(el.getBoundingClientRect().top - at) < 2) {
+        if (++steady >= 8) stop();
+        return;
+      }
+      steady = 0;
+      el.scrollIntoView({ behavior: "instant" });
+      at = el.getBoundingClientRect().top;
+    }, 250);
+    window.addEventListener("wheel", stop, { once: true, passive: true });
+    window.addEventListener("touchmove", stop, { once: true, passive: true });
+    return () => {
+      stop();
+      window.removeEventListener("wheel", stop);
+      window.removeEventListener("touchmove", stop);
+    };
+  }, []);
+
   return (
     <>
-      <TopBar chapters={chapters} active={chapter} today={TODAY} isArchive={isArchive} date={date} />
+      <TopBar chapters={chapters} active={chapter} today={TODAY} date={date} />
       <PhoneNow chapters={chapters} active={chapter} section={section} />
       <Dock chapters={chapters} active={chapter} />
-      <Rail chapters={chapters} active={chapter} section={section} isArchive={isArchive} date={date} issue={issue} />
+      <Rail chapters={chapters} active={chapter} section={section} date={date} issue={issue} />
     </>
   );
 }

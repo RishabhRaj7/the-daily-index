@@ -1,6 +1,7 @@
 "use client";
 
 import { ArchiveIcon, NewspaperIcon, SlidersHorizontalIcon } from "@phosphor-icons/react";
+import { usePathname } from "next/navigation";
 import { CHAPTER_ICONS } from "@/components/chrome/nav-icons";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -21,22 +22,27 @@ export interface NavChapter {
   }>;
 }
 
-/** The evening switch, the archive and settings, wherever the menu puts them. */
-export function TopBarTools({ isArchive = false }: { isArchive?: boolean }) {
+/**
+ * The evening switch, the archive and settings, wherever the menu puts them. The
+ * same icons in the same order on every page: the one for the page you're on is
+ * filled, in the accent, and a second click on it goes back to the paper.
+ */
+export function TopBarTools() {
+  const inArchive = usePathname().startsWith("/archive");
   return (
     <div className="flex items-center gap-1 shrink-0">
       <EditionToggle compact />
       <Link
-        href={isArchive ? "/" : "/archive"}
+        href={inArchive ? "/" : "/archive"}
         className="icon-btn"
-        title={isArchive ? "Today's edition" : "Archive"}
-        aria-label={isArchive ? "Today's edition" : "Archive"}
+        title={inArchive ? "Back to the paper" : "Archive"}
+        aria-label={inArchive ? "Back to the paper" : "Archive"}
+        aria-current={inArchive ? "page" : undefined}
       >
-        {isArchive ? <NewspaperIcon size={18} aria-hidden="true" /> : <ArchiveIcon size={18} aria-hidden="true" />}
+        <ArchiveIcon size={18} weight={inArchive ? "fill" : "regular"} style={inArchive ? { color: "var(--accent)" } : undefined} aria-hidden="true" />
       </Link>
       <SettingsLink className="icon-btn">
-        <span className="sr-only">Settings</span>
-        <SlidersHorizontalIcon size={18} aria-hidden="true" />
+        {(current) => <SlidersHorizontalIcon size={18} weight={current ? "fill" : "regular"} style={current ? { color: "var(--accent)" } : undefined} aria-hidden="true" />}
       </SettingsLink>
     </div>
   );
@@ -46,20 +52,23 @@ export function TopBarTools({ isArchive = false }: { isArchive?: boolean }) {
 // particle one has scrolled away. On the paper itself it carries the chapters
 // on a tablet or laptop (the current one's icon filled, and underlined in its section's colour); on a phone it's a plain
 // row that scrolls away, the chapters being at the foot of the screen; from
-// 1500px the side menu takes over and the bar steps aside (chrome/PaperNav.tsx).
+// 1500px the side menu takes over and the bar steps aside (chrome/PaperNav.tsx). The
+// pages around the paper give it the same words, going back to the paper (linkBase,
+// chrome/SiteNav.tsx).
 export default function TopBar({
   chapters = [],
   active = null,
   today,
-  isArchive = false,
   alwaysShowLogo = false,
   date,
+  linkBase = "",
 }: {
   chapters?: NavChapter[];
   active?: string | null;
   /** The element "Today" jumps to, on the paper. */
   today?: string;
-  isArchive?: boolean;
+  /** Off the paper: "/", so its words go back to that part of the paper. */
+  linkBase?: string;
   /** Pages without the particle masthead show the small wordmark from the start. */
   alwaysShowLogo?: boolean;
   /** Printed in the phone's plain row, where the masthead has no room for it. */
@@ -67,7 +76,7 @@ export default function TopBar({
 }) {
   const [scrolledPast, setPastMasthead] = useState(false);
   const pastMasthead = alwaysShowLogo || scrolledPast;
-  const paper = chapters.length > 0;
+  const paper = chapters.length > 0 && !linkBase;
 
   // Show the compact wordmark once the masthead is out of view.
   useEffect(() => {
@@ -80,10 +89,11 @@ export default function TopBar({
     return () => io.disconnect();
   }, []);
 
-  const links = paper && today ? [{ id: today, label: "Today" }, ...chapters] : [];
+  const links = paper && today ? [{ id: today, label: "Today" }, ...chapters] : linkBase ? [{ id: "masthead", label: "Today" }, ...chapters] : [];
+  const Anchor = linkBase ? Link : "a";
 
   return (
-    <div className={`top-bar z-40 ${paper ? "top-bar-paper" : ""}`}>
+    <div className={`top-bar z-40 ${paper ? "top-bar-paper" : ""}`} data-site-nav>
       <div className="page-wrap px-4 sm:px-6 flex items-center gap-x-4 h-12 md:h-14">
         {paper && date && <span className="md:hidden font-mono text-[11px] text-ink-soft truncate">{date}</span>}
         <Link
@@ -116,9 +126,9 @@ export default function TopBar({
             {links.map((c) => {
               const Glyph = CHAPTER_ICONS[c.id] ?? NewspaperIcon;
               return (
-              <a
+              <Anchor
                 key={c.id}
-                href={`#${c.id}`}
+                href={linkBase ? (c.id === "masthead" ? linkBase : `${linkBase}#${c.id}`) : `#${c.id}`}
                 data-nav={c.id}
                 aria-current={active === c.id ? "true" : undefined}
                 className={`relative inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[14px] font-sans font-semibold whitespace-nowrap transition-colors ${
@@ -128,14 +138,14 @@ export default function TopBar({
                 <Glyph size={16} weight={active === c.id ? "fill" : "regular"} style={active === c.id ? { color: "var(--now-hue, var(--accent))" } : undefined} aria-hidden="true" />
                 {c.label}
                 {active === c.id && <span aria-hidden="true" className="absolute left-2.5 right-2.5 bottom-0 h-[2px] rounded-full transition-colors duration-300" style={{ background: "var(--now-hue, var(--accent))" }} />}
-              </a>
+              </Anchor>
               );
             })}
           </nav>
         )}
 
         <div className="ml-auto">
-          <TopBarTools isArchive={isArchive} />
+          <TopBarTools />
         </div>
       </div>
     </div>

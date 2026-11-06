@@ -19,10 +19,10 @@ import DigestPreferencesEditor from "@/components/settings/DigestPreferencesEdit
 import SyncCard from "@/components/settings/SyncCard";
 import { loadSync } from "@/lib/sync";
 import Link from "next/link";
-import TopBar from "@/components/chrome/TopBar";
+import SiteNav from "@/components/chrome/SiteNav";
 import { RisingWords } from "@/components/story/SectionHeader";
 import { clearMemory, loadMemory } from "@/lib/reader-memory";
-import { SETTINGS_RETURN_KEY } from "@/components/chrome/SettingsLink";
+import { leaveSettings } from "@/components/chrome/SettingsLink";
 
 // Football / tennis favourites chosen under Sports also steer any news
 // section that feeds the sports page, so the reader sets them once.
@@ -102,18 +102,30 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
     };
   }, [dirty, saved]);
 
-  // Discard the draft and close settings. Going *back* restores the paper
-  // from the router's cache instantly; pushing "/" would re-run the whole
-  // server render (fetching every feed again), which reads like a reload.
-  const handleClose = () => {
-    let cameFromPaper = false;
-    try {
-      cameFromPaper = sessionStorage.getItem(SETTINGS_RETURN_KEY) === "back";
-      sessionStorage.removeItem(SETTINGS_RETURN_KEY);
-    } catch {}
-    if (cameFromPaper && window.history.length > 1) router.back();
-    else router.push("/");
-  };
+  // Discard the draft and close settings.
+  const handleClose = () => leaveSettings(router);
+
+  // The menu can't throw away unsaved changes: with any, a link in it stays put and
+  // the save bar asks. Caught here, before the link's own click handler sees it.
+  const [asked, setHeld] = useState(false);
+  const held = asked && dirty && !saved;
+  useEffect(() => {
+    if (!dirty || saved) return;
+    let timer = 0;
+    const onClick = (e: MouseEvent) => {
+      if (!(e.target as Element).closest?.("[data-site-nav] a")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setHeld(true);
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setHeld(false), 5000);
+    };
+    document.addEventListener("click", onClick, true);
+    return () => {
+      document.removeEventListener("click", onClick, true);
+      window.clearTimeout(timer);
+    };
+  }, [dirty, saved]);
 
   const handleSave = () => {
     // Only the fields edited here, laid over the settings as they are now: a
@@ -140,7 +152,8 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
 
   return (
     <>
-    <TopBar alwaysShowLogo />
+    <div className="page-scale with-rail flex-1 flex flex-col w-full">
+    <SiteNav />
     <main className="flex-1 max-w-2xl mx-auto px-4 pt-12 pb-32 w-full">
       <div className="font-label text-[11px] text-accent mb-3">Settings</div>
       <h1 className="font-display font-extrabold text-[clamp(3.2rem,11vw,6rem)] leading-[0.84]">
@@ -275,13 +288,13 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
       </section>
       )}
 
-      <div className="fixed bottom-0 inset-x-0 z-40 border-t hairline glass">
+      <div className="settings-save fixed bottom-0 inset-x-0 z-40 border-t hairline glass" data-held={held || undefined}>
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <button type="button" onClick={handleClose} className="chip">
             <ArrowLeftIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" /> {dirty ? "Discard changes" : "Back to the paper"}
           </button>
-          <span className="font-mono text-[11px] text-ink-soft hidden sm:block">
-            {saved ? "Saved — reprinting…" : dirty ? "Unsaved changes" : "Everything saved"}
+          <span className={`font-mono text-[11px] ${held ? "font-semibold text-ink text-center" : "text-ink-soft hidden sm:block"}`} role={held ? "status" : undefined}>
+            {held ? "Save or discard your changes first" : saved ? "Saved — reprinting…" : dirty ? "Unsaved changes" : "Everything saved"}
           </span>
           <button
             onClick={handleSave}
@@ -293,6 +306,7 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
         </div>
       </div>
     </main>
+    </div>
     </>
   );
 }

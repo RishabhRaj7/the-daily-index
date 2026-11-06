@@ -404,7 +404,11 @@ first whole sentence (`splitFirstSentence`, `lib/format.ts`) and open in place.
 Anything else that shows more slides up in a sheet on a phone (`extras/Sheet.tsx`,
 `chrome/Fold.tsx`, `PHONE` in `lib/use-media.ts`) and opens in place on anything
 bigger. Publishers show as a logo and a proper name (`story/PublisherMark.tsx`,
-`lib/publishers.ts`, files in `public/publishers/`, one per paper colour). CSS zoom (`.page-scale`, 1 to 1.45 by window size) scales it on big
+`lib/publishers.ts`, files in `public/publishers/`, one per paper colour). The
+archive, settings and the live centre carry the same menu in the same place
+(`chrome/SiteNav.tsx`, `.with-rail`, `lib/nav-menu.ts`); a phone keeps a plain top
+row there. The archive and settings icons fill on their own page, and a second
+click goes back to the paper. CSS zoom (`.page-scale`, 1 to 1.45 by window size) scales it on big
 screens as before. Past editions are a separate plain page.
 
 ## Settings (current)
@@ -1175,3 +1179,17 @@ The reader said the charts were weird and inaccurate. Measured on 6 November: 6 
 - **Rows on a zoomed page** (`StartingGrid`): the table compared a row's zoomed height with the box's unzoomed height, so from 1920px it printed too few rows and left about 170 px blank under them. The zoom is now taken out, as in `lib/use-fit-rows.ts`.
 - **Store keys and versions**: none changed. A race result the store already holds is labelled when it's read, so the name corrects itself.
 - **Tested**: at 390, 1366, 1920, 2560x1080 and 3440x1440 in a browser, both papers looked at: podium aligned with the head and no time cut off, portraits loading, the fallback forced by firing each portrait's error event, a sprint weekend's sectors on a phone (written into the page, since none is on), the line frozen part way through its reveal, and Hirakawa's row from the API and on the page. Not tried on a real phone.
+
+### Round 20, navigation pass: one menu in one place on every page (Nov 6 2026)
+
+The reader reported the archive and settings icons moving between pages, and that clicking settings on settings did nothing. Measured before, at 1920 wide, the settings icon was at (139, 1027) on the paper, (1753, 15) on the archive and live centre, and (1524, 12) on settings, at 40 px on the first two and 32 px on settings, which wasn't zoomed. Below 1500 px it was already in one place on every page.
+
+- **The side menu on every page** (`chrome/SiteNav.tsx`, new; `Rail` exported from `PaperNav`; `.with-rail`): from 1500 px the archive, a past edition, settings, the live centre and the loading skeleton (`PageSkeleton`) print the paper's side menu, and their top bar steps aside. Its links go back to that part of the paper. Settings now sits inside `.page-scale` like the rest, so it's zoomed on big screens and its save bar starts after the menu (`.settings-save`). The live centre's sticky views bar moved up, with no top bar above it (`.with-rail #views`).
+- **The words on a tablet or laptop** (`TopBar linkBase`): those pages' top bar carries Today, News, Sport, Money and Next too. A phone keeps its plain row: settings has its save bar along the foot of the screen, and the live centre its own.
+- **The same words as the paper** (`lib/nav-menu.ts`, new): the paper saves its menu as it prints, in the reader's order and with their own sections, without the day's numbers, and `useSavedMenu` reads it. Before the paper has been opened on a device, the usual running order stands in.
+- **The icons** (`TopBarTools`, `SettingsLink`, `leaveSettings`): the archive's no longer swaps to a newspaper. The icon for the page you're on fills, and a second click goes back to the paper. Settings goes back with `router.back()` when it was opened from the paper, as its own button does. `TopBarTools`, `TopBar` and `PaperNav` lost `isArchive`: the address says.
+- **Unsaved changes** (`SettingsPageClient`): with any, a link in the menu stays put and the save bar says "Save or discard your changes first". One click listener in the capture phase catches every link under `[data-site-nav]`, before the link's own handler.
+- **Arriving at a section** (`PaperNav`): a link from another page lands on `/#section`, perhaps before it has printed, and sections above it can grow as they load. It goes there and goes again whenever the section moves, until it has held still for two seconds, or the reader touches the page.
+- **Not changed**: the Search Bar's World tab. Google's `i0OFE` call now answers permission denied (code 7) for every country tried, so India and the US fall back to the public feed's ten searches, and World, made only from that call, comes back empty and its tab goes. The reader chose to leave it in case it returns.
+- **Store keys and versions**: `daily-index:menu` (localStorage) is new. It's rewritten at each print and nothing depends on it being there.
+- **Tested**: on a production build, at 390, 820, 1366, 1600, 1920, 2560x1080 and 3440x1440 on the paper, archive, a past edition, settings and live centre: the icons' position and size match on all five, no sideways scroll, no page errors. Second clicks, the hold with unsaved changes from an icon and a menu link, a menu link from the archive landing on its section, and a saved order matching word for word. Not tried on a real phone.
