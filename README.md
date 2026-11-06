@@ -100,8 +100,8 @@ restarts, and Reddit is off.
 | Variable | Needed for |
 |---|---|
 | `GEMINI_API_KEY` | AI selection and summaries (strongly recommended) |
-| `GEMINI_MODEL` | Model override (default in `.env.example`) |
-| `GEMINI_F1_API_KEY` | F1 team radio transcripts on their own Google project (falls back to `GEMINI_API_KEY`) |
+| `GEMINI_MODEL`, `GEMINI_FALLBACK_MODEL` | The paper's models, tried in order (comma-separated lists work): AI selection, summaries, the editor's note and odds explanations. Not radio, whose order is in code. |
+| `GEMINI_F1_API_KEY` | F1 team radio transcripts, on their own Google project. Without it there are no transcripts. |
 | `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Stored editions and the archive (Upstash Redis; `UPSTASH_REDIS_REST_*` also works) |
 | `CRON_SECRET` | Protects `/api/cron/*`; Vercel Cron sends it automatically |
 | `REDDIT_ENABLED`, `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `REDDIT_USER_AGENT` | Reddit in the Grapevine (optional) |

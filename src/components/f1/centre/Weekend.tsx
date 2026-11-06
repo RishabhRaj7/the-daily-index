@@ -238,6 +238,10 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
   const first = done[0]?.end ?? upcoming[0]?.start;
   const last = upcoming.at(-1)?.start ?? done.at(-1)?.end;
   // The rounds after the one on show; with no round known, those beyond this weekend.
+  // Facts that fill out the circuit's tiles, from the race and the session on show.
+  const raceLaps = (snap.type === "Race" ? snap.lap?.total : undefined) ?? done.find((s) => s.type === "Race")?.rows[0]?.laps;
+  const stops = (snap.pitStops ?? []).filter((p) => p.stationary !== null && p.stationary > 1 && p.stationary < 15);
+  const quickest = stops.length ? stops.reduce((a, b) => (b.stationary! < a.stationary! ? b : a)) : null;
   const after = season?.rounds.filter((r) => (data?.round ? r.round > data.round : !r.done && new Date(r.date).getTime() > now + 2 * 86_400_000)).slice(0, 3) ?? [];
 
   return (
@@ -254,8 +258,8 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
           <div className="font-sans text-[13px] text-ink-soft mt-1">{h ? `${h.locality}, ${h.country}` : snap.location}</div>
           <dl className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-auto pt-5">
             {[
-              { Glyph: PathIcon, k: "Corners", v: track?.corners.length ? String(track.corners.length) : "—" },
-              { Glyph: WrenchIcon, k: "A pit stop costs", v: track?.pitLoss ? `~${Math.round(track.pitLoss)} s` : "—" },
+              { Glyph: PathIcon, k: "Corners", v: track?.corners.length ? String(track.corners.length) : "—", sub: raceLaps ? `${raceLaps} race laps` : undefined },
+              { Glyph: WrenchIcon, k: "A pit stop costs", v: track?.pitLoss ? `~${Math.round(track.pitLoss)} s` : "—", sub: quickest ? `Quickest ${quickest.stationary!.toFixed(1)} s · ${quickest.code}` : undefined },
               { Glyph: FlagCheckeredIcon, k: "Grands Prix here", v: h ? String(h.races) : "—", sub: h?.firstYear ? `Since ${h.firstYear}` : undefined },
               { Glyph: TrophyIcon, k: "Most wins here", v: h?.mostWins ? String(h.mostWins.wins) : "—", sub: h?.mostWins?.name },
             ].map((x) => (

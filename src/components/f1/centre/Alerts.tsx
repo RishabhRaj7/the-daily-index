@@ -192,7 +192,7 @@ function Toasts({ onOpen }: { onOpen: () => void }) {
   const mounted = useSyncExternalStore(sub, () => true, () => false);
   if (!mounted || !list.length) return null;
   return createPortal(
-    <div className="sheet-scale fixed z-[80] top-3 right-3 left-3 sm:left-auto sm:top-[6.75rem] sm:right-4 sm:w-[21rem] flex flex-col gap-2 pointer-events-none" role="status" aria-live="polite">
+    <div className="sheet-scale fixed z-[80] top-3 right-3 left-3 sm:left-auto sm:top-[8.25rem] sm:right-4 sm:w-[21rem] flex flex-col gap-2 pointer-events-none" role="status" aria-live="polite">
       {list.map((a) => (
         <Toast key={a.id} a={a} onOpen={onOpen} />
       ))}

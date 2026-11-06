@@ -173,11 +173,74 @@ const lapSecs = (t?: string | null) => {
   return m ? Number(m[1] ?? 0) * 60 + Number(m[2]) : null;
 };
 
+/** One figure in the session's summary: its label, the figure, and what it's out of. */
+function SessionFigure({ label, value, sub, colour }: { label: string; value: React.ReactNode; sub?: React.ReactNode; colour?: string }) {
+  return (
+    <div className="px-3 py-2.5 min-w-0">
+      <div className="font-label text-[11px] text-ink-faint truncate">{label}</div>
+      <div className="font-display font-extrabold text-[1.45rem] leading-none mt-1.5 truncate" style={colour ? { color: colour } : undefined}>
+        {value}
+      </div>
+      {sub && <div className="font-mono text-[11px] text-ink-faint mt-1 truncate">{sub}</div>}
+    </div>
+  );
+}
+
+/** Where the followed driver's race finished, in place of the fight with the car ahead once it's over. */
+function SessionResult({ row, race, className = "" }: { row: LiveRow; race: boolean; className?: string }) {
+  const moved = race && row.grid ? row.grid - row.position : null;
+  return (
+    <div className={`rounded-xl border hairline px-3 py-2 flex flex-col ${className}`}>
+      <div className="font-label text-[11px] text-ink-faint">{race ? "Result" : "Finished"}</div>
+      <div className="flex items-baseline gap-2 mt-1.5 min-w-0 whitespace-nowrap">
+        {race && row.grid ? (
+          <>
+            <span className="font-display font-extrabold text-[1.5rem] leading-none text-ink-soft">P{row.grid}</span>
+            <ArrowRightIcon size={13} weight="bold" className="text-ink-faint self-center shrink-0" aria-hidden="true" />
+          </>
+        ) : null}
+        <span className="font-display font-extrabold text-[1.5rem] leading-none">{row.out && race ? "DNF" : `P${row.position}`}</span>
+        <span className="font-mono text-[11px] truncate" style={{ color: moved ? (moved > 0 ? "var(--up)" : "var(--down)") : "var(--ink-soft)" }}>
+          {row.out && race ? `Out after lap ${row.laps}` : moved === null ? (race ? "" : row.gap ? `${row.gap} to the fastest` : "Fastest") : moved === 0 ? "Held position" : `${Math.abs(moved)} place${Math.abs(moved) === 1 ? "" : "s"} ${moved > 0 ? "gained" : "lost"}`}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** A finished session's numbers for the followed driver, in place of what only means something while it runs. */
+function SessionSummary({ row, snap, className = "" }: { row: LiveRow; snap: LiveSnapshot; className?: string }) {
+  const race = snap.type === "Race";
+  const timed = snap.rows.filter((r) => lapSecs(r.best) !== null).sort((a, b) => lapSecs(a.best)! - lapSecs(b.best)!);
+  const lapRank = timed.findIndex((r) => r.code === row.code);
+  const speeds = (snap.stats ?? []).filter((s) => s.speeds.st !== null).sort((a, b) => b.speeds.st! - a.speeds.st!);
+  const speedRank = speeds.findIndex((s) => s.code === row.code);
+  const mine = (snap.pitStops ?? []).filter((p) => p.code === row.code && p.stationary !== null && p.stationary > 1 && p.stationary < 15);
+  const quickest = mine.length ? Math.min(...mine.map((p) => p.stationary!)) : null;
+  const stewards = stewardsByCode(snap.raceControl, snap.lap?.current ?? null).get(row.code);
+  const penalties = stewards?.penalties.length ?? 0;
+  const limits = stewards?.trackLimits ?? 0;
+  return (
+    <div className={`rounded-xl border hairline grid grid-cols-2 sm:grid-cols-4 divide-x divide-[var(--rule)] overflow-hidden ${className}`}>
+      <SessionFigure label="Best lap rank" value={lapRank >= 0 ? `P${lapRank + 1}` : "—"} sub={lapRank >= 0 ? `of ${timed.length} cars` : undefined} colour={lapRank === 0 ? "var(--f1-fastest)" : undefined} />
+      <SessionFigure label="Top speed" value={speedRank >= 0 ? `${speeds[speedRank].speeds.st}` : "—"} sub={speedRank >= 0 ? `km/h · P${speedRank + 1}` : undefined} />
+      {race ? (
+        <SessionFigure label="Quickest stop" value={quickest !== null ? `${quickest.toFixed(1)} s` : row.stops} sub={quickest !== null ? `${row.stops} stop${row.stops === 1 ? "" : "s"}` : `stop${row.stops === 1 ? "" : "s"}`} />
+      ) : (
+        <SessionFigure label="Laps" value={row.laps} sub={`${row.stops} stop${row.stops === 1 ? "" : "s"}`} />
+      )}
+      <SessionFigure label="Stewards" value={penalties ? `${penalties} penalt${penalties === 1 ? "y" : "ies"}` : "Clean"} sub={limits ? `${limits} track limit${limits === 1 ? "" : "s"}` : "No track limits"} colour={penalties ? "var(--down)" : undefined} />
+    </div>
+  );
+}
+
 /**
  * The followed driver, under the map: who and where, then their speedometer
  * (a tap opens the telemetry) beside their laps — last and best against the
  * session's fastest — the three sectors with their mini-sectors and personal
- * bests, the race in tyres, and what a stop now would cost.
+ * bests, the race in tyres, and what a stop now would cost. Once a session is
+ * over, the fight, the clipping, the pace and the pit stop give way to the result
+ * and the session's numbers, since they only mean something while it runs.
  */
 function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; photo: string | null; snap: LiveSnapshot; track: TrackModel | null; live: boolean; replayT: number | null }) {
   const stop = pitWindow(snap, row, track);
@@ -192,6 +255,7 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
   const upTo = snap.lap?.current ?? null;
   const stewards = useMemo(() => stewardsByCode(snap.raceControl, upTo).get(row.code), [snap.raceControl, upTo, row.code]);
   const stewardLine = stewards ? stewardLines(stewards) : [];
+  const ended = !snap.running && replayT === null;
   return (
     <div className="mt-4 pt-4 border-t hairline">
       <div className="flex items-center gap-3">
@@ -230,8 +294,9 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
       <div
         className={[
           "mt-3 grid gap-3 [&>*]:min-h-0 [&>*]:min-w-0 grid-cols-1",
-          "[grid-template-areas:'tele'_'laps'_'sect'_'fight'_'tyre'_'clip'_'pace'_'pit'] [grid-template-rows:15.5rem_4.9rem_5.6rem_5.4rem_5.1rem_5.1rem_12rem_8.4rem]",
-          "sm:grid-cols-[14rem_minmax(0,1fr)] sm:[grid-template-areas:'tele_laps'_'tele_sect'_'tele_fight'_'tyre_clip'_'pace_pace'_'pit_pit'] sm:[grid-template-rows:4.9rem_5.6rem_5.4rem_5.1rem_11.75rem_5.9rem]",
+          ended
+            ? "[grid-template-areas:'tele'_'laps'_'sect'_'fight'_'tyre'_'pace'] [grid-template-rows:15.5rem_4.9rem_5.6rem_5.4rem_5.1rem_auto] sm:grid-cols-[14rem_minmax(0,1fr)] sm:[grid-template-areas:'tele_laps'_'tele_sect'_'tele_fight'_'tyre_tyre'_'pace_pace'] sm:[grid-template-rows:4.9rem_5.6rem_5.4rem_5.1rem_auto]"
+            : "[grid-template-areas:'tele'_'laps'_'sect'_'fight'_'tyre'_'clip'_'pace'_'pit'] [grid-template-rows:15.5rem_4.9rem_5.6rem_5.4rem_5.1rem_5.1rem_12rem_8.4rem] sm:grid-cols-[14rem_minmax(0,1fr)] sm:[grid-template-areas:'tele_laps'_'tele_sect'_'tele_fight'_'tyre_clip'_'pace_pace'_'pit_pit'] sm:[grid-template-rows:4.9rem_5.6rem_5.4rem_5.1rem_11.75rem_5.9rem]",
         ].join(" ")}
       >
         <Speedometer t={telemetry} colour={row.colour} code={row.code} onOpen={() => setDetail(true)} ended={!snap.running && replayT === null} className="[grid-area:tele] h-full" />
@@ -276,7 +341,7 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
           </div>
         </div>
 
-        <Battle snap={snap} row={row} className="[grid-area:fight] overflow-hidden" />
+        {ended ? <SessionResult row={row} race={race} className="[grid-area:fight]" /> : <Battle snap={snap} row={row} className="[grid-area:fight] overflow-hidden" />}
 
         {/* the race in tyres */}
         <div className="[grid-area:tyre] rounded-xl border hairline px-3 pt-2 pb-1 overflow-hidden">
@@ -302,11 +367,17 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
           )}
         </div>
 
-        <ClipNote t={telemetry} track={track} className="[grid-area:clip]" />
-        <Pace snap={snap} row={row} className="[grid-area:pace]" />
+        {ended ? (
+          <SessionSummary row={row} snap={snap} className="[grid-area:pace]" />
+        ) : (
+          <>
+            <ClipNote t={telemetry} track={track} className="[grid-area:clip]" />
+            <Pace snap={snap} row={row} className="[grid-area:pace]" />
 
-        {/* if they pitted now: where they'd come out, and among whom */}
-        <PitNow stop={stop} row={row} snap={snap} className="[grid-area:pit]" />
+            {/* if they pitted now: where they'd come out, and among whom */}
+            <PitNow stop={stop} row={row} snap={snap} className="[grid-area:pit]" />
+          </>
+        )}
       </div>
 
       {detail && <TelemetrySheet t={telemetry} code={row.code} name={row.name} colour={row.colour} onClose={() => setDetail(false)} />}
@@ -422,7 +493,7 @@ function LiveView({ snap, live, replay, replayT }: { snap: LiveSnapshot; live: b
           )}
         </Panel>
       ) : (
-        <div className="order-1 lg:col-start-2 lg:row-start-1 lg:row-span-2 rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] aspect-[4/3] animate-pulse" />
+        <div id="track" className="order-1 lg:col-start-2 lg:row-start-1 lg:row-span-2 rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] aspect-[4/3] lg:aspect-auto min-w-0 animate-pulse" />
       )}
       <Panel id="feed" icon={ChatCenteredTextIcon} label="Feed" meta="Race control · radio · pits" className="order-3 lg:col-start-1 lg:row-start-2 h-[78vh] max-h-[40rem] lg:h-auto lg:max-h-none lg:min-h-[26rem] lg:[contain:size]">
         <Feed snap={snap} mine={fav.codes} photos={photos} page={20} pinned />
@@ -460,7 +531,7 @@ function Tiles({ snap, live }: { snap: LiveSnapshot; live: boolean }) {
       {race && snap.lap ? (
         <Tile icon={ArrowsClockwiseIcon} label="Lap" value={`${snap.lap.current}`} unit={`/ ${snap.lap.total}`} />
       ) : (
-        <Tile icon={TimerIcon} label={live ? (snap.partLabel ? `${snap.partLabel} · left` : "Time left") : "Fastest lap"} value={live && snap.running ? <SessionClock snap={snap} /> : (fastest?.best ?? "—")} unit={live ? undefined : fastest?.code} />
+        <Tile icon={TimerIcon} label={live ? (snap.partLabel ? `${snap.partLabel} · left` : "Time left") : "Best lap"} value={live && snap.running ? <SessionClock snap={snap} /> : (fastest?.best ?? "—")} unit={live ? undefined : fastest?.code} />
       )}
       {live ? <Tile icon={RoadHorizonIcon} label="Track" value={snap.track.tone === "green" ? "Green" : snap.track.label} tone={snap.track.tone === "green" ? undefined : tone.bg} /> : <Tile icon={FlagCheckeredIcon} label="Session" value="Final" />}
       {snap.weather && (

@@ -13,19 +13,21 @@ import { GoogleGenAI, FinishReason, Type, type Schema } from "@google/genai";
 export { Type };
 export type { Schema };
 
-// The paper's own models — the free tier's most generous (Flash-Lite: 15 a
-// minute, 500 a day each), kept for the news and nothing else (F1 radio has
-// its own pool, lib/live/f1-radio.ts). The newest first; when it's spent or
-// busy, the call goes to the other, so the paper has ~1,000 calls a day.
-// GEMINI_MODEL, if set, goes first; GEMINI_FALLBACK_MODEL replaces the second.
-const SUMMARY_MODELS = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite"];
+// The paper's order of models is set in the environment: GEMINI_MODEL first, then
+// GEMINI_FALLBACK_MODEL; either can list several, separated by commas. When a model
+// is spent or busy, the call goes to the next. With no fallback set, these two
+// stand in: the free tier's most generous (Flash-Lite: 15 a minute, 500 a day
+// each), so the paper can't run dry once a Flash model's 20 a day have gone. F1
+// radio's order is in code, on its own key (lib/live/f1-radio.ts).
+const DEFAULT_FALLBACKS = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite"];
+const listed = (value: string | undefined) => (value ?? "").split(",").map((m) => m.trim()).filter(Boolean);
 
 /** Waits between rounds of trying every model; a round more than there are waits. */
 const ROUND_WAITS_MS = [1500, 4000];
 
 export function summaryModels(): string[] {
-  const list = [process.env.GEMINI_MODEL, ...SUMMARY_MODELS.slice(0, 1), process.env.GEMINI_FALLBACK_MODEL || SUMMARY_MODELS[1]].filter((m): m is string => Boolean(m));
-  return [...new Set(list)];
+  const fallbacks = listed(process.env.GEMINI_FALLBACK_MODEL);
+  return [...new Set([...listed(process.env.GEMINI_MODEL), ...(fallbacks.length ? fallbacks : DEFAULT_FALLBACKS)])];
 }
 
 /** Errors worth trying again for: spent, busy, not offered, or the line dropped. */

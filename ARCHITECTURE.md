@@ -596,11 +596,12 @@ SyncRuntime.tsx`, controls in `components/settings/SyncCard.tsx`).
   the F1 TV token (`f1Fetch`, Round 11); without it the list falls back to
   the sessions kept here.
 - Team radio transcripts (`lib/live/f1-radio.ts`, `/api/f1/radio`, three new
-  per call, kept 120 days): radio has its own model pool, apart from the
-  news summaries' (`GEMINI_MODEL`, Flash-Lite): gemini-3.1-flash-lite first (shared with the news, capped at 60 radio calls a day), then gemini-3.8-flash, 3.6-flash,
-  3.5-flash, 3.7-flash (each ~20 free calls a day, 5 a minute), then with
-  gemini-3.5-transcribe as the last resort; `GEMINI_RADIO_MODEL` puts one
-  first. Per-minute use is counted in the store; a model that says its day
+  per call, kept 120 days): radio uses its own key, `GEMINI_F1_API_KEY`, and
+  never the paper's. Writers in turn: gemini-3.6-flash, 3.7-flash, 3.5-flash
+  (each 20 free calls a day, 5 a minute), then gemini-3.5-flash-lite and
+  3.1-flash-lite (each 500 a day, 15 a minute); gemini-3.8-flash is left for the
+  paper. The second listen uses Flash-Lite, then gemini-3.5-transcribe as the last
+  resort. `GEMINI_RADIO_MODEL` puts one writer first. Per-minute use is counted in the store; a model that says its day
   is spent is set aside until Google's midnight (Pacific), a busy one for a
   minute, an overloaded one (503) for 30 s, and the clip passes to the next.
   Accuracy: each clip is heard by two different models and compared word
@@ -802,13 +803,16 @@ SyncRuntime.tsx`, controls in `components/settings/SyncCard.tsx`).
   Google's current SDK (`@google/genai`; the old `@google/generative-ai` was
   deprecated). `generateJson(prompt, { schema, temperature, timeoutMs })`
   returns JSON text; `aiEnabled()` is the single on/off check. Models:
-  `GEMINI_MODEL` if set, then `gemini-3.5-flash-lite`, then
-  `GEMINI_FALLBACK_MODEL` or `gemini-3.1-flash-lite`. A call tries them all in
+  the order is set in the environment: `GEMINI_MODEL`, then
+  `GEMINI_FALLBACK_MODEL` (either can be a comma-separated list), or
+  `gemini-3.5-flash-lite` and `gemini-3.1-flash-lite` when no fallback is set. A call tries them all in
   up to three rounds (waits of 1.5 s and 4 s) when they're busy, inside the
   caller's timeout. `geminiFailure(err)` puts what went wrong into words the
   page can print.
 - Callers: the digest (selection + writing, with response schemas),
   `batchSummarize` (hate-watch), pick blurbs and the Editor's Desk note.
+- Radio is separate: its own key (`GEMINI_F1_API_KEY`) and its order in code
+  (`lib/live/f1-radio.ts`).
 - `/api/summarize` no longer writes an "at a glance" brief — the page always
   used the one derived from the edition, so it was a wasted call per visit.
 
@@ -1241,3 +1245,16 @@ The reader said a live session sometimes took a while to open from the main page
 - **Radio transcripts, tested, not changed**: Groq's Whisper against Gemini on Mexico's 25 clips (a script outside the project; the app doesn't read `GROQ_API_KEY`). `whisper-large-v3` shared 81% of its words with Gemini on the 12 clips Gemini had written, and `whisper-large-v3-turbo` 60%. Whisper misheard names and terms ("hit by a mask" for Max) and gave no words for 5 of 25 clips. It has no speaker labels; a text model can add them, but it gets mid-line speaker changes wrong. Gemini stays the writer.
 - **Store keys and versions**: none changed.
 - **Tested**: on a production build against the real São Paulo FP1. The running order opened in a median 399 ms against production's 1,463 ms over 29 openings of each (slowest 2,131 ms against 3,733 ms, both the first of the run), and the main page's card, the click through, "Live now" over a past session and the tap back all worked at 3440, 1536, 1366, 820 and 390. Production never answered "no session" in those 29 openings, so the 60-second stall wasn't seen live: the retry was tested by feeding the page two `retry` answers, when it opened in about 3 seconds and never said "Nothing on track". The seven-size audit, the menu checks and all 41 behaviour checks pass. The dimming, strip and picker were also checked on production's data. Not tried on a real phone, and a cold local server has no kept copy of a past race, so its Mexico still reads lap 57 there.
+
+### Round 20, last visual pass: a finished session's numbers, and each side's Gemini models (Nov 6 2026)
+
+The reader reviewed the suggestions from the live centre's visual check and asked for all six, and for radio and the paper to stop sharing anything.
+
+- **The followed driver, once a session is over** (`SessionResult`, `SessionSummary`, `SessionFigure` in `f1/LiveCentre.tsx`): the car ahead and behind, stint, last laps, clipping and "if they pitted now" were all dashes after the flag. They give way to the result (grid to finish, places gained or lost, or DNF and the lap) and four figures: best lap rank, top speed and its rank, quickest stop (or laps, off a race) and the stewards. During a session and in a replay the card is unchanged. The card is shorter, which also shortens the page.
+- **Stewards** (`Stewards` in `centre/Analysis.tsx`): four tiles at the foot of Open cases from a laptop up: penalties, seconds added, cleared and track limits, so the card isn't half empty when few cases are open.
+- **Weekend's circuit tiles** (`Weekend.tsx`): Corners also gives the race laps, and A pit stop costs gives the session's quickest stop when stops were timed.
+- **Smaller changes**: the alert pop-up sits below the row of controls it used to cover (`centre/Alerts.tsx`). The Fastest lap tile reads Best lap, which fits a phone. From a container width of 1700 px, Paddock Notes' stories take a narrower column (1.15:1, was 1.5:1), so they run longer beside the Pit wall. The map's loading card no longer pushes the page sideways on an ultrawide, since its fixed shape stretched with the row.
+- **More stories, not done**: the number of Paddock Notes stories is the F1 section's article count in the reader's preferences, and more stories means more of the paper's Gemini calls. The column change above was made instead, which narrows the gap without adding any.
+- **Radio on its own key, always** (`lib/live/f1-radio.ts`): the fallback to `GEMINI_API_KEY`, the shared model list and its 60-a-day cap are gone. Without `GEMINI_F1_API_KEY` radio is off and the page stops asking. Writers in turn: gemini-3.6-flash, 3.7-flash, 3.5-flash, then gemini-3.5-flash-lite and 3.1-flash-lite. gemini-3.8-flash is left for the paper. The second listen goes to Flash-Lite, then gemini-3.5-transcribe, so the Flash models' 20 a day all go to writing. A race's 100 or so calls fit well inside Flash-Lite's 1,000 a day.
+- **The paper's order in the environment** (`summaryModels` in `lib/server/gemini.ts`): `GEMINI_MODEL`, then `GEMINI_FALLBACK_MODEL`, both of which can list several. If no fallback is set, gemini-3.5-flash-lite and 3.1-flash-lite follow, so a Flash model's 20 a day can't stop the paper. `GEMINI_FALLBACK_MODEL` used to replace only the second of those; now it replaces both. Vercel's `GEMINI_MODEL` is gemini-3.8-flash.
+- **Store keys and versions**: none changed. Radio's per-minute and block keys were already `f1:radio:*:own:*` with its own key; the `shared` ones and `f1:radio:day:*` are no longer read and expire by themselves within two days.

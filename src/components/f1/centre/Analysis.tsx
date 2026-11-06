@@ -2,6 +2,7 @@
 
 import { ChartLineUpIcon, CheckCircleIcon, GaugeIcon, GavelIcon, LightningIcon, MagnifyingGlassIcon, WatchIcon, TimerIcon, TireIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
+import { stewardsByCode } from "@/lib/f1-stewards";
 import { useFitRows } from "@/lib/use-fit-rows";
 import { SUBS, type Sub } from "../live-views";
 import type { LiveSnapshot, LiveStats, LiveStints } from "@/lib/f1-live-types";
@@ -308,12 +309,30 @@ function Stewards({ snap }: { snap: LiveSnapshot }) {
   const cases = useMemo(() => stewardsCases(rc ?? []), [rc]);
   const open = cases.filter((c) => !c.decided);
   const decided = cases.filter((c) => c.decided);
+  // The session's stewarding in four numbers, under the open cases.
+  const given = decided.filter((c) => c.penalty);
+  const seconds = given.reduce((n, c) => n + Number(/(\d+)\s*second/i.exec(c.status)?.[1] ?? 0), 0);
+  const upTo = snap.lap?.current ?? null;
+  const limits = useMemo(() => [...stewardsByCode(rc, upTo).values()].reduce((n, s) => n + s.trackLimits, 0), [rc, upTo]);
   return (
     <div className="stew-grid space-y-6">
       <StewardsView snap={snap} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Panel icon={MagnifyingGlassIcon} label="Open cases" meta={`${open.length}`}>
           {open.length ? <ol>{open.map((c, i) => <CaseRow key={i} c={c} />)}</ol> : <Empty>Nothing open with the stewards.</Empty>}
+          <dl className="hidden lg:grid grid-cols-2 gap-2 mt-auto pt-4">
+            {[
+              ["Penalties", given.length],
+              ["Seconds added", seconds],
+              ["Cleared", decided.length - given.length],
+              ["Track limits", limits],
+            ].map(([k, v]) => (
+              <div key={k} className="rounded-xl border hairline px-3 py-2.5 min-w-0">
+                <dt className="font-label text-[11px] text-ink-faint truncate">{k}</dt>
+                <dd className="font-display font-extrabold text-[1.45rem] leading-none mt-1.5">{v}</dd>
+              </div>
+            ))}
+          </dl>
         </Panel>
         <Panel icon={CheckCircleIcon} label="Decided" meta={`${decided.length}`}>
           {decided.length ? <ol>{decided.map((c, i) => <CaseRow key={i} c={c} />)}</ol> : <Empty>No decisions yet.</Empty>}
