@@ -7,6 +7,7 @@ import { readRaceControl, type RcItem, type RcTone } from "@/lib/f1-race-control
 import TyreIcon, { TYRE } from "../TyreIcon";
 import { RadioRow, usePlayer, useTranscripts } from "./Radio";
 import { Empty, Seg, clock } from "./ui";
+import { RadioMoments, useInsights } from "./Insights";
 
 // The session as it happens, in one stream: race control (read plainly —
 // lib/f1-race-control.ts), team radio with transcripts, and every pit stop
@@ -18,7 +19,8 @@ import { Empty, Seg, clock } from "./ui";
 // up as it goes from "noted" to the decision, its earlier stages under it, and
 // a message F1 sends twice shows once. Blue flags come one line a lap in All (a
 // race has dozens), each on its own in Flags. The Live view carries it too, filters and all, beside the map (it
-// scrolls in its own panel there), so it can be read without leaving the order.
+// scrolls in its own panel there), so it can be read without leaving the order,
+// with a finished session's moments heading its list (the Feed view has them above the panel).
 
 type Filter = "all" | "flags" | "stewards" | "limits" | "pits" | "radio" | "info";
 
@@ -212,6 +214,7 @@ export default function Feed({
   const shown = filtered.slice(0, count);
   const clips = shown.flatMap((it) => (it.kind === "radio" ? [it.radio] : []));
   const { text, pending, paused } = useTranscripts(clips);
+  const insights = useInsights(pinned ? snap : null);
 
   const n = (f: Filter) => (f === "all" ? all : items).filter((it) => matches(it, f) && (!onlyMine || about(it).some((c) => mine.has(c)))).length;
   const options: { value: Filter; label: string; count?: number; icon?: Icon }[] = [
@@ -285,6 +288,7 @@ export default function Feed({
   const laps = new Map(shown.map((it) => [it, lapAt(it)] as const));
   const list = (
     <>
+      {pinned && filter === "all" && !onlyMine && <RadioMoments insights={insights} photos={photos} narrow />}
       {shown.length === 0 ? (
         <Empty>{onlyMine ? "Nothing about your drivers here yet." : "Nothing here yet."}</Empty>
       ) : (

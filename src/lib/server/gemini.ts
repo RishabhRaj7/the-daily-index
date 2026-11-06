@@ -22,6 +22,15 @@ export type { Schema };
 const DEFAULT_FALLBACKS = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite"];
 const listed = (value: string | undefined) => (value ?? "").split(",").map((m) => m.trim()).filter(Boolean);
 
+/**
+ * For the page's small one-liners, so they don't use up the first model's few calls:
+ * GEMINI_LIGHT_MODEL (one or several), then Flash-Lite. A wrong name only
+ * means the next one is tried.
+ */
+export function lightModels(): string[] {
+  return [...new Set([...listed(process.env.GEMINI_LIGHT_MODEL), ...DEFAULT_FALLBACKS])];
+}
+
 /** Waits between rounds of trying every model; a round more than there are waits. */
 const ROUND_WAITS_MS = [1500, 4000];
 
@@ -83,12 +92,12 @@ function pause(ms: number, signal: AbortSignal): Promise<void> {
  */
 export async function generateJson(
   prompt: string,
-  opts: { schema?: Schema; temperature?: number; timeoutMs?: number; label?: string } = {},
+  opts: { schema?: Schema; temperature?: number; timeoutMs?: number; label?: string; light?: boolean } = {},
 ): Promise<string> {
   const controller = new AbortController();
   const timer = opts.timeoutMs ? setTimeout(() => controller.abort(), opts.timeoutMs) : undefined;
   try {
-    const models = summaryModels();
+    const models = opts.light ? lightModels() : summaryModels();
     for (let round = 0; ; round++) {
       let last: unknown;
       for (const model of models) {

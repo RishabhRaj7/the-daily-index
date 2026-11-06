@@ -4,6 +4,7 @@ import { ChartBarIcon, ChartLineIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PriceBar } from "@/lib/types";
 import Sheet from "@/components/extras/Sheet";
+import type { MarketWhy } from "@/lib/live/market-why";
 import MoveArrow from "@/components/chrome/MoveArrow";
 import PriceChart from "./PriceChart";
 
@@ -12,7 +13,8 @@ import PriceChart from "./PriceChart";
 // a small toggle to candles. A finger or pointer on the chart reads that moment.
 // Underneath, where the price sits in its day and its 52 weeks, and the few figures
 // worth keeping. The move is measured from the same level as the card's (see startOf
-// in lib/live/charts.ts), so the two agree. Gold and silver say what each line is.
+// in lib/live/charts.ts), so the two agree. On a big day its region's line from
+// today's headlines sits under the move. Gold and silver say what each line is.
 
 type Range = "1D" | "5D" | "1M" | "6M" | "1Y" | "5Y";
 const RANGES: Range[] = ["1D", "5D", "1M", "6M", "1Y", "5Y"];
@@ -104,7 +106,7 @@ function RangeBar({ label, low, high, at, format }: { label: string; low: number
   );
 }
 
-export default function MarketChartSheet({ target, onClose }: { target: ChartTarget; onClose: () => void }) {
+export default function MarketChartSheet({ target, why = null, onClose }: { target: ChartTarget; why?: MarketWhy | null; onClose: () => void }) {
   const [range, setRange] = useState<Range>("1D");
   const [mode, setMode] = useState<"line" | "candles">("line");
   const [hover, setHover] = useState<PriceBar | null>(null);
@@ -173,6 +175,12 @@ export default function MarketChartSheet({ target, onClose }: { target: ChartTar
         )}{" "}
         <span className="font-sans text-[13px] text-ink-soft">{hover ? when(hover.t, range) : words}</span>
       </div>
+
+      {why && (
+        <p className="font-headline text-[15px] leading-snug mt-2 [text-wrap:pretty]">
+          {why.why} <span className="font-sans text-[12px] text-ink-soft whitespace-nowrap">{why.source}</span>
+        </p>
+      )}
 
       {/* Chart */}
       <div className="relative mt-3">

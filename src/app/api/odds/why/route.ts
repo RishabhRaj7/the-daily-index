@@ -1,4 +1,4 @@
-import { decodeEntities } from "@/lib/live/rss";
+import { searchNews as news, type WhyItem } from "@/lib/live/news-search";
 import { resolveGoogleLinks } from "@/lib/live/google-links";
 import { aiEnabled, generateJson, Type } from "@/lib/server/gemini";
 import { getStore } from "@/lib/server/store";
@@ -14,13 +14,6 @@ import { getStore } from "@/lib/server/store";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
-export interface WhyItem {
-  title: string;
-  source: string;
-  url: string;
-  at: string;
-}
-
 /** "Will the U.S. invade Iran before 2027?" → "US invade Iran". */
 function searchFor(question: string): string {
   return question
@@ -35,32 +28,6 @@ function searchFor(question: string): string {
     .split(" ")
     .slice(0, 6)
     .join(" ");
-}
-
-async function news(q: string, days: number): Promise<WhyItem[]> {
-  try {
-    const res = await fetch(`https://news.google.com/rss/search?q=${encodeURIComponent(`${q} when:${days}d`)}&hl=en-US&gl=US&ceid=US:en`, {
-      next: { revalidate: 1800 },
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!res.ok) return [];
-    const xml = await res.text();
-    const tag = (item: string, t: string) => decodeEntities(item.match(new RegExp(`<${t}[^>]*>([\\s\\S]*?)</${t}>`))?.[1]?.replace(/<!\[CDATA\[|\]\]>/g, "").trim() ?? "");
-    return xml
-      .split("<item>")
-      .slice(1)
-      .map((item) => {
-        const source = tag(item, "source");
-        const title = tag(item, "title").replace(new RegExp(`\\s+-\\s+${source.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`), "");
-        const at = Date.parse(tag(item, "pubDate"));
-        return { title, source, url: tag(item, "link"), at: Number.isNaN(at) ? "" : new Date(at).toISOString() };
-      })
-      .filter((n) => n.title && n.url && n.at)
-      .sort((a, b) => b.at.localeCompare(a.at))
-      .slice(0, 8);
-  } catch {
-    return [];
-  }
 }
 
 async function explain(question: string, move: number, days: number, items: WhyItem[]): Promise<string | null> {

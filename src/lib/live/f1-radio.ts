@@ -124,6 +124,35 @@ async function pick(pool: Slot[], not?: string): Promise<string | null> {
   return null;
 }
 
+/**
+ * A written question on radio's key and models (the session insights,
+ * lib/live/f1-insights.ts), not audio. The next model with room answers, in JSON.
+ * Null with no key or no room.
+ */
+export async function f1Json(prompt: string, schema: object): Promise<string | null> {
+  const apiKey = apiKeyFor();
+  if (!apiKey || process.env.AI_SUMMARIZE === "false") return null;
+  client ??= new GoogleGenAI({ apiKey });
+  const tried: string[] = [];
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const model = await pick(writers().filter((w) => !tried.includes(w.model)));
+    if (!model) return null;
+    tried.push(model);
+    try {
+      const res = await client.models.generateContent({
+        model,
+        contents: prompt,
+        config: { responseMimeType: "application/json", responseSchema: schema, temperature: 0.3, abortSignal: AbortSignal.timeout(30_000) },
+      });
+      if (res.text) return res.text;
+    } catch (err) {
+      console.error(`[f1/radio] ${model} refused:`, err instanceof Error ? err.message.slice(0, 160) : err);
+      await setAside(model, err);
+    }
+  }
+  return null;
+}
+
 /** Whether any writer has room — the page stops asking when none has, or with no key. */
 export async function radioPaused(): Promise<boolean> {
   if (!apiKeyFor()) return true;

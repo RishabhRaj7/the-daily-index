@@ -1029,6 +1029,55 @@ html[data-edition="evening"] .pub-on-light { display: none; }
   .week-after ol { flex: 1; grid-template-columns: minmax(0, 1fr); grid-auto-rows: 1fr; }
 }
 
+/* A finished session, written up (f1/centre/Insights.tsx). */
+.recap-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
+@media (min-width: 1024px) { .recap-grid { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: clamp(1.5rem, 3vw, 3rem); } }
+.recap-track { position: relative; height: 12px; border-radius: 99px; margin-top: 0.5rem; overflow: hidden; background: color-mix(in srgb, var(--f1-personal) 45%, var(--rule)); }
+.recap-track i { position: absolute; top: 0; bottom: 0; }
+.moments { margin-bottom: 1.25rem; }
+.moments-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
+.moment {
+  display: grid;
+  grid-template-columns: 3.4rem minmax(0, 1fr);
+  gap: 0.8rem;
+  min-width: 0;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--team) 45%, var(--card-border));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--team) 26%, var(--card-bg)) 0%, var(--card-bg) 72%);
+}
+.moment-photo { position: relative; width: 3.4rem; height: 3.4rem; border-radius: 50%; overflow: hidden; background: color-mix(in srgb, var(--team) 35%, var(--paper)); }
+.moment-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.moment-name { font-size: 1.25rem; }
+.moment-play { margin-left: auto; flex: none; width: 2rem; height: 2rem; border-radius: 50%; display: grid; place-items: center; background: var(--team); color: #fff; }
+.moment-quote { font-size: 17px; line-height: 1.3; margin: 0.45rem 0 0.35rem; }
+.moments-narrow .moments-row { grid-template-columns: minmax(0, 1fr); }
+.moments-narrow .moment { grid-template-columns: 2.6rem minmax(0, 1fr); gap: 0.65rem; padding: 0.7rem 0.8rem; }
+.moments-narrow .moment-photo { width: 2.6rem; height: 2.6rem; }
+.moments-narrow .moment-name { font-size: 1.05rem; }
+.moments-narrow .moment-play { width: 1.75rem; height: 1.75rem; }
+.moments-narrow .moment-quote { font-size: 15px; margin: 0.3rem 0 0.25rem; }
+/* A laptop's Feed panel is short, and has them in the Feed view: an ultrawide's column and a phone's panel have room. */
+@media (min-width: 1024px) and (max-width: 2399.98px) { .moments-narrow { display: none; } }
+@media (max-width: 767.98px) {
+  .moments-row, .moments-narrow .moments-row { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; margin-inline: -1rem; padding-inline: 1rem; }
+  .moments-narrow .moments-row { margin-inline: 0; padding-inline: 0; }
+  .moment { flex: 0 0 84%; scroll-snap-align: center; }
+}
+/* A region's big day, between its card and its indices (widgets/MarketWhyLine.tsx). */
+.market-why {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: clamp(0.75rem, 2vw, 1.5rem);
+  align-items: center;
+  margin-top: 0.625rem;
+  padding: 0.75rem 1rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--move) 40%, var(--card-border));
+  background: linear-gradient(100deg, color-mix(in srgb, var(--move) 16%, var(--card-bg)) 0%, var(--card-bg) 60%);
+}
+@media (max-width: 767.98px) { .market-why { grid-template-columns: minmax(0, 1fr); gap: 0.4rem; } }
+
 /* A view's parts, under it (the live centre's Analysis). */
 .rail-row-sub { margin-left: 0.85rem; padding-block: 0.16rem; font-size: 0.88rem; }
 /* A big heading leaning forward, like the race card's name. */

@@ -62,7 +62,10 @@ export interface Player {
   toggle: (url: string) => void;
 }
 
-/** One audio player for the page. */
+/** The clip playing anywhere on the page, so starting one stops another. */
+let sounding: { audio: HTMLAudioElement; stop: () => void } | null = null;
+
+/** An audio player. Several can share a page (the Feed, its moments): one clip plays at a time. */
 export function usePlayer(): Player {
   const audio = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState<string | null>(null);
@@ -75,8 +78,11 @@ export function usePlayer(): Player {
       return;
     }
     audio.current?.pause();
+    sounding?.audio.pause();
+    sounding?.stop();
     const a = new Audio(url);
     audio.current = a;
+    sounding = { audio: a, stop: () => setPlaying(null) };
     a.ontimeupdate = () => setProgress(a.duration ? a.currentTime / a.duration : 0);
     a.onended = () => setPlaying(null);
     setProgress(0);

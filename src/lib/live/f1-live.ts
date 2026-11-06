@@ -1060,6 +1060,12 @@ export async function seasonSessions(year = new Date().getUTCFullYear()): Promis
   }
 }
 
+/** The latest race kept, for the main page's result card. */
+export async function latestRaceSession(): Promise<LiveSnapshot | null> {
+  const entry = (await keptEntries()).find((e) => e.name === "Race");
+  return entry ? getStore().get<LiveSnapshot>(`f1:session:v3:${entry.key}`).catch(() => null) : null;
+}
+
 /**
  * One past session in full. The copy kept when the flag fell comes first: it's
  * the feed's final word, while F1's archive can stop short (its Mexico 2026 race

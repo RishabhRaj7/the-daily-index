@@ -811,8 +811,12 @@ SyncRuntime.tsx`, controls in `components/settings/SyncCard.tsx`).
   page can print.
 - Callers: the digest (selection + writing, with response schemas),
   `batchSummarize` (hate-watch), pick blurbs and the Editor's Desk note.
+- Small one-liners ask for `light: true`: `GEMINI_LIGHT_MODEL`, then Flash-Lite
+  (`lightModels`), so they don't use up the first model's few calls. So far that's
+  why a market moved (`lib/live/market-why.ts`).
 - Radio is separate: its own key (`GEMINI_F1_API_KEY`) and its order in code
-  (`lib/live/f1-radio.ts`).
+  (`lib/live/f1-radio.ts`). `f1Json` there answers written questions on the same key
+  and order, for a session's recap and moments (`lib/live/f1-insights.ts`).
 - `/api/summarize` no longer writes an "at a glance" brief — the page always
   used the one derived from the edition, so it was a wasted call per visit.
 
@@ -1258,3 +1262,16 @@ The reader reviewed the suggestions from the live centre's visual check and aske
 - **Radio on its own key, always** (`lib/live/f1-radio.ts`): the fallback to `GEMINI_API_KEY`, the shared model list and its 60-a-day cap are gone. Without `GEMINI_F1_API_KEY` radio is off and the page stops asking. Writers in turn: gemini-3.6-flash, 3.7-flash, 3.5-flash, then gemini-3.5-flash-lite and 3.1-flash-lite. gemini-3.8-flash is left for the paper. The second listen goes to Flash-Lite, then gemini-3.5-transcribe, so the Flash models' 20 a day all go to writing. A race's 100 or so calls fit well inside Flash-Lite's 1,000 a day.
 - **The paper's order in the environment** (`summaryModels` in `lib/server/gemini.ts`): `GEMINI_MODEL`, then `GEMINI_FALLBACK_MODEL`, both of which can list several. If no fallback is set, gemini-3.5-flash-lite and 3.1-flash-lite follow, so a Flash model's 20 a day can't stop the paper. `GEMINI_FALLBACK_MODEL` used to replace only the second of those; now it replaces both. Vercel's `GEMINI_MODEL` is gemini-3.8-flash.
 - **Store keys and versions**: none changed. Radio's per-minute and block keys were already `f1:radio:*:own:*` with its own key; the `shared` ones and `f1:radio:day:*` are no longer read and expire by themselves within two days.
+
+### Round 20, insights pass: a session written up, and why a market moved (Nov 6 2026)
+
+The reader asked for Gemini to add insight where it fits, as part of the page and without getting in the way. These designs were approved as screenshots on the real pages. A fourth, Catch me up, is being redesigned and isn't built.
+
+- **Session recap** (`lib/live/f1-insights.ts`, `/api/f1/insights`, `SessionRecapCard` in `f1/centre/Insights.tsx`, `Weekend.tsx`): under the session cards on the Weekend, about the session on show, with the result card's chequered edge. A headline, the story, and for a race the flag stretches along a lap bar and the turning points by lap, which open the Lap chart. The lap bar comes from race control itself; only the words come from Gemini, given the classification, race control and the championship order and told to use nothing else. A phone shows the first sentence with More in place. Only once a session is over.
+- **On the main page** (`widgets/RaceRecapLine.tsx`, `StartingGrid.tsx`): the headline and first sentence under the podium on the race result card, linking to the Weekend, when the latest race's recap is about the race on the card.
+- **Radio moments** (`momentsFor`, `RadioMoments`, `.moments` in `globals.css`): three to five clips in cards in the team's colour with the driver's photo and a play button, chosen once at least four clips have transcripts, and chosen again when five more have arrived. Above the panel in the Feed view; at the top of the Feed column on an ultrawide and a phone; left out of a laptop's short Feed panel. A quote must appear word for word in that clip's transcript, or the clip is dropped. `usePlayer` now stops any other player's clip.
+- **Why it moved** (`lib/live/market-why.ts`, `lib/live/news-search.ts`, `/api/markets/why`, `widgets/MarketWhyLine.tsx`, `MarketChartSheet.tsx`): between the region cards and index tiles in Market Pulse, and under the move in that region's chart, only when the region's average is 1% or more. One sentence on what today's headlines credit, worded as reports rather than fact, with its source. Publishers the paper knows are preferred. If the headlines give no reason, nothing shows. `searchNews` moved out of `/api/odds/why`, which behaves as before.
+- **Which key and model**: the recap and moments use radio's key and order; why it moved uses the paper's key with `GEMINI_LIGHT_MODEL`. The test used `gemini-3.5-flash-lite` for both after the day's Flash calls had run out. A race costs about two calls more than before, and why it moved at most eight a day.
+- **Guards**: a race copy that stops short of the flag gets no recap (`cutShort`), since F1's archive can end early. One attempt at a time per session, with five minutes between tries after a failure, so a busy minute only delays it.
+- **Store keys and versions**: new: `f1:recap:v1:<session>` and `f1:moments:v1:<session>` (400 days), `markets:why:v1:<region>:<day>:<direction>` (a day, an hour after a failed call). Nothing older changes.
+- **Tested**: on a production build with real Gemini calls on the United States race: recap, six transcripts and moments, and the market line, plus the seven-size audit, the navigation checks and all 41 behaviour checks. Lap numbers were checked against that race's race control. Radio's order ran for real, with `gemini-3.6-flash` then Flash-Lite. Not seen: the line under the podium, since the card only shows its podium outside a race weekend, and it would first show after Sunday's race. Not tried on a real phone.

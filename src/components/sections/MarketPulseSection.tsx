@@ -10,6 +10,7 @@ import MarketIndexCard from "@/components/widgets/MarketIndexCard";
 import MoodGauge from "@/components/widgets/MoodGauge";
 import DayLineChart from "@/components/widgets/DayLineChart";
 import MarketChartSheet, { type ChartTarget } from "@/components/widgets/MarketChartSheet";
+import MarketWhyLine, { useMarketWhy } from "@/components/widgets/MarketWhyLine";
 import IpoWatch from "@/components/widgets/IpoWatch";
 import SocialPausedNote from "@/components/extras/SocialPausedNote";
 import RatesRow from "@/components/widgets/RatesRow";
@@ -20,7 +21,8 @@ import { regionState, reopenLabel, type HolidayMap, type SessionState } from "@/
 // Market Pulse: the world's markets one region at a time. A row of region
 // cards (each with its own mood) doubles as the tabs; the selected region
 // opens as a mood gauge beside its four index tiles (two on a phone, with all of
-// them a sheet away). Commodities follow, in rupees: a swipe row on a phone, one
+// them a sheet away). On a move of 1% or more, a line between the two says what
+// today's headlines report moved that region. Commodities follow, in rupees: a swipe row on a phone, one
 // row with the room (globals.css, .pulse-tiles and .pulse-prices).
 
 const REGIONS: MarketRegion[] = ["India", "US", "Europe", "Asia"];
@@ -204,6 +206,8 @@ export default function MarketPulseSection({
   const now = minute === null ? null : minute * 60_000;
   const sessionOf = (r: MarketRegion) => (now === null ? null : regionState(r, now, holidays));
   const activeSession = sessionOf(active);
+  const activePct = activeIndices.reduce((s, i) => s + i.changePct, 0) / (activeIndices.length || 1);
+  const why = useMarketWhy(active, activePct);
 
   return (
     <section id="market-pulse">
@@ -242,6 +246,8 @@ export default function MarketPulseSection({
               />
             ))}
           </div>
+
+          {why && <MarketWhyLine region={active} pct={activePct} why={why} />}
 
           <ul key={active} role="tabpanel" aria-label={`${active} markets`} className="pulse-tiles grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
             {activeMood && (
@@ -331,7 +337,7 @@ export default function MarketPulseSection({
               </ul>
             </div>
           )}
-          {chart && <MarketChartSheet target={chart} onClose={() => setChart(null)} />}
+          {chart && <MarketChartSheet target={chart} why={chart.kind === "index" && chart.kicker.startsWith(active) ? why : null} onClose={() => setChart(null)} />}
         </>
       ) : (
         <div className="border-l-2 border-accent pl-4 py-1">

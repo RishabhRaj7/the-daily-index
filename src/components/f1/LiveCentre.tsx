@@ -19,6 +19,7 @@ import { DriverName, openDriver } from "./DriverLink";
 import ReplayBar, { useReplay } from "./ReplayBar";
 import { LiveDot, SessionClock, TONE, sessionLine } from "./LiveCard";
 import Feed from "./centre/Feed";
+import { RadioMoments, useInsights } from "./centre/Insights";
 import Analysis from "./centre/Analysis";
 import { goToView, setOnAir, useLiveView } from "./live-views";
 import StewardsView from "./centre/StewardsView";
@@ -222,10 +223,10 @@ function SessionSummary({ row, snap, className = "" }: { row: LiveRow; snap: Liv
   const limits = stewards?.trackLimits ?? 0;
   return (
     <div className={`rounded-xl border hairline grid grid-cols-2 sm:grid-cols-4 divide-x divide-[var(--rule)] overflow-hidden ${className}`}>
-      <SessionFigure label="Best lap rank" value={lapRank >= 0 ? `P${lapRank + 1}` : "—"} sub={lapRank >= 0 ? `of ${timed.length} cars` : undefined} colour={lapRank === 0 ? "var(--f1-fastest)" : undefined} />
+      <SessionFigure label="Lap rank" value={lapRank >= 0 ? `P${lapRank + 1}` : "—"} sub={lapRank >= 0 ? `of ${timed.length} cars` : undefined} colour={lapRank === 0 ? "var(--f1-fastest)" : undefined} />
       <SessionFigure label="Top speed" value={speedRank >= 0 ? `${speeds[speedRank].speeds.st}` : "—"} sub={speedRank >= 0 ? `km/h · P${speedRank + 1}` : undefined} />
       {race ? (
-        <SessionFigure label="Quickest stop" value={quickest !== null ? `${quickest.toFixed(1)} s` : row.stops} sub={quickest !== null ? `${row.stops} stop${row.stops === 1 ? "" : "s"}` : `stop${row.stops === 1 ? "" : "s"}`} />
+        <SessionFigure label="Best stop" value={quickest !== null ? `${quickest.toFixed(1)} s` : row.stops} sub={quickest !== null ? `${row.stops} stop${row.stops === 1 ? "" : "s"}` : `stop${row.stops === 1 ? "" : "s"}`} />
       ) : (
         <SessionFigure label="Laps" value={row.laps} sub={`${row.stops} stop${row.stops === 1 ? "" : "s"}`} />
       )}
@@ -698,6 +699,7 @@ export default function LiveCentre() {
   const teamCodes = (snapshot?.rows ?? []).filter((r) => fav.team !== "" && r.team === fav.team).map((r) => r.code).join(",");
   const alertFor = useMemo(() => new Set([...fav.codes, ...(teamCodes ? teamCodes.split(",") : [])]), [fav.codes, teamCodes]);
   const view = nav.view;
+  const insights = useInsights(view === "feed" && !inReplay ? snap : null);
   const tone = snap ? TONE[snap.track.tone] : null;
   const status = snap ? (replaying ? "Replay" : live ? (snap.running ? "Live" : snap.status === "Inactive" ? "Starting soon" : "Chequered flag") : past ? "Archive" : "Final") : null;
 
@@ -779,9 +781,12 @@ export default function LiveCentre() {
         {snap && view === "live" && <LiveView snap={snap} live={live} replay={inReplay} replayT={inReplay ? replay.t : null} />}
         {snap && view === "analysis" && <Analysis snap={snap} sub={nav.sub} onSub={(s) => go("analysis", s)} highlight={highlight} mine={fav.codes} />}
         {snap && view === "feed" && (
-          <Panel icon={ChatCenteredTextIcon} label="The feed" meta={`${snap.session} · newest first`}>
-            <Feed snap={snap} mine={fav.codes} photos={snap.photos ?? {}} />
-          </Panel>
+          <>
+            <RadioMoments insights={insights} photos={snap.photos ?? {}} />
+            <Panel icon={ChatCenteredTextIcon} label="The feed" meta={`${snap.session} · newest first`}>
+              <Feed snap={snap} mine={fav.codes} photos={snap.photos ?? {}} />
+            </Panel>
+          </>
         )}
         {snap && view === "weekend" && <Weekend snap={snap} race={race} current={past} onPick={(path) => pick(path, { keepScroll: true })} />}
         {view === "season" && (

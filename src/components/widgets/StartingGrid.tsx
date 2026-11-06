@@ -9,6 +9,7 @@ import type { F1GridResult, F1LiveResult, F1Race, F1LastRace, F1Phase, F1Session
 import { CIRCUIT_FACTS } from "@/lib/config/circuit-facts";
 import { teamColor } from "@/lib/personalization";
 import RacePodium from "./RacePodium";
+import RaceRecapLine from "./RaceRecapLine";
 import RaceWeekend from "./RaceWeekend";
 import OddsSheet from "./OddsSheet";
 import { RaceOddsContext } from "@/components/odds/odds-context";
@@ -485,6 +486,7 @@ export default function StartingGrid({
           {resultRows.length > 0 && (
             <>
               {showPodium && <RacePodium rows={resultRows} />}
+              {showPodium && lastRace && <RaceRecapLine date={lastRace.date} />}
               {/* Folded, the table sits out of the flow so the card's height
                   comes from its neighbour; the rows then fill what it gives. */}
               <div

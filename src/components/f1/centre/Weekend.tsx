@@ -13,12 +13,14 @@ import { useSeasonData } from "../DriverSheet";
 import { openDriver } from "../DriverLink";
 import { Benchmarks } from "./Analysis";
 import { Panel } from "./ui";
+import { SessionRecapCard, useInsights } from "./Insights";
 
 // The race weekend around the session on show, read top to bottom:
 //   the round     where, when, the circuit's numbers and its map
 //   sessions      a card for each: the top three with times, the fastest
 //                 lap, the weather; open any one here (the one on show is
 //                 marked); the ones to come with a countdown
+//   the recap     the session on show, written up, once it's over
 //   the form      every driver's place in every session so far, in one grid
 //                 (tap a driver for their season); a driver a row, or from
 //                 2400px a driver a column across the full width, with the
@@ -227,6 +229,7 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
   const track = useTrack(snap.circuitKey);
   const season: Season | null = useSeasonData();
   const [now] = useState(() => Date.now());
+  const { recap } = useInsights(snap);
 
   const done = data?.sessions ?? [];
   const sameWeekend = race && (race.name === snap.meeting || race.circuitKey === snap.circuitKey);
@@ -316,6 +319,8 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
           </div>
         )}
       </div>
+
+      {recap && <SessionRecapCard recap={recap} />}
 
       {/* The weekend's form (five or six sessions: a narrow table) beside the
           circuit's history, the lap benchmarks and the rounds after this one. */}
