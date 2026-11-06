@@ -142,7 +142,7 @@ export async function f1Json(prompt: string, schema: object): Promise<string | n
       const res = await client.models.generateContent({
         model,
         contents: prompt,
-        config: { responseMimeType: "application/json", responseSchema: schema, temperature: 0.3, abortSignal: AbortSignal.timeout(30_000) },
+        config: { responseMimeType: "application/json", responseSchema: schema, temperature: 0.4, abortSignal: AbortSignal.timeout(30_000) },
       });
       if (res.text) return res.text;
     } catch (err) {

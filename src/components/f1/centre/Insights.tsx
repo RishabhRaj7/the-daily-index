@@ -154,7 +154,7 @@ export function RadioMoments({ insights, photos, narrow = false }: { insights: I
                   </button>
                 </div>
                 <p className="moment-quote font-headline [text-wrap:pretty]">&ldquo;{m.quote}&rdquo;</p>
-                <div className="font-sans font-medium text-[12.5px] leading-snug text-ink-soft">{m.why}</div>
+                {m.why && <div className="font-sans font-medium text-[12.5px] leading-snug text-ink-soft">{m.why}</div>}
               </div>
             </article>
           );

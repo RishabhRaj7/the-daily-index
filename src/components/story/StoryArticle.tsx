@@ -1,8 +1,9 @@
 "use client";
 
 import { CaretDownIcon, ArrowSquareOutIcon, ClockIcon, LightbulbIcon, StarIcon } from "@phosphor-icons/react";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useContext, useEffect, useState } from "react";
 import type { Story } from "@/lib/types";
+import { NewStories } from "./new-stories";
 import { splitFirstSentence } from "@/lib/format";
 import StatCallout from "./StatCallout";
 import Ago from "@/components/extras/Ago";
@@ -23,7 +24,8 @@ import { recordEngagement } from "@/lib/reader-memory";
 // in the page either way; globals.css decides what shows. A section's lead has a
 // generated plate beside it only where there's real room for one (.story-plate).
 // A paragraph Gemini didn't write is labelled (CopyTag), and when there's nothing
-// fit to print the headline stands alone.
+// fit to print the headline stands alone. A story that's new since the last visit
+// says so beside its source (widgets/CatchUp.tsx).
 
 const NARROW = "(max-width: 1023.98px)";
 
@@ -39,6 +41,7 @@ export default function StoryArticle({
   const quoteAfterIndex = Math.min(1, rest.length - 1);
   const [open, setOpen] = useState(false);
   const source = story.sourceName ?? story.dateline;
+  const isNew = useContext(NewStories).has(story.sourceUrl ?? "");
   const [firstSentence, afterIt] = splitFirstSentence(firstParagraph ?? "");
   const hasMore = Boolean(afterIt) || rest.length > 0 || Boolean(story.why);
 
@@ -146,6 +149,7 @@ export default function StoryArticle({
               ) : (
                 <PublisherMark source={source} className="story-source" />
               ))}
+            {isNew && <span className="story-new font-label">New</span>}
             <span className="text-ink-soft font-mono text-[11px] whitespace-nowrap shrink-0">
               <Ago iso={story.postedAt} fallback={story.lastUpdated} />
             </span>

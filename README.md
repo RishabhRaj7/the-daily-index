@@ -21,6 +21,7 @@ slides up in a sheet. Each story's source is its publisher's logo and name.
 
 | Section | What it carries |
 |---|---|
+| **While you were away** | At the top when you come back after half an hour or more and enough has changed: a headline and two sentences on what's new, the top new stories, and the numbers that moved since your last visit on this device. New stories also carry a small "New" beside their source |
 | **Front page** | Markets, the next race and the weather as three numbers, *The Briefing* (the day's must-reads as one-liners) and the lead story |
 | **Postcard** | Travel mode: weather and local news for wherever you are (opt-in, one tap) |
 | **Dateline** | World news, grouped by the countries you follow |

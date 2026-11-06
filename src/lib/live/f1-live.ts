@@ -1066,6 +1066,16 @@ export async function latestRaceSession(): Promise<LiveSnapshot | null> {
   return entry ? getStore().get<LiveSnapshot>(`f1:session:v3:${entry.key}`).catch(() => null) : null;
 }
 
+/** The latest session finished since then, as a line for "While you were away": "FP1 · Norris", "1:11.717". */
+export async function sessionFinishedSince(since: number): Promise<{ label: string; value: string } | null> {
+  const entry = (await keptEntries()).find((e) => Date.parse(e.end) >= since && Date.parse(e.end) <= Date.now());
+  const snap = entry ? await getStore().get<LiveSnapshot>(`f1:session:v3:${entry.key}`).catch(() => null) : null;
+  const first = snap?.rows[0];
+  if (!snap || !first) return null;
+  const value = snap.type === "Race" ? "Won" : first.best;
+  return value ? { label: `${snap.session.replace(/^Practice (\d)$/, "FP$1")} · ${first.name}`, value } : null;
+}
+
 /**
  * One past session in full. The copy kept when the flag fell comes first: it's
  * the feed's final word, while F1's archive can stop short (its Mexico 2026 race

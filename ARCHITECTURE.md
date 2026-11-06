@@ -389,7 +389,8 @@ The digest is no longer generated per browser visit. The server builds one
 
 ## Page layout (current)
 
-One page at every width (Round 20): the front page, then the sections in four
+One page at every width (Round 20): While you were away when there's something to
+catch up on (`widgets/CatchUp.tsx`), the front page, then the sections in four
 groups (`lib/chapters.ts`), which order the page and name the menu but print no
 title of their own, then the day's extras and the footer. One subject on each row. `.edition-body` is a container
 (`ed`); each section reflows by its width in `app/globals.css` (under "Page
@@ -813,7 +814,8 @@ SyncRuntime.tsx`, controls in `components/settings/SyncCard.tsx`).
   `batchSummarize` (hate-watch), pick blurbs and the Editor's Desk note.
 - Small one-liners ask for `light: true`: `GEMINI_LIGHT_MODEL`, then Flash-Lite
   (`lightModels`), so they don't use up the first model's few calls. So far that's
-  why a market moved (`lib/live/market-why.ts`).
+  why a market moved (`lib/live/market-why.ts`) and While you were away
+  (`lib/live/catch-up.ts`).
 - Radio is separate: its own key (`GEMINI_F1_API_KEY`) and its order in code
   (`lib/live/f1-radio.ts`). `f1Json` there answers written questions on the same key
   and order, for a session's recap and moments (`lib/live/f1-insights.ts`).
@@ -1275,3 +1277,15 @@ The reader asked for Gemini to add insight where it fits, as part of the page an
 - **Guards**: a race copy that stops short of the flag gets no recap (`cutShort`), since F1's archive can end early. One attempt at a time per session, with five minutes between tries after a failure, so a busy minute only delays it.
 - **Store keys and versions**: new: `f1:recap:v1:<session>` and `f1:moments:v1:<session>` (400 days), `markets:why:v1:<region>:<day>:<direction>` (a day, an hour after a failed call). Nothing older changes.
 - **Tested**: on a production build with real Gemini calls on the United States race: recap, six transcripts and moments, and the market line, plus the seven-size audit, the navigation checks and all 41 behaviour checks. Lap numbers were checked against that race's race control. Radio's order ran for real, with `gemini-3.6-flash` then Flash-Lite. Not seen: the line under the podium, since the card only shows its podium outside a race weekend, and it would first show after Sunday's race. Not tried on a real phone.
+
+### Round 20, catch-up pass: While you were away, and how a session is written up (Nov 7 2026)
+
+The paper changes all day, so the reader asked for a way back in, with richer content than the first design, and for the recap's writing to be livelier without losing accuracy. The card's design was approved as a screenshot on the real page.
+
+- **While you were away** (`widgets/CatchUp.tsx`, at the top of `.page-wrap` in `EditionView.tsx`, `.since-card` in `globals.css`): a headline and two sentences, the top new stories with section icon and publisher logo, each linking to its place on the page, and the numbers that moved. The strongest story from each section comes first, so one busy section can't fill the list. A phone shows two stories and two moves to stay under a screen.
+- **When it shows**: not on a first visit, not after under half an hour away, not on an archive page, and only with three new stories, two moves or a finished F1 session. A move is an index level changing 0.5% or more, or the favourite of a followed or watched market changing 3 points or more; a new favourite doesn't count as a move. A reload in the same visit shows the same card, closing it holds for the visit, and a tab left open counts as a new visit when the reader comes back to it.
+- **"New" on a story** (`story/new-stories.ts`, `StoryArticle.tsx`, `.story-new`): beside the source, on stories whose address wasn't there last visit.
+- **The words** (`lib/live/catch-up.ts`, `POST /api/catch-up`): the page sends the new headlines and moves; the server adds the F1 session finished since then (`sessionFinishedSince` in `f1-live.ts`). It uses the paper's key with `light: true`, told to use only those facts and never to link unrelated stories with "as" or "after". Sizes are capped at the route and calls at 150 a day, because anyone can ask. Without an answer the card still shows, with a plain line such as "6 new stories" and the count by section.
+- **Writing a session up** (new `lib/live/f1-insight-prompts.ts`, `f1-insights.ts`): the facts are worked out first (the winner's grid place, the margin, the pole-sitter's result, the biggest climb and fall, retirements, the title gap), since a bare table gave flat drafts. Given more freedom the model started inventing motives ("tried to fend off", "severe mechanical issues"), so the rules now limit claims to what the facts show, and a story with a time or gap not in the facts is thrown away and retried later. Stories name at most four drivers. A moment's line gives a fact the quote doesn't, may be empty (`Insights.tsx` then shows only the quote), and a bare finishing place is dropped. `f1Json` runs at temperature 0.4, up from 0.3.
+- **Store keys and versions**: new on the server: `catchup:v1:<hash>` (six hours), `catchup:day:<date>` (two days). New in the browser: `daily-index:last-visit:v1` (localStorage), `daily-index:this-visit:v1` and `daily-index:catch-up-closed:v1` (sessionStorage). Bumped: `f1:recap:v2:<session>` and `f1:moments:v2:<session>`, so a session is written again with the new prompts. Copies under `v1`, which only previews could have written, are no longer read and expire by themselves.
+- **Tested**: on a production build at 3440, 1366 and 390 with a faked earlier visit and a real Flash-Lite answer: 36 checks on when the card shows, its links, the "New" label, reload and close, no sideways scroll. Also the navigation checks, 42 behaviour checks and the seven-size audit. The prompts ran on three real sessions on Flash-Lite. Not seen: the F1 row from a real kept session, since the local store has none (the test fed one in), and the prompts on `gemini-3.6-flash`, production's first writer, which was busy when tried. Not tried on a real phone.

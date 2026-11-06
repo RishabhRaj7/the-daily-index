@@ -101,6 +101,8 @@ import {
 } from "@/lib/digest-cache";
 import EditionPrepOverlay from "@/components/chrome/EditionPrepOverlay";
 import WritingNotice from "@/components/chrome/WritingNotice";
+import CatchUpCard, { useCatchUp, type CatchUpNumber } from "@/components/widgets/CatchUp";
+import { NewStories, NO_NEW_STORIES } from "@/components/story/new-stories";
 import PaperNav from "@/components/chrome/PaperNav";
 import type { NavChapter } from "@/components/chrome/TopBar";
 import Briefing from "@/components/story/Briefing";
@@ -1169,11 +1171,31 @@ export default function EditionView({
     (s) => s.copy === "pending" && (!s.reserve || s.id === hero?.id) && !personalization.hiddenSections.includes(s.section),
   ).length;
 
+  // What changed since the reader last looked (widgets/CatchUp.tsx).
+  const catchUpStories = [...printedById.values()].filter((s) => (!s.reserve || s.id === hero?.id) && !personalization.hiddenSections.includes(s.section));
+  const followedNames = new Set(oddsFollows.filter((f) => !f.rival).map((f) => f.name));
+  const watchedOdds = new Set([...Object.values(odds?.watched ?? {}).flat(), ...(personalization.oddsPins ?? []).map((p) => p.id)]);
+  const catchUpNumbers: CatchUpNumber[] = [
+    ...edition.markets.indices.map((i) => ({
+      key: `index:${i.id}`,
+      label: i.name,
+      value: i.level,
+      display: i.level.toLocaleString(i.market === "India" ? "en-IN" : "en-US", { maximumFractionDigits: i.level >= 1000 ? 0 : 2 }),
+      kind: "price" as const,
+    })),
+    // The favourite's name is in the key: a new favourite isn't a move.
+    ...(odds?.markets ?? [])
+      .filter((m) => watchedOdds.has(m.id) || followedNames.has(m.lead.name))
+      .map((m) => ({ key: `odds:${m.id}:${m.lead.name}`, label: m.title, value: m.lead.prob, display: `${Math.round(m.lead.prob)}%`, kind: "points" as const })),
+  ];
+  const catchUpData = useCatchUp(catchUpStories, catchUpNumbers, !isArchive && !prepBlocking);
+
   return (
     <main className="flex-1 page-scale edition-page">
       <SparksContext.Provider value={sparks}>
       <RaceOddsContext.Provider value={raceOdds}>
       <StoryOddsContext.Provider value={oddsLayout.stories}>
+      <NewStories.Provider value={catchUpData?.newUrls ?? NO_NEW_STORIES}>
       {prep !== "revealed" && (
         <EditionPrepOverlay
           failed={prep === "failed"}
@@ -1187,6 +1209,7 @@ export default function EditionView({
       <PaperNav chapters={navChapters} date={edition.date} issue={`VOL. ${edition.volume} · NO. ${edition.issue}`} />
       <Masthead edition={edition} weather={(travelling && travelWeather) || weather || undefined} />
       <div className="page-wrap px-4 sm:px-6">
+        {catchUpData && !isArchive && !prepBlocking && <CatchUpCard key={catchUpData.since} data={catchUpData} />}
         {!isArchive && !prepBlocking && (
           <WritingNotice
             writing={writing}
@@ -1279,6 +1302,7 @@ export default function EditionView({
           </div>
         </div>
       </footer>
+      </NewStories.Provider>
       </StoryOddsContext.Provider>
       </RaceOddsContext.Provider>
       </SparksContext.Provider>

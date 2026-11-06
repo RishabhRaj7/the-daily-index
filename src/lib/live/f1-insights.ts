@@ -3,6 +3,7 @@ import type { LiveRaceControl, LiveSnapshot } from "@/lib/f1-live-types";
 import { getStore } from "@/lib/server/store";
 import { latestRaceSession, lastSession, pastSession } from "./f1-live";
 import { cachedTranscripts, f1Json } from "./f1-radio";
+import { momentsPrompt, recapPrompt, sessionFacts } from "./f1-insight-prompts";
 
 // What a finished session comes to, written from what's already held: its
 // classification, race control and radio transcripts. Two pieces, both on radio's
@@ -11,7 +12,9 @@ import { cachedTranscripts, f1Json } from "./f1-radio";
 //                 lap. The lap bar's flag stretches come from race control itself
 //   the moments   the three to five radio clips that mattered. The quote must be
 //                 the transcript's own words, or the clip is dropped
-// The model may only use the facts it's given. Whatever it can't do, nothing shows.
+// The model may only use the facts it's given (lib/live/f1-insight-prompts.ts), and a
+// story with a time or gap that isn't in them is thrown away. Whatever it can't do,
+// nothing shows.
 
 const KEEP_S = 400 * 86_400;
 // One attempt at a time, and a pause after one that fails: a busy minute on the
@@ -89,23 +92,6 @@ function flagBands(snap: LiveSnapshot): SessionRecap["bands"] {
 
 const plain = (t: string) => t.replace(/\{\{|\}\}/g, "").replace(/\s+/g, " ").trim();
 
-/** Who was who at the end, and what race control said that mattered. */
-function factsOf(snap: LiveSnapshot): string {
-  const race = snap.type === "Race";
-  const rows = snap.rows
-    .map((r) => (race ? `P${r.position} ${r.name} (${r.team}), started ${r.grid ? `P${r.grid}` : "unknown"}, ${r.out ? `out after lap ${r.laps}` : r.position === 1 ? "winner" : `${r.gap} behind`}, ${r.stops} stops` : `P${r.position} ${r.name} (${r.team}), best ${r.best || "none"}, ${r.gap || "fastest"}, ${r.laps} laps${r.knockedOut ? ", knocked out" : ""}`))
-    .join("\n");
-  const said = oldestFirst(snap.raceControl)
-    .filter((m) => /SAFETY CAR|RED FLAG|PENALTY|VSC|DISQUAL|BLACK AND/i.test(m.message))
-    .map((m) => `${m.lap ? `lap ${m.lap}` : "no lap"}: ${m.message}`)
-    .slice(0, 40)
-    .join("\n");
-  const title = snap.prediction?.drivers?.length
-    ? `Championship after this session: ${[...snap.prediction.drivers].sort((a, b) => a.predicted - b.predicted).slice(0, 3).map((d) => d.code).join(", ")} lead, in that order.`
-    : "";
-  return [`Classification:\n${rows}`, said ? `Race control:\n${said}` : "", title].filter(Boolean).join("\n\n");
-}
-
 const RECAP_SCHEMA = {
   type: Type.OBJECT,
   properties: {
@@ -125,22 +111,22 @@ const RECAP_SCHEMA = {
 
 async function writeRecap(snap: LiveSnapshot): Promise<SessionRecap | null> {
   const race = snap.type === "Race";
-  const text = await f1Json(
-    `You write for a newspaper's Formula 1 page. Here are the facts of the ${snap.session} at the ${snap.meeting}. Use ONLY these facts. Don't invent causes, feelings, tactics or anything not stated, and don't mention a source of the facts.
-
-${factsOf(snap)}
-
-Write:
-- headline: at most 9 words, leading with what made this session different: a comeback, a penalty that changed the result, a championship settled. Not just "X wins Y". Never vague words like "chaos" or "drama".
-- story: 3 or 4 short plain sentences, in the past tense. Lead with the result and the gaps, then what shaped it (penalties, stoppages, stops, places gained or lost). Don't repeat the headline, and leave out facts that don't matter.
-- turns: ${race ? 'the 3 to 5 moments that changed the race, in lap order, each at most 6 plain words, using only laps stated above. kind is what the moment was: "safety-car" for a safety car or virtual safety car, "red-flag" only for a red flag. Name each once and leave out the lap number, as "Safety car after a crash", not "deployed and ending". Never list the start or the chequered flag.' : "an empty list."}`,
-    RECAP_SCHEMA,
-  );
+  const clips = snap.radio ?? [];
+  const written = clips.length ? await cachedTranscripts(clips.map((c) => c.url)) : {};
+  const radio = clips.flatMap((c) => (written[c.url]?.text ? [`${c.code}: ${plain(written[c.url].text)}`] : [])).slice(0, 30);
+  const text = await f1Json(recapPrompt(snap, radio), RECAP_SCHEMA);
   if (!text) return null;
   const out = JSON.parse(text) as { headline?: string; story?: string; turns?: { lap?: number; kind?: TurnKind; text?: string }[] };
   const headline = plain(out.headline ?? "");
   const story = plain(out.story ?? "");
   if (headline.length < 8 || headline.length > 90 || story.length < 40 || story.length > 900) return null;
+  // Its times and gaps must be in the facts it was given, or the story isn't sent.
+  const facts = sessionFacts(snap, radio);
+  const figures = `${headline} ${story}`.match(/\d+[:.]\d+(?:\.\d+)?/g) ?? [];
+  if (figures.some((f) => !facts.includes(f))) {
+    console.warn("[f1/insights] recap dropped, a figure wasn't in the facts:", figures.join(", "));
+    return null;
+  }
   const total = snap.lap?.total ?? 0;
   const turns = race
     ? (out.turns ?? [])
@@ -159,7 +145,7 @@ const cutShort = (snap: LiveSnapshot) => snap.type === "Race" && !!snap.lap && s
 
 async function recapFor(snap: LiveSnapshot): Promise<SessionRecap | null> {
   const store = getStore();
-  const key = `f1:recap:v1:${snap.sessionKey}`;
+  const key = `f1:recap:v2:${snap.sessionKey}`;
   const kept = await store.get<SessionRecap>(key).catch(() => null);
   if (kept) return kept;
   if (cutShort(snap)) return null;
@@ -198,7 +184,7 @@ async function momentsFor(snap: LiveSnapshot): Promise<RadioMoment[]> {
   const clips = snap.radio ?? [];
   if (clips.length < MIN_TRANSCRIPTS) return [];
   const store = getStore();
-  const key = `f1:moments:v1:${snap.sessionKey}`;
+  const key = `f1:moments:v2:${snap.sessionKey}`;
   const kept = await store.get<KeptMoments>(key).catch(() => null);
   const written = await cachedTranscripts(clips.map((c) => c.url));
   const usable = clips.filter((c) => written[c.url]?.text);
@@ -207,17 +193,7 @@ async function momentsFor(snap: LiveSnapshot): Promise<RadioMoment[]> {
   if (!(await store.setIfAbsent(`${key}:try`, 1, RETRY_S).catch(() => false))) return kept?.moments ?? [];
 
   const list = usable.map((c, i) => `[${i}] ${c.code}: ${plain(written[c.url].text).replace(/\n/g, " / ")}`).join("\n");
-  const text = await f1Json(
-    `These are team radio transcripts from the ${snap.session} at the ${snap.meeting}. Pick the 3 to 5 most revealing: decisions, damage, disputes, strategy calls, a driver's frustration, or the championship. At most one may be a message after the flag, and only if it's about more than the finishing place. Skip routine congratulations. Use only what's written here and these facts.
-
-${factsOf(snap)}
-
-Transcripts:
-${list}
-
-For each pick: i, its number; quote, the most telling short line from that transcript, copied word for word, at most 14 words, without its speaker label; why, at most 9 plain words on what it led to or what it reveals, stated only from the facts. Don't just restate the driver's finishing place.`,
-    MOMENTS_SCHEMA,
-  ).catch((err) => {
+  const text = await f1Json(momentsPrompt(snap, list), MOMENTS_SCHEMA).catch((err) => {
     console.error("[f1/insights] moments failed:", err instanceof Error ? err.message.slice(0, 200) : err);
     return null;
   });
@@ -239,9 +215,11 @@ For each pick: i, its number; quote, the most telling short line from that trans
     const quote = plain(p.quote ?? "").replace(/^["“]|["”]$/g, "");
     const why = plain(p.why ?? "");
     // The driver's words stay his: a quote not in the transcript is dropped.
-    if (!c || seen.has(c.url) || quote.length < 6 || why.length < 6 || !words(written[c.url].text).includes(words(quote))) return [];
+    if (!c || seen.has(c.url) || quote.length < 6 || !words(written[c.url].text).includes(words(quote))) return [];
     seen.add(c.url);
-    return [{ url: c.url, code: c.code, name: rows.get(c.code)?.name || c.code, colour: c.colour, lap: lapAt(c.utc), quote, why }];
+    // A finishing place is on the page already, so it isn't worth a line under the quote.
+    const place = /^(?:\S+ )?finished (?:in )?\S+\.?$/i.test(why);
+    return [{ url: c.url, code: c.code, name: rows.get(c.code)?.name || c.code, colour: c.colour, lap: lapAt(c.utc), quote, why: place ? "" : why }];
   });
   if (moments.length < 2) return kept?.moments ?? [];
   const picked = moments.slice(0, 5);
