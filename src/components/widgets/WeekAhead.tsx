@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { AheadEvent, WeekAhead as WeekAheadData } from "@/lib/types";
 import { loadPersonalization } from "@/lib/personalization";
 
-// The Week Ahead: in the What's next chapter, seven days across the page, each
+// The Week Ahead: at the end of the Next group, seven days across the page, each
 // day a column of what's dated in it — policy decisions, market closures,
 // public holidays, IPO dates, the F1 weekend and your Valorant teams'
 // matches — all in IST. On a phone
