@@ -102,7 +102,7 @@ restarts, and Reddit is off.
 |---|---|
 | `GEMINI_API_KEY` | AI selection and summaries (strongly recommended) |
 | `GEMINI_MODEL`, `GEMINI_FALLBACK_MODEL` | The paper's models, tried in order (comma-separated lists work): AI selection, summaries, the editor's note and odds explanations. Not radio, whose order is in code. |
-| `GEMINI_LIGHT_MODEL` | The paper's small one-liners, such as why a market moved (default `gemini-3.5-flash-lite`, then `gemini-3.1-flash-lite`) |
+| `GEMINI_LIGHT_MODEL` | The paper's small one-liners: why a market or the odds moved, While you were away, the editor's note, pick blurbs (default `gemini-3.5-flash-lite`, then `gemini-3.1-flash-lite`) |
 | `GEMINI_F1_API_KEY` | F1 team radio transcripts, on their own Google project. Without it there are no transcripts. |
 | `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Stored editions and the archive (Upstash Redis; `UPSTASH_REDIS_REST_*` also works) |
 | `CRON_SECRET` | Protects `/api/cron/*`; Vercel Cron sends it automatically |

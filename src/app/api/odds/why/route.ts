@@ -8,7 +8,7 @@ import { getStore } from "@/lib/server/store";
 // searched with the question's own words), dated, so the chart can pin a
 // headline to the jump it lines up with. With a big enough move and AI
 // configured, one sentence on which of those stories most likely moved
-// it, grounded only in the headlines given; it is kept for the day.
+// it, grounded only in the headlines given, on the light models; it is kept for the day.
 // Polymarket and Kalshi show news beside their charts; their APIs don't
 // say why, so the paper reads the news itself.
 export const dynamic = "force-dynamic";
@@ -44,6 +44,7 @@ Return JSON: {"why": string, "item": number (index of the story, or -1)}`;
       temperature: 0.2,
       timeoutMs: 12_000,
       label: "odds-why",
+      light: true,
     });
     const out = JSON.parse(text) as { why?: string; item?: number };
     const why = (out.why ?? "").trim();

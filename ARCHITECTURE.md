@@ -813,9 +813,10 @@ SyncRuntime.tsx`, controls in `components/settings/SyncCard.tsx`).
 - Callers: the digest (selection + writing, with response schemas),
   `batchSummarize` (hate-watch), pick blurbs and the Editor's Desk note.
 - Small one-liners ask for `light: true`: `GEMINI_LIGHT_MODEL`, then Flash-Lite
-  (`lightModels`), so they don't use up the first model's few calls. So far that's
-  why a market moved (`lib/live/market-why.ts`) and While you were away
-  (`lib/live/catch-up.ts`).
+  (`lightModels`), so they don't use up the first model's few calls: why a market
+  moved (`lib/live/market-why.ts`), While you were away (`lib/live/catch-up.ts`),
+  the editor's note and pick blurbs (`lib/live/editorial-ai.ts`) and why the odds
+  moved (`/api/odds/why`). The digest and its copy repair stay on `GEMINI_MODEL`.
 - Radio is separate: its own key (`GEMINI_F1_API_KEY`) and its order in code
   (`lib/live/f1-radio.ts`). `f1Json` there answers written questions on the same key
   and order, for a session's recap and moments (`lib/live/f1-insights.ts`).
@@ -1289,3 +1290,12 @@ The paper changes all day, so the reader asked for a way back in, with richer co
 - **Writing a session up** (new `lib/live/f1-insight-prompts.ts`, `f1-insights.ts`): the facts are worked out first (the winner's grid place, the margin, the pole-sitter's result, the biggest climb and fall, retirements, the title gap), since a bare table gave flat drafts. Given more freedom the model started inventing motives ("tried to fend off", "severe mechanical issues"), so the rules now limit claims to what the facts show, and a story with a time or gap not in the facts is thrown away and retried later. Stories name at most four drivers. A moment's line gives a fact the quote doesn't, may be empty (`Insights.tsx` then shows only the quote), and a bare finishing place is dropped. `f1Json` runs at temperature 0.4, up from 0.3.
 - **Store keys and versions**: new on the server: `catchup:v1:<hash>` (six hours), `catchup:day:<date>` (two days). New in the browser: `daily-index:last-visit:v1` (localStorage), `daily-index:this-visit:v1` and `daily-index:catch-up-closed:v1` (sessionStorage). Bumped: `f1:recap:v2:<session>` and `f1:moments:v2:<session>`, so a session is written again with the new prompts. Copies under `v1`, which only previews could have written, are no longer read and expire by themselves.
 - **Tested**: on a production build at 3440, 1366 and 390 with a faked earlier visit and a real Flash-Lite answer: 36 checks on when the card shows, its links, the "New" label, reload and close, no sideways scroll. Also the navigation checks, 42 behaviour checks and the seven-size audit. The prompts ran on three real sessions on Flash-Lite. Not seen: the F1 row from a real kept session, since the local store has none (the test fed one in), and the prompts on `gemini-3.6-flash`, production's first writer, which was busy when tried. Not tried on a real phone.
+
+### Round 20, light model pass: the paper's one-liners off the first model (Nov 7 2026)
+
+The reader's first model has few calls a day and the digest needs them, so the small lines moved to `GEMINI_LIGHT_MODEL` with `light: true`.
+
+- **Moved**: `writePickBlurbs` and `writeEditorsNote` in `lib/live/editorial-ai.ts`, and `explain` in `/api/odds/why`. Their prompts and checks are unchanged, and if the light models fail the existing fallbacks apply: the plain line for a blurb, the written fallback for the note, no sentence for the odds.
+- **Lint** (`eslint.config.mjs`): `.claude/**` is ignored, because agent worktrees there hold whole build outputs and made `npm run lint` report thousands of errors that weren't in the code.
+- **Store keys and versions**: none changed.
+- **Tested**: typecheck and full lint, with no errors. This only changes which model answers; the light path itself was already running for why a market moved and While you were away.
