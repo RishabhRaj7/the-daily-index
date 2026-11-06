@@ -5,6 +5,11 @@ import type { DayLine } from "@/lib/types";
 // the price is on. A quiet day looks quiet: the scale never runs tighter than 0.6%
 // of the price. A closed market shows its last session and says which; a line
 // that isn't the card's own price (gold and silver, at IBJA's rate) names its source.
+//
+// It's uncovered from left to right as it scrolls in (.day-line-draw), rather than
+// drawn with a moving dash: a dash can't follow a non-scaling stroke, and left a
+// hole in the line until it finished.
+
 const WIDTH = 120;
 const HEIGHT = 40;
 const MIN_RANGE = 0.006;
@@ -32,30 +37,21 @@ export default function DayLineChart({ line, className = "" }: { line?: DayLine;
   return (
     <div className="w-full">
       <div className={`relative w-full ${className}`}>
+        <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none" className="absolute inset-0 w-full h-full overflow-visible" aria-hidden="true">
+          <line x1={0} x2={WIDTH} y1={y(base)} y2={y(base)} stroke="var(--ink-faint)" strokeWidth={1} strokeDasharray="3 4" vectorEffect="non-scaling-stroke" />
+        </svg>
         <svg
           viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
           preserveAspectRatio="none"
-          className="absolute inset-0 w-full h-full overflow-visible"
+          className="day-line-draw absolute inset-0 w-full h-full overflow-visible"
           role="img"
           aria-label={`${line.closed ? "Last session" : "Today"}: ${up ? "up" : "down"} ${pct}% from where it started`}
         >
-          <line x1={0} x2={WIDTH} y1={y(base)} y2={y(base)} stroke="var(--ink-faint)" strokeWidth={1} strokeDasharray="3 4" vectorEffect="non-scaling-stroke" />
-          <path
-            d={d}
-            fill="none"
-            stroke={color}
-            strokeWidth={1.75}
-            strokeLinejoin="round"
-            strokeLinecap="round"
-            vectorEffect="non-scaling-stroke"
-            pathLength={1}
-            className="stroke-draw"
-            style={{ ["--len" as string]: 1 }}
-          />
+          <path d={d} fill="none" stroke={color} strokeWidth={1.75} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
         </svg>
         {/* In its own element, so the line's stretching can't squash it. */}
         <span
-          className="absolute w-[7px] h-[7px] rounded-full -translate-x-1/2 -translate-y-1/2"
+          className="day-line-dot absolute w-[7px] h-[7px] rounded-full -translate-x-1/2 -translate-y-1/2"
           style={{ left: "100%", top: `${(y(last) / HEIGHT) * 100}%`, background: color }}
           aria-hidden="true"
         />

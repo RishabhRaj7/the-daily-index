@@ -8,6 +8,7 @@ import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { F1GridResult, F1LiveResult, F1Race, F1LastRace, F1Phase, F1SessionResult, F1SessionTop } from "@/lib/types";
 import { CIRCUIT_FACTS } from "@/lib/config/circuit-facts";
 import { teamColor } from "@/lib/personalization";
+import RacePodium from "./RacePodium";
 import RaceWeekend from "./RaceWeekend";
 import OddsSheet from "./OddsSheet";
 import { RaceOddsContext } from "@/components/odds/odds-context";
@@ -18,6 +19,8 @@ import type { LiveSnapshot } from "@/lib/f1-live-types";
 import LiveCard from "@/components/f1/LiveCard";
 import { TeamGlyph } from "@/components/f1/LiveTiming";
 import TrackMap, { useTrack } from "@/components/f1/TrackMap";
+
+type Row = F1GridResult | F1LiveResult | F1LastRace["results"][number];
 
 function formatCountdown(ms: number) {
   if (ms <= 0) return "Lights out";
@@ -145,7 +148,8 @@ function TimingRowsSkeleton({ rows = 5 }: { rows?: number }) {
 //   1. Next race  — round, name, circuit map and the countdown to lights out
 //   2. Race weekend — every session in the reader's time (RaceWeekend)
 //   3. Coming up  — the next rounds of the calendar
-//   4. Timing     — last race's podium and field (or the grid / live order)
+//   4. Timing     — last race's podium (RacePodium) and field, or the grid / live
+//                   order, under a chequered head with the weekend as timing sectors
 // During a race the first card turns into a "live now" header and the
 // timing card carries the running order.
 //
@@ -154,39 +158,6 @@ function TimingRowsSkeleton({ rows = 5 }: { rows?: number }) {
 // race) and the full-width row under them: "archive" (the last race, beside the
 // reader's paddock) and, at the end of that row, "calendar" (who wins Sunday,
 // coming up). So the column beside the stories never outgrows them.
-
-type Row = F1GridResult | F1LiveResult | F1LastRace["results"][number];
-
-function Podium({ rows }: { rows: Row[] }) {
-  // P2 · P1 · P3, with P1 raised — a real podium, read left to right.
-  const byPos = (n: number) => rows.find((r) => r.position === n);
-  const order = [byPos(2), byPos(1), byPos(3)];
-  if (order.some((r) => !r)) return null;
-  const heights = ["h-14", "h-20", "h-10"];
-  return (
-    <div className="grid grid-cols-3 items-end gap-2 mt-2 mb-4">
-      {order.map((r, i) => {
-        const color = teamColor(r!.team);
-        return (
-          <div key={r!.code} className="flex flex-col items-center text-center min-w-0">
-            <span className="font-sans font-semibold text-[12px] leading-tight truncate max-w-full">{r!.driver}</span>
-            <span className="font-mono text-[11px] text-ink-soft truncate max-w-full">{r!.team}</span>
-            {/* The winner's race time; the others' gap to the winner. */}
-            <span className="font-mono text-[11px] tabular-nums truncate max-w-full mt-0.5 mb-1.5">
-              {("interval" in r! ? r!.interval : r!.time) || "—"}
-            </span>
-            <span
-              className={`w-full ${heights[i]} rounded-t-md flex items-start justify-center pt-1.5 font-display font-extrabold text-[1.3rem] leading-none bar-grow-y`}
-              style={{ background: `color-mix(in srgb, ${color} 75%, var(--paper))`, color: "var(--paper)", ["--bar-i" as string]: i }}
-            >
-              {r!.position}
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 export default function StartingGrid({
   nextRace,
@@ -271,7 +242,10 @@ export default function StartingGrid({
     const el = listRef.current;
     if (!el || showAll) return;
     const measure = () => {
-      const rowH = el.querySelector("tr")?.getBoundingClientRect().height || ROW_H;
+      // A row's screen height carries the page's zoom (.page-scale); the box's own
+      // height doesn't, so the zoom is taken back out, as in lib/use-fit-rows.ts.
+      const zoom = el.offsetHeight > 0 ? el.getBoundingClientRect().height / el.offsetHeight || 1 : 1;
+      const rowH = (el.querySelector("tr")?.getBoundingClientRect().height ?? 0) / zoom || ROW_H;
       setFit(Math.max(baseRows, Math.floor(el.clientHeight / rowH)));
     };
     measure();
@@ -456,36 +430,34 @@ export default function StartingGrid({
       )}
       {timingHere && !liveSnap && (resultRows.length > 0 || sessionStatus !== "ready" || gridPending) && (
         <div className={`module self-stretch flex flex-col ${part === "archive" ? "pit-result" : ""}`} data-reveal>
-          <div className="flex items-baseline justify-between gap-2">
+          {/* The card's head: a chequered band, what this is and when, the race's name,
+              and where the weekend is, as a run of timing sectors. */}
+          <div className="result-check" aria-hidden="true" />
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
             <span className="font-label text-[11px] text-ink-soft inline-flex items-center gap-1.5">
               <FlagCheckeredIcon size={14} aria-hidden="true" />
               {sessionStatus === "ready" ? timingTitle : "Timing screens"}
             </span>
-            {racePhase === "race" && liveResults.length > 0 && (
+            {racePhase === "race" && liveResults.length > 0 ? (
               <span className="font-mono text-[11px] text-down">● live</span>
+            ) : (
+              sessionStatus === "ready" && timingNote && <span className="font-mono text-[11px] text-ink-soft">{timingNote}</span>
             )}
           </div>
           {sessionStatus === "ready" && timingRace && (
-            <div className="font-headline text-[15px] leading-tight mt-1">{timingRace}</div>
+            <div className="result-title">
+              <span>{timingRace}</span>
+            </div>
           )}
           {sessionStatus === "ready" && (
-            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mt-1.5">
-              {timingNote && <span className="font-mono text-[11px] text-ink-soft">{timingNote}</span>}
-              <ol className="flex flex-wrap items-center gap-x-1 gap-y-1 font-label text-[11px] min-w-0" aria-label="Weekend progress">
-                {steps.map((s, i) => (
-                  <li key={s.key} className="flex items-center gap-1">
-                    {i > 0 && <span className={`w-3 h-px ${i <= stepAt ? "bg-ink-soft" : "bg-[var(--rule)]"}`} />}
-                    <span
-                      className={`rounded-full px-1.5 py-0.5 ${i === stepAt ? "" : i < stepAt ? "text-ink-soft" : "text-ink-faint"}`}
-                      style={i === stepAt ? { background: "var(--section-hue)", color: "var(--paper)" } : undefined}
-                      aria-current={i === stepAt ? "step" : undefined}
-                    >
-                      {s.label}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            </div>
+            <ol className="result-sectors" aria-label="Weekend progress">
+              {steps.map((s, i) => (
+                <li key={s.key} data-state={i === stepAt ? "now" : i < stepAt ? "done" : undefined} aria-current={i === stepAt ? "step" : undefined}>
+                  <i aria-hidden="true" />
+                  {s.label}
+                </li>
+              ))}
+            </ol>
           )}
 
           {sessionStatus === "loading" && resultRows.length === 0 && (
@@ -512,7 +484,7 @@ export default function StartingGrid({
 
           {resultRows.length > 0 && (
             <>
-              {showPodium && <Podium rows={resultRows} />}
+              {showPodium && <RacePodium rows={resultRows} />}
               {/* Folded, the table sits out of the flow so the card's height
                   comes from its neighbour; the rows then fill what it gives. */}
               <div

@@ -383,6 +383,8 @@ interface JolpicaRace extends Partial<Record<"FirstPractice" | "SecondPractice" 
 interface JolpicaClassified {
   number: string;
   position: string;
+  Driver?: { code?: string; givenName: string; familyName: string };
+  Constructor?: { name: string };
   points?: string;
   laps?: string;
   status?: string;
@@ -626,6 +628,31 @@ async function withSessionDrivers(drivers: Map<number, OpenF1Driver>, sessionKey
   const out = new Map(drivers);
   for (const [n, d] of extra) if (!out.has(n)) out.set(n, d);
   return out;
+}
+
+/**
+ * The same for a race: the session's roster, and Jolpica's classification when
+ * OpenF1 can't say (it locks every endpoint while a session is live). So a stand-in
+ * prints by name: Haas's Ryo Hirakawa in Mexico City 2026 printed as "Car 50".
+ */
+async function withRaceDrivers(drivers: Map<number, OpenF1Driver>, race: OpenF1Session, numbers: number[]): Promise<Map<number, OpenF1Driver>> {
+  const out = await withSessionDrivers(drivers, race.session_key, numbers);
+  if (numbers.every((n) => out.has(n))) return out;
+  const rows = await jolpicaClassification(race, "results").catch(() => [] as JolpicaClassified[]);
+  const added = new Map(out);
+  for (const r of rows) {
+    const n = Number(r.number);
+    if (added.has(n) || !r.Driver) continue;
+    added.set(n, {
+      driver_number: n,
+      full_name: `${r.Driver.givenName} ${r.Driver.familyName}`,
+      first_name: r.Driver.givenName,
+      last_name: r.Driver.familyName,
+      name_acronym: r.Driver.code ?? r.Driver.familyName.slice(0, 3).toUpperCase(),
+      team_name: r.Constructor?.name ?? "",
+    });
+  }
+  return added;
 }
 
 // The track map: the site's own copy when it has one (lib/config/f1-circuits.ts),
@@ -944,7 +971,10 @@ export async function getF1Results(): Promise<F1ResultsData | null> {
     getDriverDetails(lastSession?.session_key),
     weekendRace ? getMeetingRaw(weekendRace).catch(() => [] as OpenF1Session[]) : Promise.resolve([] as OpenF1Session[]),
   ]);
-  const lastRace = race && results.length > 0 ? labelRaceResults(race, results, drivers) : null;
+  const lastRace =
+    race && results.length > 0
+      ? labelRaceResults(race, results, await withRaceDrivers(drivers, race, results.map((r) => r.driver_number)))
+      : null;
   const weekendName = weekendRace ? grandPrixName(weekendRace) : null;
 
   // Sessions of this weekend that have finished (the race itself excluded:

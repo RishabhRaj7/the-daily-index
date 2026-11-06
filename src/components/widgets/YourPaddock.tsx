@@ -69,17 +69,22 @@ function useH2H(query: string | null): HeadToHead | null {
   return h2h && h2h.query === query ? h2h.data : null;
 }
 
+// Words and counts sit above the bar, in the paper's own ink: no text colour reads
+// on two team colours at once. The leader's count is the bold one.
 function VersusBar({ label, pair, colours }: { label: string; pair: [number, number]; colours: [string, string] }) {
   const total = pair[0] + pair[1] || 1;
+  const count = (mine: number, theirs: number) => (mine >= theirs ? "font-bold text-ink" : "text-ink-soft");
   return (
-    <div className="grid grid-cols-[1.4rem_minmax(0,1fr)_1.4rem] items-center gap-2">
-      <span className="font-mono text-[12px] tabular-nums text-right font-semibold">{pair[0]}</span>
-      <span className="relative h-[18px] rounded-md overflow-hidden flex gap-[2px] bg-[color:var(--rule)]">
-        <span className="h-full bar-grow rounded-l-md" style={{ width: `${(pair[0] / total) * 100}%`, background: colours[0] }} />
-        <span className="h-full flex-1 rounded-r-md" style={{ background: `color-mix(in srgb, ${colours[1]} 55%, transparent)` }} />
-        <span className="absolute inset-0 grid place-items-center font-label text-[11px] mix-blend-difference text-white">{label}</span>
-      </span>
-      <span className="font-mono text-[12px] tabular-nums font-semibold">{pair[1]}</span>
+    <div>
+      <div className="grid grid-cols-[2rem_minmax(0,1fr)_2rem] items-baseline text-center">
+        <span className={`font-mono text-[15px] tabular-nums text-left ${count(pair[0], pair[1])}`}>{pair[0]}</span>
+        <span className="font-label text-[11px] text-ink-soft truncate">{label}</span>
+        <span className={`font-mono text-[15px] tabular-nums text-right ${count(pair[1], pair[0])}`}>{pair[1]}</span>
+      </div>
+      <div className="flex gap-[2px] h-2 mt-1">
+        <span className="block h-full bar-grow rounded-l-sm" style={{ width: `${(pair[0] / total) * 100}%`, background: colours[0] }} />
+        <span className="block h-full flex-1 rounded-r-sm" style={{ background: colours[1] }} />
+      </div>
     </div>
   );
 }
@@ -121,14 +126,18 @@ function Versus({ options }: { options: { id: string; label: string; query: stri
       {h ? (
         <>
           <div className="flex items-center justify-between gap-2 mb-2">
-            <span className="font-sans font-bold text-[12.5px]" style={{ color: ca }}>
-              {h.a.name}
+            {/* Names in the paper's ink, with a square of the team's colour: mint or
+                white text wouldn't read on every paper. */}
+            <span className="font-sans font-bold text-[13px] inline-flex items-center gap-1.5 min-w-0">
+              <span className="w-2.5 h-2.5 rounded-[2px] shrink-0" style={{ background: ca }} aria-hidden="true" />
+              <span className="truncate">{h.a.name}</span>
             </span>
-            <span className="font-sans font-bold text-[12.5px]" style={{ color: h.team ? undefined : cb }}>
-              {h.b.name}
+            <span className="font-sans font-bold text-[13px] inline-flex items-center gap-1.5 min-w-0">
+              <span className="truncate">{h.b.name}</span>
+              <span className="w-2.5 h-2.5 rounded-[2px] shrink-0" style={{ background: cb }} aria-hidden="true" />
             </span>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2.5">
             <VersusBar label="Qualifying" pair={h.quali} colours={[ca, cb]} />
             <VersusBar label="Race" pair={h.race} colours={[ca, cb]} />
           </div>

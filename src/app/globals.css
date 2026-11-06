@@ -387,6 +387,19 @@ html.js .stroke-draw {
   stroke-dashoffset: var(--len, 400);
 }
 html.js .is-in .stroke-draw { animation: stroke-draw 1.6s var(--ease-out) 0.2s both; }
+/* A market card's line (DayLineChart): uncovered left to right, then its dot. */
+html.js .day-line-draw { clip-path: inset(-20% 100% -20% -2%); }
+html.js .is-in .day-line-draw { animation: day-line-draw 0.7s var(--ease-out) both; }
+html.js .day-line-dot { opacity: 0; }
+html.js .is-in .day-line-dot { animation: day-line-dot 0.7s var(--ease-out) both; }
+@keyframes day-line-draw {
+  from { clip-path: inset(-20% 100% -20% -2%); }
+  to { clip-path: inset(-20% -2% -20% -2%); }
+}
+@keyframes day-line-dot {
+  0%, 85% { opacity: 0; }
+  100% { opacity: 1; }
+}
 @keyframes stroke-draw {
   0% { stroke-dasharray: var(--len, 400); stroke-dashoffset: var(--len, 400); }
   99% { stroke-dasharray: var(--len, 400); stroke-dashoffset: 0; }
@@ -985,6 +998,117 @@ html[data-edition="evening"] .pub-on-light { display: none; }
   .top-bar-paper { position: static; background: none; border-bottom: 0; }
 }
 
+/* The race card (StartingGrid): a chequered band along its top edge, the race's name
+   leaning forward, and where the weekend is as a run of timing sectors. */
+.result-check {
+  height: 9px;
+  margin: -1rem -1.1rem 0.75rem;
+  border-radius: 13px 13px 0 0;
+  background: repeating-conic-gradient(#111113 0 25%, #f4f3ef 0 50%) 0 0 / 9px 9px;
+}
+.result-title {
+  font: 800 clamp(1.5rem, 1.1rem + 1.2vw, 1.9rem)/1 var(--font-display);
+  text-transform: uppercase;
+  margin-top: 0.4rem;
+}
+.result-title span { display: inline-block; transform: skewX(-7deg); transform-origin: left bottom; }
+.result-sectors {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 3px;
+  margin-top: 0.6rem;
+  font: 600 11px/1.2 var(--font-sans);
+  color: var(--ink-faint);
+}
+.result-sectors i {
+  display: block;
+  height: 4px;
+  margin-bottom: 0.25rem;
+  background: var(--rule);
+  transform: skewX(-20deg);
+}
+.result-sectors [data-state="done"] { color: var(--ink-soft); }
+.result-sectors [data-state="done"] i { background: var(--ink-soft); }
+.result-sectors [data-state="now"] { color: var(--ink); }
+.result-sectors [data-state="now"] i { background: var(--hue-f1); }
+
+/* The top three (RacePodium): drivers on slanted steps in their team's colour. */
+.podium {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 5px;
+  margin: 1.6rem 0 0.75rem;
+  max-width: 38rem;
+  width: 100%;
+  align-self: center;
+}
+.podium-step { min-width: 0; }
+.podium-art { position: relative; height: var(--step); }
+.podium-p1 { --step: 142px; }
+.podium-p2 { --step: 118px; }
+.podium-p3 { --step: 100px; }
+.podium-art::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 62%, rgba(0, 0, 0, 0.14) 62% 74%, transparent 74%), var(--team);
+  clip-path: polygon(0 16px, 100% 0, 100% 100%, 0 100%);
+}
+.podium-num {
+  position: absolute;
+  left: 6px;
+  top: 19px;
+  z-index: 1;
+  font: 800 2.7rem/1 var(--font-display);
+  color: var(--on-team);
+  transform: skewX(-7deg);
+}
+.podium-face {
+  position: absolute;
+  right: -2px;
+  bottom: 0;
+  z-index: 2;
+  height: calc(100% + 20px);
+  max-width: 92%;
+  width: auto;
+  object-fit: contain;
+  object-position: bottom right;
+}
+.podium-mark {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 2;
+  width: 45%;
+  max-height: 60%;
+  object-fit: contain;
+}
+.podium-plate {
+  position: relative;
+  z-index: 3;
+  padding: 6px 7px 7px;
+  background: #111113;
+  color: #f4f3ef;
+}
+.podium-code {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  font: 800 1.3rem/1 var(--font-display);
+}
+.podium-code span { display: inline-block; min-width: 0; overflow: hidden; text-overflow: ellipsis; transform: skewX(-7deg); }
+.podium-code img { flex: none; object-fit: contain; }
+.podium-time {
+  margin-top: 3px;
+  font: 400 11px var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: #c9c9cf;
+  white-space: nowrap;
+}
+
 /* Surface card for data modules (weather almanac, mood, F1 widgets). */
 .module {
   background: var(--card-bg);
@@ -1018,6 +1142,8 @@ html[data-edition="evening"] .pub-on-light { display: none; }
     transition: none !important;
   }
   html.js .stroke-draw { stroke-dasharray: none; stroke-dashoffset: 0; animation: none; }
+  html.js .day-line-draw, html.js .is-in .day-line-draw { clip-path: none; animation: none; }
+  html.js .day-line-dot, html.js .is-in .day-line-dot { opacity: 1; animation: none; }
   .marquee-track,
   .ink-stamp,
   .prep-dot,
