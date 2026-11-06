@@ -9,7 +9,14 @@ export interface NavChapter {
   /** The element the chapter starts at. */
   id: string;
   label: string;
-  sections: Array<{ id: string; name: string }>;
+  sections: Array<{
+    id: string;
+    name: string;
+    /** The section's colour, a CSS value. */
+    hue: string;
+    /** The day's number beside it in the side menu. */
+    note?: { text: string; tone?: "up" | "down" };
+  }>;
 }
 
 /** The evening switch, the archive and settings, wherever the menu puts them. */
@@ -42,7 +49,7 @@ export function TopBarTools({ isArchive = false }: { isArchive?: boolean }) {
 
 // The top bar, on every page. The small wordmark only appears once the big
 // particle one has scrolled away. On the paper itself it carries the chapters
-// on a tablet or laptop (the current one underlined); on a phone it's a plain
+// on a tablet or laptop (the current one underlined in its section's colour); on a phone it's a plain
 // row that scrolls away, the chapters being at the foot of the screen; from
 // 1500px the side menu takes over and the bar steps aside (chrome/PaperNav.tsx).
 export default function TopBar({
@@ -122,7 +129,7 @@ export default function TopBar({
                 }`}
               >
                 {c.label}
-                {active === c.id && <span aria-hidden="true" className="absolute left-2.5 right-2.5 bottom-0 h-[2px] rounded-full bg-accent" />}
+                {active === c.id && <span aria-hidden="true" className="absolute left-2.5 right-2.5 bottom-0 h-[2px] rounded-full transition-colors duration-300" style={{ background: "var(--now-hue, var(--accent))" }} />}
               </a>
             ))}
           </nav>

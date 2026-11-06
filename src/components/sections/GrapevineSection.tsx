@@ -77,7 +77,7 @@ export default function GrapevineSection({
       <div className="grapevine-blocks">
       <div className="flex flex-col md:flex-row gap-y-4 mb-6 empty:hidden">
         <SearchBar headlines={headlines} className={PAIR} />
-        <Fold phoneOnly label="Trending on X and Reddit" className={PAIR}>
+        <Fold phoneOnly label="Trending on X and Reddit" hint="What India and the world are posting about" className={PAIR}>
           <SocialTrends />
         </Fold>
       </div>
@@ -99,7 +99,7 @@ export default function GrapevineSection({
           </div>
         )}
 
-        <Fold phoneOnly label="Play today's puzzle" className={PAIR}>
+        <Fold phoneOnly label="Play today's puzzle" hint="Wordle, a headline scramble, noughts and crosses" className={PAIR}>
           <ColumnHead title="The Puzzle Desk" sub="Two minutes of play, set from today's headlines" />
           <PuzzleDesk headlines={puzzleHeadlines} dateKey={puzzleDateKey} />
         </Fold>

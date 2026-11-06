@@ -80,7 +80,7 @@ function RaceOdds({ market: m }: { market: OddsMarket }) {
   const max = Math.max(...field.map((o) => o.prob), 1);
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="module block w-full text-left group" data-reveal>
+      <button type="button" onClick={() => setOpen(true)} className="module pit-wins block w-full text-left group" data-reveal>
         <div className="flex items-baseline justify-between gap-2 mb-2.5">
           <span className="font-label text-[11px] text-ink-soft">Who wins Sunday · traders&rsquo; odds</span>
           <span className="font-mono text-[11px] text-ink-faint group-hover:text-ink">chart ›</span>
@@ -397,7 +397,7 @@ export default function StartingGrid({
 
       {/* 3. Coming up — the calendar after this weekend. */}
       {part !== "calendar" ? null : upcoming.length > 1 ? (
-        <div className="module" data-reveal>
+        <div className="module pit-coming" data-reveal>
           <div className="font-label text-[11px] text-ink-soft mb-2">Coming up</div>
           <ol>
             {upcoming.slice(1).map((race) => (
@@ -412,12 +412,12 @@ export default function StartingGrid({
           </ol>
         </div>
       ) : calendarStatus === "loading" ? (
-        <div className="module">
+        <div className="module pit-coming">
           <div className="font-label text-[11px] text-ink-soft mb-1">Coming up</div>
           <TimingRowsSkeleton rows={4} />
         </div>
       ) : calendarStatus === "failed" ? (
-        <div className="module">
+        <div className="module pit-coming">
           <div className="font-label text-[11px] text-ink-soft mb-1">Coming up</div>
           <p className="text-[11px] text-ink-soft italic">
             The race calendar didn&rsquo;t answer.{" "}
@@ -437,9 +437,13 @@ export default function StartingGrid({
       {/* 4. Timing — the slower "session" part streams in behind the rest. No
           refresh here by design: the single control lives in the pit-wall
           header, so the two can never race each other. */}
-      {timingHere && liveSnap && <LiveCard snap={liveSnap} />}
+      {timingHere && liveSnap && (
+        <div className={part === "archive" ? "pit-result min-w-0" : "min-w-0"}>
+          <LiveCard snap={liveSnap} />
+        </div>
+      )}
       {timingHere && !liveSnap && (resultRows.length > 0 || sessionStatus !== "ready" || gridPending) && (
-        <div className="module self-stretch flex flex-col" data-reveal>
+        <div className={`module self-stretch flex flex-col ${part === "archive" ? "pit-result" : ""}`} data-reveal>
           <div className="flex items-baseline justify-between gap-2">
             <span className="font-label text-[11px] text-ink-soft">
               {sessionStatus === "ready" ? timingTitle : "Timing screens"}

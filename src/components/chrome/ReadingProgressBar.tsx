@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 
+// How far down the page you are, along the top of the window. On the paper it
+// wears the colour of the section being read (--now-hue, set by the menu in
+// chrome/PaperNav.tsx); elsewhere the site's accent.
 export default function ReadingProgressBar() {
   const [progress, setProgress] = useState(0);
 
@@ -27,8 +30,8 @@ export default function ReadingProgressBar() {
       aria-hidden="true"
     >
       <div
-        className="h-full bg-accent transition-[width] duration-100 ease-out"
-        style={{ width: `${progress}%` }}
+        className="h-full transition-[width,background-color] duration-300 ease-out"
+        style={{ width: `${progress}%`, background: "var(--now-hue, var(--accent))" }}
       />
     </div>
   );

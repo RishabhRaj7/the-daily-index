@@ -8,7 +8,7 @@ import { cityMinutes, isNight, skyClock } from "@/lib/sky";
 // phone prints the number alone, so nothing is ever cut off; the line of detail
 // under it starts at a tablet's width.
 
-function until(iso: string): string | null {
+export function until(iso: string): string | null {
   const ms = Date.parse(iso) - Date.now();
   if (Number.isNaN(ms)) return null;
   if (ms <= 0) return "this weekend";

@@ -53,6 +53,7 @@ import {
   writePickBlurbs,
 } from "@/lib/summary-cache";
 import Masthead from "@/components/masthead/Masthead";
+import { until } from "@/components/masthead/SignalRow";
 import HeroStory from "@/components/story/HeroStory";
 import FrontStrip from "@/components/widgets/FrontStrip";
 import { chaptersFor } from "@/lib/chapters";
@@ -1082,14 +1083,24 @@ export default function EditionView({
     return false;
   });
 
-  // One menu, in the same words everywhere (chrome/PaperNav.tsx).
+  // One menu, in the same words everywhere (chrome/PaperNav.tsx). The side menu
+  // prints the day's number beside a section that has one.
+  const leadIndex = edition.markets.indices.find((i) => /nifty 50/i.test(i.name)) ?? edition.markets.indices[0];
+  const toLights = nextRace ? until(nextRace.date) : null;
+  const navNotes: Partial<Record<SectionKey, { text: string; tone?: "up" | "down" }>> = {
+    ...(leadIndex
+      ? { "market-pulse": { text: `${leadIndex.changePct >= 0 ? "+" : "−"}${Math.abs(leadIndex.changePct).toFixed(2)}%`, tone: leadIndex.changePct >= 0 ? ("up" as const) : ("down" as const) } }
+      : {}),
+    ...(toLights ? { "paddock-notes": { text: toLights === "this weekend" ? "now" : toLights } } : {}),
+    ...(weather ? { "sky-report": { text: `${weather.tempC}°` } } : {}),
+  };
   const navChapters: NavChapter[] = chapters.map((c) => ({
     id: `ch-${c.id}`,
     label: c.label,
     sections: [
-      ...c.printed.map((key) => ({ id: SECTION_META[key].slug, name: SECTION_META[key].name })),
-      ...(c.id === "next" ? visibleStandalone.map(({ section }) => ({ id: `digest-${section.id}`, name: section.label })) : []),
-      ...(c.id === "next" && !isArchive ? [{ id: "week-ahead", name: "The Week Ahead" }] : []),
+      ...c.printed.map((key) => ({ id: SECTION_META[key].slug, name: SECTION_META[key].name, hue: SECTION_META[key].hue, note: navNotes[key] })),
+      ...(c.id === "next" ? visibleStandalone.map(({ section }) => ({ id: `digest-${section.id}`, name: section.label, hue: digestHue(section.label) })) : []),
+      ...(c.id === "next" && !isArchive ? [{ id: "week-ahead", name: "The Week Ahead", hue: "var(--hue-money)" }] : []),
     ],
   }));
 
@@ -1166,7 +1177,7 @@ export default function EditionView({
           onSkip={handlePrepSkip}
         />
       )}
-      <PaperNav chapters={navChapters} isArchive={isArchive} date={edition.date} />
+      <PaperNav chapters={navChapters} isArchive={isArchive} date={edition.date} issue={`VOL. ${edition.volume} · NO. ${edition.issue}`} />
       <Masthead edition={edition} weather={(travelling && travelWeather) || weather || undefined} />
       <div className="page-wrap px-4 sm:px-6">
         {!isArchive && !prepBlocking && (

@@ -10,7 +10,6 @@ import { describeFeed, feedQuery, useFeed } from "@/lib/feeds";
 import { SocialList, useSocialFeed, useSocialView } from "@/components/extras/SocialFeed";
 import type { SocialAnswer } from "@/lib/live/social";
 import ClutchSheet, { Logo, type ClutchView } from "@/components/widgets/ClutchSheets";
-import { useMedia } from "@/lib/use-media";
 
 // Clutch: Valorant, kept small. One band, three columns:
 //   your teams   next match (with the market's price), last result, where
@@ -375,13 +374,12 @@ function Wire({ data, teams, now }: { data: ValorantData; teams: ValTeam[]; now:
 // they follow ranked first (lib/live/social.ts).
 
 function TransferWindow({ teams }: { teams: ValTeam[] }) {
-  const wide = useMedia("(min-width: 2300px)");
   const feed = useFeed("clutch");
   const live = useSocialFeed<SocialAnswer>(feed ? `/api/social?kind=val&teams=${encodeURIComponent(teams.map((t) => t.name).join(","))}&${feedQuery(feed.config)}` : null);
   // Nothing to show, or X and Reddit failing: not there at all (lib/social-health.ts).
   if (useSocialView(live.data).view === "hide") return null;
   return (
-    <div className="module min-w-0" data-reveal>
+    <div className="module min-w-0 flex flex-col" data-reveal>
       <div className="flex items-center justify-between gap-3 mb-3">
         <span className="min-w-0">
           <span className="block font-label text-[11px] text-ink-soft">Transfer window</span>
@@ -389,7 +387,7 @@ function TransferWindow({ teams }: { teams: ValTeam[] }) {
         </span>
         <EditFeedsButton section="clutch" />
       </div>
-      <SocialList data={live.data} refresh={live} compact max={wide ? 6 : 3} filterKey="transfer-window" more={{ title: "Transfer window", kicker: "Clutch · r/ValorantCompetitive and X" }} />
+      <SocialList data={live.data} refresh={live} compact max={6} fill={{ min: 3 }} filterKey="transfer-window" more={{ title: "Transfer window", kicker: "Clutch · r/ValorantCompetitive and X" }} />
     </div>
   );
 }
@@ -445,7 +443,7 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
   );
 
   // Off-season: the dates and the scene's headlines stacked on the left, the
-  // transfer window on the right, each only as tall as what it holds.
+  // transfer window on the right showing as many posts as fit, so the two end level.
   if (data.phase === "off" || !event) {
     const lastFinal = data.lastEvent
       ? [...data.matches].reverse().find((m) => m.eventKey === data.lastEvent!.key && m.state === "completed")
@@ -454,7 +452,7 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
     return (
       <section id="clutch">
         <SectionHeader sectionKey="clutch" folio="Off-season" />
-        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)] gap-4 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)] gap-4 items-stretch">
           <div className="flex flex-col gap-4 min-w-0">
             <div className="module">
               <div className="flex items-center justify-between gap-3">
@@ -481,7 +479,7 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
               )}
             </div>
             {data.news.length > 0 && (
-              <div className="module" data-reveal>
+              <div className="module flex-1" data-reveal>
                 <div className="font-label text-[11px] text-ink-soft mb-3">From the scene</div>
                 <Wire data={data} teams={teams} now={now} />
               </div>

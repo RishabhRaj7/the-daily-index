@@ -472,8 +472,8 @@ export default function F1Sidebar({
     // display: contents): the race desk sits beside the stories, the two
     // championship tables run full width underneath, so the stories column
     // is never outgrown by a tall sidebar. Everything stays printed at every
-    // width; with the room the desk runs two across and the tables three
-    // (globals.css, .pit-desk and .pit-archive).
+    // width, and cards on one row are one height; with the room the desk runs
+    // two across and the tables rearrange (globals.css, .pit-desk, .pit-archive).
     <div className="contents">
       {/* A column: the paddock card at its foot grows to the stories' height (PaddockChatter). */}
       <div className="pit-desk flex flex-col gap-4 min-w-0 lg:col-start-2 lg:row-start-1">
@@ -556,7 +556,7 @@ export default function F1Sidebar({
 
       </div>
 
-      <div className="pit-archive grid grid-cols-1 md:grid-cols-2 gap-4 items-start lg:col-span-2">
+      <div className="pit-archive grid grid-cols-1 md:grid-cols-2 gap-4 lg:col-span-2">
       {/* Last race, the tables and the calendar run full width, so the desk
           column stays about as tall as the stories. */}
       {map.status === "ready" && map.data && (
@@ -594,7 +594,7 @@ export default function F1Sidebar({
       />
       {/* Constructors' Championship — before the drivers' table, matching the
           order the section fills in. */}
-      <div className="module" data-reveal>
+      <div className="module pit-teams" data-reveal>
         <div className="font-label text-[11px] text-ink-soft mb-3">
           Constructors&rsquo; Championship
         </div>
@@ -638,7 +638,7 @@ export default function F1Sidebar({
       </div>
 
       {/* Drivers' Championship */}
-      <div className="module" data-reveal>
+      <div className="module pit-drivers" data-reveal>
         <div className="font-label text-[11px] text-ink-soft mb-3">
           Drivers&rsquo; Championship
         </div>

@@ -300,7 +300,7 @@ export default function StrawPollSection({
             </div>
           )}
           {poll.busiest.length > 0 && (
-            <Fold phoneOnly label="Where else the money is today">
+            <Fold phoneOnly label="Where else the money is" hint="The other busiest markets today">
             <div data-reveal>
               <div className="font-label text-[11px] text-ink-soft mb-2">Where else the money is today</div>
               <div className={`grid grid-cols-2 gap-2 ${poll.movers.length ? "" : "lg:grid-cols-4"}`}>

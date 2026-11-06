@@ -337,7 +337,7 @@ export default function YourPaddock({
   // Nothing followed yet: an invitation, not an empty box.
   if (!favoriteTeam && drivers.length === 0) {
     return (
-      <div className="module self-stretch flex flex-col items-start justify-center gap-4 border-dashed" data-reveal>
+      <div className="module pit-you self-stretch flex flex-col items-start justify-center gap-4 border-dashed" data-reveal>
         <svg width="56" height="40" viewBox="0 0 56 40" aria-hidden className="text-ink-faint">
           {Array.from({ length: 4 }).map((_, r) =>
             Array.from({ length: 7 }).map((__, c) => (
@@ -373,7 +373,7 @@ export default function YourPaddock({
   const logo = favoriteTeam ? teamLogo(favoriteTeam) : null;
 
   return (
-    <div className="module self-stretch flex flex-col gap-4" data-reveal>
+    <div className="module pit-you self-stretch flex flex-col gap-4" data-reveal>
       <div className="flex items-center justify-between">
         <span className="font-label text-[11px] text-ink-soft">Your paddock</span>
         <button type="button" className="chip h-7 px-3 text-[11px]" onClick={() => setOpen(true)}>

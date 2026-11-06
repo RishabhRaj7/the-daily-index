@@ -269,7 +269,7 @@ html.theme-transition *::after {
    on .edition-body, under Page rhythm), so a 2560x1080 screen gets the same page
    as a 3440x1440 one, just fewer columns. */
 @media (min-width: 1500px) {
-  .edition-page { padding-left: 170px; }
+  .edition-page { padding-left: 204px; }
   .edition-page .page-wrap { max-width: none; }
   .edition-page .top-bar-paper { display: none; }
 }
@@ -636,7 +636,20 @@ article[id] { scroll-margin-top: 0.5rem; }
   .pit-desk { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
   .pit-desk > :first-child,
   .pit-desk > :last-child { grid-column: 1 / -1; }
-  .pit-archive { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  /* The tall result and paddock cards side by side, the two tables stacked level
+     with them, then the race's odds and the calendar. */
+  .pit-archive { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .pit-result { grid-column: 1 / span 2; grid-row: 1 / span 2; }
+  .pit-you { grid-column: 3 / span 2; grid-row: 1 / span 2; }
+  .pit-teams { grid-column: 5 / span 2; grid-row: 1; }
+  .pit-drivers { grid-column: 5 / span 2; grid-row: 2; }
+  .pit-wins { grid-column: 1 / span 3; }
+  .pit-coming { grid-column: 4 / span 3; }
+  .pit-archive:not(:has(.pit-result)) .pit-you { grid-column: 1 / span 4; }
+  .pit-archive:not(:has(.pit-coming)) .pit-wins,
+  .pit-archive:not(:has(.pit-wins)) .pit-coming { grid-column: 1 / -1; }
+  .pit-teams, .pit-drivers { display: flex; flex-direction: column; }
+  .pit-teams ol, .pit-drivers ol { flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
 }
 
 /* Two Cities: side by side from a tablet up; each city's stories run across
@@ -662,7 +675,8 @@ article[id] { scroll-margin-top: 0.5rem; }
 @container ed (max-width: 699.98px) {
   .pulse-tiles:not([data-all]) > li:nth-child(n + 4) { display: none; }
   .pulse-prices { display: flex; overflow-x: auto; gap: 0.5rem; scroll-snap-type: x mandatory; scrollbar-width: none; }
-  .pulse-prices > * { flex: 0 0 44%; scroll-snap-align: start; }
+  .pulse-prices > * { flex: 0 0 44%; scroll-snap-align: start; display: flex; height: auto; }
+  .pulse-prices > * > * { height: auto; }
 }
 @container ed (min-width: 700px) { .fold-toggle.pulse-all { display: none; } }
 @container ed (min-width: 1700px) {
@@ -675,7 +689,7 @@ article[id] { scroll-margin-top: 0.5rem; }
    there's the room. */
 @container ed (max-width: 699.98px) {
   .poll-leads { display: flex; overflow-x: auto; gap: 0.6rem; scroll-snap-type: x mandatory; scrollbar-width: none; }
-  .poll-leads > * { flex: 0 0 88%; scroll-snap-align: start; }
+  .poll-leads > * { flex: 0 0 88%; scroll-snap-align: start; height: auto; }
   .poll-movers:not([data-all]) > li:nth-child(n + 4) { display: none; }
 }
 @container ed (min-width: 700px) { .fold-toggle.poll-all { display: none; } }
@@ -690,7 +704,46 @@ article[id] { scroll-margin-top: 0.5rem; }
   .grapevine-blocks > * { margin-bottom: 0; }
 }
 
-/* Opens in place (chrome/Fold.tsx). */
+/* Opens in place (chrome/Fold.tsx). The quiet form is a line of text; the phone's
+   card stands in for a whole block of the section, so it wears the section's
+   colour. From `md` the block prints and the card isn't there. */
+.fold-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 0.75rem;
+  width: 100%;
+  min-height: 3.75rem;
+  padding: 0.7rem 0.85rem 0.7rem 1rem;
+  text-align: left;
+  color: var(--ink);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--section-hue, var(--accent)) 45%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--section-hue, var(--accent)) 10%, var(--paper));
+}
+.fold-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.6rem;
+  bottom: 0.6rem;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--section-hue, var(--accent));
+}
+.fold-arrow {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: var(--section-hue, var(--accent));
+  color: var(--paper);
+  font: 700 15px var(--font-sans);
+}
+.fold-phone[data-open] > .fold-body { margin-top: 0.9rem; }
 .fold-toggle {
   display: inline-flex;
   align-items: center;
@@ -703,8 +756,9 @@ article[id] { scroll-margin-top: 0.5rem; }
 .fold:not([data-open]) > .fold-body { display: none; }
 .fold:has(> .fold-body:empty) { display: none; }
 @media (min-width: 768px) {
-  .fold-phone > .fold-toggle { display: none; }
+  .fold-phone > .fold-card { display: none; }
   .fold-phone:not([data-open]) > .fold-body { display: block; }
+  .fold-phone[data-open] > .fold-body { margin-top: 0; }
 }
 /* The mood card runs two rows of tiles tall here: its details fill it. */
 @container ed (min-width: 960px) and (max-width: 1699.98px) {
@@ -739,7 +793,8 @@ article[id] { scroll-margin-top: 0.5rem; }
   right: 18%;
   height: 2px;
   border-radius: 2px;
-  background: var(--accent);
+  background: var(--now-hue, var(--accent));
+  transition: background-color 0.3s;
 }
 @media (min-width: 768px) {
   .paper-dock { display: none; }
@@ -748,45 +803,85 @@ article[id] { scroll-margin-top: 0.5rem; }
   .edition-page { padding-bottom: calc(3.25rem + env(safe-area-inset-bottom)); }
 }
 
-/* The side menu, from 1500px. It sits inside the zoomed page, so it scales with it. */
+/* The side menu, from 1500px: the paper's own index, in its groups. It sits
+   inside the zoomed page, so it scales with it. Each section keeps its colour as
+   a bar, and fills with it while it's the one being read. */
 .paper-rail {
   position: fixed;
   inset: 0 auto 0 0;
   z-index: 40;
-  width: 160px;
+  width: 196px;
   flex-direction: column;
-  padding: 1rem 0.5rem 0.75rem 1.1rem;
+  padding: 0.9rem 0.65rem 0.65rem 0.85rem;
   background: var(--paper);
   border-right: 1px solid var(--rule);
 }
-.rail-chapter {
-  position: relative;
-  display: block;
-  font: 700 15px/1.25 var(--font-sans);
-  color: var(--ink-soft);
+.rail-mark {
+  display: grid;
+  grid-template-columns: repeat(3, 4px);
+  gap: 2.5px;
+  margin-bottom: 0.45rem;
 }
-.rail-chapter:hover { color: var(--ink); }
-.rail-chapter[aria-current] { color: var(--ink); }
-.rail-chapter[aria-current]::before {
+.rail-mark > span {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--ink);
+}
+.rail-mark > span:nth-child(5) {
+  background: var(--now-hue, var(--accent));
+  transition: background-color 0.3s;
+}
+.rail-group {
+  display: block;
+  margin-top: 0.7rem;
+  padding-bottom: 0.2rem;
+  margin-bottom: 0.15rem;
+  font: 600 11px/1 var(--font-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--rule);
+}
+.rail-group:hover,
+.rail-group[aria-current] { color: var(--ink); }
+.rail-row {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem;
+  padding: 0.26rem 0.4rem 0.24rem 0.6rem;
+  border-radius: 4px;
+  font: 800 1.02rem/1.05 var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+  color: var(--ink);
+  transition: background-color 0.2s, color 0.2s;
+}
+.rail-row::before {
   content: "";
   position: absolute;
-  left: -0.7rem;
-  top: 0.42em;
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--accent);
+  left: 0;
+  top: 0.26rem;
+  bottom: 0.26rem;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--row-hue);
 }
-.rail-section {
-  display: block;
-  margin-top: 0.3rem;
-  padding-left: 0.6rem;
-  font: 500 13px/1.25 var(--font-sans);
+.rail-row b {
+  font: 500 11px var(--font-mono);
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--ink-soft);
 }
-.rail-section:hover,
-.rail-section[aria-current] { color: var(--ink); }
-.rail-section[aria-current] { font-weight: 700; }
+.rail-row b.rail-note-up { color: var(--up); }
+.rail-row b.rail-note-down { color: var(--down); }
+.rail-row:hover { background: color-mix(in srgb, var(--row-hue) 14%, transparent); }
+.rail-row[aria-current] { background: var(--row-hue); color: var(--paper); }
+.rail-row[aria-current]::before { background: transparent; }
+.rail-row[aria-current] b { color: var(--paper); }
 
 /* The top bar: sticky, except on the paper on a phone, where the chapters are at
    the foot and every pixel of height goes to reading. */
