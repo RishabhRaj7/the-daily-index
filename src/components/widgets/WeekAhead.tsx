@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { AheadEvent, WeekAhead as WeekAheadData } from "@/lib/types";
 import { loadPersonalization } from "@/lib/personalization";
 
-// The Week Ahead: seven days across the page under the front page, each
+// The Week Ahead: in the What's next chapter, seven days across the page, each
 // day a column of what's dated in it — policy decisions, market closures,
 // public holidays, IPO dates, the F1 weekend and your Valorant teams'
 // matches — all in IST. On a phone
@@ -37,7 +37,7 @@ function Event({ e }: { e: AheadEvent }) {
   const kind = KIND[e.kind];
   const body = (
     <>
-      <span className="flex items-center gap-1.5 font-label text-[9px]" style={{ color: kind.hue }}>
+      <span className="flex items-center gap-1.5 font-label text-[11px]" style={{ color: kind.hue }}>
         <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: kind.hue }} aria-hidden="true" />
         {kind.label}
         {e.time && <span className="font-mono text-ink-soft normal-case tracking-normal">{e.time}</span>}
@@ -76,10 +76,10 @@ export default function WeekAhead() {
   const days = Array.from({ length: 7 }, (_, i) => addDays(week.from, i));
 
   return (
-    <section aria-label="The week ahead" className="mt-14 border-y hairline py-6" style={{ ["--section-hue" as string]: "var(--hue-money)" }} data-reveal>
-      <div className="flex items-baseline justify-between gap-4 mb-4">
-        <h2 className="font-display font-bold text-[1.6rem] leading-none">The Week Ahead</h2>
-        <span className="font-mono text-[10px] text-ink-soft">All times IST</span>
+    <section id="week-ahead" aria-label="The week ahead" className="mt-6 border-y hairline py-4" style={{ ["--section-hue" as string]: "var(--hue-money)" }} data-reveal>
+      <div className="flex items-baseline justify-between gap-4 mb-3">
+        <h2 className="font-display font-extrabold text-[clamp(1.7rem,3vw,2.6rem)] leading-[0.9]">The Week Ahead</h2>
+        <span className="font-mono text-[11px] text-ink-soft">All times IST</span>
       </div>
       <ol className="divide-y hairline lg:divide-y-0 lg:grid lg:grid-cols-7">
         {days.map((date, i) => {
@@ -95,7 +95,7 @@ export default function WeekAhead() {
                 <span className={`font-display font-bold text-[1.7rem] leading-none tabular-nums ${today ? "text-[color:var(--section-hue)]" : ""}`}>
                   {d.getUTCDate()}
                 </span>
-                <span className="font-label text-[10px] text-ink-soft">
+                <span className="font-label text-[11px] text-ink-soft">
                   {today ? "Today" : d.toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" })}
                   {(i === 0 || d.getUTCDate() === 1) && ` · ${d.toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" })}`}
                 </span>

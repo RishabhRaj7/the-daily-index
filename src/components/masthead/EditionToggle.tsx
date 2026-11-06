@@ -37,7 +37,7 @@ export default function EditionToggle({ compact = false }: { compact?: boolean }
       {isManual && !compact && (
         <button
           onClick={resetToAuto}
-          className="font-label text-[10px] text-ink-soft hover:text-ink transition-colors px-1"
+          className="font-label text-[11px] text-ink-soft hover:text-ink transition-colors px-1"
           title="Follow the clock again"
         >
           Auto

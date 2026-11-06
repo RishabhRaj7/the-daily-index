@@ -156,10 +156,10 @@ export default function PaddockNotesSection({
 
           return (
             <>
-              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-10">
+              <div className="paddock-grid grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-x-8 gap-y-6">
                 <div className="min-w-0 lg:col-start-1 lg:row-start-1">
                   {stories.length > 0 && (
-                    <div className="story-grid">
+                    <div className="story-grid paddock-stories">
                       {stories.map((s) => (
                         <StoryArticle key={s.id} story={s} />
                       ))}
@@ -168,7 +168,7 @@ export default function PaddockNotesSection({
 
                   {hateWatchStories.length > 0 && (
                     <div className="mt-6 pt-4 border-t hairline">
-                      <div className="font-label text-[10px] tracking-widest text-ink-soft uppercase mb-3">
+                      <div className="font-label text-[11px] tracking-widest text-ink-soft uppercase mb-3">
                         Schadenfreude
                       </div>
                       <div className="story-grid">
@@ -217,10 +217,10 @@ export default function PaddockNotesSection({
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-10">
+                <div className="paddock-grid grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-x-8 gap-y-6">
                   <div className="min-w-0 lg:col-start-1 lg:row-start-1">
                     {stories.length > 0 && (
-                      <div className="story-grid">
+                      <div className="story-grid paddock-stories">
                         {stories.map((s) => (
                           <StoryArticle key={s.id} story={s} />
                         ))}
@@ -235,7 +235,7 @@ export default function PaddockNotesSection({
 
           {hateWatchStories.length > 0 && (
             <div className="mt-6 pt-4 border-t hairline">
-              <div className="font-label text-[10px] tracking-widest text-ink-soft uppercase mb-3">
+              <div className="font-label text-[11px] tracking-widest text-ink-soft uppercase mb-3">
                 Schadenfreude
               </div>
               <div className="story-grid">

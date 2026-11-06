@@ -99,7 +99,7 @@ export default function Sheet({
             <div className="shrink-0 px-5 sm:px-7 pt-6 sm:pt-7">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  {kicker && <div className="font-label text-[10px] text-ink-soft mb-1.5">{kicker}</div>}
+                  {kicker && <div className="font-label text-[11px] text-ink-soft mb-1.5">{kicker}</div>}
                   <h2 className="font-display font-extrabold text-[clamp(1.8rem,5vw,2.6rem)] leading-[0.9]">{title}</h2>
                 </div>
                 <button type="button" onClick={close} className="icon-btn shrink-0" aria-label="Close">

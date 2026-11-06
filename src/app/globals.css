@@ -136,7 +136,8 @@ html[data-edition="evening"] {
   --mood-xgreed: #3cffd0;
 }
 
-@custom-variant uw (@media (min-width: 2800px) and (min-aspect-ratio: 2/1));
+/* From here the paper has a side menu instead of a top bar (chrome/PaperNav.tsx). */
+@custom-variant wide (@media (min-width: 1500px));
 
 @theme inline {
   --color-paper: var(--paper);
@@ -165,7 +166,12 @@ html[data-edition="evening"] {
 html {
   background-color: var(--paper);
   scroll-behavior: smooth;
-  scroll-padding-top: 4.5rem;
+  /* A jump lands clear of the sticky bar; a phone and a wide screen have none on
+     the paper (the other pages' bars are short enough for this to matter little). */
+  scroll-padding-top: 4.25rem;
+}
+@media (max-width: 767.98px), (min-width: 1500px) {
+  html { scroll-padding-top: 0.75rem; }
 }
 
 body {
@@ -225,9 +231,9 @@ html.theme-transition *::after {
 /* The page's width. A big screen gets the same page, larger — never a
    stretched one: `.page-scale` zooms the whole edition in steps (type,
    cards, images and gaps together, so every proportion of the laptop design
-   holds), and the design width only widens a little with it. The steps read
-   the window's height too, so a wide but short window isn't blown up; an
-   ultrawide keeps margins rather than dragging lines and images across it.
+   holds). The steps read the window's height too, so a wide but short window
+   isn't blown up. The paper then uses the whole width by showing more of each
+   section (see Page rhythm); the other pages keep a design width.
    Pop-up sheets render outside the page (portals) and take the same step
    through .sheet-scale; a height in vh inside one is divided by the step
    (zoom multiplies vh too), so a sheet still fits the window. */
@@ -252,30 +258,20 @@ html.theme-transition *::after {
   :root { --page-zoom: 1.45; }
   .page-scale .page-wrap { max-width: 1680px; }
 }
-/* Ultrawide (21:9 and wider): not a bigger page but a spread. The design
-   width roughly doubles and sections sit two to a row (lib/spread.ts), each
-   column about as wide as the laptop page, so every section keeps the
-   layout it was designed at. The front page gains a third column for the
-   day's extras. Other screens let the row wrappers step aside. */
+/* Ultrawide (21:9 and wider): the other pages (archive, live centre) get a wide
+   design width; the paper sets its own just below. */
 @media (min-width: 2800px) and (min-aspect-ratio: 2/1) {
   :root { --page-zoom: 1.3; }
   .page-scale .page-wrap { max-width: 2480px; }
-  .page-scale .edition-body { display: block; }
-  .edition-body .spread-row {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: 4.5rem;
-    align-items: start;
-  }
-  .edition-body .spread-col { display: block; min-width: 0; }
-  /* A section with no partner keeps one column's width, centred, rather
-     than stretching across both. */
-  .edition-body .spread-row.spread-solo,
-  .edition-body > .spread-solo {
-    display: block;
-    width: calc(50% - 2.25rem);
-    margin-inline: auto;
-  }
+}
+/* The paper from 1500px: the side menu takes the left edge, the page takes the
+   rest. How much it shows of each section follows its width (container queries
+   on .edition-body, under Page rhythm), so a 2560x1080 screen gets the same page
+   as a 3440x1440 one, just fewer columns. */
+@media (min-width: 1500px) {
+  .edition-page { padding-left: 170px; }
+  .edition-page .page-wrap { max-width: none; }
+  .edition-page .top-bar-paper { display: none; }
 }
 
 /* A boxed item: a strong top rule, hairline bottom, no fill. */
@@ -518,22 +514,42 @@ table.data-table :is(th, td).mid {
   border-radius: 2px;
 }
 section[id],
-article[id] { scroll-margin-top: 5rem; }
+article[id] { scroll-margin-top: 0.5rem; }
 
 /* ---- Page rhythm ---------------------------------------------------------
-   Every front-page section is a .paper-section: generous air above, a
-   section header that owns its colour (--section-hue), then the content. */
+   The paper is chapters of sections, one subject on each row at every width.
+   Each .paper-section owns its colour (--section-hue). Everything below reads
+   the width of .edition-body (a container named `ed`), so a section lays itself
+   out by the room it has rather than by which screen it's on:
+     under 700    one column
+     700+         two
+     1080+        three, the lead across two
+     1700+        four: the lead with its plate across two, two rows beside it
+     2200+        In Brief moves to a column of its own beside the stories */
+.edition-body { container: ed / inline-size; }
+.chapter { padding-top: 2.75rem; }
+.chapter-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+}
+.chapter-head > :first-child {
+  text-transform: uppercase;
+  line-height: 0.9;
+  font-size: clamp(2.2rem, 5vw, 3.6rem);
+}
+.chapter-head > :last-child { font-size: 1.05rem; }
 .paper-section {
   position: relative;
-  padding: 4.5rem 0 1rem;
+  padding: 2.25rem 0 0.5rem;
   /* Inside a section, the accent is the section's own colour: drop caps,
      "for you" tags and links match its header, not the masthead's. */
   --accent: var(--section-hue);
 }
-@media (min-width: 768px) {
-  .paper-section { padding-top: 6.5rem; }
-}
-.section-head { margin-bottom: 2rem; }
+.chapter-head + .paper-section { padding-top: 1.25rem; }
+.section-head { margin-bottom: 0.9rem; }
+.section-subject { white-space: nowrap; }
 
 /* Tablet-style column rules: hairline verticals between grid columns. */
 @media (min-width: 768px) {
@@ -547,21 +563,240 @@ article[id] { scroll-margin-top: 5rem; }
   }
 }
 
-/* Story grid: the first story leads full-width, the rest pair up in two
-   columns separated by a hairline, like a magazine section front. */
+/* Story grid: one column, more as the section widens. Every story has a hairline
+   above it, except those on the grid's first row. */
 .story-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
 }
 .story-grid > * {
   border-top: 1px solid var(--rule);
-  padding: 1.5rem 0;
+  padding: 0.9rem 0;
 }
 .story-grid > *:first-child { border-top: 0; padding-top: 0; }
-@media (min-width: 768px) {
-  .story-grid.is-paired { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 2.5rem; }
+@container ed (min-width: 700px) {
+  .story-grid.is-paired { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 2rem; }
   .story-grid.is-paired > *:first-child { grid-column: 1 / -1; }
-  .story-grid.is-paired > *:nth-child(2) { border-top: 1px solid var(--rule); }
+}
+@container ed (min-width: 1080px) {
+  .story-grid.is-paired { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 2.25rem; }
+  .story-grid.is-paired > *:first-child { grid-column: span 2; }
+  .story-grid.is-paired > *:nth-child(-n + 2) { border-top: 0; padding-top: 0; }
+}
+@container ed (min-width: 1700px) {
+  .story-grid.is-paired { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .story-grid.is-paired > *:first-child { grid-column: span 2; grid-row: span 2; }
+  .story-grid.is-paired > *:nth-child(-n + 3) { border-top: 0; padding-top: 0; }
+}
+
+/* In Brief and the odds at a section's foot. */
+@container ed (min-width: 2200px) {
+  .paper-section:has(> aside) { display: grid; grid-template-columns: minmax(0, 4.4fr) minmax(0, 1fr); column-gap: 2.5rem; align-items: start; }
+  .paper-section:has(> aside) > section { grid-column: 1; }
+  .paper-section > aside { grid-column: 2; grid-row: 1; margin-top: 3.4rem; }
+  .paper-section > aside ul { grid-template-columns: minmax(0, 1fr); }
+  .paper-section:has(> aside) > :not(section, aside) { grid-column: 1 / -1; }
+}
+
+/* A story. On a phone or tablet it shows its headline and first lines, and opens
+   in place (StoryArticle sets data-open). From 1024px the whole summary prints,
+   with its links, and there's nothing to open. The text is always in the page,
+   so the browser's find still reaches it. */
+.story-plate { display: none; }
+.story-more { display: none; }
+@media (max-width: 1023.98px) {
+  .story-more { display: inline-flex; min-height: 2rem; }
+  .story:not([data-open]) .story-body > p:first-child {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    -webkit-line-clamp: 2;
+    cursor: pointer;
+  }
+  .story-lead:not([data-open]) .story-body > p:first-child { -webkit-line-clamp: 3; }
+  .story:not([data-open]) .story-rest,
+  .story:not([data-open]) .story-actions,
+  html[data-why="on"] .story:not([data-open]) .why-line { display: none; }
+  /* A big first letter doesn't survive being cut to two lines. */
+  .story .drop-cap::first-letter { all: unset; }
+}
+@media (min-width: 700px) and (max-width: 1023.98px) {
+  .story:not([data-open]) .story-body > p:first-child { -webkit-line-clamp: 3; }
+}
+/* The plate only where it fills real room beside the lead. */
+@container ed (min-width: 1700px) {
+  .story-lead { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); column-gap: 1.75rem; align-items: stretch; }
+  .story-lead .story-plate { display: block; position: relative; overflow: hidden; border-radius: 6px; min-height: 100%; }
+  .story-lead .story-plate > * { position: absolute; inset: 0; height: 100%; }
+}
+
+/* Paddock Notes: stories beside the pit wall; every table stays printed. */
+@container ed (min-width: 1080px) {
+  .paddock-stories { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 2rem; }
+  .paddock-stories > *:nth-child(-n + 2) { border-top: 0; padding-top: 0; }
+}
+@container ed (min-width: 1700px) {
+  .paddock-grid { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
+  .pit-desk { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
+  .pit-desk > :first-child,
+  .pit-desk > :last-child { grid-column: 1 / -1; }
+  .pit-archive { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+/* Two Cities: side by side from a tablet up; each city's stories run across
+   when there's the room. */
+@container ed (min-width: 1700px) {
+  .city-stories { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 1.75rem; }
+  .city-stories > * { border-top: 0; padding-top: 0; }
+}
+
+/* Sky Report: the reading and the sun; the rest of the day under them, or
+   beside them when there's the room. */
+.sky-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem 2.5rem; align-items: start; }
+@container ed (min-width: 700px) {
+  .sky-layout { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+  .sky-rest { grid-column: 1 / -1; }
+}
+@container ed (min-width: 1700px) {
+  .sky-layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr); }
+  .sky-rest { grid-column: auto; }
+}
+
+/* Market Pulse. */
+@container ed (max-width: 699.98px) {
+  .pulse-tiles:not([data-all]) > li:nth-child(n + 4) { display: none; }
+  .pulse-prices { display: flex; overflow-x: auto; gap: 0.5rem; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .pulse-prices > * { flex: 0 0 44%; scroll-snap-align: start; }
+}
+@container ed (min-width: 700px) { .fold-toggle.pulse-all { display: none; } }
+@container ed (min-width: 1700px) {
+  .pulse-tiles { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .pulse-tiles > li:first-child { grid-row: auto; grid-column: auto; }
+  .pulse-prices { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+}
+
+/* Straw Poll: swipe between the two leads on a phone; both blocks abreast when
+   there's the room. */
+@container ed (max-width: 699.98px) {
+  .poll-leads { display: flex; overflow-x: auto; gap: 0.6rem; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .poll-leads > * { flex: 0 0 88%; scroll-snap-align: start; }
+  .poll-movers:not([data-all]) > li:nth-child(n + 4) { display: none; }
+}
+@container ed (min-width: 700px) { .fold-toggle.poll-all { display: none; } }
+@container ed (min-width: 1700px) {
+  .poll-top { display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr); column-gap: 2rem; align-items: start; }
+  .poll-top > .poll-more { margin-top: 0; grid-template-columns: minmax(0, 1fr); }
+}
+
+/* The Grapevine: its four blocks in one row when there's the room. */
+@container ed (min-width: 1700px) {
+  .grapevine-blocks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 3rem; align-items: start; }
+  .grapevine-blocks > * { margin-bottom: 0; }
+}
+
+/* Opens in place (chrome/Fold.tsx). */
+.fold-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.25rem;
+  font: 600 13px var(--font-sans);
+  color: var(--ink-soft);
+}
+.fold-toggle:hover { color: var(--ink); }
+.fold:not([data-open]) > .fold-body { display: none; }
+.fold:has(> .fold-body:empty) { display: none; }
+@media (min-width: 768px) {
+  .fold-phone > .fold-toggle { display: none; }
+  .fold-phone:not([data-open]) > .fold-body { display: block; }
+}
+
+/* The phone's chapter bar, along the foot of the screen. */
+.paper-dock {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 40;
+  display: grid;
+  height: calc(3.25rem + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--paper);
+  border-top: 1px solid var(--rule);
+}
+.paper-dock a {
+  position: relative;
+  display: grid;
+  place-items: center;
+  font: 600 12.5px var(--font-sans);
+  color: var(--ink-soft);
+}
+.paper-dock a[aria-current] { color: var(--ink); }
+.paper-dock a[aria-current]::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 18%;
+  right: 18%;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+@media (min-width: 768px) {
+  .paper-dock { display: none; }
+}
+@media (max-width: 767.98px) {
+  .edition-page { padding-bottom: calc(3.25rem + env(safe-area-inset-bottom)); }
+}
+
+/* The side menu, from 1500px. It sits inside the zoomed page, so it scales with it. */
+.paper-rail {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 40;
+  width: 160px;
+  flex-direction: column;
+  padding: 1rem 0.5rem 0.75rem 1.1rem;
+  background: var(--paper);
+  border-right: 1px solid var(--rule);
+}
+.rail-chapter {
+  position: relative;
+  display: block;
+  font: 700 15px/1.25 var(--font-sans);
+  color: var(--ink-soft);
+}
+.rail-chapter:hover { color: var(--ink); }
+.rail-chapter[aria-current] { color: var(--ink); }
+.rail-chapter[aria-current]::before {
+  content: "";
+  position: absolute;
+  left: -0.7rem;
+  top: 0.42em;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.rail-section {
+  display: block;
+  margin-top: 0.3rem;
+  padding-left: 0.6rem;
+  font: 500 13px/1.25 var(--font-sans);
+  color: var(--ink-soft);
+}
+.rail-section:hover,
+.rail-section[aria-current] { color: var(--ink); }
+.rail-section[aria-current] { font-weight: 700; }
+
+/* The top bar: sticky, except on the paper on a phone, where the chapters are at
+   the foot and every pixel of height goes to reading. */
+.top-bar {
+  position: sticky;
+  top: 0;
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+}
+@media (max-width: 767.98px) {
+  .top-bar-paper { position: static; background: none; border-bottom: 0; }
 }
 
 /* Surface card for data modules (weather almanac, mood, F1 widgets). */
@@ -656,6 +891,13 @@ article[id] { scroll-margin-top: 5rem; }
 .icon-btn:hover { background: var(--card-bg); color: var(--ink); }
 .icon-btn:active { transform: scale(0.92); }
 
+/* A finger needs more than a pointer does. */
+@media (pointer: coarse) {
+  .chip { min-height: 2.75rem; }
+  .icon-btn { width: 2.75rem; height: 2.75rem; }
+  .story-actions a, .story-actions button { min-height: 2.75rem; }
+}
+
 /* Per-article tools stay out of the way until the article is hovered. */
 @media (hover: hover) {
   .reveal-on-hover { opacity: 0; }
@@ -668,14 +910,6 @@ article[id] { scroll-margin-top: 5rem; }
   50% { transform: scaleY(1); }
 }
 
-/* Section numbers come from a counter on the front page, so no component
-   has to know its own position. */
-/* Sections are numbered by their place in the reader's order (set inline
-   with counter-set), and flex order keeps that order wherever the ultrawide
-   spread's row and column wrappers put them in the markup. */
-.edition-body { counter-reset: section; display: flex; flex-direction: column; }
-.spread-row, .spread-col { display: contents; }
-.section-number::before { content: "§ " counter(section, decimal-leading-zero); }
 .headline-link { background-image: linear-gradient(var(--section-hue, var(--accent)), var(--section-hue, var(--accent))); }
 .group:hover .headline-link { background-size: 100% 2px; }
 
@@ -835,8 +1069,8 @@ html[data-why="on"] .why-line { display: block; }
   .on-air { animation: none; }
 }
 
-/* The F1 link in the top bar while a session is live. */
-html[data-f1-live] [data-nav="paddock-notes"]::after {
+/* The Sport chapter in the menu while a session is live. */
+html[data-f1-live] [data-nav="ch-sport"]::after {
   content: "";
   position: absolute;
   top: 5px;
@@ -852,7 +1086,7 @@ html[data-f1-live] [data-nav="paddock-notes"]::after {
   70%, 100% { box-shadow: 0 0 0 6px transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
-  html[data-f1-live] [data-nav="paddock-notes"]::after { animation: none; }
+  html[data-f1-live] [data-nav="ch-sport"]::after { animation: none; }
 }
 
 /* Live centre: tyre stints slide in from the left; a radio clip's progress. */

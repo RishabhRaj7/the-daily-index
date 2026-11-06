@@ -140,7 +140,7 @@ export default function OnboardingGate({ f1Roster }: { f1Roster: F1RosterEntry[]
                 </button>
               </div>
             </div>
-            <p className="font-mono text-[10px] text-ink-faint mt-10">
+            <p className="font-mono text-[11px] text-ink-faint mt-10">
               EVERYTHING YOU CHOOSE STAYS ON THIS DEVICE · CHANGE IT ANY TIME IN SETTINGS
             </p>
           </div>

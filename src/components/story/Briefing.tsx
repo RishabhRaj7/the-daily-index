@@ -27,19 +27,22 @@ export default function Briefing({
   brief,
   loading,
   anchorFor,
+  actions,
 }: {
   brief: EditionBrief | null;
   loading?: boolean;
   /** DOM id of the story on this page for a URL, when it runs in a section. */
   anchorFor: (url: string) => string | null;
+  /** Listen and Refresh: they act on what's printed here. */
+  actions?: React.ReactNode;
 }) {
   const items = brief?.bullets ?? [];
 
   return (
     <nav aria-label="The briefing" className="min-w-0">
-      <div className="mb-4">
-        <h2 className="font-display font-extrabold text-[2.2rem] leading-[0.82] whitespace-nowrap">The briefing</h2>
-        <p className="font-mono text-[10px] text-ink-soft mt-2">
+      <div className="mb-2.5">
+        <h2 className="font-display font-extrabold text-[1.7rem] leading-[0.85] whitespace-nowrap">The briefing</h2>
+        <p className="font-mono text-[11px] text-ink-soft mt-1">
           {items.length > 0 ? `TODAY IN ${items.length} LINES · ABOUT A MINUTE` : "SETTING TODAY'S LINES…"}
         </p>
       </div>
@@ -66,21 +69,21 @@ export default function Briefing({
                 <a
                   href={href}
                   {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                  className="group grid grid-cols-[1.9rem_minmax(0,1fr)] gap-x-2 py-3.5"
+                  className="group grid grid-cols-[1.6rem_minmax(0,1fr)] gap-x-2 py-2"
                   style={{ ["--section-hue" as string]: hue }}
                 >
                   <span className="font-display font-extrabold text-[1.5rem] leading-[0.9] text-ink-faint transition-colors duration-300 group-hover:text-[color:var(--section-hue)]">
                     {i + 1}
                   </span>
                   <span className="min-w-0">
-                    <span className="flex items-center gap-1.5 font-label text-[10px]" style={{ color: hue }}>
+                    <span className="flex items-center gap-1.5 font-label text-[11px]" style={{ color: hue }}>
                       <span className="w-1.5 h-1.5 rounded-full" style={{ background: hue }} />
                       {b.section}
                       <span className="text-ink-faint ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
                         {external ? "↗" : "↓"}
                       </span>
                     </span>
-                    <span className="block font-headline text-[1.08rem] leading-[1.28] mt-1.5 text-balance">
+                    <span className="block font-headline text-[1.02rem] leading-[1.25] mt-0.5 text-balance">
                       <span className="headline-link">{b.text}</span>
                     </span>
                   </span>
@@ -90,6 +93,7 @@ export default function Briefing({
           })}
         </ol>
       )}
+      {actions && <div className="flex flex-wrap items-center gap-2 mt-2.5">{actions}</div>}
     </nav>
   );
 }

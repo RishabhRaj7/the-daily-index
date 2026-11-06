@@ -27,11 +27,11 @@ export default function WeatherAlerts({ alerts }: { alerts: WeatherAlert[] }) {
             className="rounded-xl border px-4 py-3 flex flex-wrap items-baseline gap-x-3 gap-y-1"
             style={{ borderColor: tone, background: `color-mix(in srgb, ${tone} 9%, transparent)` }}
           >
-            <span className="font-label text-[10px] font-semibold" style={{ color: tone }}>
+            <span className="font-label text-[11px] font-semibold" style={{ color: tone }}>
               {a.severity === "red" || a.severity === "orange" ? `${a.severity} level` : a.severity} · {a.place}
             </span>
             <span className="font-sans font-semibold text-[14px]">{a.type}</span>
-            <span className="font-mono text-[10.5px] text-ink-soft">
+            <span className="font-mono text-[11px] text-ink-soft">
               {a.until ? `until ${time(a.until)} IST` : ""}
               {a.source ? ` · ${a.source}` : ""}
             </span>

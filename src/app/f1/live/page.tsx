@@ -17,7 +17,7 @@ export default async function LivePage() {
   return (
     <>
       <div className="page-scale flex-1 flex flex-col w-full">
-      <TopBar sections={[]} alwaysShowLogo />
+      <TopBar alwaysShowLogo />
       <main className="flex-1 page-wrap px-4 sm:px-6 pt-8 pb-28 w-full" style={{ ["--section-hue" as string]: "var(--hue-f1)" }}>
         <LiveCentre race={schedule?.nextRace ?? null} />
       </main>

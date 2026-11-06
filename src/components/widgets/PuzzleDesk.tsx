@@ -430,7 +430,7 @@ function WordleGame({
     <div>
       <style>{WORDLE_CSS}</style>
 
-      <div className="flex items-baseline justify-between font-mono text-[10px] text-ink-soft">
+      <div className="flex items-baseline justify-between font-mono text-[11px] text-ink-soft">
         <span>
           {status === "won"
             ? `Solved in ${guesses.length} of 6`
@@ -492,7 +492,7 @@ function WordleGame({
                   onClick={() => press(key)}
                   disabled={status !== "playing"}
                   aria-label={key === "⌫" ? "Delete letter" : key === "ENTER" ? "Submit guess" : `Letter ${key}`}
-                  className={`h-8 ${wide ? "flex-[1.6] px-1" : "flex-1"} grid place-items-center border hairline font-label text-[10px] rounded-[2px] transition-colors ${
+                  className={`h-8 ${wide ? "flex-[1.6] px-1" : "flex-1"} grid place-items-center border hairline font-label text-[11px] rounded-[2px] transition-colors ${
                     mark ? `wl-mark wl-${mark}` : "bg-card-bg"
                   } ${status === "playing" ? "hover:bg-card-bg cursor-pointer" : "opacity-70"} ${
                     mark && status === "playing" ? "hover:opacity-90" : ""
@@ -518,7 +518,7 @@ function WordleGame({
       </p>
 
       {status === "playing" && (
-        <div className="mt-1 flex gap-3 font-label text-[10px]">
+        <div className="mt-1 flex gap-3 font-label text-[11px]">
           <button
             type="button"
             onClick={useHint}
@@ -614,13 +614,13 @@ function HeadlineScramble({
             ? "The Editor is quietly impressed. Tomorrow's headlines bring fresh letters."
             : "Not bad for a morning. The same puzzle waits if you want another go."}
         </p>
-        <div className="font-mono text-[10px] text-ink-soft mt-3">
+        <div className="font-mono text-[11px] text-ink-soft mt-3">
           Best streak {saved.bestStreak} · {saved.solvedTotal} solved all-time
         </div>
         <button
           type="button"
           onClick={restart}
-          className="mt-3 font-label text-[10px] px-3 py-1.5 border hairline rounded-sm hover:bg-card-bg transition-colors"
+          className="mt-3 font-label text-[11px] px-3 py-1.5 border hairline rounded-sm hover:bg-card-bg transition-colors"
         >
           Set it again ↺
         </button>
@@ -630,7 +630,7 @@ function HeadlineScramble({
 
   return (
     <div>
-      <div className="flex items-baseline justify-between font-mono text-[10px] text-ink-soft">
+      <div className="flex items-baseline justify-between font-mono text-[11px] text-ink-soft">
         <span>
           Word {index + 1} of {items.length}
         </span>
@@ -693,14 +693,14 @@ function HeadlineScramble({
         />
         <button
           type="submit"
-          className="font-label text-[10px] px-3 border hairline rounded-sm hover:bg-card-bg transition-colors whitespace-nowrap"
+          className="font-label text-[11px] px-3 border hairline rounded-sm hover:bg-card-bg transition-colors whitespace-nowrap"
         >
           {state === "right" || state === "revealed" ? "Next →" : "Check"}
         </button>
       </form>
 
       {(state === "idle" || state === "wrong") && (
-        <div className="mt-2 flex gap-3 font-label text-[10px]">
+        <div className="mt-2 flex gap-3 font-label text-[11px]">
           <button
             type="button"
             onClick={() => setHint(true)}
@@ -820,12 +820,12 @@ function NoughtsAndCrosses({ saved, onSaved }: { saved: Saved; onSaved: (next: S
 
   return (
     <div>
-      <div className="flex items-baseline justify-between font-mono text-[10px] text-ink-soft">
+      <div className="flex items-baseline justify-between font-mono text-[11px] text-ink-soft">
         <span>You {saved.oxo.you} · Editor {saved.oxo.editor} · Draws {saved.oxo.draws}</span>
         <button
           type="button"
           onClick={() => reset(Math.random() < 0.5)}
-          className="font-label text-[10px] text-accent underline underline-offset-2"
+          className="font-label text-[11px] text-accent underline underline-offset-2"
         >
           New game
         </button>
@@ -865,7 +865,7 @@ function NoughtsAndCrosses({ saved, onSaved }: { saved: Saved; onSaved: (next: S
               : "The Editor plays a solid game but has been known to daydream about tomorrow's front page."}
           </p>
           {over && (
-            <div className="mt-2 flex gap-3 font-label text-[10px]">
+            <div className="mt-2 flex gap-3 font-label text-[11px]">
               <button type="button" onClick={() => reset(false)} className="text-accent underline underline-offset-2">
                 You start
               </button>
@@ -929,7 +929,7 @@ export default function PuzzleDesk({
             role="tab"
             aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
-            className={`font-label text-[10px] pb-1.5 -mb-px border-b-2 transition-colors ${
+            className={`font-label text-[11px] pb-1.5 -mb-px border-b-2 transition-colors ${
               tab === t.key
                 ? "border-accent text-ink"
                 : "border-transparent text-ink-soft hover:text-ink"

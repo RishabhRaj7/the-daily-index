@@ -10,9 +10,17 @@ Vercel.
 
 ## What's in the paper
 
+The page reads in chapters, with one subject on each row at every screen size:
+**Today**, **The news** (Dateline, The Nation, Two Cities, Sky Report), **Your
+sport** (Paddock Notes, Clutch, Sports), **Your money** (The Ledger, Market Pulse),
+**What's next** (The Circuit Board, Straw Poll, your own sections, The Week Ahead)
+and **The back page** (The Grapevine and the day's extras). A wider screen shows
+more of a section at once. Stories print in full from laptop width; on a phone or
+tablet they open in place.
+
 | Section | What it carries |
 |---|---|
-| **Front page** | The day's lead story, *At a Glance* (six must-read one-liners), the Editor's Desk note, On This Day, Word of the Day, and **The Week Ahead**: RBI and Fed decisions, market holidays, public holidays, IPO dates and the F1 weekend, in IST |
+| **Front page** | Markets, the next race and the weather as three numbers, *The Briefing* (the day's must-reads as one-liners) and the lead story |
 | **Postcard** | Travel mode: weather and local news for wherever you are (opt-in, one tap) |
 | **Dateline** | World news, grouped by the countries you follow |
 | **The Nation** | India's own news: government and policy, courts, economy, infrastructure, security and major incidents, led by what the whole country is reading |
@@ -23,14 +31,16 @@ Vercel.
 | **The Ledger** | Markets and economy news — mostly India, some global |
 | **Market Pulse** | 16 live indices across India, US, Europe and Asia with a mood gauge per region (India: Tickertape's Market Mood Index, US: CNN Fear & Greed), gold and silver at IBJA's rate, other commodities in rupees, BTC/ETH in USDT, a tap-to-open chart for each (with its 52-week range and 50/200-day averages), a rates row (RBI repo, Fed funds, US 10-year, what FIIs and DIIs bought and sold, and the odds on the next decision), Nifty 50 breadth, when each market reopens, and IPO watch (mainboard IPOs with dates, size, GMP, the bidding's mood, and what people on X and Reddit say about each, from the accounts and subreddits you choose once for every IPO) |
 | **The Circuit Board** | Technology |
+| **The Week Ahead** | In What's next: RBI and Fed decisions, market holidays, public holidays, IPO dates, the F1 weekend and your Valorant teams' matches, in IST |
 | **Straw Poll** | Prediction-market odds from Polymarket and Kalshi, chosen for you: the day's biggest moves with the news that lines up with them, where the money is, your watchlist, a track record; plus three or four questions at the foot of each section and a line under a story when a market is about it. Every market opens with every contender's chart (1D to all time) and why it moved |
 | **Sky Report** | Severe-weather alerts near you (NDMA), weather that follows the clock (moon and stars after sunset), rain chances through the day, air quality, and your other cities |
 | **The Grapevine** | The Search Bar (what India, the US and the world are searching right now, from Google Trends) beside what's trending on X and Reddit, then posts from the X accounts and subreddits you follow, a puzzle desk, and the film odds. If X or Reddit keeps failing it is paused for an hour and quietly left out, with a "Try again" line |
+| **The day's extras** | Closing the back page: the editor's note, On This Day and Word of the Day |
 
 Also: an archive of past editions as a calendar, a share sheet that turns any
 story into an image, light/dark editions, a particle-animated masthead, and a
-settings page to choose sections, their order and what fills each one (one
-list), summary length (Standard by default) and voice.
+settings page to choose sections, their order within each chapter and what fills
+each one (one list, under chapter headings), summary length (Standard by default) and voice.
 
 ## How it works
 
@@ -139,11 +149,12 @@ src/
   components/
     sections/          one component per paper section
     widgets/           pit wall, gauges, sparklines, weather blocks…
-    masthead/ chrome/  masthead, top bar, motion runtime
+    masthead/ chrome/  masthead, the menu (PaperNav, TopBar), motion runtime
     settings/ onboarding/
   lib/
     live/              feed list (feeds.ts), fetchers, digest pipeline (digest.ts)
     preferences/       preference schema, defaults, prompts, projection onto sections
+    chapters.ts        which chapter each section belongs to
     server/            edition store, snapshots, Gemini client
 ```
 

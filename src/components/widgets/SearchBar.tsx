@@ -63,7 +63,7 @@ function Row({ t, i, max, inPaper, now, hidden = false }: { t: TrendItem; i: num
           >
             {termCase(t.term)}
           </a>
-          <span className="font-mono text-[10px] text-ink-soft shrink-0 tabular-nums" title="Roughly how many searched">
+          <span className="font-mono text-[11px] text-ink-soft shrink-0 tabular-nums" title="Roughly how many searched">
             {t.traffic}
             {t.started ? ` · ${since(t.started, now)}` : ""}
           </span>
@@ -72,21 +72,21 @@ function Row({ t, i, max, inPaper, now, hidden = false }: { t: TrendItem; i: num
           <span className="block h-full rounded-full" style={{ width: `${width}%`, background: "var(--section-hue)", opacity: 0.75 }} />
         </span>
         {t.countries && (
-          <span className="block font-mono text-[10px] mt-1 truncate" style={{ color: "var(--section-hue)" }}>
+          <span className="block font-mono text-[11px] mt-1 truncate" style={{ color: "var(--section-hue)" }}>
             Trending in {t.countries.length} countries: {t.countries.map((g) => COUNTRY[g] ?? g).join(" · ")}
           </span>
         )}
         {!story && t.related.length > 0 && (
-          <span className="block font-mono text-[10.5px] text-ink-soft mt-1 truncate">also searched: {t.related.join(" · ")}</span>
+          <span className="block font-mono text-[11px] text-ink-soft mt-1 truncate">also searched: {t.related.join(" · ")}</span>
         )}
         {story && (
           <a href={story.url} target="_blank" rel="noopener noreferrer" className="block font-sans text-[12px] text-ink-soft mt-1 truncate hover:text-ink">
             {inPaper && (
-              <span className="font-label text-[9px] mr-1.5 align-[1px]" style={{ color: "var(--section-hue)" }}>
+              <span className="font-label text-[11px] mr-1.5 align-[1px]" style={{ color: "var(--section-hue)" }}>
                 In today&rsquo;s paper
               </span>
             )}
-            {story.title} <span className="font-mono text-[10px] text-ink-faint">· {story.source}</span>
+            {story.title} <span className="font-mono text-[11px] text-ink-faint">· {story.source}</span>
           </a>
         )}
       </span>

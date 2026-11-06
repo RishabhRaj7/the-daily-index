@@ -59,7 +59,7 @@ function Countdown({ target }: { target: string }) {
               "—"
             )}
           </div>
-          <div className="font-label text-[9px] text-ink-soft mt-1">{p.label}</div>
+          <div className="font-label text-[11px] text-ink-soft mt-1">{p.label}</div>
         </div>
       ))}
     </div>
@@ -82,8 +82,8 @@ function RaceOdds({ market: m }: { market: OddsMarket }) {
     <>
       <button type="button" onClick={() => setOpen(true)} className="module block w-full text-left group" data-reveal>
         <div className="flex items-baseline justify-between gap-2 mb-2.5">
-          <span className="font-label text-[10px] text-ink-soft">Who wins Sunday · traders&rsquo; odds</span>
-          <span className="font-mono text-[10px] text-ink-faint group-hover:text-ink">chart ›</span>
+          <span className="font-label text-[11px] text-ink-soft">Who wins Sunday · traders&rsquo; odds</span>
+          <span className="font-mono text-[11px] text-ink-faint group-hover:text-ink">chart ›</span>
         </div>
         <ul className="space-y-1.5">
           {field.map((o) => {
@@ -99,7 +99,7 @@ function RaceOdds({ market: m }: { market: OddsMarket }) {
             );
           })}
         </ul>
-        <div className="font-mono text-[10px] text-ink-faint mt-2.5">
+        <div className="font-mono text-[11px] text-ink-faint mt-2.5">
           {m.source} · ${compactMoney(m.vol)} traded{m.also?.length ? ` · ${m.also.map((a) => `${a.source} ${Math.round(a.prob)}%`).join(" · ")}` : ""}
         </div>
       </button>
@@ -164,9 +164,9 @@ function Podium({ rows }: { rows: Row[] }) {
         return (
           <div key={r!.code} className="flex flex-col items-center text-center min-w-0">
             <span className="font-sans font-semibold text-[12px] leading-tight truncate max-w-full">{r!.driver}</span>
-            <span className="font-mono text-[10px] text-ink-soft truncate max-w-full">{r!.team}</span>
+            <span className="font-mono text-[11px] text-ink-soft truncate max-w-full">{r!.team}</span>
             {/* The winner's race time; the others' gap to the winner. */}
-            <span className="font-mono text-[10px] tabular-nums truncate max-w-full mt-0.5 mb-1.5">
+            <span className="font-mono text-[11px] tabular-nums truncate max-w-full mt-0.5 mb-1.5">
               {("interval" in r! ? r!.interval : r!.time) || "—"}
             </span>
             <span
@@ -336,15 +336,15 @@ export default function StartingGrid({
       >
         <div className="flex items-center justify-between gap-2">
           <span
-            className="rounded-full px-2.5 py-0.5 font-label text-[10px]"
+            className="rounded-full px-2.5 py-0.5 font-label text-[11px]"
             style={{ background: "var(--section-hue)", color: "var(--paper)" }}
           >
             {live || liveSnap?.running ? "Live now" : "Next up"} · Round {displayedRace.round}
           </span>
-          <span className="font-label text-[10px] text-ink-soft truncate">{displayedRace.country}</span>
+          <span className="font-label text-[11px] text-ink-soft truncate">{displayedRace.country}</span>
         </div>
         <div className="font-display font-extrabold uppercase text-[1.9rem] leading-[0.9] mt-3">{displayedRace.name}</div>
-        <div className="font-mono text-[10px] text-ink-soft mt-1">{displayedRace.circuit}</div>
+        <div className="font-mono text-[11px] text-ink-soft mt-1">{displayedRace.circuit}</div>
 
         {!live && track && (
           // Just the circuit, turning slowly in 3D. Tilted back it reads about
@@ -371,7 +371,7 @@ export default function StartingGrid({
         {!live && (
           <>
             <Countdown target={nextRace.date} />
-            <div className="flex justify-between gap-2 font-mono text-[10px] text-ink-soft mt-2">
+            <div className="flex justify-between gap-2 font-mono text-[11px] text-ink-soft mt-2">
               <span>Until lights out</span>
               <span suppressHydrationWarning>
                 {lightsOut.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} ·{" "}
@@ -382,7 +382,7 @@ export default function StartingGrid({
         )}
         {!live && trackFact && (
           <p className="text-[11px] text-ink-soft italic leading-relaxed mt-4 pt-3 border-t hairline">
-            <span className="font-label not-italic text-[10px] mr-1.5">Track fact</span>
+            <span className="font-label not-italic text-[11px] mr-1.5">Track fact</span>
             {trackFact}
           </p>
         )}
@@ -397,7 +397,7 @@ export default function StartingGrid({
       {/* 3. Coming up — the calendar after this weekend, under the weekend. */}
       {part !== "desk" ? null : upcoming.length > 1 ? (
         <div className="module" data-reveal>
-          <div className="font-label text-[10px] text-ink-soft mb-2">Coming up</div>
+          <div className="font-label text-[11px] text-ink-soft mb-2">Coming up</div>
           <ol>
             {upcoming.slice(1).map((race) => (
               <li key={race.round} className="grid grid-cols-[2rem_minmax(0,1fr)_auto] items-baseline gap-2 border-t hairline first:border-t-0 py-2">
@@ -412,19 +412,19 @@ export default function StartingGrid({
         </div>
       ) : calendarStatus === "loading" ? (
         <div className="module">
-          <div className="font-label text-[10px] text-ink-soft mb-1">Coming up</div>
+          <div className="font-label text-[11px] text-ink-soft mb-1">Coming up</div>
           <TimingRowsSkeleton rows={4} />
         </div>
       ) : calendarStatus === "failed" ? (
         <div className="module">
-          <div className="font-label text-[10px] text-ink-soft mb-1">Coming up</div>
+          <div className="font-label text-[11px] text-ink-soft mb-1">Coming up</div>
           <p className="text-[11px] text-ink-soft italic">
             The race calendar didn&rsquo;t answer.{" "}
             {onRetryCalendar && (
               <button
                 type="button"
                 onClick={onRetryCalendar}
-                className="font-label text-[10px] text-accent underline not-italic ml-1"
+                className="font-label text-[11px] text-accent underline not-italic ml-1"
               >
                 Try again
               </button>
@@ -440,11 +440,11 @@ export default function StartingGrid({
       {timingHere && !liveSnap && (resultRows.length > 0 || sessionStatus !== "ready" || gridPending) && (
         <div className="module self-stretch flex flex-col" data-reveal>
           <div className="flex items-baseline justify-between gap-2">
-            <span className="font-label text-[10px] text-ink-soft">
+            <span className="font-label text-[11px] text-ink-soft">
               {sessionStatus === "ready" ? timingTitle : "Timing screens"}
             </span>
             {racePhase === "race" && liveResults.length > 0 && (
-              <span className="font-mono text-[10px] text-down">● live</span>
+              <span className="font-mono text-[11px] text-down">● live</span>
             )}
           </div>
           {sessionStatus === "ready" && timingRace && (
@@ -452,8 +452,8 @@ export default function StartingGrid({
           )}
           {sessionStatus === "ready" && (
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mt-1.5">
-              {timingNote && <span className="font-mono text-[10.5px] text-ink-soft">{timingNote}</span>}
-              <ol className="flex flex-wrap items-center gap-x-1 gap-y-1 font-label text-[10px] min-w-0" aria-label="Weekend progress">
+              {timingNote && <span className="font-mono text-[11px] text-ink-soft">{timingNote}</span>}
+              <ol className="flex flex-wrap items-center gap-x-1 gap-y-1 font-label text-[11px] min-w-0" aria-label="Weekend progress">
                 {steps.map((s, i) => (
                   <li key={s.key} className="flex items-center gap-1">
                     {i > 0 && <span className={`w-3 h-px ${i <= stepAt ? "bg-ink-soft" : "bg-[var(--rule)]"}`} />}
@@ -484,7 +484,7 @@ export default function StartingGrid({
                 <button
                   type="button"
                   onClick={onRetrySession}
-                  className="font-label text-[10px] text-accent underline not-italic ml-1"
+                  className="font-label text-[11px] text-accent underline not-italic ml-1"
                 >
                   Try again
                 </button>
@@ -540,13 +540,13 @@ export default function StartingGrid({
                 </button>
               )}
               {sessionStale && (
-                <p className="text-[10px] text-ink-soft italic mt-2">
+                <p className="text-[11px] text-ink-soft italic mt-2">
                   Showing the last timing we have.{" "}
                   {onRetrySession && (
                     <button
                       type="button"
                       onClick={onRetrySession}
-                      className="font-label text-[10px] text-accent underline not-italic"
+                      className="font-label text-[11px] text-accent underline not-italic"
                     >
                       Try again
                     </button>

@@ -6,18 +6,8 @@ import { cssVar, ParticleField, resolveFontFamily } from "@/lib/particles";
 // The masthead, printed in a few thousand points. Move over it and the
 // letters come apart around the pointer; press and they scatter harder. A
 // click (or tap) re-forms the points into the next shape — the date, the
-// issue number, today's temperature — and back to the name.
-// On narrow screens a long single line is split in two so it stays big.
-function fitLines(lines: string[], width: number): string[] {
-  if (lines.length !== 1 || width >= 560) return lines;
-  const words = lines[0].split(" ");
-  if (words.length < 2 || lines[0].length < 11) return lines;
-  const imbalance = (i: number) =>
-    Math.abs(words.slice(0, i).join(" ").length - words.slice(i).join(" ").length);
-  let best = 1;
-  for (let i = 2; i < words.length; i++) if (imbalance(i) < imbalance(best)) best = i;
-  return [words.slice(0, best).join(" "), words.slice(best).join(" ")];
-}
+// issue number, today's temperature — and back to the name. One line at every
+// width: the masthead is short, so the news can start on the first screen.
 
 export default function ParticleWordmark({
   shapes,
@@ -73,7 +63,7 @@ export default function ParticleWordmark({
         if (cancelled) return;
         applyColors();
         field.resize();
-        field.setShape({ lines: fitLines(shapesRef.current[0], canvas.clientWidth), family, weight: 800, leading: 0.92 }, false);
+        field.setShape({ lines: shapesRef.current[0], family, weight: 800, leading: 0.92 }, false);
       });
 
     // Theme flips recolour the points without re-forming them.
@@ -101,7 +91,7 @@ export default function ParticleWordmark({
     const list = shapesRef.current;
     if (!field || list.length < 2 || !familyRef.current) return;
     indexRef.current = (indexRef.current + 1) % list.length;
-    field.setShape({ lines: fitLines(list[indexRef.current], canvasRef.current?.clientWidth ?? 1000), family: familyRef.current, weight: 800, leading: 0.92 });
+    field.setShape({ lines: list[indexRef.current], family: familyRef.current, weight: 800, leading: 0.92 });
   };
 
   return (

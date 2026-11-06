@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import type { Story } from "@/lib/types";
 import StatCallout from "./StatCallout";
 import Ago from "@/components/extras/Ago";
@@ -11,8 +11,16 @@ import { SECTION_META } from "@/lib/sections";
 import ShareButton from "@/components/extras/ShareButton";
 import { recordEngagement } from "@/lib/reader-memory";
 
-// One story as a section prints it. A paragraph Gemini didn't write is labelled
-// (CopyTag), and when there's nothing fit to print the headline stands alone.
+// One story as a section prints it. From 1024px the whole summary prints with
+// its links, and there's nothing to open. On a phone or tablet it shows the
+// headline and first lines: a tap on the text or "More" opens the rest in place,
+// and so does arriving from the briefing (its link is this story's address). All
+// of it is in the page either way; globals.css decides what shows. A section's
+// lead has a generated plate beside it only where there's real room for one
+// (.story-plate). A paragraph Gemini didn't write is labelled (CopyTag), and when
+// there's nothing fit to print the headline stands alone.
+
+const NARROW = "(max-width: 1023.98px)";
 
 export default function StoryArticle({
   story,
@@ -24,30 +32,35 @@ export default function StoryArticle({
   const domId = `story-${story.id}`;
   const [firstParagraph, ...rest] = story.body;
   const quoteAfterIndex = Math.min(1, rest.length - 1);
-  const canCollapse = !lead && rest.length > 0;
-  const [expanded, setExpanded] = useState(lead);
+  const [open, setOpen] = useState(false);
   const source = story.sourceName ?? story.dateline;
+  const hasMore = Boolean(firstParagraph) || rest.length > 0;
+
+  useEffect(() => {
+    const check = () => {
+      if (window.location.hash === `#${domId}`) setOpen(true);
+    };
+    check();
+    window.addEventListener("hashchange", check);
+    return () => window.removeEventListener("hashchange", check);
+  }, [domId]);
+
+  const toggle = () => {
+    if (!open) recordEngagement(story);
+    setOpen(!open);
+  };
 
   return (
-    <article
-      id={domId}
-      data-reveal
-      className={
-        lead
-          ? "group/story grid md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] gap-x-10 gap-y-6 items-center"
-          : "group/story"
-      }
-    >
+    <article id={domId} data-open={open || undefined} className={`group/story story ${lead ? "story-lead" : ""}`}>
       <div className="min-w-0">
-      <div className="flex items-center justify-between gap-3 mb-2.5">
-        <div className="flex items-center gap-2 min-w-0 font-sans text-[12px]">
+        <div className="flex items-center gap-2 min-w-0 font-sans text-[12px] mb-1">
           {story.personal && (
-            <span className="shrink-0 rounded-full px-2 py-0.5 bg-signal text-signal-ink font-semibold text-[10px] uppercase tracking-wider">
+            <span className="shrink-0 rounded-full px-2 py-0.5 bg-signal text-signal-ink font-semibold text-[11px] uppercase tracking-wider">
               For you · {story.personal}
             </span>
           )}
           {story.kicker && (
-            <span className="font-label text-[10px] shrink-0" style={{ color: "var(--section-hue, var(--accent))" }}>
+            <span className="font-label text-[11px] shrink-0" style={{ color: "var(--section-hue, var(--accent))" }}>
               {story.kicker}
             </span>
           )}
@@ -58,84 +71,66 @@ export default function StoryArticle({
           </span>
           <CopyTag copy={story.copy} />
         </div>
-      </div>
 
-      <h3
-        className={
-          lead
-            ? "font-headline text-[1.9rem] sm:text-[2.4rem] md:text-[2.75rem] font-medium leading-[1.06] text-balance"
-            : "font-headline text-[1.3rem] sm:text-[1.45rem] font-medium leading-[1.18] text-balance"
-        }
-      >
-        {story.sourceUrl ? (
-          <a
-            href={story.sourceUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => recordEngagement(story)}
-            className="headline-link"
-          >
-            {story.headline}
-          </a>
-        ) : (
-          <span className="headline-link">{story.headline}</span>
-        )}
-      </h3>
+        <h3 className={lead ? "font-headline text-[1.45rem] md:text-[1.75rem] font-medium leading-[1.12] text-balance" : "font-headline text-[1.15rem] md:text-[1.25rem] font-medium leading-[1.2] text-balance"}>
+          {story.sourceUrl ? (
+            <a
+              href={story.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => recordEngagement(story)}
+              className="headline-link"
+            >
+              {story.headline}
+            </a>
+          ) : (
+            <span className="headline-link">{story.headline}</span>
+          )}
+        </h3>
 
-      {story.deck && (
-        <p className="font-headline italic text-ink-soft mt-2 text-[15px] md:text-base leading-snug">{story.deck}</p>
-      )}
+        {story.deck && <p className="font-headline italic text-ink-soft mt-1.5 text-[15px] leading-snug">{story.deck}</p>}
 
-      {story.stats && story.stats.length > 0 && <div className="mt-3"><StatCallout stats={story.stats} /></div>}
+        {story.stats && story.stats.length > 0 && <div className="mt-2"><StatCallout stats={story.stats} /></div>}
 
-      <div
-        className={`mt-3 leading-[1.62] space-y-3 text-ink/90 ${
-          lead ? "text-[16px] md:text-[17px]" : "text-[15px]"
-        }`}
-      >
-        {firstParagraph && <p className={lead ? "drop-cap" : undefined}>{firstParagraph}</p>}
-        {story.why && (
-          <p className="why-line font-headline italic text-[15px] leading-snug text-ink break-inside-avoid-column">
-            <span className="font-label not-italic text-[10px] text-ink-soft block mb-0.5">Why it matters</span>
-            {story.why}
-          </p>
-        )}
-        <StoryOdds headline={story.headline} />
-        {expanded &&
-          rest.map((paragraph, i) => (
+        <div
+          className={`story-body mt-1.5 leading-[1.55] space-y-2.5 text-ink/90 ${lead ? "text-[16px]" : "text-[15px]"}`}
+          onClick={(e) => {
+            // A tap on the cut-off text opens it; links keep their own job.
+            if (!open && !(e.target as HTMLElement).closest("a, button") && window.matchMedia(NARROW).matches) toggle();
+          }}
+        >
+          {firstParagraph && <p className={lead ? "drop-cap" : undefined}>{firstParagraph}</p>}
+          {story.why && (
+            <p className="why-line font-headline italic text-[15px] leading-snug text-ink break-inside-avoid-column">
+              <span className="font-label not-italic text-[11px] text-ink-soft block mb-0.5">Why it matters</span>
+              {story.why}
+            </p>
+          )}
+          <StoryOdds headline={story.headline} />
+          {rest.map((paragraph, i) => (
             <Fragment key={`${story.id}-frag-${i}`}>
-              {i === quoteAfterIndex && story.pullQuote && (
-                <p className="pull-quote my-4 text-lg">{story.pullQuote}</p>
-              )}
-              <p>{paragraph}</p>
+              {i === quoteAfterIndex && story.pullQuote && <p className="story-rest pull-quote my-4 text-lg">{story.pullQuote}</p>}
+              <p className="story-rest">{paragraph}</p>
             </Fragment>
           ))}
-      </div>
+        </div>
 
-      {(canCollapse || story.sourceUrl) && (
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4 font-sans text-[12px] font-semibold" data-clip-ignore="true">
-          {canCollapse && (
-            <button
-              onClick={() =>
-                setExpanded((e) => {
-                  if (!e) recordEngagement(story);
-                  return !e;
-                })
-              }
-              className="inline-flex items-center gap-1 text-ink-soft hover:text-ink transition-colors"
-              aria-expanded={expanded}
-            >
-              {expanded ? "Less" : "More"}
-              <span
-                className="inline-block transition-transform duration-300"
-                style={{ transform: expanded ? "rotate(180deg)" : "none" }}
-                aria-hidden="true"
-              >
-                ↓
-              </span>
-            </button>
-          )}
-          {story.sourceUrl && (
+        {hasMore && (
+          <button
+            type="button"
+            onClick={toggle}
+            aria-expanded={open}
+            className="story-more items-center gap-1 mt-1 font-sans text-[12px] font-semibold text-ink-soft hover:text-ink"
+          >
+            {open ? "Less" : "More"}
+            <span className="inline-block transition-transform duration-300" style={{ transform: open ? "rotate(180deg)" : "none" }} aria-hidden="true">
+              ↓
+            </span>
+          </button>
+        )}
+
+        {story.sourceUrl && (
+          <div className="story-actions flex flex-wrap items-center gap-x-5 gap-y-1 mt-2.5 font-sans text-[12px] font-semibold" data-clip-ignore="true">
             <a
               href={story.sourceUrl}
               target="_blank"
@@ -149,19 +144,13 @@ export default function StoryArticle({
                 ↗
               </span>
             </a>
-          )}
-          <ShareButton story={story} />
-        </div>
-      )}
+            <ShareButton story={story} />
+          </div>
+        )}
       </div>
-      {/* A section's lead gets its own generated plate beside it. */}
       {lead && (
-        <div className="relative overflow-hidden rounded-[6px] bg-card-bg order-first md:order-none" data-clip-ignore="true">
-          <CoverArt
-            seed={story.headline}
-            hue={SECTION_META[story.section]?.hue ?? "var(--accent)"}
-            className="aspect-[16/9] md:aspect-[4/3]"
-          />
+        <div className="story-plate bg-card-bg" data-clip-ignore="true">
+          <CoverArt seed={story.headline} hue={SECTION_META[story.section]?.hue ?? "var(--accent)"} />
         </div>
       )}
     </article>

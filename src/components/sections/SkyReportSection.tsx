@@ -14,7 +14,7 @@ import { useSkyClock } from "@/lib/use-sky-clock";
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between items-baseline py-1.5 border-b hairline last:border-b-0">
-      <span className="font-label text-[10px] text-ink-soft">{label}</span>
+      <span className="font-label text-[11px] text-ink-soft">{label}</span>
       <span className="font-mono text-sm tabular-nums">{value}</span>
     </div>
   );
@@ -25,8 +25,8 @@ function Meter({ label, value, max, note }: { label: string; value: number; max:
   const pct = Math.max(0.04, Math.min(1, value / max));
   return (
     <div>
-      <div className="flex items-baseline justify-between">
-        <span className="font-label text-[10px] text-ink-soft">{label}</span>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+        <span className="font-label text-[11px] text-ink-soft">{label}</span>
         <span className="font-mono text-[11px] text-ink-soft">{note}</span>
       </div>
       <div className="font-display font-bold text-[2rem] leading-none mt-1">{value}</div>
@@ -47,7 +47,7 @@ function TempRange({ min, max, now }: { min: number; max: number; now: number })
   return (
     <div className="flex items-center gap-3 font-mono text-[12px] tabular-nums">
       <span className="text-ink-soft">
-        <span className="font-label text-[10px] mr-1">Low</span>
+        <span className="font-label text-[11px] mr-1">Low</span>
         {min}°
       </span>
       <span className="relative flex-1 h-1.5 rounded-full bg-card-bg min-w-[80px]">
@@ -67,7 +67,7 @@ function TempRange({ min, max, now }: { min: number; max: number; now: number })
         />
       </span>
       <span className="text-ink-soft">
-        {max}°<span className="font-label text-[10px] ml-1">High</span>
+        {max}°<span className="font-label text-[11px] ml-1">High</span>
       </span>
     </div>
   );
@@ -162,16 +162,16 @@ export function CityMini({ weather }: { weather: WeatherNow }) {
   const words = night && weather.night ? weather.night : weather;
   const hasRange = typeof weather.tempMin === "number" && typeof weather.tempMax === "number";
   return (
-    <div className="module grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)] gap-x-8 gap-y-5 p-5" data-reveal>
+    <div className="module grid md:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)] gap-x-6 gap-y-4 p-4" data-reveal>
       <div className="min-w-0">
         <div className="flex items-baseline justify-between gap-2">
           <span className="font-display font-extrabold uppercase text-[1.8rem] leading-none" style={{ color: "var(--section-hue, var(--accent))" }}>
             {weather.city}
           </span>
-          <span className="font-label text-[10px] text-ink-soft">{night ? "Tonight" : "Today"}</span>
+          <span className="font-label text-[11px] text-ink-soft">{night ? "Tonight" : "Today"}</span>
         </div>
         <div className="flex items-center gap-3 mt-3">
-          <span className="font-display font-extrabold text-[3.6rem] leading-[0.8]">{weather.tempC}°</span>
+          <span className="font-display font-extrabold text-[3rem] leading-[0.8]">{weather.tempC}°</span>
           <span style={{ color: "var(--section-hue, var(--accent))" }}>
             <WeatherIcon code={weather.weatherCode} size={40} night={night} />
           </span>
@@ -198,7 +198,7 @@ export function CityMini({ weather }: { weather: WeatherNow }) {
       </div>
       {weather.blocks && weather.blocks.length > 0 && (
         <div className="min-w-0">
-          <div className="font-label text-[10px] text-ink-soft mb-2">
+          <div className="font-label text-[11px] text-ink-soft mb-2">
             Chance of rain{typeof weather.rainChance === "number" ? ` · peak ${weather.rainChance}%` : ""}
           </div>
           <WeatherBlocks blocks={weather.blocks} compact />
@@ -240,17 +240,19 @@ function SkyReading({
       />
       <WeatherAlerts alerts={alerts} />
 
-      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-10 items-start">
+      {/* The reading and the sun; the rest of the day and the other cities under
+          them, or beside them when there's the room (globals.css, .sky-layout). */}
+      <div className="sky-layout">
         <div data-reveal>
           <div className="font-label text-[11px] text-ink-soft">
             {weather.city} · {night ? "Tonight" : "Today"}
           </div>
           <div className="flex items-start gap-4 mt-2">
-            <span className="font-display font-extrabold text-[clamp(6rem,17vw,11rem)] leading-[0.78] tracking-tight">
+            <span className="font-display font-extrabold text-[clamp(4.5rem,9vw,6.5rem)] leading-[0.78] tracking-tight">
               {weather.tempC}°
             </span>
             <span className="float mt-2" style={{ color: "var(--section-hue, var(--accent))" }}>
-              <WeatherIcon code={weather.weatherCode} size={72} night={night} />
+              <WeatherIcon code={weather.weatherCode} size={56} night={night} />
             </span>
           </div>
           <div className="flex flex-wrap gap-x-5 gap-y-1 mt-4 font-mono text-[12px] text-ink-soft tabular-nums">
@@ -262,14 +264,16 @@ function SkyReading({
               <TempRange min={weather.tempMin!} max={weather.tempMax!} now={weather.tempC} />
             </div>
           )}
-          <h3 className="font-headline text-2xl md:text-3xl leading-tight mt-6">{words.condition}</h3>
+          <h3 className="font-headline text-2xl leading-tight mt-4">{words.condition}</h3>
           <p className="font-headline italic text-ink-soft mt-1">{words.quip}</p>
-          <p className="font-body text-[16px] leading-relaxed mt-4 max-w-[52ch]">{words.narrative}</p>
+          <p className="font-body text-[15px] leading-[1.55] mt-2 max-w-[52ch]">{words.narrative}</p>
         </div>
 
-        <div className="module space-y-6" data-reveal>
-          <SunArc sunrise={weather.sunrise} sunset={weather.sunset} clock={clock} />
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 pt-5 border-t hairline">
+        <div className="module space-y-4" data-reveal>
+          <div className="w-full max-w-[300px] mx-auto">
+            <SunArc sunrise={weather.sunrise} sunset={weather.sunset} clock={clock} />
+          </div>
+          <div className="grid grid-cols-3 gap-4 pt-4 border-t hairline">
             {typeof weather.humidity === "number" && (
               <Meter label="Humidity" value={weather.humidity} max={100} note={humidityLabel(weather.humidity)} />
             )}
@@ -281,11 +285,11 @@ function SkyReading({
             <Meter label="AQI" value={weather.aqi} max={300} note={weather.aqiLabel} />
           </div>
         </div>
-      </div>
 
+      <div className="sky-rest min-w-0">
       {weather.blocks && weather.blocks.length > 0 && (
-        <div className="mt-10">
-          <div className="flex items-baseline justify-between gap-4 mb-3">
+        <div>
+          <div className="flex items-baseline justify-between gap-4 mb-2">
             <h3 className="font-label text-[11px] text-ink-soft">The rest of the day · chance of rain</h3>
             {typeof weather.rainChance === "number" && (
               <span className="font-mono text-[11px] text-ink-soft">Today&rsquo;s peak {weather.rainChance}%</span>
@@ -296,7 +300,7 @@ function SkyReading({
       )}
 
       {others.length > 0 && (
-        <div className="mt-8 space-y-3">
+        <div className="mt-5 space-y-3">
           <h3 className="font-label text-[11px] text-ink-soft">Also on your map</h3>
           {others.map((o) => (
             <CityMini key={o.city} weather={o} />
@@ -304,7 +308,7 @@ function SkyReading({
         </div>
       )}
       {!travelling && (
-        <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-dashed hairline px-5 py-4" data-reveal>
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-dashed hairline px-4 py-3" data-reveal>
           <span className="font-sans text-[13px] text-ink-soft">
             {/* "Away from Bengaluru and Ranchi?" — every city on the reader's map. */}
             Away from {[weather.city, ...others.map((o) => o.city)].join(" and ")}? Get the weather and news where you
@@ -313,6 +317,8 @@ function SkyReading({
           <TravelButton label="Use my location" />
         </div>
       )}
+      </div>
+      </div>
     </section>
   );
 }

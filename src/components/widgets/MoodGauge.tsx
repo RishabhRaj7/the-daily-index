@@ -1,4 +1,5 @@
 import type { MarketIndex, MarketMood } from "@/lib/types";
+import Fold from "@/components/chrome/Fold";
 import { moodZone, moodZones } from "@/lib/mood-zones";
 
 /** "30 Sep, 10:33" in the reader's zone. */
@@ -13,7 +14,7 @@ function Movers({ indices }: { indices: MarketIndex[] }) {
   const max = Math.max(...indices.map((i) => Math.abs(i.changePct)), 0.01);
   return (
     <div className="mt-6">
-      <div className="font-label text-[10px] text-ink-soft mb-3">Today&rsquo;s moves</div>
+      <div className="font-label text-[11px] text-ink-soft mb-3">Today&rsquo;s moves</div>
       <ul className="space-y-2">
         {indices.map((idx, i) => {
           const up = idx.changePct >= 0;
@@ -57,15 +58,15 @@ function Breadth({ b }: { b: NonNullable<MarketMood["breadth"]> }) {
   return (
     <div className="mt-5" title={`${b.up} of the ${b.index}'s ${b.total} shares rose, ${b.down} fell`}>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="font-label text-[10px] text-ink-soft">{b.index} breadth</span>
-        <span className="font-mono text-[10px] text-ink-soft">{verdict}</span>
+        <span className="font-label text-[11px] text-ink-soft">{b.index} breadth</span>
+        <span className="font-mono text-[11px] text-ink-soft">{verdict}</span>
       </div>
       <div className="flex gap-[2px] mt-2 h-3.5" aria-hidden="true">
         {ticks.map((c, i) => (
           <span key={i} className="flex-1 rounded-[1px]" style={{ background: c }} />
         ))}
       </div>
-      <div className="flex justify-between font-mono text-[10px] mt-1">
+      <div className="flex justify-between font-mono text-[11px] mt-1">
         <span className="text-up">{b.up} rose</span>
         {flat > 0 && <span className="text-ink-faint">{flat} flat</span>}
         <span className="text-down">{b.down} fell</span>
@@ -78,6 +79,8 @@ function Breadth({ b }: { b: NonNullable<MarketMood["breadth"]> }) {
 // reading when the gauge scrolls in. The arc is split at the publisher's own
 // zone cut-offs, and the zone the reading sits in is lit in its colour (red
 // for fear through green for greed), so the arc always agrees with the word.
+// The dial and the reading always show; breadth, the day's moves and past
+// readings open in place under it, so the tiles beside it aren't left half empty.
 export default function MoodGauge({
   mood,
   indices = [],
@@ -101,8 +104,8 @@ export default function MoodGauge({
 
   return (
     <div className="module h-full flex flex-col" data-reveal>
-      <div className="font-label text-[10px] text-ink-soft mb-4">{title}</div>
-      <svg viewBox="0 0 100 60" className="w-full max-w-[260px] mx-auto block overflow-visible">
+      <div className="font-label text-[11px] text-ink-soft mb-2">{title}</div>
+      <svg viewBox="0 0 100 60" className="w-full max-w-[200px] mx-auto block overflow-visible">
         {zones.map((z) => (
           <path
             key={z.label}
@@ -118,18 +121,14 @@ export default function MoodGauge({
         </g>
         <circle cx={cx} cy={cy} r={3.5} fill="var(--ink)" />
       </svg>
-      <div className="flex items-end justify-between mt-4">
-        <span className="font-display font-extrabold text-[2.6rem] leading-[0.85]" style={lit.label === "Neutral" ? undefined : { color: lit.color }}>{mood.label}</span>
+      <div className="flex items-end justify-between mt-3">
+        <span className="font-display font-extrabold text-[2rem] leading-[0.9]" style={lit.label === "Neutral" ? undefined : { color: lit.color }}>{mood.label}</span>
         <span className="font-mono text-sm text-ink-soft">{mood.score}/100</span>
       </div>
-      <div className="flex justify-between font-label text-[9px] text-ink-faint mt-3">
-        <span>Fear</span>
-        <span>Neutral</span>
-        <span>Greed</span>
-      </div>
+      <Fold label="Breadth, moves and past readings" className="mt-auto pt-2">
       {mood.breadth && <Breadth b={mood.breadth} />}
       {indices.length > 0 && <Movers indices={indices} />}
-      <dl className="mt-auto pt-5 space-y-2 border-t hairline">
+      <dl className="mt-4 pt-3 space-y-2 border-t hairline">
         {mood.inputs.map((i) => (
           <div key={i.label} className="flex justify-between text-xs gap-2">
             <dt className="font-sans text-ink-soft">{i.label}</dt>
@@ -137,7 +136,7 @@ export default function MoodGauge({
           </div>
         ))}
       </dl>
-      <p className="font-mono text-[10px] text-ink-faint mt-3 leading-snug">
+      <p className="font-mono text-[11px] text-ink-faint mt-3 leading-snug">
         {mood.source ? (
           <>
             <a href={mood.source.url} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted underline-offset-2 hover:text-ink">
@@ -150,6 +149,7 @@ export default function MoodGauge({
         )}
         {mood.stale && mood.asOf && ` · last read ${when(mood.asOf)}`}
       </p>
+      </Fold>
     </div>
   );
 }

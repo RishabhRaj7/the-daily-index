@@ -39,7 +39,7 @@ function Headlines({ title, items }: { title: string; items: WireBrief[] }) {
                 <a href={b.url} target="_blank" rel="noopener noreferrer" className="group font-headline text-[1.12rem] leading-snug">
                   <span className="headline-link">{b.title}</span>
                 </a>
-                <span className="block font-mono text-[10px] text-ink-soft mt-1">
+                <span className="block font-mono text-[11px] text-ink-soft mt-1">
                   {b.domain}
                   {b.postedAgo || b.postedAt ? (
                     <>
@@ -93,7 +93,7 @@ export default function PostcardSection({
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-10 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-6 items-start">
         {/* Where you are: the place, its clock and its sky. */}
         <div className="space-y-5" data-reveal>
           <div>
@@ -146,7 +146,7 @@ export default function PostcardSection({
         </div>
 
         {/* What is happening there. */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
           <Headlines title={`In ${place.city}`} items={travel.city} />
           <Headlines title={`Across ${place.wide}`} items={travel.area} />
         </div>

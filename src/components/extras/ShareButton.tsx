@@ -40,7 +40,7 @@ function ShareCard({ story, cardRef }: { story: Story; cardRef: React.RefObject<
       {summary && <p className="font-body text-[17px] leading-[1.55] text-ink/85 mt-6 line-clamp-[9]">{summary}</p>}
       {story.why && (
         <div className="why-line mt-5 pl-4 border-l-2" style={{ borderColor: hue }}>
-          <div className="font-label text-[10px] text-ink-soft">Why it matters</div>
+          <div className="font-label text-[11px] text-ink-soft">Why it matters</div>
           <p className="font-headline italic text-[16px] leading-snug mt-1">{story.why}</p>
         </div>
       )}
@@ -221,7 +221,7 @@ export default function ShareButton({ story, className = "" }: { story: Story; c
                     <button type="button" onClick={download} disabled={status !== "ready"} className="chip h-11 justify-center">
                       Download PNG
                     </button>
-                    <div className="font-label text-[10px] text-ink-soft mt-3 mb-1">Send the link</div>
+                    <div className="font-label text-[11px] text-ink-soft mt-3 mb-1">Send the link</div>
                     <div className="grid grid-cols-2 gap-2">
                       {APPS.map((app) => (
                         <a

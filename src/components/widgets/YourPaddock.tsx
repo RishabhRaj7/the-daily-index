@@ -76,7 +76,7 @@ function VersusBar({ label, pair, colours }: { label: string; pair: [number, num
       <span className="relative h-[18px] rounded-md overflow-hidden flex gap-[2px] bg-[color:var(--rule)]">
         <span className="h-full bar-grow rounded-l-md" style={{ width: `${(pair[0] / total) * 100}%`, background: colours[0] }} />
         <span className="h-full flex-1 rounded-r-md" style={{ background: `color-mix(in srgb, ${colours[1]} 55%, transparent)` }} />
-        <span className="absolute inset-0 grid place-items-center font-label text-[9px] mix-blend-difference text-white">{label}</span>
+        <span className="absolute inset-0 grid place-items-center font-label text-[11px] mix-blend-difference text-white">{label}</span>
       </span>
       <span className="font-mono text-[12px] tabular-nums font-semibold">{pair[1]}</span>
     </div>
@@ -98,7 +98,7 @@ function Versus({ options }: { options: { id: string; label: string; query: stri
   return (
     <div className="rounded-xl border hairline p-3">
       <div className="flex items-center justify-between gap-2 mb-3">
-        <span className="font-label text-[9.5px] text-ink-faint">Head to head{h ? ` · ${h.rounds} rounds` : ""}</span>
+        <span className="font-label text-[11px] text-ink-faint">Head to head{h ? ` · ${h.rounds} rounds` : ""}</span>
         {options.length > 1 && (
           <span className="flex rounded-full border hairline p-0.5" role="tablist" aria-label="Who to compare">
             {options.map((o) => (
@@ -132,7 +132,7 @@ function Versus({ options }: { options: { id: string; label: string; query: stri
             <VersusBar label="Race" pair={h.race} colours={[ca, cb]} />
           </div>
           {h.gap !== null && (
-            <p className="font-mono text-[10.5px] text-ink-soft mt-2.5 text-center">
+            <p className="font-mono text-[11px] text-ink-soft mt-2.5 text-center">
               {Math.abs(h.gap) < 0.0005
                 ? "Dead level over a lap in qualifying"
                 : `${h.gap < 0 ? h.a.name : h.b.name} usually ${Math.abs(h.gap).toFixed(3)}s quicker in qualifying`}
@@ -140,7 +140,7 @@ function Versus({ options }: { options: { id: string; label: string; query: stri
           )}
         </>
       ) : (
-        <p className="font-mono text-[10.5px] shimmer-text">Comparing the season…</p>
+        <p className="font-mono text-[11px] shimmer-text">Comparing the season…</p>
       )}
     </div>
   );
@@ -149,7 +149,7 @@ function Versus({ options }: { options: { id: string; label: string; query: stri
 function Stat({ label, value, tone }: { label: string; value: string; tone?: "up" | "down" }) {
   return (
     <div className="min-w-0">
-      <div className="font-label text-[9px] text-ink-soft truncate">{label}</div>
+      <div className="font-label text-[11px] text-ink-soft truncate">{label}</div>
       <div className={`font-mono text-[14px] tabular-nums mt-0.5 ${tone === "up" ? "text-up" : tone === "down" ? "text-down" : ""}`}>
         {value}
       </div>
@@ -227,7 +227,7 @@ function PaddockPicker({ roster, onClose }: { roster: F1RosterEntry[]; onClose: 
         </div>
         <div className="min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-7 pb-5 sm:pb-7">
 
-          <div className="font-label text-[10px] text-ink-soft mb-2">Team</div>
+          <div className="font-label text-[11px] text-ink-soft mb-2">Team</div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {teams.map((t) => {
               const on = team === t;
@@ -251,8 +251,8 @@ function PaddockPicker({ roster, onClose }: { roster: F1RosterEntry[]; onClose: 
           </div>
 
           <div className="flex items-baseline justify-between mt-7 mb-2">
-            <span className="font-label text-[10px] text-ink-soft">Drivers</span>
-            <span className="font-mono text-[10px] text-ink-faint">
+            <span className="font-label text-[11px] text-ink-soft">Drivers</span>
+            <span className="font-mono text-[11px] text-ink-faint">
               {drivers.length}/{MAX_DRIVERS} picked
             </span>
           </div>
@@ -262,7 +262,7 @@ function PaddockPicker({ roster, onClose }: { roster: F1RosterEntry[]; onClose: 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
               {grouped.map((g) => (
                 <div key={g.team}>
-                  <div className="font-mono text-[10px] text-ink-faint mb-1">{g.team}</div>
+                  <div className="font-mono text-[11px] text-ink-faint mb-1">{g.team}</div>
                   <div className="flex flex-wrap gap-2">
                     {g.list.map((d) => {
                       const on = drivers.includes(d.id);
@@ -276,7 +276,7 @@ function PaddockPicker({ roster, onClose }: { roster: F1RosterEntry[]; onClose: 
                           className="chip h-8 text-[12px]"
                           style={on ? { background: c, borderColor: c, color: isLightTeamColor(c) ? "#111" : "#fff" } : undefined}
                         >
-                          <span className="font-mono text-[10px] opacity-70">{d.code}</span> {d.name}
+                          <span className="font-mono text-[11px] opacity-70">{d.code}</span> {d.name}
                         </button>
                       );
                     })}
@@ -375,7 +375,7 @@ export default function YourPaddock({
   return (
     <div className="module self-stretch flex flex-col gap-4" data-reveal>
       <div className="flex items-center justify-between">
-        <span className="font-label text-[10px] text-ink-soft">Your paddock</span>
+        <span className="font-label text-[11px] text-ink-soft">Your paddock</span>
         <button type="button" className="chip h-7 px-3 text-[11px]" onClick={() => setOpen(true)}>
           Edit
         </button>
@@ -398,7 +398,7 @@ export default function YourPaddock({
             <Badge team={favoriteTeam} />
             <div className="min-w-0 flex-1">
               <div className="font-display font-extrabold uppercase text-[1.5rem] leading-none truncate">{favoriteTeam}</div>
-              <div className="font-mono text-[10px] text-ink-soft mt-1">
+              <div className="font-mono text-[11px] text-ink-soft mt-1">
                 {teamDrivers.length > 0 ? teamDrivers.map((d) => `${d.code} P${d.position}`).join(" · ") : "Constructors’ championship"}
               </div>
             </div>
@@ -465,7 +465,7 @@ export default function YourPaddock({
             const finish = finishOf(lastRace, (_, code) => code === d.code)[0];
             return (
               <li key={d.id} className="rounded-xl border hairline p-3 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
-                <span className="relative w-11 h-11 rounded-full overflow-hidden shrink-0 grid place-items-center font-mono font-black text-[10px]" style={{ background: `color-mix(in srgb, ${c} 35%, var(--paper))` }}>
+                <span className="relative w-11 h-11 rounded-full overflow-hidden shrink-0 grid place-items-center font-mono font-black text-[11px]" style={{ background: `color-mix(in srgb, ${c} 35%, var(--paper))` }}>
                   {d.code}
                   {driverPhotoByCode(d.code, d.team, 120) && (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -476,7 +476,7 @@ export default function YourPaddock({
                   <DriverName code={d.code} className="block font-sans font-semibold text-[14px] truncate max-w-full">
                     {d.name}
                   </DriverName>
-                  <span className="block font-mono text-[10px] text-ink-soft truncate">
+                  <span className="block font-mono text-[11px] text-ink-soft truncate">
                     {s ? `${s.points} pts · ${s.wins} win${s.wins === 1 ? "" : "s"}` : d.team}
                     {ahead && s ? ` · −${ahead.points - s.points} to P${ahead.position}` : ""}
                     {finish ? ` · last P${finish.position ?? "DNF"}` : ""}

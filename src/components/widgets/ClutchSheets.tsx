@@ -28,7 +28,7 @@ const shortWhen = (iso: string) =>
 export function Logo({ src, name, size = 22 }: { src: string | null; name: string; size?: number }) {
   if (!src) {
     return (
-      <span className="grid place-items-center rounded-md bg-card-bg font-mono text-[10px] text-ink-soft shrink-0" style={{ width: size, height: size }} aria-hidden="true">
+      <span className="grid place-items-center rounded-md bg-card-bg font-mono text-[11px] text-ink-soft shrink-0" style={{ width: size, height: size }} aria-hidden="true">
         {name.slice(0, 2).toUpperCase()}
       </span>
     );
@@ -90,7 +90,7 @@ function Form({ list, code, n = 10 }: { list: ValMatch[]; code: string; n?: numb
         <span
           key={m.id}
           title={`${won(m, code) ? "Won" : "Lost"} ${us(m, code).wins ?? 0}–${them(m, code).wins ?? 0} v ${them(m, code).name} · ${m.event} · ${date(m.start)}`}
-          className="grid place-items-center w-5 h-5 rounded-[4px] font-mono text-[10px] font-bold"
+          className="grid place-items-center w-5 h-5 rounded-[4px] font-mono text-[11px] font-bold"
           style={won(m, code) ? { background: "var(--up)", color: "var(--paper)" } : { background: "color-mix(in srgb, var(--down) 22%, transparent)", color: "var(--down)" }}
         >
           {won(m, code) ? "W" : "L"}
@@ -183,7 +183,7 @@ function Tree({ b, follows, onOpen, avail }: { b: Bracket; follows: string[]; on
         <div className="flex gap-6 min-w-max">
           {b.upper.map((c) => (
             <div key={c.title} style={{ width: cw }}>
-              <div className="font-label text-[10px] text-ink-soft mb-2">{c.title}</div>
+              <div className="font-label text-[11px] text-ink-soft mb-2">{c.title}</div>
               <div className="space-y-3">
                 {c.slots.map((s) => (
                   <div key={s.id} style={{ height: CARD_H }}>
@@ -195,7 +195,7 @@ function Tree({ b, follows, onOpen, avail }: { b: Bracket; follows: string[]; on
           ))}
           {b.final.length > 0 && (
             <div style={{ width: cw }}>
-              <div className="font-label text-[10px] text-ink-soft mb-2">Final</div>
+              <div className="font-label text-[11px] text-ink-soft mb-2">Final</div>
               {b.final.map((s) => (
                 <div key={s.id} style={{ height: CARD_H }}>
                   <SlotCard s={s} follows={follows} onOpen={onOpen} />
@@ -261,7 +261,7 @@ function Tree({ b, follows, onOpen, avail }: { b: Bracket; follows: string[]; on
           ))}
         </svg>
         {titles.map((h) => (
-          <div key={`${h.t}-${h.x}-${h.y}`} className="absolute font-label text-[10px] text-ink-soft" style={{ left: h.x, top: h.y, width: cw }}>
+          <div key={`${h.t}-${h.x}-${h.y}`} className="absolute font-label text-[11px] text-ink-soft" style={{ left: h.x, top: h.y, width: cw }}>
             {h.t}
           </div>
         ))}
@@ -272,7 +272,7 @@ function Tree({ b, follows, onOpen, avail }: { b: Bracket; follows: string[]; on
             <div key={s.id} className="absolute" style={{ left: p.x, top: p.y, width: cw, height: CARD_H }}>
               <SlotCard s={s} follows={follows} onOpen={onOpen} />
               {s.match && (
-                <div className="absolute -bottom-[15px] left-0 font-mono text-[10px] text-ink-faint whitespace-nowrap">
+                <div className="absolute -bottom-[15px] left-0 font-mono text-[11px] text-ink-faint whitespace-nowrap">
                   {s.match.state === "inProgress" ? (
                     <span className="text-[color:var(--section-hue)] font-semibold">LIVE</span>
                   ) : s.match.state === "completed" ? (
@@ -294,7 +294,7 @@ function GroupCard({ g, follows, onOpen, onTeam }: { g: GroupTable; follows: str
   const next = g.matches.filter((m) => m.state !== "completed" && m.teams.every((t) => t.code !== "TBD")).slice(0, 2);
   return (
     <div className="rounded-xl border hairline p-3">
-      <div className="font-label text-[10px] text-ink-soft mb-2">{g.name}</div>
+      <div className="font-label text-[11px] text-ink-soft mb-2">{g.name}</div>
       <table className="data-table text-[12.5px]">
         <colgroup>
           <col />
@@ -303,7 +303,7 @@ function GroupCard({ g, follows, onOpen, onTeam }: { g: GroupTable; follows: str
           <col style={{ width: "4.5rem" }} />
         </colgroup>
         <thead>
-          <tr className="font-label text-[9px] text-ink-faint text-right">
+          <tr className="font-label text-[11px] text-ink-faint text-right">
             <th className="text-left font-normal pb-1">Team</th>
             <th className="font-normal pb-1 num">W–L</th>
             <th className="font-normal pb-1 num">Maps</th>
@@ -328,7 +328,7 @@ function GroupCard({ g, follows, onOpen, onTeam }: { g: GroupTable; follows: str
                 <td className="text-right">
                   {r.status && (
                     <span
-                      className="font-label text-[9px] rounded-full px-1.5 py-0.5"
+                      className="font-label text-[11px] rounded-full px-1.5 py-0.5"
                       style={r.status === "through" ? { background: "var(--section-hue)", color: "var(--paper)" } : { border: "1px solid var(--rule)" }}
                     >
                       {r.status === "through" ? "Through" : "Out"}
@@ -344,7 +344,7 @@ function GroupCard({ g, follows, onOpen, onTeam }: { g: GroupTable; follows: str
         <ul className="mt-2 space-y-1">
           {next.map((m) => (
             <li key={m.id}>
-              <button type="button" onClick={() => onOpen(m)} className="w-full flex justify-between gap-2 font-mono text-[10px] text-ink-soft hover:text-ink">
+              <button type="button" onClick={() => onOpen(m)} className="w-full flex justify-between gap-2 font-mono text-[11px] text-ink-soft hover:text-ink">
                 <span>
                   {m.teams[0].code} v {m.teams[1].code}
                 </span>
@@ -381,7 +381,7 @@ function EventView({ event, data, follows, go }: { event: ValEvent; data: Valora
             {label}
           </button>
         ))}
-        <span className="ml-auto font-mono text-[10px] text-ink-faint">Times IST · tap a match for the head-to-head</span>
+        <span className="ml-auto font-mono text-[11px] text-ink-faint">Times IST · tap a match for the head-to-head</span>
       </div>
 
       {tab === "bracket" && bracket && (
@@ -418,7 +418,7 @@ function EventView({ event, data, follows, go }: { event: ValEvent; data: Valora
               );
             })}
           </ul>
-          <p className="font-mono text-[10px] text-ink-faint mt-4">
+          <p className="font-mono text-[11px] text-ink-faint mt-4">
             Polymarket · ${Math.round(event.odds.volume).toLocaleString("en-US")} traded ·{" "}
             <a href={event.odds.url} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted">
               open ↗
@@ -440,12 +440,12 @@ function MatchRow({ m, code, onOpen }: { m: ValMatch; code: string; onOpen: (m: 
   return (
     <li>
       <button type="button" onClick={() => onOpen(m)} disabled={o.code === "TBD"} className="w-full grid grid-cols-[4.6rem_minmax(0,1fr)_auto] items-center gap-2 py-2 text-left text-[13px] group enabled:hover:bg-card-bg rounded-md px-1 -mx-1">
-        <span className="font-mono text-[10px] text-ink-soft">{done ? date(m.start) : shortWhen(m.start)}</span>
+        <span className="font-mono text-[11px] text-ink-soft">{done ? date(m.start) : shortWhen(m.start)}</span>
         <span className="flex items-center gap-1.5 min-w-0">
           <span className="text-ink-faint text-[11px]">v</span>
           {o.code !== "TBD" && <Logo src={o.image} name={o.code} size={16} />}
           <span className="truncate group-enabled:group-hover:underline decoration-dotted underline-offset-2">{o.code === "TBD" ? "To be decided" : o.name}</span>
-          <span className="font-mono text-[10px] text-ink-faint truncate hidden sm:inline">· {m.stage}</span>
+          <span className="font-mono text-[11px] text-ink-faint truncate hidden sm:inline">· {m.stage}</span>
         </span>
         <span className="font-mono text-[12px] tabular-nums">
           {done ? (
@@ -511,7 +511,7 @@ function TeamView({ team, data, go }: { team: ValTeam; data: ValorantData; go: (
       </div>
 
       <section className="mt-6">
-        <h3 className="font-label text-[10px] text-ink-soft mb-1">Next</h3>
+        <h3 className="font-label text-[11px] text-ink-soft mb-1">Next</h3>
         {upcoming.length > 0 ? (
           <ul className="divide-y hairline">
             {upcoming.slice(0, 4).map((m) => (
@@ -528,7 +528,7 @@ function TeamView({ team, data, go }: { team: ValTeam; data: ValorantData; go: (
       </section>
 
       <section className="mt-6">
-        <h3 className="font-label text-[10px] text-ink-soft mb-2">Results since 2024</h3>
+        <h3 className="font-label text-[11px] text-ink-soft mb-2">Results since 2024</h3>
         {!past ? (
           <Skeleton />
         ) : past.length === 0 ? (
@@ -603,7 +603,7 @@ function MatchView({ a, b, id, data, follows, go }: { a: string; b: string; id?:
             <div className="font-display font-extrabold text-[2rem] leading-none text-ink-faint">vs</div>
           )}
           {match && (
-            <div className="font-mono text-[10px] text-ink-soft mt-1 whitespace-nowrap">
+            <div className="font-mono text-[11px] text-ink-soft mt-1 whitespace-nowrap">
               {match.state === "inProgress" ? <span className="text-[color:var(--section-hue)] font-semibold">LIVE · </span> : null}
               {done ? date(match.start) : `${when(match.start)} IST`} · {match.stage} · Bo{match.bestOf}
             </div>
@@ -642,7 +642,7 @@ function MatchView({ a, b, id, data, follows, go }: { a: string; b: string; id?:
 
       <section className="mt-5 border-t hairline pt-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-label text-[10px] text-ink-soft mr-1">Past results</span>
+          <span className="font-label text-[11px] text-ink-soft mr-1">Past results</span>
           {(
             [
               ["h2h", ha ? (meetings.length ? `Head to head ${aw}–${bw}` : "Never met") : "Head to head"],
@@ -664,7 +664,7 @@ function MatchView({ a, b, id, data, follows, go }: { a: string; b: string; id?:
               <span className={`inline-block transition-transform ${past === k ? "rotate-180" : ""}`}>▾</span>
             </button>
           ))}
-          {ha && meetings.length > 0 && <span className="ml-auto font-mono text-[10px] text-ink-faint">since 2024 · maps {mapsA}–{mapsB}</span>}
+          {ha && meetings.length > 0 && <span className="ml-auto font-mono text-[11px] text-ink-faint">since 2024 · maps {mapsA}–{mapsB}</span>}
         </div>
 
         {past === "h2h" && (
@@ -672,7 +672,7 @@ function MatchView({ a, b, id, data, follows, go }: { a: string; b: string; id?:
             {meetings.map((m) => (
               <li key={m.id}>
                 <button type="button" onClick={() => go({ kind: "match", a, b, id: m.id })} className="w-full grid grid-cols-[4.6rem_minmax(0,1fr)_auto] items-center gap-2 py-1.5 text-[12.5px] text-left hover:bg-card-bg rounded-md">
-                  <span className="font-mono text-[10px] text-ink-soft">{date(m.start)}</span>
+                  <span className="font-mono text-[11px] text-ink-soft">{date(m.start)}</span>
                   <span className="truncate text-ink-soft">
                     {m.event} · {m.stage}
                   </span>
@@ -721,7 +721,7 @@ export default function ClutchSheet({ start, data, follows, onClose }: { start: 
   const kicker = (
     <span className="flex items-center gap-3">
       {back && (
-        <button type="button" onClick={back} className="font-label text-[10px] hover:text-ink" style={{ color: "var(--section-hue)" }}>
+        <button type="button" onClick={back} className="font-label text-[11px] hover:text-ink" style={{ color: "var(--section-hue)" }}>
           ‹ Back
         </button>
       )}

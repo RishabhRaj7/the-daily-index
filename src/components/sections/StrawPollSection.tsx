@@ -12,6 +12,7 @@ import { FieldBar, HitLadder, Move } from "@/components/odds/OddsCard";
 import Spark from "@/components/odds/Spark";
 import { useSpark } from "@/components/odds/odds-context";
 import { loadPersonalization, savePersonalization } from "@/lib/personalization";
+import Fold from "@/components/chrome/Fold";
 
 // Straw Poll: the day's action on the prediction markets, for this reader.
 // (The standing questions live at the foot of their own sections.)
@@ -27,6 +28,9 @@ import { loadPersonalization, savePersonalization } from "@/lib/personalization"
 //                 by how sure it was; tap for every verdict
 //   the watchlist the questions the reader keeps an eye on, editable
 // Everything opens in a sheet on this page: the exchanges need a VPN in India.
+// On a phone the two leads are a swipe apart, three moves show with the rest a
+// tap away, and the busiest open in place; with the room, the leads and the rest
+// run abreast (globals.css, .poll-*).
 
 interface WhyItem {
   title: string;
@@ -63,7 +67,7 @@ function Lead({ p, label, onOpen }: { p: OddsPick; label: string; onOpen: () => 
   return (
     <div className="module min-w-0 h-full flex flex-col gap-3" data-reveal>
       <button type="button" onClick={onOpen} className="text-left group">
-        <span className="flex items-center justify-between gap-3 font-label text-[10px]">
+        <span className="flex items-center justify-between gap-3 font-label text-[11px]">
           <span style={{ color: "var(--section-hue)" }}>
             {label} · {SUBJECT_LABEL[m.subject]}
             {p.watched ? " · ★" : ""}
@@ -95,21 +99,21 @@ function Lead({ p, label, onOpen }: { p: OddsPick; label: string; onOpen: () => 
       )}
       {(news?.why || top) && (
         <div className="mt-auto border-t hairline pt-3">
-          <div className="font-label text-[9.5px] text-ink-soft mb-1">{news?.why ? "Why it moved" : "In the news"}</div>
+          <div className="font-label text-[11px] text-ink-soft mb-1">{news?.why ? "Why it moved" : "In the news"}</div>
           {news?.why && <p className="font-headline text-[1.05rem] leading-snug">{news.why}</p>}
           {top && (
             <a href={top.url} target="_blank" rel="noopener noreferrer" className="block mt-1 font-sans text-[12.5px] text-ink-soft hover:text-ink leading-snug">
               {pins.find((x) => x.title === top.title) && (
-                <span className="inline-grid place-items-center w-4 h-4 mr-1 rounded-full border border-[color:var(--ink)] font-mono text-[10px] font-bold align-[1px]">
+                <span className="inline-grid place-items-center w-4 h-4 mr-1 rounded-full border border-[color:var(--ink)] font-mono text-[11px] font-bold align-[1px]">
                   {pins.find((x) => x.title === top.title)!.n}
                 </span>
               )}
-              {top.title} <span className="font-mono text-[10px] text-ink-faint">· {top.source} ↗</span>
+              {top.title} <span className="font-mono text-[11px] text-ink-faint">· {top.source} ↗</span>
             </a>
           )}
         </div>
       )}
-      <span className="font-mono text-[10px] text-ink-faint">
+      <span className="font-mono text-[11px] text-ink-faint">
         {m.source} · ${compactMoney(m.vol24)} today · ${compactMoney(m.vol)} in all
         {m.also?.length ? ` · ${m.also.map((a) => `${a.source} ${Math.round(a.prob)}%`).join(" · ")}` : ""}
       </span>
@@ -125,12 +129,12 @@ function MoverRow({ p, onOpen }: { p: OddsPick; onOpen: () => void }) {
     <li>
       <button type="button" onClick={onOpen} className="w-full text-left py-3 grid grid-cols-[minmax(0,1fr)_auto_auto] gap-3 items-center group">
         <span className="min-w-0">
-          <span className="block font-label text-[9.5px] text-ink-soft">
+          <span className="block font-label text-[11px] text-ink-soft">
             {SUBJECT_LABEL[m.subject]}
             {p.watched ? " · ★" : ""}
           </span>
           <span className="block font-sans font-semibold text-[13.5px] leading-snug mt-0.5 line-clamp-2 group-hover:text-[color:var(--section-hue)]">{m.title}</span>
-          <span className="block font-mono text-[10px] text-ink-soft mt-0.5 truncate">{m.hit ? ladderLine(m) : m.lead.name === "Yes" ? "Yes" : m.lead.name}</span>
+          <span className="block font-mono text-[11px] text-ink-soft mt-0.5 truncate">{m.hit ? ladderLine(m) : m.lead.name === "Yes" ? "Yes" : m.lead.name}</span>
         </span>
         <Spark points={spark} width={70} height={30} color={color} />
         <span className="text-right w-[3.6rem]">
@@ -152,26 +156,26 @@ function RecordSheet({ record, onClose }: { record: OddsRecordSummary; onClose: 
       <div className="grid grid-cols-3 gap-3 mt-5">
         {record.buckets.map((b) => (
           <div key={b.label} className="rounded-xl border hairline p-3">
-            <div className="font-label text-[10px] text-ink-soft">Favourite at {b.label}</div>
+            <div className="font-label text-[11px] text-ink-soft">Favourite at {b.label}</div>
             <div className="font-display font-bold text-[1.6rem] leading-none mt-1 tabular-nums">{b.total ? `${Math.round((b.called / b.total) * 100)}%` : "—"}</div>
-            <div className="font-mono text-[10px] text-ink-faint mt-1">
+            <div className="font-mono text-[11px] text-ink-faint mt-1">
               won {b.called} of {b.total}
             </div>
           </div>
         ))}
       </div>
-      <p className="font-mono text-[10px] text-ink-faint mt-2">A well-judged market&rsquo;s 90% favourites win about nine times in ten, its 60% ones about six.</p>
+      <p className="font-mono text-[11px] text-ink-faint mt-2">A well-judged market&rsquo;s 90% favourites win about nine times in ten, its 60% ones about six.</p>
       <ul className="mt-5 divide-y hairline">
         {record.recent.map((v) => (
           <li key={`${v.title}-${v.settled}`} className="py-2 grid grid-cols-[1.2rem_minmax(0,1fr)_auto] gap-2 items-baseline text-[13px]">
             <span className={v.called ? "text-up font-bold" : "text-down font-bold"}>{v.called ? "✓" : "✗"}</span>
             <span className="min-w-0">
               <span className="block leading-snug">{v.title}</span>
-              <span className="block font-mono text-[10px] text-ink-soft">
+              <span className="block font-mono text-[11px] text-ink-soft">
                 Favourite {v.favourite} ({Math.round(v.chance)}%) · {v.called ? "won" : `${v.winner} won`}
               </span>
             </span>
-            <span className="font-mono text-[10px] text-ink-faint">
+            <span className="font-mono text-[11px] text-ink-faint">
               {new Date(`${v.settled}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
             </span>
           </li>
@@ -248,6 +252,7 @@ export default function StrawPollSection({
 }) {
   const [open, setOpen] = useState<OddsPick | null>(null);
   const [sheet, setSheet] = useState<"record" | "watch" | null>(null);
+  const [allMovers, setAllMovers] = useState(false);
   if (!poll.money && !poll.mover) return null;
   const read = readAt ? new Date(readAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) : null;
   const rate = record ? record.called / record.total : 0;
@@ -255,7 +260,8 @@ export default function StrawPollSection({
   return (
     <section id="straw-poll">
       <SectionHeader sectionKey="straw-poll" folio={read ? `Read ${read} IST` : undefined} />
-      <div className={`grid grid-cols-[minmax(0,1fr)] gap-6 ${poll.money && poll.mover ? "lg:grid-cols-2" : ""} items-stretch`}>
+      <div className="poll-top">
+      <div className={`poll-leads grid grid-cols-[minmax(0,1fr)] gap-4 ${poll.money && poll.mover ? "lg:grid-cols-2" : ""} items-stretch`}>
         {poll.money && (
           <Lead
             p={poll.money}
@@ -277,20 +283,26 @@ export default function StrawPollSection({
       </div>
 
       {(poll.movers.length > 0 || poll.busiest.length > 0) && (
-        <div className={`mt-6 grid grid-cols-[minmax(0,1fr)] gap-6 ${poll.movers.length && poll.busiest.length ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : ""}`}>
+        <div className={`poll-more mt-4 grid grid-cols-[minmax(0,1fr)] gap-4 ${poll.movers.length && poll.busiest.length ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : ""}`}>
           {poll.movers.length > 0 && (
             <div data-reveal>
-              <div className="font-label text-[10.5px] text-ink-soft">More moves today</div>
-              <ul className="divide-y hairline border-b hairline mt-1">
+              <div className="font-label text-[11px] text-ink-soft">More moves today</div>
+              <ul data-all={allMovers || undefined} className="poll-movers divide-y hairline border-b hairline mt-1">
                 {poll.movers.map((p) => (
                   <MoverRow key={p.market.id} p={p} onOpen={() => setOpen(p)} />
                 ))}
               </ul>
+              {poll.movers.length > 3 && (
+                <button type="button" onClick={() => setAllMovers((v) => !v)} aria-expanded={allMovers} className="poll-all fold-toggle">
+                  {allMovers ? "Show fewer" : `All ${poll.movers.length} moves`} <span aria-hidden="true">{allMovers ? "↑" : "↓"}</span>
+                </button>
+              )}
             </div>
           )}
           {poll.busiest.length > 0 && (
+            <Fold phoneOnly label="Where else the money is today">
             <div data-reveal>
-              <div className="font-label text-[10.5px] text-ink-soft mb-2">Where else the money is today</div>
+              <div className="font-label text-[11px] text-ink-soft mb-2">Where else the money is today</div>
               <div className={`grid grid-cols-2 gap-2 ${poll.movers.length ? "" : "lg:grid-cols-4"}`}>
                 {poll.busiest.map((p) => (
                   <button
@@ -301,19 +313,21 @@ export default function StrawPollSection({
                   >
                     <span className="flex items-baseline justify-between gap-2">
                       <span className="font-display font-bold text-[1.2rem] leading-none tabular-nums">{p.market.hit ? "↕" : `${Math.round(p.market.lead.prob)}%`}</span>
-                      <span className="font-mono text-[10px] text-ink-faint">${compactMoney(p.market.vol24)} today</span>
+                      <span className="font-mono text-[11px] text-ink-faint">${compactMoney(p.market.vol24)} today</span>
                     </span>
                     <span className="block font-sans text-[12.5px] leading-snug mt-1 line-clamp-2">{p.market.title}</span>
-                    <span className="block font-mono text-[10px] text-ink-soft mt-0.5 truncate">{p.market.lead.name === "Yes" ? "Yes" : p.market.lead.name}</span>
+                    <span className="block font-mono text-[11px] text-ink-soft mt-0.5 truncate">{p.market.lead.name === "Yes" ? "Yes" : p.market.lead.name}</span>
                   </button>
                 ))}
               </div>
             </div>
+            </Fold>
           )}
         </div>
       )}
+      </div>
 
-      <div className="mt-6 grid sm:grid-cols-[minmax(0,1fr)_auto] gap-4 items-center border-t hairline pt-4">
+      <div className="mt-4 grid sm:grid-cols-[minmax(0,1fr)_auto] gap-3 items-center border-t hairline pt-3">
         {record ? (
           <button type="button" onClick={() => setSheet("record")} className="text-left group flex items-center gap-4 min-w-0">
             <span className="relative w-12 h-12 shrink-0" aria-hidden="true">
@@ -321,14 +335,14 @@ export default function StrawPollSection({
                 <circle cx="18" cy="18" r="15" fill="none" stroke="var(--rule)" strokeWidth="4" />
                 <circle cx="18" cy="18" r="15" fill="none" stroke="var(--section-hue)" strokeWidth="4" strokeDasharray={`${rate * 94.2} 94.2`} strokeLinecap="round" />
               </svg>
-              <span className="absolute inset-0 grid place-items-center font-mono text-[10px] font-bold">{Math.round(rate * 100)}%</span>
+              <span className="absolute inset-0 grid place-items-center font-mono text-[11px] font-bold">{Math.round(rate * 100)}%</span>
             </span>
             <span className="min-w-0">
-              <span className="block font-label text-[10px] text-ink-soft">Track record</span>
+              <span className="block font-label text-[11px] text-ink-soft">Track record</span>
               <span className="block font-sans text-[13px] leading-snug group-hover:underline decoration-dotted underline-offset-2">
                 A week out, the favourite won {record.called} of {record.total} questions settled this past month.
               </span>
-              <span className="block font-mono text-[10px] text-ink-faint">
+              <span className="block font-mono text-[11px] text-ink-faint">
                 {record.buckets
                   .filter((b) => b.total > 0)
                   .map((b) => `${b.label}: ${b.called}/${b.total}`)
@@ -338,16 +352,13 @@ export default function StrawPollSection({
             </span>
           </button>
         ) : (
-          <p className="font-mono text-[10px] text-ink-faint">The track record appears once ten questions have settled.</p>
+          <p className="font-mono text-[11px] text-ink-faint">The track record appears once ten questions have settled.</p>
         )}
         <button type="button" onClick={() => setSheet("watch")} className="chip h-8 text-[12px] justify-self-start sm:justify-self-end">
           ★ Your watchlist
         </button>
       </div>
-      <p className="font-mono text-[10px] text-ink-faint mt-3">
-        From Polymarket and Kalshi: what traders with money on it expect, as a chance. Each section&rsquo;s own questions sit at its foot. The paper reads prices;
-        it takes no bets.
-      </p>
+      <p className="font-mono text-[11px] text-ink-faint mt-2">From Polymarket and Kalshi: what traders expect, as a chance. The paper reads prices; it takes no bets.</p>
       {open && <OddsSheet market={open.market} why={open.why} watched={open.watched} onClose={() => setOpen(null)} />}
       {sheet === "record" && record && <RecordSheet record={record} onClose={() => setSheet(null)} />}
       {sheet === "watch" && <WatchSheet onClose={() => setSheet(null)} />}

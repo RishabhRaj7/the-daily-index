@@ -130,7 +130,7 @@ function PartFailure({ note, onRetry }: { note: string; onRetry: () => void }) {
       <button
         type="button"
         onClick={onRetry}
-        className="font-label text-[10px] text-accent underline not-italic ml-1"
+        className="font-label text-[11px] text-accent underline not-italic ml-1"
       >
         Try again
       </button>
@@ -141,12 +141,12 @@ function PartFailure({ note, onRetry }: { note: string; onRetry: () => void }) {
 // A block that still has rows but whose last refresh failed.
 function StaleNote({ onRetry }: { onRetry: () => void }) {
   return (
-    <p className="text-[10px] text-ink-soft italic mt-2">
+    <p className="text-[11px] text-ink-soft italic mt-2">
       Showing the last figures we have.{" "}
       <button
         type="button"
         onClick={onRetry}
-        className="font-label text-[10px] text-accent underline not-italic"
+        className="font-label text-[11px] text-accent underline not-italic"
       >
         Try again
       </button>
@@ -200,7 +200,7 @@ function StandingsBars({
               <DriverName code={r.code} className="truncate">
                 {r.name}
               </DriverName>
-              {r.sub && <span className="font-mono text-[10px] text-ink-faint shrink-0">{r.sub}</span>}
+              {r.sub && <span className="font-mono text-[11px] text-ink-faint shrink-0">{r.sub}</span>}
             </span>
             <span className="font-mono text-[12px] text-right">{r.points}</span>
             <span />
@@ -471,10 +471,12 @@ export default function F1Sidebar({
     // Two blocks that join the section's own grid (the root is
     // display: contents): the race desk sits beside the stories, the two
     // championship tables run full width underneath, so the stories column
-    // is never outgrown by a tall sidebar.
+    // is never outgrown by a tall sidebar. Everything stays printed at every
+    // width; with the room the desk runs two across and the tables four
+    // (globals.css, .pit-desk and .pit-archive).
     <div className="contents">
       {/* A column: the paddock card at its foot grows to the stories' height (PaddockChatter). */}
-      <div className="flex flex-col gap-4 min-w-0 lg:col-start-2 lg:row-start-1">
+      <div className="pit-desk flex flex-col gap-4 min-w-0 lg:col-start-2 lg:row-start-1">
       {/* Pit wall header — the single section-scoped refresh control. It
           asks the server afresh (OpenF1 first, then the kept copy, then
           Jolpica), and a failed answer never blanks a table on screen. */}
@@ -482,7 +484,7 @@ export default function F1Sidebar({
         <span className="font-display font-extrabold text-[1.6rem] leading-none">Pit wall</span>
         <span className="flex items-center gap-2">
           {checkedAt && !refreshing && (
-            <span className="font-mono text-[10px] text-ink-soft">
+            <span className="font-mono text-[11px] text-ink-soft">
               {new Date(checkedAt).toLocaleTimeString("en-GB", {
                 hour: "2-digit",
                 minute: "2-digit",
@@ -534,7 +536,7 @@ export default function F1Sidebar({
         />
       ) : (
         <div className="module">
-          <div className="font-label text-[10px] text-ink-soft mb-1">Starting Grid</div>
+          <div className="font-label text-[11px] text-ink-soft mb-1">Starting Grid</div>
           {map.status === "loading" ? (
             <>
               <TableSkeleton rows={4} />
@@ -554,7 +556,7 @@ export default function F1Sidebar({
 
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start lg:col-span-2">
+      <div className="pit-archive grid grid-cols-1 md:grid-cols-2 gap-4 items-start lg:col-span-2">
       {/* Last race and the calendar run full width, beside each other, so the
           desk column stays shorter than the stories. */}
       {map.status === "ready" && map.data && (
@@ -593,7 +595,7 @@ export default function F1Sidebar({
       {/* Constructors' Championship — before the drivers' table, matching the
           order the section fills in. */}
       <div className="module" data-reveal>
-        <div className="font-label text-[10px] text-ink-soft mb-3">
+        <div className="font-label text-[11px] text-ink-soft mb-3">
           Constructors&rsquo; Championship
         </div>
 
@@ -637,7 +639,7 @@ export default function F1Sidebar({
 
       {/* Drivers' Championship */}
       <div className="module" data-reveal>
-        <div className="font-label text-[10px] text-ink-soft mb-3">
+        <div className="font-label text-[11px] text-ink-soft mb-3">
           Drivers&rsquo; Championship
         </div>
 

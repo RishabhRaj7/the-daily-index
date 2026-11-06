@@ -55,8 +55,10 @@ import {
 import Masthead from "@/components/masthead/Masthead";
 import HeroStory from "@/components/story/HeroStory";
 import FrontStrip from "@/components/widgets/FrontStrip";
-import { spreadRows } from "@/lib/spread";
+import { chaptersFor } from "@/lib/chapters";
 import WeekAhead from "@/components/widgets/WeekAhead";
+import ListenButton from "@/components/extras/ListenButton";
+import PullToRefreshStamp from "@/components/chrome/PullToRefreshStamp";
 import DatelineSection from "@/components/sections/DatelineSection";
 import TwoCitiesSection from "@/components/sections/TwoCitiesSection";
 import NationSection from "@/components/sections/NationSection";
@@ -97,7 +99,8 @@ import {
 } from "@/lib/digest-cache";
 import EditionPrepOverlay from "@/components/chrome/EditionPrepOverlay";
 import WritingNotice from "@/components/chrome/WritingNotice";
-import TopBar, { type NavSection } from "@/components/chrome/TopBar";
+import PaperNav from "@/components/chrome/PaperNav";
+import type { NavChapter } from "@/components/chrome/TopBar";
 import Briefing from "@/components/story/Briefing";
 import { digestArticleToStory } from "@/lib/preferences/stories";
 import { SECTION_META } from "@/lib/sections";
@@ -1064,16 +1067,32 @@ export default function EditionView({
       );
   const visibleStandalone = isArchive ? [] : standaloneDigest;
 
-  // One entry per printed section for the sticky bar.
-  const navSections: NavSection[] = [
-    ...(travelling ? [{ id: "postcard", label: "Postcard", hue: "var(--hue-travel)" }] : []),
-    ...order.map((key) => ({ id: SECTION_META[key].slug, label: SECTION_META[key].short, hue: SECTION_META[key].hue })),
-    ...visibleStandalone.map(({ section }) => ({
-      id: `digest-${section.id}`,
-      label: section.label,
-      hue: digestHue(section.label),
-    })),
-  ];
+  // The storyboard (lib/chapters.ts). What's next and the back page also carry
+  // things that aren't sections, so they can print with no section of their own:
+  // the week ahead and the reader's own sections; the day's extras.
+  const extras = {
+    note: !isArchive && editorsNote ? editorsNote.text : null,
+    history: edition.onThisDay[0] ?? null,
+    word: edition.wordOfDay?.word ? edition.wordOfDay : null,
+  };
+  const chapters = chaptersFor(order).filter((c) => {
+    if (c.printed.length > 0) return true;
+    if (c.id === "next") return !isArchive || visibleStandalone.length > 0;
+    if (c.id === "back") return !!(extras.note || extras.history || extras.word);
+    return false;
+  });
+
+  // One menu, in the same words everywhere (chrome/PaperNav.tsx).
+  const navChapters: NavChapter[] = chapters.map((c) => ({
+    id: `ch-${c.id}`,
+    label: c.label,
+    name: c.name,
+    sections: [
+      ...c.printed.map((key) => ({ id: SECTION_META[key].slug, name: SECTION_META[key].name })),
+      ...(c.id === "next" ? visibleStandalone.map(({ section }) => ({ id: `digest-${section.id}`, name: section.label })) : []),
+      ...(c.id === "next" && !isArchive ? [{ id: "week-ahead", name: "The Week Ahead" }] : []),
+    ],
+  }));
 
   // Where each story runs on this page, so the briefing can link down to it.
   const anchorByUrl = new Map<string, string>();
@@ -1113,6 +1132,10 @@ export default function EditionView({
   // pipeline (progress + retry), so the floating pill stays out of the way.
   const prepBlocking = prep === "boot" || prep === "cooking" || prep === "failed";
 
+  // A line pointing at the article the lead already is would say it twice.
+  const briefShown = brief ?? (prepBlocking ? null : fallbackBrief);
+  const briefLines = briefShown ? { ...briefShown, bullets: briefShown.bullets.filter((b) => !b.url || b.url !== hero?.sourceUrl) } : null;
+
   // Stories on the page still waiting for Gemini: a spare that isn't printed,
   // or a section the reader hid, is no failure of theirs to read about.
   const printedById = new Map<string, Story>();
@@ -1130,7 +1153,7 @@ export default function EditionView({
   ).length;
 
   return (
-    <main className="flex-1 page-scale">
+    <main className="flex-1 page-scale edition-page">
       <SparksContext.Provider value={sparks}>
       <RaceOddsContext.Provider value={raceOdds}>
       <StoryOddsContext.Provider value={oddsLayout.stories}>
@@ -1144,12 +1167,8 @@ export default function EditionView({
           onSkip={handlePrepSkip}
         />
       )}
-      <TopBar sections={navSections} isArchive={isArchive} />
-      <Masthead
-        edition={edition}
-        isArchive={isArchive}
-        weather={(travelling && travelWeather) || weather || undefined}
-      />
+      <PaperNav chapters={navChapters} isArchive={isArchive} date={edition.date} />
+      <Masthead edition={edition} weather={(travelling && travelWeather) || weather || undefined} />
       <div className="page-wrap px-4 sm:px-6">
         {!isArchive && !prepBlocking && (
           <WritingNotice
@@ -1162,95 +1181,72 @@ export default function EditionView({
             onRetry={retryNow}
           />
         )}
-        {/* Front page: the briefing beside the lead, then the day's extras
-            (editor's note, on this day, word of the day) in one slim strip;
-            on an ultrawide the extras become a third column instead.
-            On a phone the briefing comes first: the whole day in a minute. */}
+        {/* The front page: the briefing beside the lead. On a phone the briefing
+            comes first: the whole day in a minute, on the first screen. */}
         {hero && (
-          <>
-            <div className="grid grid-cols-1 gap-y-12 pt-10 md:pt-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,2.6fr)] uw:grid-cols-[minmax(0,1fr)_minmax(0,2.6fr)_minmax(0,1fr)]">
-              <div className="order-1 lg:pr-8 lg:border-r hairline">
-                <Briefing
-                  brief={brief ?? (prepBlocking ? null : fallbackBrief)}
-                  loading={summaryState === "loading"}
-                  anchorFor={(url) => anchorByUrl.get(url) ?? null}
-                />
-              </div>
-              <div className="order-2 lg:pl-9 uw:pr-9 min-w-0">
-                <HeroStory story={hero} />
-              </div>
-              <div className="order-3 lg:col-span-2 uw:col-span-1 uw:pl-8 uw:border-l hairline min-w-0">
-                <FrontStrip
-                  note={!isArchive && editorsNote ? editorsNote.text : null}
-                  then={personalOtd}
-                  history={edition.onThisDay[0] ?? null}
-                  word={edition.wordOfDay?.word ? edition.wordOfDay : null}
-                />
-              </div>
+          <div className="grid grid-cols-1 gap-y-8 pt-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2.6fr)]">
+            <div className="lg:pr-8 lg:border-r hairline min-w-0">
+              <Briefing
+                brief={briefLines}
+                loading={summaryState === "loading"}
+                anchorFor={(url) => anchorByUrl.get(url) ?? null}
+                actions={
+                  !isArchive ? (
+                    <>
+                      <ListenButton edition={edition} />
+                      <PullToRefreshStamp />
+                    </>
+                  ) : undefined
+                }
+              />
             </div>
-          </>
+            <div className="lg:pl-9 min-w-0">
+              <HeroStory story={hero} />
+            </div>
+          </div>
         )}
-        {/* Dated things coming up this week; today's paper only. */}
-        {!isArchive && <WeekAhead />}
         <div className="edition-body">
           {travelling && travel && (
-            <div className="paper-section spread-solo" style={{ ["--section-hue" as string]: "var(--hue-travel)", order: -1, counterSet: "section 1" }}>
+            <div className="paper-section" style={{ ["--section-hue" as string]: "var(--hue-travel)" }}>
               <PostcardSection travel={travel} weather={travelWeather} />
             </div>
           )}
-          {/* Ultrawide: rows of two columns (lib/spread.ts). Elsewhere the row
-              and column wrappers step aside (display: contents) and each
-              section's flex order and number follow the reader's own order. */}
-          {spreadRows(order).map((row) => {
-            const section = (key: SectionKey) => {
-              const n = order.indexOf(key);
-              return (
-                <div
-                  key={key}
-                  className="paper-section"
-                  style={{
-                    ["--section-hue" as string]: SECTION_META[key].hue,
-                    order: n,
-                    counterSet: `section ${n + (travelling && travel ? 2 : 1)}`,
-                  }}
-                >
+          {/* The storyboard: one subject on each row at every width (lib/chapters.ts).
+              A wider screen shows more of a section at once, never a second one. */}
+          {chapters.map((c) => (
+            <div key={c.id} id={`ch-${c.id}`} className="chapter">
+              <header className="chapter-head" data-reveal="fade">
+                <p role="heading" aria-level={2} className="font-display font-extrabold">{c.name}</p>
+                <p className="font-headline italic text-ink-soft">{c.line}</p>
+              </header>
+              {c.printed.map((key) => (
+                <div key={key} className="paper-section" style={{ ["--section-hue" as string]: SECTION_META[key].hue }}>
                   {sectionRenderers[key]()}
                   {briefsFor(key).length > 0 && <InBrief items={briefsFor(key)} />}
                   {oddsLayout.sections[key] && <OddsStrip picks={oddsLayout.sections[key]!} label={key === "grapevine" ? "Film and the awards" : "What traders expect"} />}
                 </div>
-              );
-            };
-            return "solo" in row ? (
-              <div key={row.solo} className="spread-row spread-solo">
-                {section(row.solo)}
-              </div>
-            ) : (
-              <div key={[...row.left, ...row.right].join("+")} className="spread-row">
-                <div className="spread-col">{row.left.map(section)}</div>
-                <div className="spread-col">{row.right.map(section)}</div>
-              </div>
-            );
-          })}
-          {/* Preference sections with no existing paper slot of their
-              own — appended after the standing sections. */}
-          {visibleStandalone.map(({ section, articles }) => (
-            <div
-              key={`digest-${section.id}`}
-              className="paper-section spread-solo"
-              style={{ ["--section-hue" as string]: digestHue(section.label), order: 1000 }}
-            >
-              <DigestSectionView section={section} articles={articles} />
+              ))}
+              {/* The reader's own sections, then what's dated this week (today's paper only). */}
+              {c.id === "next" &&
+                visibleStandalone.map(({ section, articles }) => (
+                  <div key={`digest-${section.id}`} className="paper-section" style={{ ["--section-hue" as string]: digestHue(section.label) }}>
+                    <DigestSectionView section={section} articles={articles} />
+                  </div>
+                ))}
+              {c.id === "next" && !isArchive && <WeekAhead />}
+              {c.id === "back" && <FrontStrip note={extras.note} then={personalOtd} history={extras.history} word={extras.word} />}
             </div>
           ))}
         </div>
       </div>
-      <footer className="mt-24 border-t hairline">
-        <div className="page-wrap px-4 sm:px-6 py-10 grid gap-8 md:grid-cols-[1fr_auto] items-end">
+      <footer className="mt-14 border-t hairline">
+        <div className="page-wrap px-4 sm:px-6 py-8 grid gap-6 md:grid-cols-[1fr_auto] items-end">
           <div>
-            <p className="font-display font-extrabold text-[clamp(3rem,12vw,9rem)] leading-[0.8] text-transparent [-webkit-text-stroke:1px_var(--ink-faint)] select-none" aria-hidden="true">
-              The Daily Index
+            <p className="font-display font-extrabold text-[clamp(2.2rem,6vw,4.5rem)] leading-[0.9]">
+              That&rsquo;s today&rsquo;s paper<span className="text-accent">.</span>
             </p>
-            <p className="font-mono text-[11px] text-ink-soft mt-5">
+            <p className="font-headline italic text-[15px] text-ink-soft mt-3">An index of everything that matters today.</p>
+            <p className="font-mono text-[11px] text-ink-soft mt-2">
               VOL. {edition.volume} · NO. {edition.issue} — A PERSONAL DIGEST, NOT A REAL NEWSPAPER.
             </p>
           </div>

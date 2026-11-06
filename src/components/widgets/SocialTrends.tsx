@@ -32,7 +32,7 @@ function XRow({ t, i }: { t: XTrend; i: number }) {
         <a href={t.url} target="_blank" rel="noopener noreferrer" className="font-headline text-[1.05rem] leading-snug truncate hover:underline decoration-dotted underline-offset-2">
           {t.name}
         </a>
-        <span className="font-mono text-[10px] text-ink-soft shrink-0 tabular-nums" title="Posts, and hours of the last day it has been trending">
+        <span className="font-mono text-[11px] text-ink-soft shrink-0 tabular-nums" title="Posts, and hours of the last day it has been trending">
           {t.count ? `${compact(t.count)} posts · ` : ""}
           {t.hours >= 24 ? "all day" : `${t.hours}h`}
         </span>
@@ -49,7 +49,7 @@ function RedditRow({ p, i }: { p: SocialPost; i: number }) {
         <a href={p.url} target="_blank" rel="noopener noreferrer" className="font-headline text-[1.05rem] leading-snug line-clamp-2 hover:underline decoration-dotted underline-offset-2">
           {p.title}
         </a>
-        <span className="block font-mono text-[10px] text-ink-soft mt-0.5 truncate">{p.where}</span>
+        <span className="block font-mono text-[11px] text-ink-soft mt-0.5 truncate">{p.where}</span>
       </span>
     </li>
   );
@@ -60,7 +60,7 @@ function Column({ source, title, children }: { source: SocialPost["source"]; tit
     <div className="min-w-0">
       <div className="flex items-center gap-2 pt-3 pb-1">
         <SourceLogo source={source} size={15} />
-        <span className="font-label text-[10px] text-ink-soft">{title}</span>
+        <span className="font-label text-[11px] text-ink-soft">{title}</span>
       </div>
       {children}
     </div>

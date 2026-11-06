@@ -103,7 +103,7 @@ export const SECTION_META: Record<SectionKey, SectionMeta> = {
   grapevine: {
     key: "grapevine",
     label: "The Grapevine — X and Reddit",
-    kicker: "Forwarded to You",
+    kicker: "X, Reddit and searches",
     slug: "grapevine",
     name: "The Grapevine",
     short: "Grapevine",
@@ -111,13 +111,14 @@ export const SECTION_META: Record<SectionKey, SectionMeta> = {
   },
 };
 
-// The day in the order you'd read it: the world, the country, then home, then your
-// sport, then money (stories, then the numbers), then tech, the sky, and
-// the extras.
+// The day in the order you'd read it: the world, the country, then home and its
+// weather, then your sport, then money (stories, then the numbers), then what's
+// next, and the extras. These group into chapters (lib/chapters.ts).
 export const SECTION_ORDER: SectionKey[] = [
   "dateline",
   "the-nation",
   "two-cities",
+  "sky-report",
   "paddock-notes",
   "sports",
   "clutch",
@@ -125,7 +126,6 @@ export const SECTION_ORDER: SectionKey[] = [
   "market-pulse",
   "circuit-board",
   "straw-poll",
-  "sky-report",
   "grapevine",
 ];
 

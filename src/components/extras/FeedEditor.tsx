@@ -57,11 +57,11 @@ function ChipField({
   return (
     <div className="py-4 border-t hairline first:border-t-0 first:pt-0">
       <div className="flex items-center justify-between gap-3 mb-2">
-        <span className="flex items-center gap-2 font-label text-[10px] text-ink-soft">
+        <span className="flex items-center gap-2 font-label text-[11px] text-ink-soft">
           {logo && <SourceLogo source={logo} size={14} />}
           {label}
         </span>
-        <span className="font-mono text-[10px] text-ink-faint tabular-nums">
+        <span className="font-mono text-[11px] text-ink-faint tabular-nums">
           {values.length}/{max}
         </span>
       </div>

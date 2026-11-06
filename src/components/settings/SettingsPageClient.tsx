@@ -139,7 +139,7 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
 
   return (
     <>
-    <TopBar sections={[]} alwaysShowLogo />
+    <TopBar alwaysShowLogo />
     <main className="flex-1 max-w-2xl mx-auto px-4 pt-12 pb-32 w-full">
       <div className="font-label text-[11px] text-accent mb-3">Settings</div>
       <h1 className="font-display font-extrabold text-[clamp(3.2rem,11vw,6rem)] leading-[0.84]">
@@ -219,7 +219,7 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
             className="accent-[var(--accent)] w-4 h-4 mt-0.5 shrink-0"
           />
           <span>
-            <span className="font-label text-[10px] block">Show &ldquo;Why it matters&rdquo;</span>
+            <span className="font-label text-[11px] block">Show &ldquo;Why it matters&rdquo;</span>
             <span className="font-body text-sm text-ink-soft">
               A one-line note under each summary on what the story means for you. Off keeps the page shorter.
             </span>
@@ -243,7 +243,7 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
 
       {tab === "devices" && (
       <section className="mt-10 module">
-        <div className="font-label text-[10px] text-accent mb-1">What the paper remembers</div>
+        <div className="font-label text-[11px] text-accent mb-1">What the paper remembers</div>
         <p className="font-body text-sm text-ink-soft leading-relaxed">
           Your reading streak, which editions you opened, and which stories you unfolded are kept in
           this browser{syncOn ? ", and shared with your other devices through sync" : " only — never uploaded"}. They power the Editor&rsquo;s Desk note, the gentle
@@ -265,7 +265,7 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
                 setForgot(true);
                 setMemoryCount(0);
               }}
-              className="font-label text-[10px] text-accent underline"
+              className="font-label text-[11px] text-accent underline"
             >
               Forget me
             </button>

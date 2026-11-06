@@ -150,7 +150,7 @@ export function RefreshStamp({ asOf, busy, onRefresh, className = "" }: { asOf?:
   const mins = now && Number.isFinite(at) ? Math.max(0, Math.round((now - at) / 60_000)) : null;
   const label = mins === null ? "" : mins < 1 ? "Updated just now" : mins < 60 ? `Updated ${mins}m ago` : `Updated ${Math.floor(mins / 60)}h ago`;
   return (
-    <span className={`inline-flex items-center gap-1.5 font-mono text-[10px] text-ink-faint ${className}`}>
+    <span className={`inline-flex items-center gap-1.5 font-mono text-[11px] text-ink-faint ${className}`}>
       {label && <span>{label}</span>}
       <button
         type="button"
@@ -208,14 +208,14 @@ export function SocialItem({ post, compact = false, clamp = false, hidden = fals
           <span className="headline-link">{post.title}</span>
         </a>
         {post.text && !compact && <p className="font-body text-[13px] leading-relaxed text-ink-soft mt-1 line-clamp-2">{post.text}</p>}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 font-mono text-[10px] text-ink-soft">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 font-mono text-[11px] text-ink-soft">
           <span className="truncate max-w-[14rem]">{post.where}</span>
           {post.source === "reddit" && post.author && <span className="text-ink-faint truncate max-w-[9rem]">u/{post.author}</span>}
           <span className="text-ink-faint">
             <Ago iso={post.at} />
           </span>
           {post.tags?.map((t) => (
-            <span key={t} className="font-label text-[9.5px] text-accent">
+            <span key={t} className="font-label text-[11px] text-accent">
               {t}
             </span>
           ))}
@@ -306,7 +306,7 @@ export function SourceFilter({ value, counts, onChange }: { value: SourcePick; c
             }`}
           >
             {o.id === "all" ? "All" : <SourceLogo source={o.id} size={14} />}
-            <span className="font-mono text-[10px] tabular-nums text-ink-faint">{counts[o.id]}</span>
+            <span className="font-mono text-[11px] tabular-nums text-ink-faint">{counts[o.id]}</span>
           </button>
         );
       })}

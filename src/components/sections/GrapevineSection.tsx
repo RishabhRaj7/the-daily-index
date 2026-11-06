@@ -11,12 +11,16 @@ import SearchBar from "@/components/widgets/SearchBar";
 import SocialTrends from "@/components/widgets/SocialTrends";
 import { EditFeedsButton } from "@/components/extras/FeedEditor";
 import { describeFeed, feedQuery, useFeed } from "@/lib/feeds";
+import Fold from "@/components/chrome/Fold";
+import { useMedia } from "@/lib/use-media";
 
 // The Grapevine: the Search Bar (what each country is searching right now,
 // Google Trends) beside what's trending on X and Reddit (SocialTrends), then
 // two newspaper columns, separated by a hairline, no cards. Either of a pair
 // that has nothing (a source that keeps failing; lib/social-health.ts) isn't
-// there, and the other takes the whole width.
+// there, and the other takes the whole width. With the room the two pairs run
+// abreast, four blocks in one row (globals.css, .grapevine-blocks); on a phone,
+// Trending and the puzzles open in place, so the page isn't all sidebar.
 //   Left  — "You Should See This": X accounts (the reader's, else the wires
 //           and the paper's desks) read through our RSSHub, and the day's top
 //           posts in their subreddits (Reddit's RSS), together, each with its
@@ -62,22 +66,23 @@ export default function GrapevineSection({
   const feeds = live.data;
   const sub = feed ? describeFeed(feed.config) : "";
   const social = useSocialView(feeds).view !== "hide";
+  const wide = useMedia("(min-width: 2300px)");
 
   return (
     <section id="grapevine">
       <SectionHeader sectionKey="grapevine" />
-      <p className="font-headline italic text-lg text-ink-soft -mt-2 mb-10 max-w-[60ch]">
-        What the people you follow are saying, and what Reddit is talking about. Every item links to the post itself.
-      </p>
-      <SocialPausedNote place="grapevine" className="-mt-8 mb-8" />
+      <SocialPausedNote place="grapevine" className="mb-3" />
 
       {/* Side by side from md up, a hairline between; one alone takes the width. */}
-      <div className="flex flex-col md:flex-row gap-y-12 mb-12 empty:hidden">
+      <div className="grapevine-blocks">
+      <div className="flex flex-col md:flex-row gap-y-4 mb-6 empty:hidden">
         <SearchBar headlines={headlines} className={PAIR} />
-        <SocialTrends className={PAIR} />
+        <Fold phoneOnly label="Trending on X and Reddit" className={PAIR}>
+          <SocialTrends />
+        </Fold>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-y-12">
+      <div className="flex flex-col md:flex-row gap-y-4">
         {social && (
           <div className={PAIR}>
             <ColumnHead
@@ -90,14 +95,15 @@ export default function GrapevineSection({
                 </span>
               }
             />
-            <SocialList data={feeds} refresh={live} filterKey="grapevine" max={6} more={{ title: "You Should See This", kicker: `The Grapevine · ${sub}` }} />
+            <SocialList data={feeds} refresh={live} filterKey="grapevine" max={wide ? 6 : 3} more={{ title: "You Should See This", kicker: `The Grapevine · ${sub}` }} />
           </div>
         )}
 
-        <div className={PAIR}>
+        <Fold phoneOnly label="Play today's puzzle" className={PAIR}>
           <ColumnHead title="The Puzzle Desk" sub="Two minutes of play, set from today's headlines" />
           <PuzzleDesk headlines={puzzleHeadlines} dateKey={puzzleDateKey} />
-        </div>
+        </Fold>
+      </div>
       </div>
     </section>
   );
