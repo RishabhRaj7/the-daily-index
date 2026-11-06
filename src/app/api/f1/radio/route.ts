@@ -1,3 +1,4 @@
+import { RADIO_CLIP } from "@/lib/f1-paths";
 import { cachedTranscripts, radioPaused, transcribe } from "@/lib/live/f1-radio";
 
 export const dynamic = "force-dynamic";
@@ -9,8 +10,6 @@ export const maxDuration = 60;
 // worth; the client asks again for the rest. { paused: true } when every
 // radio model has spent its day's allowance — the page stops asking.
 
-const CLIP = /^https:\/\/livetiming\.formula1\.com\/static\/[\w/.-]+\/TeamRadio\/[\w.-]+\.mp3$/;
-
 export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
   const w = params.getAll("w");
@@ -19,7 +18,7 @@ export async function GET(req: Request) {
   const clips = params
     .getAll("u")
     .map((u, i) => ({ u, w: w[i] || "", f: f[i] || null }))
-    .filter((x) => CLIP.test(x.u))
+    .filter((x) => RADIO_CLIP.test(x.u))
     .slice(0, 40);
   const urls = clips.map((x) => x.u);
   const known = await cachedTranscripts(urls);
