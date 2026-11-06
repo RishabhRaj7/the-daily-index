@@ -1,5 +1,6 @@
 "use client";
 
+import { CalendarDotsIcon, ClockIcon } from "@phosphor-icons/react";
 import { useSyncExternalStore } from "react";
 import type { F1Session, F1SessionTop } from "@/lib/types";
 import { teamColor } from "@/lib/personalization";
@@ -54,10 +55,16 @@ export default function RaceWeekend({ sessions, tops = {} }: { sessions: F1Sessi
   return (
     <div className="module" data-reveal>
       <div className="flex items-baseline justify-between gap-2 mb-2">
-        <div className="font-label text-[11px] text-ink-soft">
+        <div className="font-label text-[11px] text-ink-soft inline-flex items-center gap-1.5">
+          <CalendarDotsIcon size={14} aria-hidden="true" />
           Race weekend{isSprint ? " · sprint" : ""}
         </div>
-        {tz && <div className="font-mono text-[11px] text-ink-faint">Times in {tz}</div>}
+        {tz && (
+          <div className="font-mono text-[11px] text-ink-faint inline-flex items-center gap-1">
+            <ClockIcon size={13} aria-hidden="true" />
+            {tz}
+          </div>
+        )}
       </div>
       <ol className="space-y-3">
         {days.map(({ day, items }) => (

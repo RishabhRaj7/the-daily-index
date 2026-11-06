@@ -1,8 +1,8 @@
 import type { SectionKey } from "./types";
 
-// The paper's running order: after the front page, the sections fall into five
+// The paper's running order: after the front page, the sections fall into four
 // groups, the way a morning goes. The news from far away to the reader's own
-// street, their sport, their money, what's coming, then a back page to finish on.
+// street, their sport, their money, then what's coming and what people are saying.
 // The groups order the page and name the menu; no title for them prints on the
 // page, where each section's own header is enough. A section always belongs to
 // its group; the reader's own order (Personalization.sectionOrder) still decides
@@ -10,7 +10,7 @@ import type { SectionKey } from "./types";
 // order within it. So no saved order needs migrating, and moving Tech up in
 // Settings brings Next up with it.
 
-export type ChapterId = "news" | "sport" | "money" | "next" | "back";
+export type ChapterId = "news" | "sport" | "money" | "next";
 
 export interface Chapter {
   id: ChapterId;
@@ -38,12 +38,7 @@ export const CHAPTERS: Chapter[] = [
   {
     id: "next",
     label: "Next",
-    sections: ["circuit-board", "straw-poll"],
-  },
-  {
-    id: "back",
-    label: "Back",
-    sections: ["grapevine"],
+    sections: ["circuit-board", "straw-poll", "grapevine"],
   },
 ];
 
@@ -54,8 +49,8 @@ export interface PrintedChapter extends Chapter {
 
 /**
  * The chapters for a reader's order. One with nothing of its own in `order`
- * (its sections hidden, say) keeps its usual place, since Next and Back also
- * carry things that aren't sections: the caller decides whether
+ * (its sections hidden, say) keeps its usual place, since Next also carries
+ * things that aren't sections: the caller decides whether
  * it prints at all.
  */
 export function chaptersFor(order: SectionKey[]): PrintedChapter[] {

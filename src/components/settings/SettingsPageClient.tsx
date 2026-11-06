@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowLeftIcon, ArrowRightIcon, CheckIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { F1RosterEntry, Personalization } from "@/lib/types";
@@ -277,7 +278,7 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
       <div className="fixed bottom-0 inset-x-0 z-40 border-t hairline glass">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <button type="button" onClick={handleClose} className="chip">
-            ← {dirty ? "Discard changes" : "Back to the paper"}
+            <ArrowLeftIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" /> {dirty ? "Discard changes" : "Back to the paper"}
           </button>
           <span className="font-mono text-[11px] text-ink-soft hidden sm:block">
             {saved ? "Saved — reprinting…" : dirty ? "Unsaved changes" : "Everything saved"}
@@ -287,7 +288,7 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
             disabled={!dirty || saved}
             className="chip chip-signal h-10 px-5 disabled:opacity-40"
           >
-            {saved ? "Saved ✓" : "Save & reprint →"}
+            {saved ? <>Saved <CheckIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" /></> : <>Save &amp; reprint <ArrowRightIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" /></>}
           </button>
         </div>
       </div>

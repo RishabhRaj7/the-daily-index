@@ -1,3 +1,6 @@
+"use client";
+
+import { LightningIcon } from "@phosphor-icons/react";
 import type { BriefItem } from "@/lib/preferences/types";
 
 // In Brief: the big stories this section didn't have room for, a headline each
@@ -9,7 +12,8 @@ export default function InBrief({ items }: { items: BriefItem[] }) {
   return (
     <aside className="mt-4" aria-label="In brief" data-reveal>
       <div className="flex items-center gap-3 mb-0.5">
-        <span className="font-label text-[11px]" style={{ color: "var(--section-hue)" }}>
+        <span className="font-label text-[11px] inline-flex items-center gap-1" style={{ color: "var(--section-hue)" }}>
+          <LightningIcon size={13} weight="fill" aria-hidden="true" />
           In Brief
         </span>
         <span className="h-px flex-1 bg-[color:var(--rule)]" />

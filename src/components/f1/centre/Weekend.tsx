@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowLeftIcon, ArrowRightIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import type { F1Race } from "@/lib/types";
 import type { LiveSnapshot } from "@/lib/f1-live-types";
@@ -105,7 +106,7 @@ function SessionCard({ s, on, onOpen }: { s: WeekendSession; on: boolean; onOpen
           </span>
         )}
         <span className="ml-auto font-label text-[9px]" style={{ color: on ? "var(--hue-f1)" : undefined }}>
-          {on ? "On show" : "Open →"}
+          {on ? "On show" : <>Open <ArrowRightIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" /></>}
         </span>
       </div>
     </button>
@@ -227,7 +228,7 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
           <h3 className="font-label text-[10.5px] tracking-[0.12em]">Sessions</h3>
           {current && (
             <button type="button" onClick={() => onPick(null)} className="font-sans text-[12px] font-semibold text-ink-soft hover:text-ink">
-              ← Back to the latest
+              <ArrowLeftIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" /> Back to the latest
             </button>
           )}
         </div>

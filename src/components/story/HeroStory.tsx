@@ -1,5 +1,7 @@
 "use client";
 
+import { ArrowSquareOutIcon, ClockIcon, LightbulbIcon, StarIcon } from "@phosphor-icons/react";
+import PublisherMark from "./PublisherMark";
 import type { Story } from "@/lib/types";
 import { SECTION_META } from "@/lib/sections";
 import StatCallout from "./StatCallout";
@@ -49,7 +51,10 @@ export default function HeroStory({ story }: { story: Story }) {
             </>
           )}
           {story.personal && (
-            <span className="rounded-full px-2 py-0.5 bg-signal text-signal-ink text-[11px]">For you · {story.personal}</span>
+            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 bg-signal text-signal-ink text-[11px]">
+              <StarIcon size={11} weight="fill" aria-hidden="true" />
+              {story.personal}
+            </span>
           )}
           <CopyTag copy={story.copy} />
         </div>
@@ -73,10 +78,13 @@ export default function HeroStory({ story }: { story: Story }) {
         {story.deck && <p className="font-headline italic text-lg md:text-xl text-ink-soft leading-snug mt-3">{story.deck}</p>}
 
         <div className="font-mono text-[11px] text-ink-soft flex flex-wrap items-center gap-x-3 gap-y-1 mt-2.5">
-          {story.sourceName && <span className="text-ink font-medium uppercase">{story.sourceName}</span>}
+          {story.sourceName && <PublisherMark source={story.sourceName} size={18} className="font-sans font-semibold text-[13px] text-ink" />}
           {story.dateline && story.dateline !== story.sourceName && <span>{story.dateline}</span>}
-          <span>{story.readTimeMin} MIN</span>
-          <span>UPDATED <Ago iso={story.postedAt} fallback={story.lastUpdated.toUpperCase()} upper /></span>
+          <span className="inline-flex items-center gap-1">
+            <ClockIcon size={13} aria-hidden="true" />
+            {story.readTimeMin} min
+          </span>
+          <Ago iso={story.postedAt} fallback={story.lastUpdated} />
         </div>
 
         {standfirst && (
@@ -84,7 +92,10 @@ export default function HeroStory({ story }: { story: Story }) {
         )}
         {story.why && (
           <p className="why-line font-headline italic text-[17px] leading-snug text-ink mt-4">
-            <span className="font-label not-italic text-[11px] text-ink-soft block mb-0.5">Why it matters</span>
+            <span className="font-label not-italic text-[11px] text-ink-soft mb-0.5 flex items-center gap-1">
+              <LightbulbIcon size={13} aria-hidden="true" />
+              Why it matters
+            </span>
             {story.why}
           </p>
         )}
@@ -103,8 +114,8 @@ export default function HeroStory({ story }: { story: Story }) {
               onClick={() => recordEngagement(story)}
               className="chip"
             >
-              Read the full story at {story.sourceName}
-              <span aria-hidden="true">↗</span>
+              Read the full story
+              <ArrowSquareOutIcon size={14} aria-hidden="true" />
             </a>
           )}
           <ShareButton story={story} className="chip" />

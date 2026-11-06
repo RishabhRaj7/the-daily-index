@@ -1,5 +1,6 @@
 "use client";
 
+import MoveArrow from "@/components/chrome/MoveArrow";
 import { createContext, useContext, useState } from "react";
 import type { OddsPick } from "@/lib/odds-pick";
 import OddsSheet from "@/components/widgets/OddsSheet";
@@ -37,7 +38,7 @@ export default function StoryOdds({ headline }: { headline: string }) {
         </span>
         {move != null && (
           <span className={`font-mono text-[11px] shrink-0 ${move > 0 ? "text-up" : "text-down"}`}>
-            {move > 0 ? "▲" : "▼"} {Math.abs(Math.round(move))}
+            <MoveArrow up={move > 0} /> {Math.abs(Math.round(move))}
           </span>
         )}
       </button>

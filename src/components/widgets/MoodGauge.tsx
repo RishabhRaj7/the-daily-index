@@ -1,3 +1,4 @@
+import { GaugeIcon } from "@phosphor-icons/react";
 import type { MarketIndex, MarketMood } from "@/lib/types";
 import Fold from "@/components/chrome/Fold";
 import { moodZone, moodZones } from "@/lib/mood-zones";
@@ -81,8 +82,8 @@ function Breadth({ b }: { b: NonNullable<MarketMood["breadth"]> }) {
 // for fear through green for greed), so the arc always agrees with the word.
 // Breadth, the day's moves and past readings print under the dial where the card
 // runs two rows of tiles tall (a laptop or desktop), so it's never half empty. On
-// a phone or an ultrawide, where the card is only as tall as it needs, they open
-// in place (globals.css, .pulse-tiles .fold).
+// a phone they slide up in a sheet, and on an ultrawide, where the card is only as
+// tall as it needs, they open in place (globals.css, .pulse-tiles .fold).
 export default function MoodGauge({
   mood,
   indices = [],
@@ -106,7 +107,10 @@ export default function MoodGauge({
 
   return (
     <div className="module h-full flex flex-col" data-reveal>
-      <div className="font-label text-[11px] text-ink-soft mb-2">{title}</div>
+      <div className="font-label text-[11px] text-ink-soft mb-2 flex items-center gap-1.5">
+        <GaugeIcon size={14} aria-hidden="true" />
+        {title}
+      </div>
       <svg viewBox="0 0 100 60" className="w-full max-w-[200px] mx-auto block overflow-visible">
         {zones.map((z) => (
           <path

@@ -1,5 +1,7 @@
 "use client";
 
+import { ArrowRightIcon, CaretDownIcon, CaretUpIcon, CoinsIcon } from "@phosphor-icons/react";
+import Sheet from "@/components/extras/Sheet";
 import { useState, useSyncExternalStore } from "react";
 import type { Commodity, CryptoQuote, MarketIndex, MarketMood, MarketRegion, OddsMarket, Story } from "@/lib/types";
 import SectionHeader from "@/components/story/SectionHeader";
@@ -17,8 +19,8 @@ import { regionState, reopenLabel, type HolidayMap, type SessionState } from "@/
 
 // Market Pulse: the world's markets one region at a time. A row of region
 // cards (each with its own mood) doubles as the tabs; the selected region
-// opens as a mood gauge beside its four index tiles (two on a phone, the rest a
-// tap away in place). Commodities follow, in rupees: a swipe row on a phone, one
+// opens as a mood gauge beside its four index tiles (two on a phone, with all of
+// them a sheet away). Commodities follow, in rupees: a swipe row on a phone, one
 // row with the room (globals.css, .pulse-tiles and .pulse-prices).
 
 const REGIONS: MarketRegion[] = ["India", "US", "Europe", "Asia"];
@@ -138,8 +140,9 @@ function PriceTile({
               {source ? ` · ${source}` : ""}
             </span>
           </span>
-          <span className={`font-mono text-[11px] font-semibold ${up ? "text-up" : "text-down"}`}>
-            {up ? "▲" : "▼"} {Math.abs(changePct).toFixed(2)}%
+          <span className={`font-mono text-[11px] font-semibold inline-flex items-center gap-0.5 ${up ? "text-up" : "text-down"}`}>
+            {up ? <CaretUpIcon size={12} weight="fill" aria-label="Up" /> : <CaretDownIcon size={12} weight="fill" aria-label="Down" />}
+            {Math.abs(changePct).toFixed(2)}%
           </span>
         </span>
         <span className="font-display font-bold text-[1.7rem] leading-none tracking-tight tabular-nums">{price}</span>
@@ -240,7 +243,7 @@ export default function MarketPulseSection({
             ))}
           </div>
 
-          <ul key={active} role="tabpanel" aria-label={`${active} markets`} data-all={allTiles || undefined} className="pulse-tiles grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
+          <ul key={active} role="tabpanel" aria-label={`${active} markets`} className="pulse-tiles grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
             {activeMood && (
               <li className="sm:col-span-2 lg:col-span-1 lg:row-span-2">
                 <MoodGauge mood={activeMood} indices={activeIndices} title={`${active} mood`} />
@@ -257,9 +260,25 @@ export default function MarketPulseSection({
             ))}
           </ul>
           {activeIndices.length > 2 && (
-            <button type="button" onClick={() => setAllTiles((v) => !v)} aria-expanded={allTiles} className="pulse-all fold-toggle mt-1">
-              {allTiles ? "Show fewer" : `All ${activeIndices.length} ${active} indices`} <span aria-hidden="true">{allTiles ? "↑" : "↓"}</span>
+            <button type="button" onClick={() => setAllTiles(true)} className="pulse-all fold-toggle mt-1">
+              All {activeIndices.length} {active} indices
+              <ArrowRightIcon size={13} weight="bold" aria-hidden="true" />
             </button>
+          )}
+          {allTiles && (
+            <Sheet title={`${active} indices`} kicker="Market Pulse" onClose={() => setAllTiles(false)} hue="var(--hue-markets)">
+              <ul className="grid grid-cols-1 gap-3">
+                {activeIndices.map((idx, i) => (
+                  <MarketIndexCard
+                    key={idx.id}
+                    index={idx}
+                    i={i}
+                    live={updatedAt !== null}
+                    onOpen={() => setChart({ kind: "index", id: idx.id, name: idx.name, kicker: `${idx.market} · index` })}
+                  />
+                ))}
+              </ul>
+            </Sheet>
           )}
 
           <IpoWatch />
@@ -268,7 +287,10 @@ export default function MarketPulseSection({
           {(commodities.length > 0 || crypto.length > 0) && (
             <div className="mt-6">
               <div className="flex items-baseline justify-between gap-4 mb-2.5">
-                <h3 className="font-display font-bold text-[1.5rem] leading-none">Commodities &amp; crypto</h3>
+                <h3 className="font-display font-bold text-[1.5rem] leading-none inline-flex items-center gap-1.5">
+                  <CoinsIcon size={20} weight="bold" style={{ color: "var(--section-hue)" }} aria-hidden="true" />
+                  Commodities &amp; crypto
+                </h3>
                 <span className="hidden md:inline font-mono text-[11px] text-ink-soft text-right">
                   {commodities.some((c) => c.source === "IBJA")
                     ? "Gold and silver at IBJA's published rate, before GST · other benchmarks in rupees · crypto in USDT · tap for a chart"

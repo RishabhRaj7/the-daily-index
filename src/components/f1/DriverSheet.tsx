@@ -1,5 +1,7 @@
 "use client";
 
+import MoveArrow from "@/components/chrome/MoveArrow";
+import { XIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Season, SeasonCell, SeasonDriver } from "@/lib/live/f1-season";
@@ -129,7 +131,7 @@ function Body({ season, d }: { season: Season; d: SeasonDriver }) {
           <span className="flex gap-3 font-mono text-[10.5px] text-ink-faint">
             <span>○ qualified</span>
             <span style={{ color: d.colour }}>● finished</span>
-            <span style={{ color: "var(--down)" }}>✕ retired</span>
+            <span style={{ color: "var(--down)" }}><XIcon size={11} weight="bold" className="inline align-[-2px]" aria-hidden="true" /> retired</span>
           </span>
         </div>
         <Chart season={season} d={d} />
@@ -210,7 +212,7 @@ function Body({ season, d }: { season: Season; d: SeasonDriver }) {
                           P{c.text}
                           {c.grid && c.pos && c.grid !== c.pos && (
                             <span className="text-[10px] ml-1" style={{ color: c.grid > c.pos ? "var(--up)" : "var(--down)" }}>
-                              {c.grid > c.pos ? `▲${c.grid - c.pos}` : `▼${c.pos - c.grid}`}
+                              <MoveArrow up={c.grid > c.pos} size={10} />{Math.abs(c.grid - c.pos)}
                             </span>
                           )}
                           {c.status !== "Finished" && <span className="text-ink-faint text-[10px] font-normal ml-1">{c.status}</span>}

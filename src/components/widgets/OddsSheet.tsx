@@ -1,5 +1,7 @@
 "use client";
 
+import MoveArrow from "@/components/chrome/MoveArrow";
+import { ArrowSquareOutIcon, StarIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import type { OddsMarket } from "@/lib/types";
 import Sheet from "@/components/extras/Sheet";
@@ -110,7 +112,7 @@ export default function OddsSheet({ market: m, why, watched = false, onClose }: 
         )}
         {watched && !starred ? (
           <span className="chip h-8 text-[12px] gap-1.5" title="One of your watchlist's questions (edit it under Straw Poll)" style={{ borderColor: "var(--section-hue)", color: "var(--section-hue)" }}>
-            ★ On your watchlist
+            <StarIcon size={13} weight="fill" className="inline align-[-2px]" aria-hidden="true" /> On your watchlist
           </span>
         ) : (
           <button
@@ -120,7 +122,7 @@ export default function OddsSheet({ market: m, why, watched = false, onClose }: 
             className="chip h-8 text-[12px] gap-1.5"
             style={starred ? { background: "var(--section-hue)", borderColor: "var(--section-hue)", color: "var(--paper)" } : undefined}
           >
-            {starred ? "★ Starred" : "☆ Watch this"}
+            {starred ? <><StarIcon size={13} weight="fill" className="inline align-[-2px]" aria-hidden="true" /> Starred</> : <><StarIcon size={13} className="inline align-[-2px]" aria-hidden="true" /> Watch this</>}
           </button>
         )}
       </div>
@@ -190,7 +192,7 @@ export default function OddsSheet({ market: m, why, watched = false, onClose }: 
                           {pin && (
                             <span className={pin.move > 0 ? "text-up" : "text-down"}>
                               {" "}
-                              · {leader} {pin.move > 0 ? "▲" : "▼"} {Math.abs(Math.round(pin.move))} pts after
+                              · {leader} <MoveArrow up={pin.move > 0} /> {Math.abs(Math.round(pin.move))} pts after
                             </span>
                           )}
                         </span>
@@ -228,7 +230,7 @@ export default function OddsSheet({ market: m, why, watched = false, onClose }: 
                       <span className="font-display font-bold text-[1.25rem] leading-none tabular-nums">{Math.round(o.prob)}%</span>
                       {d != null && Math.abs(d) >= 1 && (
                         <span className={`block font-mono text-[11px] ${d > 0 ? "text-up" : "text-down"}`}>
-                          {d > 0 ? "▲" : "▼"} {Math.abs(Math.round(d))}
+                          <MoveArrow up={d > 0} /> {Math.abs(Math.round(d))}
                         </span>
                       )}
                     </span>
@@ -277,7 +279,7 @@ export default function OddsSheet({ market: m, why, watched = false, onClose }: 
         Prices are what traders pay for a share that pays $1 if it happens, read as a chance. News from Google News; the paper links stories to jumps by
         their timing, which suggests a cause but doesn&rsquo;t prove one. The paper reads prices; it takes no bets.{" "}
         <a href={m.url} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted underline-offset-2 hover:text-ink">
-          {m.source} ↗
+          {m.source} <ArrowSquareOutIcon size={13} className="inline align-[-2px]" aria-hidden="true" />
         </a>{" "}
         (needs a VPN in India)
       </p>

@@ -170,8 +170,12 @@ html {
      the paper (the other pages' bars are short enough for this to matter little). */
   scroll-padding-top: 4.25rem;
 }
-@media (max-width: 767.98px), (min-width: 1500px) {
+@media (min-width: 1500px) {
   html { scroll-padding-top: 0.75rem; }
+}
+/* A phone's slim row of where you are takes the top once the masthead has gone. */
+@media (max-width: 767.98px) {
+  html { scroll-padding-top: 3.25rem; }
 }
 
 body {
@@ -586,31 +590,66 @@ article[id] { scroll-margin-top: 0.5rem; }
   .paper-section:has(> aside) > :not(section, aside) { grid-column: 1 / -1; }
 }
 
-/* A story. On a phone or tablet it shows its headline and first lines, and opens
-   in place (StoryArticle sets data-open). From 1024px the whole summary prints,
-   with its links, and there's nothing to open. The text is always in the page,
-   so the browser's find still reaches it. */
+/* A story. On a phone or tablet it shows its headline and its summary's first
+   sentence, whole, and opens in place (StoryArticle sets data-open). From 1024px
+   the whole summary prints and there's nothing to open. The text is always in the
+   page, so the browser's find still reaches it. Its foot sits at the bottom of
+   the story, so a row of stories lines its publishers up. */
 .story-plate { display: none; }
-.story-more { display: none; }
+.story .story-more { display: none; }
+.story > .min-w-0 { height: 100%; }
+.story-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.45rem;
+  font: 600 12.5px var(--font-sans);
+}
+.story-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+  color: var(--ink);
+  transition: color 0.2s;
+}
+.story-source:hover { color: var(--section-hue, var(--accent)); }
+.story-foot .icon-btn { width: 2rem; height: 2rem; }
 @media (max-width: 1023.98px) {
-  .story-more { display: inline-flex; min-height: 2rem; }
-  .story:not([data-open]) .story-body > p:first-child {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    -webkit-line-clamp: 2;
-    cursor: pointer;
-  }
-  .story-lead:not([data-open]) .story-body > p:first-child { -webkit-line-clamp: 3; }
+  .story .story-more { display: inline-grid; }
+  .story:not([data-open]) .story-after,
   .story:not([data-open]) .story-rest,
-  .story:not([data-open]) .story-actions,
   html[data-why="on"] .story:not([data-open]) .why-line { display: none; }
-  /* A big first letter doesn't survive being cut to two lines. */
+  .story:not([data-open]) .story-body > p:first-child { cursor: pointer; }
+  /* A big first letter is too much for one sentence. */
   .story .drop-cap::first-letter { all: unset; }
 }
-@media (min-width: 700px) and (max-width: 1023.98px) {
-  .story:not([data-open]) .story-body > p:first-child { -webkit-line-clamp: 3; }
+
+/* A publisher's mark (story/PublisherMark.tsx). Each logo has a version for each
+   paper; a thin ring keeps a black tile on the dark paper and a white one on the
+   light paper from melting into it. */
+.pub-logo,
+.pub-letter {
+  flex: none;
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px var(--rule);
 }
+.pub-logo { object-fit: contain; }
+.pub-on-dark { display: none; }
+html[data-edition="evening"] .pub-on-dark { display: inline-block; }
+html[data-edition="evening"] .pub-on-light { display: none; }
+.pub-letter {
+  display: inline-grid;
+  place-items: center;
+  color: #fff;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  line-height: 1;
+}
+
+
 /* The plate only where it fills real room beside the lead. */
 @container ed (min-width: 1700px) {
   .story-lead { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); column-gap: 1.75rem; align-items: stretch; }
@@ -673,7 +712,7 @@ article[id] { scroll-margin-top: 0.5rem; }
 
 /* Market Pulse. */
 @container ed (max-width: 699.98px) {
-  .pulse-tiles:not([data-all]) > li:nth-child(n + 4) { display: none; }
+  .pulse-tiles > li:nth-child(n + 4) { display: none; }
   .pulse-prices { display: flex; overflow-x: auto; gap: 0.5rem; scroll-snap-type: x mandatory; scrollbar-width: none; }
   .pulse-prices > * { flex: 0 0 44%; scroll-snap-align: start; display: flex; height: auto; }
   .pulse-prices > * > * { height: auto; }
@@ -690,7 +729,7 @@ article[id] { scroll-margin-top: 0.5rem; }
 @container ed (max-width: 699.98px) {
   .poll-leads { display: flex; overflow-x: auto; gap: 0.6rem; scroll-snap-type: x mandatory; scrollbar-width: none; }
   .poll-leads > * { flex: 0 0 88%; scroll-snap-align: start; height: auto; }
-  .poll-movers:not([data-all]) > li:nth-child(n + 4) { display: none; }
+  .poll-movers > li:nth-child(n + 4) { display: none; }
 }
 @container ed (min-width: 700px) { .fold-toggle.poll-all { display: none; } }
 @container ed (min-width: 1700px) {
@@ -709,8 +748,7 @@ article[id] { scroll-margin-top: 0.5rem; }
    colour. From `md` the block prints and the card isn't there. */
 .fold-card {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
   column-gap: 0.75rem;
   width: 100%;
@@ -723,16 +761,8 @@ article[id] { scroll-margin-top: 0.5rem; }
   border-radius: 12px;
   background: color-mix(in srgb, var(--section-hue, var(--accent)) 10%, var(--paper));
 }
-.fold-card::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0.6rem;
-  bottom: 0.6rem;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: var(--section-hue, var(--accent));
-}
+.fold-card > .min-w-0 { flex: 1; }
+.fold-glyph { flex: none; color: var(--section-hue, var(--accent)); }
 .fold-arrow {
   display: grid;
   place-items: center;
@@ -766,33 +796,54 @@ article[id] { scroll-margin-top: 0.5rem; }
   .pulse-tiles .fold:not([data-open]) > .fold-body { display: block; }
 }
 
-/* The phone's chapter bar, along the foot of the screen. */
+/* The phone's menu, along the foot of the screen: an outline icon and a word, the
+   current one filled, in its section's colour, on a tint of it. The line along its
+   top is the reading progress bar too, so the one at the top of the screen steps
+   aside: a piece per word, filled as its part of the page goes by, so it always
+   ends above the current word (chrome/PaperNav.tsx). */
 .paper-dock {
   position: fixed;
   inset: auto 0 0 0;
   z-index: 40;
   display: grid;
-  height: calc(3.25rem + env(safe-area-inset-bottom));
+  height: calc(3.5rem + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
   background: var(--paper);
-  border-top: 1px solid var(--rule);
 }
 .paper-dock a {
   position: relative;
-  display: grid;
-  place-items: center;
-  font: 600 12.5px var(--font-sans);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  margin: 0.3rem 0.15rem 0.15rem;
+  border-radius: 10px;
+  font: 600 11.5px/1 var(--font-sans);
   color: var(--ink-soft);
+  transition: color 0.3s, background-color 0.3s;
 }
-.paper-dock a[aria-current] { color: var(--ink); }
-.paper-dock a[aria-current]::before {
-  content: "";
+.paper-dock a[aria-current] {
+  color: var(--now-hue, var(--accent));
+  background: color-mix(in srgb, var(--now-hue, var(--accent)) 13%, transparent);
+}
+.dock-line {
   position: absolute;
-  top: -1px;
-  left: 18%;
-  right: 18%;
-  height: 2px;
-  border-radius: 2px;
+  inset: 0 0 auto 0;
+  height: 3px;
+  display: grid;
+  gap: 2px;
+}
+.dock-line > span {
+  position: relative;
+  overflow: hidden;
+  background: var(--rule);
+}
+.dock-line > span > span {
+  position: absolute;
+  inset: 0;
+  transform: scaleX(0);
+  transform-origin: left center;
   background: var(--now-hue, var(--accent));
   transition: background-color 0.3s;
 }
@@ -800,7 +851,49 @@ article[id] { scroll-margin-top: 0.5rem; }
   .paper-dock { display: none; }
 }
 @media (max-width: 767.98px) {
-  .edition-page { padding-bottom: calc(3.25rem + env(safe-area-inset-bottom)); }
+  .edition-page { padding-bottom: calc(3.5rem + env(safe-area-inset-bottom)); }
+  html:has(.paper-dock) .reading-bar { display: none; }
+}
+
+/* The phone's slim row once the masthead has gone: the section you're in, in its
+   colour, and the way to any of them. */
+.phone-now {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  height: 2.75rem;
+  padding: 0 1rem;
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+  transform: translateY(-100%);
+  visibility: hidden;
+  transition: transform 0.25s var(--ease-out), visibility 0.25s;
+}
+.phone-now[data-shown] { transform: none; visibility: visible; }
+.phone-now-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  font: 800 1.2rem/1 var(--font-display);
+  text-transform: uppercase;
+  transition: color 0.3s;
+}
+.phone-now-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: none;
+  min-height: 2.25rem;
+  font: 600 13px var(--font-sans);
+  color: var(--ink-soft);
+}
+@media (min-width: 768px) {
+  .phone-now { display: none; }
 }
 
 /* The side menu, from 1500px: the paper's own index, in its groups. It sits
@@ -848,11 +941,11 @@ article[id] { scroll-margin-top: 0.5rem; }
 .rail-row {
   position: relative;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 0.35rem;
-  padding: 0.26rem 0.4rem 0.24rem 0.6rem;
-  border-radius: 4px;
+  padding: 0.24rem 0.4rem 0.22rem 0.35rem;
+  border-radius: 5px;
   font: 800 1.02rem/1.05 var(--font-display);
   text-transform: uppercase;
   letter-spacing: 0.005em;
@@ -860,16 +953,13 @@ article[id] { scroll-margin-top: 0.5rem; }
   color: var(--ink);
   transition: background-color 0.2s, color 0.2s;
 }
-.rail-row::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0.26rem;
-  bottom: 0.26rem;
-  width: 3px;
-  border-radius: 2px;
-  background: var(--row-hue);
+.rail-row-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
 }
+.rail-icon { flex: none; color: var(--row-hue); }
 .rail-row b {
   font: 500 11px var(--font-mono);
   letter-spacing: 0;
@@ -880,7 +970,7 @@ article[id] { scroll-margin-top: 0.5rem; }
 .rail-row b.rail-note-down { color: var(--down); }
 .rail-row:hover { background: color-mix(in srgb, var(--row-hue) 14%, transparent); }
 .rail-row[aria-current] { background: var(--row-hue); color: var(--paper); }
-.rail-row[aria-current]::before { background: transparent; }
+.rail-row[aria-current] .rail-icon,
 .rail-row[aria-current] b { color: var(--paper); }
 
 /* The top bar: sticky, except on the paper on a phone, where the chapters are at
@@ -991,7 +1081,7 @@ article[id] { scroll-margin-top: 0.5rem; }
 @media (pointer: coarse) {
   .chip { min-height: 2.75rem; }
   .icon-btn { width: 2.75rem; height: 2.75rem; }
-  .story-actions a, .story-actions button { min-height: 2.75rem; }
+  .story-source { min-height: 2.25rem; }
 }
 
 /* Per-article tools stay out of the way until the article is hovered. */

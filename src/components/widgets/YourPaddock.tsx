@@ -1,5 +1,6 @@
 "use client";
 
+import { SteeringWheelIcon, XIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { F1ConstructorStanding, F1LastRace, F1RosterEntry, F1Standing } from "@/lib/types";
@@ -219,9 +220,7 @@ function PaddockPicker({ roster, onClose }: { roster: F1RosterEntry[]; onClose: 
               <p className="font-sans text-[13px] text-ink-soft mt-2">One team and up to two drivers. Their numbers lead the F1 section.</p>
             </div>
             <button type="button" onClick={onClose} className="icon-btn" aria-label="Close">
-              <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
-                <path d="M4 4l8 8M12 4l-8 8" />
-              </svg>
+              <XIcon size={17} aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -375,7 +374,10 @@ export default function YourPaddock({
   return (
     <div className="module pit-you self-stretch flex flex-col gap-4" data-reveal>
       <div className="flex items-center justify-between">
-        <span className="font-label text-[11px] text-ink-soft">Your paddock</span>
+        <span className="font-label text-[11px] text-ink-soft inline-flex items-center gap-1.5">
+          <SteeringWheelIcon size={14} aria-hidden="true" />
+          Your paddock
+        </span>
         <button type="button" className="chip h-7 px-3 text-[11px]" onClick={() => setOpen(true)}>
           Edit
         </button>

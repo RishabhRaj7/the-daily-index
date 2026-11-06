@@ -1,5 +1,8 @@
 "use client";
 
+import { ArrowRightIcon, CalendarDotsIcon, CaretDownIcon, CaretRightIcon, CaretUpIcon, ChartBarHorizontalIcon, FlagCheckeredIcon } from "@phosphor-icons/react";
+import Sheet from "@/components/extras/Sheet";
+import { PHONE, useMedia } from "@/lib/use-media";
 import { useRouter } from "next/navigation";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { F1GridResult, F1LiveResult, F1Race, F1LastRace, F1Phase, F1SessionResult, F1SessionTop } from "@/lib/types";
@@ -82,8 +85,11 @@ function RaceOdds({ market: m }: { market: OddsMarket }) {
     <>
       <button type="button" onClick={() => setOpen(true)} className="module pit-wins block w-full text-left group" data-reveal>
         <div className="flex items-baseline justify-between gap-2 mb-2.5">
-          <span className="font-label text-[11px] text-ink-soft">Who wins Sunday · traders&rsquo; odds</span>
-          <span className="font-mono text-[11px] text-ink-faint group-hover:text-ink">chart ›</span>
+          <span className="font-label text-[11px] text-ink-soft inline-flex items-center gap-1.5">
+            <ChartBarHorizontalIcon size={14} aria-hidden="true" />
+            Who wins Sunday · traders&rsquo; odds
+          </span>
+          <span className="font-mono text-[11px] text-ink-faint group-hover:text-ink">chart <CaretRightIcon size={12} weight="bold" className="inline align-[-2px]" aria-hidden="true" /></span>
         </div>
         <ul className="space-y-1.5">
           {field.map((o) => {
@@ -238,7 +244,10 @@ export default function StartingGrid({
     return facts && facts.length > 0 ? facts[0] : null;
   }, [nextRace.circuit]);
   const router = useRouter();
-  const [showAll, setShowAll] = useState(false);
+  const [wantAll, setShowAll] = useState(false);
+  // On a phone the whole order slides up in a sheet; on anything bigger it opens in place.
+  const phone = useMedia(PHONE);
+  const showAll = wantAll && !phone;
   const raceOdds = useContext(RaceOddsContext);
   const track = useTrack(part === "desk" ? nextRace.circuitKey : null);
   const live = racePhase === "race" && currentRace !== null;
@@ -398,7 +407,10 @@ export default function StartingGrid({
       {/* 3. Coming up — the calendar after this weekend. */}
       {part !== "calendar" ? null : upcoming.length > 1 ? (
         <div className="module pit-coming" data-reveal>
-          <div className="font-label text-[11px] text-ink-soft mb-2">Coming up</div>
+          <div className="font-label text-[11px] text-ink-soft mb-2 flex items-center gap-1.5">
+            <CalendarDotsIcon size={14} aria-hidden="true" />
+            Coming up
+          </div>
           <ol>
             {upcoming.slice(1).map((race) => (
               <li key={race.round} className="grid grid-cols-[2rem_minmax(0,1fr)_auto] items-baseline gap-2 border-t hairline first:border-t-0 py-2">
@@ -445,7 +457,8 @@ export default function StartingGrid({
       {timingHere && !liveSnap && (resultRows.length > 0 || sessionStatus !== "ready" || gridPending) && (
         <div className={`module self-stretch flex flex-col ${part === "archive" ? "pit-result" : ""}`} data-reveal>
           <div className="flex items-baseline justify-between gap-2">
-            <span className="font-label text-[11px] text-ink-soft">
+            <span className="font-label text-[11px] text-ink-soft inline-flex items-center gap-1.5">
+              <FlagCheckeredIcon size={14} aria-hidden="true" />
               {sessionStatus === "ready" ? timingTitle : "Timing screens"}
             </span>
             {racePhase === "race" && liveResults.length > 0 && (
@@ -539,10 +552,36 @@ export default function StartingGrid({
                 <button
                   type="button"
                   onClick={() => setShowAll((value) => !value)}
-                  className="self-start font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-3"
+                  className="self-start inline-flex items-center gap-1 font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-3"
                 >
                   {showAll ? "Show fewer" : `Show all ${resultRows.length} drivers`}
+                  {phone ? <ArrowRightIcon size={13} weight="bold" aria-hidden="true" /> : showAll ? <CaretUpIcon size={13} weight="bold" aria-hidden="true" /> : <CaretDownIcon size={13} weight="bold" aria-hidden="true" />}
                 </button>
+              )}
+              {wantAll && phone && (
+                <Sheet title={timingTitle} kicker={timingRace || undefined} onClose={() => setShowAll(false)} width={560}>
+                  <table className="data-table text-xs">
+                    <colgroup>
+                      <col style={{ width: "1.75rem" }} />
+                      <col />
+                      <col style={{ width: "4.75rem" }} />
+                    </colgroup>
+                    <tbody>
+                      {resultRows.map((r) => (
+                        <tr key={`${r.position ?? "dnf"}-${r.code}`} className="border-t hairline first:border-t-0">
+                          <td className="py-2 font-mono text-ink-soft">{r.position ?? "—"}</td>
+                          <td className="py-2">
+                            <span className="flex items-center gap-2 min-w-0">
+                              <TeamGlyph team={r.team} colour={teamColor(r.team) ?? "var(--ink-faint)"} />
+                              <span className="font-semibold font-sans truncate">{r.driver}</span>
+                            </span>
+                          </td>
+                          <td className="py-2 num font-mono text-ink-soft">{"interval" in r ? r.interval : r.time}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Sheet>
               )}
               {sessionStale && (
                 <p className="text-[11px] text-ink-soft italic mt-2">

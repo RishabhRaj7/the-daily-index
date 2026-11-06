@@ -1,5 +1,6 @@
 "use client";
 
+import { CaretRightIcon } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 import type { LiveSnapshot } from "@/lib/f1-live-types";
 import { stewardsTally, type DriverTally } from "@/lib/f1-race-control";
@@ -207,7 +208,7 @@ export default function StewardsView({ snap, className = "" }: { snap: LiveSnaps
                       <TeamGlyph team={row?.team ?? ""} colour={row?.colour ?? "var(--ink-faint)"} size={14} />
                       <b className="font-sans text-[13px]">{t.code}</b>
                       <span className={`text-ink-faint text-[10px] transition-transform ${isOpen ? "rotate-90" : ""}`} aria-hidden="true">
-                        ›
+                        <CaretRightIcon size={12} weight="bold" className="inline align-[-2px]" aria-hidden="true" />
                       </span>
                     </span>
                     <span className="min-w-0">

@@ -9,6 +9,7 @@
 // Controlled: the settings page owns the draft and saves it with everything
 // else in one action.
 
+import { WarningCircleIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { DEFAULT_DIGEST_PREFERENCES } from "@/lib/preferences/storage";
 import type { DigestPreferences, DigestSection } from "@/lib/preferences/types";
@@ -273,7 +274,7 @@ export default function DigestPreferencesEditor({
             }}
             spellCheck={false}
           />
-          {jsonError && <p className="font-mono text-xs text-accent">✗ {jsonError}</p>}
+          {jsonError && <p className="font-mono text-xs text-accent"><WarningCircleIcon size={13} className="inline align-[-2px]" aria-hidden="true" /> {jsonError}</p>}
           <div className="flex gap-4 items-center">
             <button
               type="button"

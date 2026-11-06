@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowUpIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   Edition,
@@ -56,7 +57,7 @@ import Masthead from "@/components/masthead/Masthead";
 import { until } from "@/components/masthead/SignalRow";
 import HeroStory from "@/components/story/HeroStory";
 import FrontStrip from "@/components/widgets/FrontStrip";
-import { chaptersFor } from "@/lib/chapters";
+import { chaptersFor, type PrintedChapter } from "@/lib/chapters";
 import WeekAhead from "@/components/widgets/WeekAhead";
 import ListenButton from "@/components/extras/ListenButton";
 import PullToRefreshStamp from "@/components/chrome/PullToRefreshStamp";
@@ -1068,20 +1069,25 @@ export default function EditionView({
       );
   const visibleStandalone = isArchive ? [] : standaloneDigest;
 
-  // The running order (lib/chapters.ts). Next and Back also carry things that
-  // aren't sections, so they can print with no section of their own:
-  // the week ahead and the reader's own sections; the day's extras.
+  // The running order (lib/chapters.ts). Next also carries things that aren't
+  // sections: the reader's own sections and the week ahead, after the odds. The
+  // day's extras always finish the page, whichever group comes last.
   const extras = {
     note: !isArchive && editorsNote ? editorsNote.text : null,
     history: edition.onThisDay[0] ?? null,
     word: edition.wordOfDay?.word ? edition.wordOfDay : null,
   };
-  const chapters = chaptersFor(order).filter((c) => {
-    if (c.printed.length > 0) return true;
-    if (c.id === "next") return !isArchive || visibleStandalone.length > 0;
-    if (c.id === "back") return !!(extras.note || extras.history || extras.word);
-    return false;
-  });
+  const chapters = chaptersFor(order).filter((c) => c.printed.length > 0 || (c.id === "next" && (!isArchive || visibleStandalone.length > 0)));
+  type Item = { kind: "section"; key: SectionKey } | { kind: "own"; at: number } | { kind: "week" };
+  const itemsOf = (c: PrintedChapter): Item[] => {
+    const items: Item[] = c.printed.map((key) => ({ kind: "section", key }));
+    if (c.id !== "next") return items;
+    const poll = c.printed.indexOf("straw-poll");
+    const grapevine = c.printed.indexOf("grapevine");
+    const place = poll >= 0 ? poll + 1 : grapevine >= 0 ? grapevine : items.length;
+    items.splice(place, 0, ...visibleStandalone.map((_, at): Item => ({ kind: "own", at })), ...(isArchive ? [] : [{ kind: "week" } as Item]));
+    return items;
+  };
 
   // One menu, in the same words everywhere (chrome/PaperNav.tsx). The side menu
   // prints the day's number beside a section that has one.
@@ -1097,11 +1103,12 @@ export default function EditionView({
   const navChapters: NavChapter[] = chapters.map((c) => ({
     id: `ch-${c.id}`,
     label: c.label,
-    sections: [
-      ...c.printed.map((key) => ({ id: SECTION_META[key].slug, name: SECTION_META[key].name, hue: SECTION_META[key].hue, note: navNotes[key] })),
-      ...(c.id === "next" ? visibleStandalone.map(({ section }) => ({ id: `digest-${section.id}`, name: section.label, hue: digestHue(section.label) })) : []),
-      ...(c.id === "next" && !isArchive ? [{ id: "week-ahead", name: "The Week Ahead", hue: "var(--hue-money)" }] : []),
-    ],
+    sections: itemsOf(c).map((item) => {
+      if (item.kind === "section") return { id: SECTION_META[item.key].slug, name: SECTION_META[item.key].name, hue: SECTION_META[item.key].hue, note: navNotes[item.key] };
+      if (item.kind === "week") return { id: "week-ahead", name: "The Week Ahead", hue: "var(--hue-money)" };
+      const { section } = visibleStandalone[item.at];
+      return { id: `digest-${section.id}`, name: section.label, hue: digestHue(section.label) };
+    }),
   }));
 
   // Where each story runs on this page, so the briefing can link down to it.
@@ -1225,40 +1232,47 @@ export default function EditionView({
               screen shows more of a section at once, never a second one. */}
           {chapters.map((c) => (
             <div key={c.id} id={`ch-${c.id}`} className="chapter">
-              {c.printed.map((key) => (
-                <div key={key} className="paper-section" style={{ ["--section-hue" as string]: SECTION_META[key].hue }}>
-                  {sectionRenderers[key]()}
-                  {briefsFor(key).length > 0 && <InBrief items={briefsFor(key)} />}
-                  {oddsLayout.sections[key] && <OddsStrip picks={oddsLayout.sections[key]!} label={key === "grapevine" ? "Film and the awards" : "What traders expect"} />}
-                </div>
-              ))}
-              {/* The reader's own sections, then what's dated this week (today's paper only). */}
-              {c.id === "next" &&
-                visibleStandalone.map(({ section, articles }) => (
-                  <div key={`digest-${section.id}`} className="paper-section" style={{ ["--section-hue" as string]: digestHue(section.label) }}>
-                    <DigestSectionView section={section} articles={articles} />
+              {itemsOf(c).map((item) => {
+                if (item.kind === "week") return <WeekAhead key="week-ahead" />;
+                if (item.kind === "own") {
+                  const { section, articles } = visibleStandalone[item.at];
+                  return (
+                    <div key={`digest-${section.id}`} className="paper-section" style={{ ["--section-hue" as string]: digestHue(section.label) }}>
+                      <DigestSectionView section={section} articles={articles} />
+                    </div>
+                  );
+                }
+                const { key } = item;
+                return (
+                  <div key={key} className="paper-section" style={{ ["--section-hue" as string]: SECTION_META[key].hue }}>
+                    {sectionRenderers[key]()}
+                    {briefsFor(key).length > 0 && <InBrief items={briefsFor(key)} />}
+                    {oddsLayout.sections[key] && <OddsStrip picks={oddsLayout.sections[key]!} label={key === "grapevine" ? "Film and the awards" : "What traders expect"} />}
                   </div>
-                ))}
-              {c.id === "next" && !isArchive && <WeekAhead />}
-              {/* The day's extras finish the paper. */}
-              {c.id === "back" && <FrontStrip note={extras.note} then={personalOtd} history={extras.history} word={extras.word} />}
+                );
+              })}
             </div>
           ))}
+          {/* The day's extras finish the paper. */}
+          <FrontStrip note={extras.note} then={personalOtd} history={extras.history} word={extras.word} />
         </div>
       </div>
       <footer className="mt-14 border-t hairline">
         <div className="page-wrap px-4 sm:px-6 py-8 grid gap-6 md:grid-cols-[1fr_auto] items-end">
           <div>
-            <p className="font-display font-extrabold text-[clamp(2.2rem,6vw,4.5rem)] leading-[0.9]">
-              That&rsquo;s today&rsquo;s paper<span className="text-accent">.</span>
+            <p className="font-display font-extrabold text-[clamp(3rem,12vw,9rem)] leading-[0.8] text-transparent [-webkit-text-stroke:1px_var(--ink-faint)] select-none" aria-hidden="true">
+              The Daily Index
             </p>
-            <p className="font-headline italic text-[15px] text-ink-soft mt-3">An index of everything that matters today.</p>
+            <p className="font-headline italic text-[15px] text-ink-soft mt-4">An index of everything that matters today.</p>
             <p className="font-mono text-[11px] text-ink-soft mt-2">
               VOL. {edition.volume} · NO. {edition.issue} — A PERSONAL DIGEST, NOT A REAL NEWSPAPER.
             </p>
           </div>
           <div className="flex flex-col items-start md:items-end gap-3 text-[13px]">
-            <a href="#masthead" className="chip">Back to the top ↑</a>
+            <a href="#masthead" className="chip">
+              <ArrowUpIcon size={14} weight="bold" aria-hidden="true" />
+              Back to the top
+            </a>
             <span className="font-mono text-[11px] text-ink-soft max-w-[32ch] md:text-right">
               Everything this paper remembers about you stays on this device.
             </span>

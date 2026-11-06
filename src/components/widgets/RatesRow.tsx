@@ -1,5 +1,8 @@
 "use client";
 
+import { PublisherLogo } from "@/components/story/PublisherMark";
+import MoveArrow from "@/components/chrome/MoveArrow";
+import { BankIcon, CaretRightIcon, HandshakeIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import type { FlowDay, OddsMarket, RatesPanel } from "@/lib/types";
 import { policyMarket } from "@/lib/odds-pick";
@@ -51,11 +54,14 @@ function Expect({ m, on }: { m?: OddsMarket; on: string | null }) {
 }
 
 /** A published figure: the number, where it comes from, and its context. */
-function Cell({ label, source, value, children }: { label: string; source: string; value: React.ReactNode; children?: React.ReactNode }) {
+function Cell({ label, source, value, children }: { label: string; source: React.ReactNode; value: React.ReactNode; children?: React.ReactNode }) {
   return (
     <div className="min-w-0 pr-3 py-3 lg:px-4 lg:first:pl-0 lg:border-l hairline lg:first:border-l-0">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="font-label text-[11px] text-ink-soft truncate">{label}</span>
+        <span className="font-label text-[11px] text-ink-soft min-w-0 inline-flex items-center gap-1">
+          <BankIcon size={14} className="shrink-0" aria-hidden="true" />
+          <span className="truncate">{label}</span>
+        </span>
         <span className="font-mono text-[11px] text-ink-faint shrink-0">{source}</span>
       </div>
       <div className="font-display font-bold text-[1.35rem] leading-none tabular-nums mt-1">{value}</div>
@@ -222,9 +228,15 @@ function FlowCell({ flows }: { flows: NonNullable<RatesPanel["flows"]> }) {
   return (
     <div className="min-w-0 pr-3 py-3 lg:px-4 lg:border-l hairline">
       <button type="button" onClick={() => setOpen(true)} className="w-full text-left group">
-        <span className="flex items-baseline justify-between gap-2">
-          <span className="font-label text-[11px] text-ink-soft">Who&rsquo;s buying · {day(flows.date)}</span>
-          <span className="font-mono text-[11px] text-ink-faint group-hover:text-ink">NSE · more ›</span>
+        <span className="flex items-center justify-between gap-2">
+          <span className="font-label text-[11px] text-ink-soft min-w-0 inline-flex items-center gap-1">
+            <HandshakeIcon size={14} className="shrink-0" aria-hidden="true" />
+            <span className="truncate">Who&rsquo;s buying · {day(flows.date)}</span>
+          </span>
+          <span className="font-mono text-[11px] text-ink-faint group-hover:text-ink shrink-0 inline-flex items-center gap-0.5">
+            <span className="hidden sm:inline">NSE</span>
+            <CaretRightIcon size={12} weight="bold" aria-hidden="true" />
+          </span>
         </span>
         <span className="grid gap-1.5 mt-1.5">
           <FlowLine who="FII" d={flows.fii} max={max} />
@@ -262,13 +274,13 @@ export default function RatesRow({ markets = [] }: { markets?: OddsMarket[] }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 border-y hairline mt-5" data-reveal>
       {repo && (
-        <Cell label="RBI repo rate" source="RBI" value={`${repo.rate.toFixed(2)}%`}>
+        <Cell label="RBI repo rate" source={<PublisherLogo source="rbi.org.in" size={15} />} value={`${repo.rate.toFixed(2)}%`}>
           {repo.next ? `Next decision ${day(repo.next)}` : "Next decision not announced"}
           <Expect m={policyMarket(markets, "rbi", repo.next)} on={repo.next} />
         </Cell>
       )}
       {fed && (
-        <Cell label="Fed funds target" source="FRED" value={`${fed.lower.toFixed(2)}–${fed.upper.toFixed(2)}%`}>
+        <Cell label="Fed funds" source="FRED" value={`${fed.lower.toFixed(2)}–${fed.upper.toFixed(2)}%`}>
           {fed.move ? `${fed.move === "cut" ? "Cut" : "Raised"} ${day(fed.since)}` : `Held since ${day(fed.since)}`}
           {fed.next ? ` · next ${day(fed.next)}` : ""}
           <Expect m={policyMarket(markets, "fed", fed.next)} on={fed.next} />
@@ -278,7 +290,7 @@ export default function RatesRow({ markets = [] }: { markets?: OddsMarket[] }) {
         <Cell label="US 10-year yield" source="Yahoo" value={`${us10y.yield.toFixed(2)}%`}>
           {us10y.change != null && Math.abs(us10y.change) >= 0.01 ? (
             <span className={us10y.change > 0 ? "text-down" : "text-up"}>
-              {us10y.change > 0 ? "▲" : "▼"} {Math.abs(us10y.change).toFixed(2)} pts today
+              <MoveArrow up={us10y.change > 0} /> {Math.abs(us10y.change).toFixed(2)} pts today
             </span>
           ) : (
             "Flat today"

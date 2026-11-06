@@ -1,3 +1,7 @@
+"use client";
+
+import { ArrowDownIcon, ArrowSquareOutIcon } from "@phosphor-icons/react";
+import { deskIcon } from "@/components/chrome/nav-icons";
 import type { EditionBrief } from "@/lib/types";
 
 // "The briefing": the front page's left column. The day's must-reads as one
@@ -8,6 +12,9 @@ import type { EditionBrief } from "@/lib/types";
 
 const HUES: Record<string, string> = {
   world: "var(--hue-world)",
+  india: "var(--hue-nation)",
+  nation: "var(--hue-nation)",
+  valorant: "var(--hue-clutch)",
   markets: "var(--hue-markets)",
   money: "var(--hue-money)",
   f1: "var(--hue-f1)",
@@ -20,7 +27,8 @@ const HUES: Record<string, string> = {
 
 function hueFor(label: string): string {
   const key = label.toLowerCase();
-  return HUES[key] ?? Object.entries(HUES).find(([k]) => key.includes(k))?.[1] ?? "var(--accent)";
+  // Anything else on a desk's line is one of the reader's cities.
+  return HUES[key] ?? Object.entries(HUES).find(([k]) => key.includes(k))?.[1] ?? "var(--hue-cities)";
 }
 
 export default function Briefing({
@@ -64,6 +72,7 @@ export default function Briefing({
             const anchor = b.url ? anchorFor(b.url) : null;
             const href = anchor ? `#${anchor}` : b.url;
             const external = !anchor && Boolean(b.url);
+            const Glyph = deskIcon(b.section);
             return (
               <li key={`${b.section}-${i}`} className="border-b hairline" data-reveal style={{ ["--reveal-i" as string]: i }}>
                 <a
@@ -77,10 +86,10 @@ export default function Briefing({
                   </span>
                   <span className="min-w-0">
                     <span className="flex items-center gap-1.5 font-label text-[11px]" style={{ color: hue }}>
-                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: hue }} />
+                      <Glyph size={13} weight="fill" aria-hidden="true" />
                       {b.section}
                       <span className="text-ink-faint ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
-                        {external ? "↗" : "↓"}
+                        {external ? <ArrowSquareOutIcon size={13} aria-hidden="true" /> : <ArrowDownIcon size={13} aria-hidden="true" />}
                       </span>
                     </span>
                     <span className="block font-headline text-[1.02rem] leading-[1.25] mt-0.5 text-balance">

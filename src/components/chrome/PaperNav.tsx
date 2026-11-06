@@ -1,23 +1,34 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { CaretDownIcon } from "@phosphor-icons/react";
+import { createElement, useEffect, useRef, useState } from "react";
 import TopBar, { TopBarTools, type NavChapter } from "@/components/chrome/TopBar";
+import Sheet from "@/components/extras/Sheet";
+import { CHAPTER_ICONS, sectionIcon } from "@/components/chrome/nav-icons";
 
-// The paper's menu: one list in three forms, so the words never differ. A phone
-// gets six words along the foot of the screen (as the live centre does) with
-// nothing sticky on top; a tablet or laptop gets them in the top bar; from 1500px
-// the window has width to spare rather than height, so they move to a side menu:
-// the paper's own index, in its display type, every section in its colour under
-// its group's small label, the one being read filled, and the day's number beside
-// a section that has one (Market Pulse's move, the race countdown, the temperature).
+// The paper's menu: one list in three forms, so the words never differ. Everywhere
+// the icons are outlines when inactive and filled when current, in the section's
+// colour.
+//   A phone: five icons with words along the foot of the screen, with one line
+//     along their top doing the reading progress bar's job too: a piece per word,
+//     filled up to where you are, so it ends above the word you're in. Once the
+//     masthead has gone, a slim row along the top names the section you're in and
+//     opens the list of all of them in a sheet.
+//   A tablet or laptop: the same words in the top bar.
+//   From 1500px: the window has width to spare rather than height, so they move
+//     to a side menu: the paper's own index, in its display type, every section
+//     under its group's small label, the one being read filled, and the day's
+//     number beside a section that has one.
 //
 // Scroll-spy: the last group and section whose top has passed the upper third.
 // The page prints in menu order, so the last one past the line is the current
 // one. Elements are looked up on each scroll because sections stream in late. The
 // current section's colour goes on <html> as --now-hue: the reading progress bar
-// and every form of the menu's "you are here" wear it (globals.css).
+// and every form of "you are here" wear it (globals.css).
 
 const TODAY = "masthead";
+/** How far down the window a section counts as reached. */
+const LINE = 0.33;
 
 function useActive(chapters: NavChapter[]): { chapter: string; section: string | null } {
   const [active, setActive] = useState<{ chapter: string; section: string | null }>({ chapter: TODAY, section: null });
@@ -25,7 +36,7 @@ function useActive(chapters: NavChapter[]): { chapter: string; section: string |
     let frame = 0;
     const read = () => {
       frame = 0;
-      const line = window.innerHeight * 0.33;
+      const line = window.innerHeight * LINE;
       const passed = (id: string) => {
         const el = document.getElementById(id);
         return !!el && el.getBoundingClientRect().top <= line;
@@ -68,14 +79,143 @@ function useActive(chapters: NavChapter[]): { chapter: string; section: string |
 
 function Dock({ chapters, active }: { chapters: NavChapter[]; active: string }) {
   const links = [{ id: TODAY, label: "Today" }, ...chapters];
+  const ids = links.map((l) => l.id).join();
+  const fills = useRef<Array<HTMLSpanElement | null>>([]);
+
+  // The line along the top: each piece fills as its part of the page goes by, by
+  // the same line the scroll-spy uses, so it ends above the current word. Written
+  // straight to the element, since it changes on every frame of a scroll.
+  useEffect(() => {
+    let frame = 0;
+    const list = ids.split(",");
+    const read = () => {
+      frame = 0;
+      const y = window.scrollY;
+      const line = window.innerHeight * LINE;
+      const end = document.documentElement.scrollHeight - window.innerHeight;
+      const starts = list.map((id, i) => {
+        if (i === 0) return 0;
+        const el = document.getElementById(id);
+        return el ? el.getBoundingClientRect().top + y - line : end;
+      });
+      list.forEach((_, i) => {
+        const to = i + 1 < list.length ? starts[i + 1] : end;
+        const part = Math.max(0, Math.min(1, (y - starts[i]) / Math.max(1, to - starts[i])));
+        const fill = fills.current[i];
+        if (fill) fill.style.transform = `scaleX(${part})`;
+      });
+    };
+    const onScroll = () => {
+      if (!frame) frame = window.requestAnimationFrame(read);
+    };
+    read();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [ids]);
+
+  const columns = { gridTemplateColumns: `repeat(${links.length}, minmax(0, 1fr))` };
   return (
-    <nav aria-label="Chapters" className="paper-dock" style={{ gridTemplateColumns: `repeat(${links.length}, minmax(0, 1fr))` }}>
-      {links.map((c) => (
-        <a key={c.id} href={`#${c.id}`} data-nav={c.id} aria-current={active === c.id ? "true" : undefined}>
-          {c.label}
-        </a>
-      ))}
+    <nav aria-label="Chapters" className="paper-dock" style={columns}>
+      <span className="dock-line" style={columns} aria-hidden="true">
+        {links.map((c, i) => (
+          <span key={c.id}>
+            <span
+              ref={(el) => {
+                fills.current[i] = el;
+              }}
+            />
+          </span>
+        ))}
+      </span>
+      {links.map((c) => {
+        const Icon = CHAPTER_ICONS[c.id] ?? CHAPTER_ICONS[TODAY];
+        const current = active === c.id;
+        return (
+          <a key={c.id} href={`#${c.id}`} data-nav={c.id} aria-current={current ? "true" : undefined}>
+            <Icon size={22} weight={current ? "fill" : "regular"} aria-hidden="true" />
+            {c.label}
+          </a>
+        );
+      })}
     </nav>
+  );
+}
+
+/** The phone's slim row: where you are, and the way to any section. */
+function PhoneNow({ chapters, active, section }: { chapters: NavChapter[]; active: string; section: string | null }) {
+  const [shown, setShown] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const masthead = document.getElementById(TODAY);
+    if (!masthead) return;
+    const io = new IntersectionObserver(([e]) => setShown(!e.isIntersecting));
+    io.observe(masthead);
+    return () => io.disconnect();
+  }, []);
+
+  const group = chapters.find((c) => c.id === active);
+  const current = group?.sections.find((s) => s.id === section) ?? group?.sections[0];
+  const jump = (id: string) => {
+    setOpen(false);
+    // Once the sheet has gone and the page can scroll again.
+    window.setTimeout(() => document.getElementById(id)?.scrollIntoView(), 30);
+  };
+
+  return (
+    <>
+      <div className="phone-now" data-shown={shown || undefined}>
+        <span className="phone-now-name" style={{ color: current?.hue ?? "var(--ink)" }}>
+          {createElement(sectionIcon(current?.id ?? TODAY), { size: 18, weight: "fill", "aria-hidden": true })}
+          <span className="truncate">{current?.name ?? "Today"}</span>
+        </span>
+        <button type="button" className="phone-now-all" onClick={() => setOpen(true)} aria-haspopup="dialog">
+          Sections
+          <CaretDownIcon size={14} weight="bold" aria-hidden="true" />
+        </button>
+      </div>
+      {open && (
+        <Sheet title="Sections" onClose={() => setOpen(false)} width={480}>
+          <button type="button" onClick={() => jump(TODAY)} className="rail-row w-full text-left" style={{ ["--row-hue" as string]: "var(--accent)" }} aria-current={active === TODAY ? "true" : undefined}>
+            <span className="rail-row-name">
+              <RowIcon id={TODAY} current={active === TODAY} />
+              Today
+            </span>
+          </button>
+          {chapters.map((c) => (
+            <div key={c.id}>
+              <div className="rail-group">{c.label}</div>
+              {c.sections.map((s) => (
+                <button key={s.id} type="button" onClick={() => jump(s.id)} className="rail-row w-full text-left" style={{ ["--row-hue" as string]: s.hue }} aria-current={section === s.id ? "true" : undefined}>
+                  <span className="rail-row-name">
+                    <RowIcon id={s.id} current={section === s.id} />
+                    {s.name}
+                  </span>
+                  {s.note && <RowNote note={s.note} />}
+                </button>
+              ))}
+            </div>
+          ))}
+        </Sheet>
+      )}
+    </>
+  );
+}
+
+function RowIcon({ id, current }: { id: string; current: boolean }) {
+  return createElement(sectionIcon(id), { size: 16, weight: current ? "fill" : "regular", className: "rail-icon", "aria-hidden": true });
+}
+
+function RowNote({ note }: { note: NonNullable<NavChapter["sections"][number]["note"]> }) {
+  return (
+    <b className={note.tone ? `rail-note-${note.tone}` : undefined} suppressHydrationWarning>
+      {note.text}
+    </b>
   );
 }
 
@@ -118,14 +258,11 @@ function Rail({
         )}
       </p>
       <nav aria-label="Chapters" className="mt-2 flex-1 min-h-0 overflow-y-auto [scrollbar-width:none]">
-        <a
-          href={`#${TODAY}`}
-          data-nav={TODAY}
-          className="rail-row"
-          style={{ ["--row-hue" as string]: "var(--accent)" }}
-          aria-current={active === TODAY ? "true" : undefined}
-        >
-          <span>Today</span>
+        <a href={`#${TODAY}`} data-nav={TODAY} className="rail-row" style={{ ["--row-hue" as string]: "var(--accent)" }} aria-current={active === TODAY ? "true" : undefined}>
+          <span className="rail-row-name">
+            <RowIcon id={TODAY} current={active === TODAY} />
+            Today
+          </span>
         </a>
         {chapters.map((c) => (
           <div key={c.id}>
@@ -134,12 +271,11 @@ function Rail({
             </a>
             {c.sections.map((s) => (
               <a key={s.id} href={`#${s.id}`} className="rail-row" style={{ ["--row-hue" as string]: s.hue }} aria-current={section === s.id ? "true" : undefined}>
-                <span>{s.name}</span>
-                {s.note && (
-                  <b className={s.note.tone ? `rail-note-${s.note.tone}` : undefined} suppressHydrationWarning>
-                    {s.note.text}
-                  </b>
-                )}
+                <span className="rail-row-name">
+                  <RowIcon id={s.id} current={section === s.id} />
+                  {s.name}
+                </span>
+                {s.note && <RowNote note={s.note} />}
               </a>
             ))}
           </div>
@@ -168,6 +304,7 @@ export default function PaperNav({
   return (
     <>
       <TopBar chapters={chapters} active={chapter} today={TODAY} isArchive={isArchive} date={date} />
+      <PhoneNow chapters={chapters} active={chapter} section={section} />
       <Dock chapters={chapters} active={chapter} />
       <Rail chapters={chapters} active={chapter} section={section} isArchive={isArchive} date={date} issue={issue} />
     </>

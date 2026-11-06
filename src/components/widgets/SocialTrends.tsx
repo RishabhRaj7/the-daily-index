@@ -1,5 +1,7 @@
 "use client";
 
+import { CaretDownIcon, CaretUpIcon, TrendUpIcon } from "@phosphor-icons/react";
+import { PHONE, useMedia } from "@/lib/use-media";
 import { useState } from "react";
 import type { SocialPost, SocialTrends as Trends, XTrend } from "@/lib/live/social";
 import { RefreshStamp, SourceLogo, useSocialFeed } from "@/components/extras/SocialFeed";
@@ -82,7 +84,10 @@ export default function SocialTrends({ className = "" }: { className?: string })
   const data = live.data;
   const { health, now } = useSocialHealth();
   const [region, setRegion] = useState<Region>("india");
-  const [all, setAll] = useState(false);
+  const [wantAll, setAll] = useState(false);
+  // On a phone this only ever shows in its sheet (GrapevineSection), with the room for all of it.
+  const phone = useMedia(PHONE);
+  const all = wantAll || phone;
 
   if (!data) return null;
   // Each side shows, waits quietly while it's still being tried, or isn't there (lib/social-health.ts).
@@ -102,7 +107,10 @@ export default function SocialTrends({ className = "" }: { className?: string })
     <div className={`@container min-w-0 ${className}`} data-reveal>
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 pb-3 border-b hairline">
         <div>
-          <h3 className="font-display font-extrabold text-[1.9rem] leading-none">Trending on {where}</h3>
+          <h3 className="font-display font-extrabold text-[1.9rem] leading-none inline-flex items-center gap-2">
+            <TrendUpIcon size={24} weight="bold" style={{ color: "var(--section-hue)" }} aria-hidden="true" />
+            Trending on {where}
+          </h3>
           <p className="font-body italic text-xs text-ink-soft mt-0.5">
             What {region === "india" ? "India" : "the world"} is posting about right now
           </p>
@@ -153,9 +161,10 @@ export default function SocialTrends({ className = "" }: { className?: string })
           </Column>
         )}
       </div>
-      {longer && (
-        <button type="button" onClick={() => setAll((v) => !v)} className="font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-2">
-          {all ? "Show the top five ↑" : `Show the top ${MANY} ↓`}
+      {longer && !phone && (
+        <button type="button" onClick={() => setAll((v) => !v)} className="inline-flex items-center gap-1 font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-2">
+          {all ? "Show the top five" : `Show the top ${MANY}`}
+          {all ? <CaretUpIcon size={13} weight="bold" aria-hidden="true" /> : <CaretDownIcon size={13} weight="bold" aria-hidden="true" />}
         </button>
       )}
     </div>

@@ -1,5 +1,7 @@
 "use client";
 
+import { ArchiveIcon, NewspaperIcon, SlidersHorizontalIcon } from "@phosphor-icons/react";
+import { CHAPTER_ICONS } from "@/components/chrome/nav-icons";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import EditionToggle from "@/components/masthead/EditionToggle";
@@ -30,18 +32,11 @@ export function TopBarTools({ isArchive = false }: { isArchive?: boolean }) {
         title={isArchive ? "Today's edition" : "Archive"}
         aria-label={isArchive ? "Today's edition" : "Archive"}
       >
-        <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true">
-          <rect x="2" y="3" width="12" height="3" rx="0.8" />
-          <path d="M3 6v6.2c0 .5.3.8.8.8h8.4c.5 0 .8-.3.8-.8V6M6.5 8.8h3" strokeLinecap="round" />
-        </svg>
+        {isArchive ? <NewspaperIcon size={18} aria-hidden="true" /> : <ArchiveIcon size={18} aria-hidden="true" />}
       </Link>
       <SettingsLink className="icon-btn">
         <span className="sr-only">Settings</span>
-        <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
-          <path d="M2.5 4.5h6M11.5 4.5h2M2.5 11.5h2M7.5 11.5h6" />
-          <circle cx="10" cy="4.5" r="1.5" />
-          <circle cx="6" cy="11.5" r="1.5" />
-        </svg>
+        <SlidersHorizontalIcon size={18} aria-hidden="true" />
       </SettingsLink>
     </div>
   );
@@ -49,7 +44,7 @@ export function TopBarTools({ isArchive = false }: { isArchive?: boolean }) {
 
 // The top bar, on every page. The small wordmark only appears once the big
 // particle one has scrolled away. On the paper itself it carries the chapters
-// on a tablet or laptop (the current one underlined in its section's colour); on a phone it's a plain
+// on a tablet or laptop (the current one's icon filled, and underlined in its section's colour); on a phone it's a plain
 // row that scrolls away, the chapters being at the foot of the screen; from
 // 1500px the side menu takes over and the bar steps aside (chrome/PaperNav.tsx).
 export default function TopBar({
@@ -118,20 +113,24 @@ export default function TopBar({
 
         {links.length > 0 && (
           <nav aria-label="Chapters" className="hidden md:flex flex-1 min-w-0 items-center gap-1">
-            {links.map((c) => (
+            {links.map((c) => {
+              const Glyph = CHAPTER_ICONS[c.id] ?? NewspaperIcon;
+              return (
               <a
                 key={c.id}
                 href={`#${c.id}`}
                 data-nav={c.id}
                 aria-current={active === c.id ? "true" : undefined}
-                className={`relative px-2.5 py-1.5 text-[14px] font-sans font-semibold whitespace-nowrap transition-colors ${
+                className={`relative inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[14px] font-sans font-semibold whitespace-nowrap transition-colors ${
                   active === c.id ? "text-ink" : "text-ink-soft hover:text-ink"
                 }`}
               >
+                <Glyph size={16} weight={active === c.id ? "fill" : "regular"} style={active === c.id ? { color: "var(--now-hue, var(--accent))" } : undefined} aria-hidden="true" />
                 {c.label}
                 {active === c.id && <span aria-hidden="true" className="absolute left-2.5 right-2.5 bottom-0 h-[2px] rounded-full transition-colors duration-300" style={{ background: "var(--now-hue, var(--accent))" }} />}
               </a>
-            ))}
+              );
+            })}
           </nav>
         )}
 

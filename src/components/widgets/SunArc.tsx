@@ -1,5 +1,6 @@
 "use client";
 
+import { MoonStarsIcon, SunHorizonIcon } from "@phosphor-icons/react";
 import { useId } from "react";
 import { moonPhase, type SkyClock } from "@/lib/sky";
 
@@ -104,17 +105,17 @@ export default function SunArc({
       <div className="flex justify-between gap-2 font-mono text-[11px] text-ink-soft -mt-1">
         {night ? (
           <>
-            <span>↓ {sunset}</span>
+            <span><MoonStarsIcon size={14} className="inline align-[-2px]" aria-hidden="true" /> {sunset}</span>
             <span className="text-ink-faint text-center">
               {clock ? `${hm(clock.span * (1 - clock.progress))} to sunrise · ` : ""}{moon.name}
             </span>
-            <span>{sunrise} ↑</span>
+            <span>{sunrise} <SunHorizonIcon size={14} className="inline align-[-2px]" aria-hidden="true" /></span>
           </>
         ) : (
           <>
-            <span>↑ {sunrise}</span>
+            <span><SunHorizonIcon size={14} className="inline align-[-2px]" aria-hidden="true" /> {sunrise}</span>
             <span className="text-ink-faint">{clock ? `${hm(clock.span * (1 - clock.progress))} to sunset` : ""}</span>
-            <span>{sunset} ↓</span>
+            <span>{sunset} <MoonStarsIcon size={14} className="inline align-[-2px]" aria-hidden="true" /></span>
           </>
         )}
       </div>

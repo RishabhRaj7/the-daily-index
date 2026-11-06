@@ -695,7 +695,7 @@ function HeadlineScramble({
           type="submit"
           className="font-label text-[11px] px-3 border hairline rounded-sm hover:bg-card-bg transition-colors whitespace-nowrap"
         >
-          {state === "right" || state === "revealed" ? "Next →" : "Check"}
+          {state === "right" || state === "revealed" ? "Next" : "Check"}
         </button>
       </form>
 

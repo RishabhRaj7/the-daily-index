@@ -1,5 +1,7 @@
 "use client";
 
+import { PublisherLogo } from "@/components/story/PublisherMark";
+import { ArrowRightIcon, ArrowSquareOutIcon, CaretRightIcon, CheckIcon, CoinsIcon, StarIcon, XIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import type { OddsRecordSummary } from "@/lib/types";
 import type { OddsLayout, OddsPick } from "@/lib/odds-pick";
@@ -28,9 +30,9 @@ import Fold from "@/components/chrome/Fold";
 //                 by how sure it was; tap for every verdict
 //   the watchlist the questions the reader keeps an eye on, editable
 // Everything opens in a sheet on this page: the exchanges need a VPN in India.
-// On a phone the two leads are a swipe apart, three moves show with the rest a
-// tap away, and the busiest open in place; with the room, the leads and the rest
-// run abreast (globals.css, .poll-*).
+// On a phone the two leads are a swipe apart, three moves show, and the rest of
+// the moves and the busiest slide up in a sheet; with the room, the leads and the
+// rest run abreast (globals.css, .poll-*).
 
 interface WhyItem {
   title: string;
@@ -39,7 +41,7 @@ interface WhyItem {
   at: string;
 }
 
-const pointsMove = (v: number) => `${v >= 0 ? "▲" : "▼"} ${Math.abs(Math.round(v))} pts`;
+const pointsMove = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(Math.round(v))} pts`;
 
 function Lead({ p, label, onOpen }: { p: OddsPick; label: string; onOpen: () => void }) {
   const m = p.market;
@@ -70,9 +72,9 @@ function Lead({ p, label, onOpen }: { p: OddsPick; label: string; onOpen: () => 
         <span className="flex items-center justify-between gap-3 font-label text-[11px]">
           <span style={{ color: "var(--section-hue)" }}>
             {label} · {SUBJECT_LABEL[m.subject]}
-            {p.watched ? " · ★" : ""}
+            {p.watched ? <> · <StarIcon size={13} weight="fill" className="inline align-[-2px]" aria-hidden="true" /></> : null}
           </span>
-          <span className="text-ink-faint">Tap for the whole market ›</span>
+          <span className="text-ink-faint">Tap for the whole market <CaretRightIcon size={12} weight="bold" className="inline align-[-2px]" aria-hidden="true" /></span>
         </span>
         <span className="flex items-start justify-between gap-4 mt-2">
           <span className="font-headline text-[1.35rem] sm:text-[1.5rem] leading-[1.15] group-hover:underline decoration-dotted underline-offset-4">{m.title}</span>
@@ -108,12 +110,13 @@ function Lead({ p, label, onOpen }: { p: OddsPick; label: string; onOpen: () => 
                   {pins.find((x) => x.title === top.title)!.n}
                 </span>
               )}
-              {top.title} <span className="font-mono text-[11px] text-ink-faint">· {top.source} ↗</span>
+              {top.title} <span className="font-mono text-[11px] text-ink-faint">· {top.source} <ArrowSquareOutIcon size={13} className="inline align-[-2px]" aria-hidden="true" /></span>
             </a>
           )}
         </div>
       )}
-      <span className="font-mono text-[11px] text-ink-faint">
+      <span className="font-mono text-[11px] text-ink-faint inline-flex flex-wrap items-center gap-x-1">
+        <PublisherLogo source={m.source} size={14} />
         {m.source} · ${compactMoney(m.vol24)} today · ${compactMoney(m.vol)} in all
         {m.also?.length ? ` · ${m.also.map((a) => `${a.source} ${Math.round(a.prob)}%`).join(" · ")}` : ""}
       </span>
@@ -131,7 +134,7 @@ function MoverRow({ p, onOpen }: { p: OddsPick; onOpen: () => void }) {
         <span className="min-w-0">
           <span className="block font-label text-[11px] text-ink-soft">
             {SUBJECT_LABEL[m.subject]}
-            {p.watched ? " · ★" : ""}
+            {p.watched ? <> · <StarIcon size={13} weight="fill" className="inline align-[-2px]" aria-hidden="true" /></> : null}
           </span>
           <span className="block font-sans font-semibold text-[13.5px] leading-snug mt-0.5 line-clamp-2 group-hover:text-[color:var(--section-hue)]">{m.title}</span>
           <span className="block font-mono text-[11px] text-ink-soft mt-0.5 truncate">{m.hit ? ladderLine(m) : m.lead.name === "Yes" ? "Yes" : m.lead.name}</span>
@@ -168,7 +171,7 @@ function RecordSheet({ record, onClose }: { record: OddsRecordSummary; onClose: 
       <ul className="mt-5 divide-y hairline">
         {record.recent.map((v) => (
           <li key={`${v.title}-${v.settled}`} className="py-2 grid grid-cols-[1.2rem_minmax(0,1fr)_auto] gap-2 items-baseline text-[13px]">
-            <span className={v.called ? "text-up font-bold" : "text-down font-bold"}>{v.called ? "✓" : "✗"}</span>
+            <span className={v.called ? "text-up font-bold" : "text-down font-bold"}>{v.called ? <CheckIcon size={14} weight="bold" className="inline align-[-2px]" aria-hidden="true" /> : <XIcon size={14} weight="bold" className="inline align-[-2px]" aria-hidden="true" />}</span>
             <span className="min-w-0">
               <span className="block leading-snug">{v.title}</span>
               <span className="block font-mono text-[11px] text-ink-soft">
@@ -230,7 +233,7 @@ function WatchSheet({ onClose }: { onClose: () => void }) {
         ))}
         {pins.map((x) => (
           <li key={x.id} className="py-2 flex items-center justify-between gap-3 text-[14px]">
-            <span>★ {x.title}</span>
+            <span><StarIcon size={13} weight="fill" className="inline align-[-2px]" aria-hidden="true" /> {x.title}</span>
             <button type="button" className="font-mono text-[11px] text-ink-faint hover:text-down" onClick={() => save({ ...p, oddsPins: pins.filter((y) => y.id !== x.id) })}>
               unstar
             </button>
@@ -287,20 +290,30 @@ export default function StrawPollSection({
           {poll.movers.length > 0 && (
             <div data-reveal>
               <div className="font-label text-[11px] text-ink-soft">More moves today</div>
-              <ul data-all={allMovers || undefined} className="poll-movers divide-y hairline border-b hairline mt-1">
+              <ul className="poll-movers divide-y hairline border-b hairline mt-1">
                 {poll.movers.map((p) => (
                   <MoverRow key={p.market.id} p={p} onOpen={() => setOpen(p)} />
                 ))}
               </ul>
               {poll.movers.length > 3 && (
-                <button type="button" onClick={() => setAllMovers((v) => !v)} aria-expanded={allMovers} className="poll-all fold-toggle">
-                  {allMovers ? "Show fewer" : `All ${poll.movers.length} moves`} <span aria-hidden="true">{allMovers ? "↑" : "↓"}</span>
+                <button type="button" onClick={() => setAllMovers(true)} className="poll-all fold-toggle">
+                  All {poll.movers.length} moves
+                  <ArrowRightIcon size={13} weight="bold" aria-hidden="true" />
                 </button>
+              )}
+              {allMovers && (
+                <Sheet title="More moves today" kicker="Straw Poll" onClose={() => setAllMovers(false)} width={640} hue="var(--hue-poll)">
+                  <ul className="divide-y hairline">
+                    {poll.movers.map((p) => (
+                      <MoverRow key={p.market.id} p={p} onOpen={() => setOpen(p)} />
+                    ))}
+                  </ul>
+                </Sheet>
               )}
             </div>
           )}
           {poll.busiest.length > 0 && (
-            <Fold phoneOnly label="Where else the money is" hint="The other busiest markets today">
+            <Fold phoneOnly icon={CoinsIcon} label="Where else the money is" hint="The other busiest markets today">
             <div data-reveal>
               <div className="font-label text-[11px] text-ink-soft mb-2">Where else the money is today</div>
               <div className={`grid grid-cols-2 gap-2 ${poll.movers.length ? "" : "lg:grid-cols-4"}`}>
@@ -347,7 +360,7 @@ export default function StrawPollSection({
                   .filter((b) => b.total > 0)
                   .map((b) => `${b.label}: ${b.called}/${b.total}`)
                   .join(" · ")}{" "}
-                · every verdict ›
+                · every verdict <CaretRightIcon size={12} weight="bold" className="inline align-[-2px]" aria-hidden="true" />
               </span>
             </span>
           </button>
@@ -355,7 +368,8 @@ export default function StrawPollSection({
           <p className="font-mono text-[11px] text-ink-faint">The track record appears once ten questions have settled.</p>
         )}
         <button type="button" onClick={() => setSheet("watch")} className="chip h-8 text-[12px] justify-self-start sm:justify-self-end">
-          ★ Your watchlist
+          <StarIcon size={13} weight="fill" aria-hidden="true" />
+          Your watchlist
         </button>
       </div>
       <p className="font-mono text-[11px] text-ink-faint mt-2">From Polymarket and Kalshi: what traders expect, as a chance. The paper reads prices; it takes no bets.</p>

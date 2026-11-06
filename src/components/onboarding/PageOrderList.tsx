@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowDownIcon, ArrowUpIcon, CaretDownIcon } from "@phosphor-icons/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { SectionKey } from "@/lib/types";
 import type { DigestPreferences, DigestSection } from "@/lib/preferences/types";
@@ -30,9 +31,7 @@ const rowCls = "relative flex flex-wrap items-center gap-3 py-2.5 px-2 -mx-2 rou
 
 function Chevron({ open }: { open: boolean }) {
   return (
-    <svg viewBox="0 0 16 16" className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 6l4 4 4-4" />
-    </svg>
+    <CaretDownIcon size={14} className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} aria-hidden="true" />
   );
 }
 
@@ -160,10 +159,10 @@ export default function PageOrderList({
             <span className="font-display font-extrabold uppercase text-[1.15rem] leading-none">{chapter.label}</span>
             <span className="flex gap-1">
               <button type="button" aria-label={`Move ${chapter.label} up`} disabled={chapterAt === 0} onClick={() => onMoveChapter(chapter.id, -1)} className={roundBtn}>
-                ↑
+                <ArrowUpIcon size={14} weight="bold" aria-hidden="true" />
               </button>
               <button type="button" aria-label={`Move ${chapter.label} down`} disabled={chapterAt === chapters.length - 1} onClick={() => onMoveChapter(chapter.id, 1)} className={roundBtn}>
-                ↓
+                <ArrowDownIcon size={14} weight="bold" aria-hidden="true" />
               </button>
             </span>
           </li>,
@@ -191,10 +190,10 @@ export default function PageOrderList({
               {active && (
                 <span className="flex gap-1">
                   <button type="button" aria-label={`Move ${meta.name} up`} disabled={inChapter === 0} onClick={() => move(key, -1)} className={`${roundBtn} active:-translate-y-0.5`}>
-                    ↑
+                    <ArrowUpIcon size={14} weight="bold" aria-hidden="true" />
                   </button>
                   <button type="button" aria-label={`Move ${meta.name} down`} disabled={inChapter === chapter.printed.length - 1} onClick={() => move(key, 1)} className={`${roundBtn} active:translate-y-0.5`}>
-                    ↓
+                    <ArrowDownIcon size={14} weight="bold" aria-hidden="true" />
                   </button>
                 </span>
               )}
@@ -239,10 +238,10 @@ export default function PageOrderList({
               </button>
               <span className="flex gap-1">
                 <button type="button" aria-label={`Move ${sec.label} up`} disabled={i === 0} onClick={() => moveOwn(sec.id, -1)} className={`${roundBtn} active:-translate-y-0.5`}>
-                  ↑
+                  <ArrowUpIcon size={14} weight="bold" aria-hidden="true" />
                 </button>
                 <button type="button" aria-label={`Move ${sec.label} down`} disabled={i === own.length - 1} onClick={() => moveOwn(sec.id, 1)} className={`${roundBtn} active:translate-y-0.5`}>
-                  ↓
+                  <ArrowDownIcon size={14} weight="bold" aria-hidden="true" />
                 </button>
               </span>
               <button type="button" onClick={() => removeOwn(sec.id)} className="font-label text-[11px] px-2.5 py-1 border hairline rounded-full text-accent hover:bg-card-bg">

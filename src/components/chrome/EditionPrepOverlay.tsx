@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowClockwiseIcon } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { cssVar, ParticleField, resolveFontFamily } from "@/lib/particles";
 
@@ -161,7 +162,7 @@ export default function EditionPrepOverlay({
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <button type="button" onClick={onRetry} className="chip chip-signal h-10 px-5">
-                ↻ Try again
+                <ArrowClockwiseIcon size={14} weight="bold" className="inline align-[-2px]" aria-hidden="true" /> Try again
               </button>
               <button type="button" onClick={onSkip} className="chip h-10 px-5">
                 Read the raw wires

@@ -1,3 +1,5 @@
+import { ArrowLeftIcon, CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react/ssr";
+import PublisherMark from "@/components/story/PublisherMark";
 import Link from "next/link";
 import TopBar from "@/components/chrome/TopBar";
 import { notFound } from "next/navigation";
@@ -62,7 +64,7 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
       <nav className="flex items-center justify-between gap-4 font-sans text-[13px] font-semibold mb-8">
         <span className="flex flex-wrap gap-2">
           <Link href="/" className="chip chip-signal">
-            ← Today&rsquo;s paper
+            <ArrowLeftIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" /> Today&rsquo;s paper
           </Link>
           <Link href="/archive" className="chip">
             All back issues
@@ -71,12 +73,12 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
         <span className="flex gap-4">
           {older && (
             <Link href={`/archive/${older}`} className="chip">
-              ‹ {fmt(older, { day: "numeric", month: "short" })}
+              <CaretLeftIcon size={12} weight="bold" className="inline align-[-2px]" aria-hidden="true" /> {fmt(older, { day: "numeric", month: "short" })}
             </Link>
           )}
           {newer && (
             <Link href={`/archive/${newer}`} className="chip">
-              {fmt(newer, { day: "numeric", month: "short" })} ›
+              {fmt(newer, { day: "numeric", month: "short" })} <CaretRightIcon size={12} weight="bold" className="inline align-[-2px]" aria-hidden="true" />
             </Link>
           )}
         </span>
@@ -139,8 +141,8 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
                       >
                         <span className="headline-link">{a.title}</span>
                       </a>
-                      <p className="font-mono text-[11px] text-ink-soft mt-1">
-                        {a.source}
+                      <p className="font-mono text-[11px] text-ink-soft mt-1 flex flex-wrap items-center gap-x-1">
+                        <PublisherMark source={a.source} size={14} className="font-sans" />
                         {a.group && a.group !== "f1" ? ` · ${a.group}` : ""}
                         {a.matchedEntity ? ` · for you: ${a.matchedEntity}` : ""}
                         {a.written === false ? " · Gemini didn't write this one: the publisher's text" : ""}

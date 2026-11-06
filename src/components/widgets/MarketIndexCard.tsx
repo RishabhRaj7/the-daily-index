@@ -1,3 +1,4 @@
+import MoveArrow from "@/components/chrome/MoveArrow";
 import type { MarketIndex } from "@/lib/types";
 import SparklineChart from "./SparklineChart";
 import StaleTag from "./StaleTag";
@@ -62,7 +63,7 @@ export default function MarketIndexCard({
             positive ? "bg-up text-paper" : "bg-down text-paper"
           }`}
         >
-          {positive ? "▲" : "▼"} {Math.abs(index.changePct).toFixed(2)}%
+          <MoveArrow up={positive} /> {Math.abs(index.changePct).toFixed(2)}%
         </span>
       </div>
       <div

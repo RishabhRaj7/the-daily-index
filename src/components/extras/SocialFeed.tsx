@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowClockwiseIcon, ArrowRightIcon, CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { SocialAnswer, SocialPost, SocialSource, SourceState } from "@/lib/live/social";
 import { isPaused, pausedSources, readHealth, report, RETRY_AFTER_MS, SOCIAL_RETRY_EVENT, sourceView, useSocialHealth } from "@/lib/social-health";
@@ -160,10 +161,7 @@ export function RefreshStamp({ asOf, busy, onRefresh, className = "" }: { asOf?:
         aria-label="Refresh"
         title="Read it again now"
       >
-        <svg viewBox="0 0 16 16" className={`w-3.5 h-3.5 ${busy ? "animate-spin" : ""}`} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M13.5 8a5.5 5.5 0 1 1-1.7-4" />
-          <path d="M13.5 2.5v3h-3" />
-        </svg>
+        <ArrowClockwiseIcon size={14} weight="bold" className={busy ? "animate-spin" : ""} aria-hidden="true" />
       </button>
     </span>
   );
@@ -414,8 +412,9 @@ export function SocialList({
         </ul>
       )}
       {more && (hidden > 0 || (all && more === "inline")) && (
-        <button type="button" onClick={() => setAll((v) => !v)} className="self-start font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-2">
-          {more === "inline" && all ? "Show fewer ↑" : `See all ${shown.length} posts ${more === "inline" ? "↓" : "→"}`}
+        <button type="button" onClick={() => setAll((v) => !v)} className="self-start inline-flex items-center gap-1 font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-2">
+          {more === "inline" && all ? "Show fewer" : `See all ${shown.length} posts`}
+          {more === "inline" ? all ? <CaretUpIcon size={13} weight="bold" aria-hidden="true" /> : <CaretDownIcon size={13} weight="bold" aria-hidden="true" /> : <ArrowRightIcon size={13} weight="bold" aria-hidden="true" />}
         </button>
       )}
       {all && more && more !== "inline" && (

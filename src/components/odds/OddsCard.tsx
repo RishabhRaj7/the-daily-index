@@ -1,5 +1,8 @@
 "use client";
 
+import { PublisherLogo } from "@/components/story/PublisherMark";
+import MoveArrow from "@/components/chrome/MoveArrow";
+import { ArrowDownIcon, StarIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import type { OddsMarket } from "@/lib/types";
 import { compactMoney, ladderLevel, ladderLine, type OddsPick } from "@/lib/odds-pick";
@@ -18,7 +21,7 @@ export function Move({ v, className = "" }: { v: number | null | undefined; clas
   if (v == null || Math.abs(v) < 1) return null;
   return (
     <span className={`font-mono text-[11px] font-semibold tabular-nums whitespace-nowrap ${v > 0 ? "text-up" : "text-down"} ${className}`}>
-      {v > 0 ? "▲" : "▼"} {Math.abs(Math.round(v))}
+      <MoveArrow up={v > 0} /> {Math.abs(Math.round(v))}
     </span>
   );
 }
@@ -96,7 +99,7 @@ export default function OddsCard({ pick, compact = false }: { pick: OddsPick; co
       >
         <span className="flex items-center justify-between gap-2 font-label text-[11px]">
           <span className="truncate" style={{ color: "var(--section-hue)" }}>
-            {pick.watched ? "★ " : ""}
+            {pick.watched ? <><StarIcon size={13} weight="fill" className="inline align-[-2px]" aria-hidden="true" /> </> : null}
             {pick.why}
           </span>
           <Move v={pick.move || m.lead.move} />
@@ -135,7 +138,7 @@ export default function OddsCard({ pick, compact = false }: { pick: OddsPick; co
             </>
           )}
           <span className="block font-mono text-[11px] text-ink-faint mt-1.5 truncate">
-            {m.source} · ${compactMoney(m.vol)}
+            <PublisherLogo source={m.source} size={13} /> {m.source} · ${compactMoney(m.vol)}
             {m.also?.length ? ` · ${m.also.map((a) => `${a.source} ${Math.round(a.prob)}%`).join(" · ")}` : ""}
           </span>
         </span>
@@ -160,7 +163,7 @@ export function OddsStrip({ picks, label = "What traders expect" }: { picks: Odd
           <span className="text-ink-soft"> · {label}</span>
         </span>
         <a href="#straw-poll" className="font-mono text-[11px] text-ink-faint hover:text-ink">
-          more odds ↓
+          more odds <ArrowDownIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" />
         </a>
       </div>
       <div className={`grid grid-flow-col auto-cols-[78%] sm:auto-cols-[46%] lg:grid-flow-row lg:auto-cols-auto ${cols} gap-3 overflow-x-auto lg:overflow-visible snap-x snap-mandatory pb-1 -mx-1 px-1`}>

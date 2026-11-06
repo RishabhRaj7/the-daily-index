@@ -1,5 +1,6 @@
 "use client";
 
+import { EyeIcon, type Icon, PuzzlePieceIcon, TrendUpIcon } from "@phosphor-icons/react";
 import type { GrapevineData } from "@/lib/types";
 import { SocialList, useSocialFeed, useSocialView } from "@/components/extras/SocialFeed";
 import SocialPausedNote from "@/components/extras/SocialPausedNote";
@@ -20,7 +21,7 @@ import { useMedia } from "@/lib/use-media";
 // that has nothing (a source that keeps failing; lib/social-health.ts) isn't
 // there, and the other takes the whole width. With the room the two pairs run
 // abreast, four blocks in one row (globals.css, .grapevine-blocks); on a phone,
-// Trending and the puzzles open in place, so the page isn't all sidebar.
+// Trending and the puzzles slide up in a sheet (chrome/Fold.tsx).
 //   Left  — "You Should See This": X accounts (the reader's, else the wires
 //           and the paper's desks) read through our RSSHub, and the day's top
 //           posts in their subreddits (Reddit's RSS), together, each with its
@@ -33,11 +34,14 @@ import { useMedia } from "@/lib/use-media";
 /** One of two columns side by side: a hairline before the second, none when it stands alone. */
 const PAIR = "md:flex-1 md:basis-0 min-w-0 md:[&:not(:last-child)]:pr-10 md:[&:not(:first-child)]:pl-10 md:[&:not(:first-child)]:border-l hairline";
 
-function ColumnHead({ title, sub, right }: { title: string; sub: string; right?: React.ReactNode }) {
+function ColumnHead({ title, sub, right, icon: Glyph }: { title: string; sub: string; right?: React.ReactNode; icon: Icon }) {
   return (
     <div className="pb-3 mb-4 border-b hairline">
       <div className="flex items-baseline justify-between gap-3">
-        <h3 className="font-display font-extrabold text-[1.9rem] leading-none">{title}</h3>
+        <h3 className="font-display font-extrabold text-[1.9rem] leading-none inline-flex items-center gap-2">
+          <Glyph size={24} weight="bold" style={{ color: "var(--section-hue)" }} aria-hidden="true" />
+          {title}
+        </h3>
         {right}
       </div>
       <p className="font-body italic text-xs text-ink-soft mt-0.5">{sub}</p>
@@ -77,7 +81,7 @@ export default function GrapevineSection({
       <div className="grapevine-blocks">
       <div className="flex flex-col md:flex-row gap-y-4 mb-6 empty:hidden">
         <SearchBar headlines={headlines} className={PAIR} />
-        <Fold phoneOnly label="Trending on X and Reddit" hint="What India and the world are posting about" className={PAIR}>
+        <Fold phoneOnly icon={TrendUpIcon} label="Trending on X and Reddit" hint="What India and the world are posting about" className={PAIR}>
           <SocialTrends />
         </Fold>
       </div>
@@ -87,6 +91,7 @@ export default function GrapevineSection({
           <div className={PAIR}>
             <ColumnHead
               title="You Should See This"
+              icon={EyeIcon}
               sub={sub}
               right={
                 <span className="flex items-center gap-2">
@@ -99,8 +104,8 @@ export default function GrapevineSection({
           </div>
         )}
 
-        <Fold phoneOnly label="Play today's puzzle" hint="Wordle, a headline scramble, noughts and crosses" className={PAIR}>
-          <ColumnHead title="The Puzzle Desk" sub="Two minutes of play, set from today's headlines" />
+        <Fold phoneOnly icon={PuzzlePieceIcon} label="Play today's puzzle" hint="Wordle, a headline scramble, noughts and crosses" className={PAIR}>
+          <ColumnHead title="The Puzzle Desk" icon={PuzzlePieceIcon} sub="Two minutes of play, set from today's headlines" />
           <PuzzleDesk headlines={puzzleHeadlines} dateKey={puzzleDateKey} />
         </Fold>
       </div>

@@ -1,3 +1,5 @@
+import MoveArrow from "@/components/chrome/MoveArrow";
+import { ArrowLeftIcon, ArrowRightIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import TopBar from "@/components/chrome/TopBar";
@@ -70,7 +72,7 @@ function Market({ market }: { market: Issue["market"] }) {
     <span className="font-mono text-[11px] text-ink-soft">
       {market.name}{" "}
       <span className={up ? "text-up" : "text-down"}>
-        {up ? "▲" : "▼"} {Math.abs(market.changePct).toFixed(2)}%
+        <MoveArrow up={up} /> {Math.abs(market.changePct).toFixed(2)}%
       </span>
     </span>
   );
@@ -123,7 +125,7 @@ export default async function ArchivePage() {
       <TopBar isArchive alwaysShowLogo />
       <main className="flex-1 page-wrap px-4 sm:px-6 pt-10 pb-28 w-full">
         <Link href="/" className="chip mb-10">
-          <span aria-hidden="true">←</span> Back to today&rsquo;s edition
+          <ArrowLeftIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" /> Back to today&rsquo;s edition
         </Link>
 
         <header data-reveal="fade">
@@ -169,7 +171,7 @@ export default async function ArchivePage() {
         href="/"
         className="fixed bottom-5 right-5 z-40 chip chip-signal h-11 px-5 shadow-[0_12px_30px_-12px_rgba(0,0,0,0.5)]"
       >
-        Today&rsquo;s paper <span aria-hidden="true">→</span>
+        Today&rsquo;s paper <ArrowRightIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" />
       </Link>
     </>
   );

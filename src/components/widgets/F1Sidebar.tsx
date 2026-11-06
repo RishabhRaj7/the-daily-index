@@ -1,5 +1,8 @@
 "use client";
 
+import { ArrowClockwiseIcon, ArrowRightIcon, CaretDownIcon, CaretUpIcon, MedalIcon, TrophyIcon } from "@phosphor-icons/react";
+import Sheet from "@/components/extras/Sheet";
+import { PHONE, useMedia } from "@/lib/use-media";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   F1ConstructorStanding,
@@ -462,10 +465,40 @@ export default function F1Sidebar({
   const roster: F1RosterEntry[] = drivers.data?.drivers ?? [];
   const [showAllDrivers, setShowAllDrivers] = useState(false);
   const [showAllConstructors, setShowAllConstructors] = useState(false);
-  const visibleDrivers = showAllDrivers ? driverRows : driverRows.slice(0, 5);
-  const visibleConstructors = showAllConstructors
+  // On a phone the whole table slides up in a sheet; on anything bigger it opens in place.
+  const phone = useMedia(PHONE);
+  const visibleDrivers = showAllDrivers && !phone ? driverRows : driverRows.slice(0, 5);
+  const visibleConstructors = showAllConstructors && !phone
     ? constructorRows
     : constructorRows.slice(0, 5);
+  const constructorBars = (rows: F1ConstructorStanding[]) => (
+    <StandingsBars
+      rows={rows.map((cs) => ({
+        key: `c-${cs.position}`,
+        position: cs.position,
+        name: cs.team.replace(/\s*F1 Team$/i, "").trim(),
+        color: teamColor(cs.team),
+        team: cs.team,
+        points: cs.points,
+      }))}
+      leader={constructorRows[0]?.points ?? 0}
+    />
+  );
+  const driverBars = (rows: F1Standing[]) => (
+    <StandingsBars
+      rows={rows.map((d) => ({
+        key: `d-${d.position}`,
+        position: d.position,
+        name: d.name,
+        sub: d.code,
+        code: d.code,
+        color: teamColor(d.team),
+        team: d.team,
+        points: d.points,
+      }))}
+      leader={driverRows[0]?.points ?? 0}
+    />
+  );
 
   return (
     // Two blocks that join the section's own grid (the root is
@@ -503,7 +536,10 @@ export default function F1Sidebar({
                 <SpinGlyph /> Refreshing…
               </>
             ) : (
-              "↻ Refresh"
+              <>
+                <ArrowClockwiseIcon size={13} weight="bold" aria-hidden="true" />
+                Refresh
+              </>
             )}
           </button>
         </span>
@@ -595,7 +631,8 @@ export default function F1Sidebar({
       {/* Constructors' Championship — before the drivers' table, matching the
           order the section fills in. */}
       <div className="module pit-teams" data-reveal>
-        <div className="font-label text-[11px] text-ink-soft mb-3">
+        <div className="font-label text-[11px] text-ink-soft mb-3 flex items-center gap-1.5">
+          <TrophyIcon size={14} aria-hidden="true" />
           Constructors&rsquo; Championship
         </div>
 
@@ -610,27 +647,21 @@ export default function F1Sidebar({
 
         {constructorRows.length > 0 && (
           <>
-            <StandingsBars
-              rows={visibleConstructors.map((cs) => ({
-                key: `c-${cs.position}`,
-                position: cs.position,
-                name: cs.team.replace(/\s*F1 Team$/i, "").trim(),
-                color: teamColor(cs.team),
-                team: cs.team,
-                points: cs.points,
-              }))}
-              leader={constructorRows[0]?.points ?? 0}
-            />
+            {constructorBars(visibleConstructors)}
             {constructorRows.length > 5 && (
               <button
                 type="button"
                 onClick={() => setShowAllConstructors((value) => !value)}
-                className="font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-3"
+                className="inline-flex items-center gap-1 font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-3"
               >
-                {showAllConstructors
-                  ? "Show top 5"
-                  : `Show all ${constructorRows.length} teams`}
+                {showAllConstructors && !phone ? "Show top 5" : `Show all ${constructorRows.length} teams`}
+                {phone ? <ArrowRightIcon size={13} weight="bold" aria-hidden="true" /> : showAllConstructors ? <CaretUpIcon size={13} weight="bold" aria-hidden="true" /> : <CaretDownIcon size={13} weight="bold" aria-hidden="true" />}
               </button>
+            )}
+            {showAllConstructors && phone && (
+              <Sheet title="Constructors' Championship" onClose={() => setShowAllConstructors(false)} width={560}>
+                <div data-reveal>{constructorBars(constructorRows)}</div>
+              </Sheet>
             )}
             {constructors.stale && <StaleNote onRetry={() => retry("constructors")} />}
           </>
@@ -639,7 +670,8 @@ export default function F1Sidebar({
 
       {/* Drivers' Championship */}
       <div className="module pit-drivers" data-reveal>
-        <div className="font-label text-[11px] text-ink-soft mb-3">
+        <div className="font-label text-[11px] text-ink-soft mb-3 flex items-center gap-1.5">
+          <MedalIcon size={14} aria-hidden="true" />
           Drivers&rsquo; Championship
         </div>
 
@@ -661,27 +693,21 @@ export default function F1Sidebar({
 
         {driverRows.length > 0 && (
           <>
-            <StandingsBars
-              rows={visibleDrivers.map((d) => ({
-                key: `d-${d.position}`,
-                position: d.position,
-                name: d.name,
-                sub: d.code,
-                code: d.code,
-                color: teamColor(d.team),
-                team: d.team,
-                points: d.points,
-              }))}
-              leader={driverRows[0]?.points ?? 0}
-            />
+            {driverBars(visibleDrivers)}
             {driverRows.length > 5 && (
               <button
                 type="button"
                 onClick={() => setShowAllDrivers((value) => !value)}
-                className="font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-3"
+                className="inline-flex items-center gap-1 font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-3"
               >
-                {showAllDrivers ? "Show top 5" : `Show all ${driverRows.length} drivers`}
+                {showAllDrivers && !phone ? "Show top 5" : `Show all ${driverRows.length} drivers`}
+                {phone ? <ArrowRightIcon size={13} weight="bold" aria-hidden="true" /> : showAllDrivers ? <CaretUpIcon size={13} weight="bold" aria-hidden="true" /> : <CaretDownIcon size={13} weight="bold" aria-hidden="true" />}
               </button>
+            )}
+            {showAllDrivers && phone && (
+              <Sheet title="Drivers' Championship" onClose={() => setShowAllDrivers(false)} width={560}>
+                <div data-reveal>{driverBars(driverRows)}</div>
+              </Sheet>
             )}
             {standings.stale && <StaleNote onRetry={() => retry("standings")} />}
           </>

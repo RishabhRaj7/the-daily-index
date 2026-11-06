@@ -1,3 +1,4 @@
+import { ArrowDownIcon, CaretDownIcon, CaretUpIcon, ChartLineUpIcon, FlagCheckeredIcon, type Icon, MapPinIcon } from "@phosphor-icons/react";
 import type { Edition, WeatherNow } from "@/lib/types";
 import WeatherIcon from "@/components/widgets/WeatherIcon";
 import { cityMinutes, isNight, skyClock } from "@/lib/sky";
@@ -20,7 +21,7 @@ export function until(iso: string): string | null {
 function Pct({ value }: { value: number }) {
   return (
     <span className={`font-mono text-[12px] font-semibold whitespace-nowrap ${value >= 0 ? "text-up" : "text-down"}`}>
-      {value >= 0 ? "▲" : "▼"} {Math.abs(value).toFixed(2)}%
+      {value >= 0 ? <CaretUpIcon size={12} weight="fill" className="inline align-[-1px]" aria-label="Up" /> : <CaretDownIcon size={12} weight="fill" className="inline align-[-1px]" aria-label="Down" />} {Math.abs(value).toFixed(2)}%
     </span>
   );
 }
@@ -29,12 +30,14 @@ function Card({
   href,
   hue,
   label,
+  icon: Glyph,
   children,
   i,
 }: {
   href: string;
   hue: string;
   label: string;
+  icon: Icon;
   children: React.ReactNode;
   i: number;
 }) {
@@ -52,10 +55,11 @@ function Card({
     >
       <span className="absolute left-0 top-2.5 bottom-2.5 w-[3px] rounded-r-full" style={{ background: hue }} />
       <span className="flex items-center justify-between gap-1 font-label text-[11px]" style={{ color: hue }}>
-        <span className="truncate">{label}</span>
-        <span className="text-ink-faint transition-transform duration-300 group-hover:translate-y-0.5" aria-hidden="true">
-          ↓
+        <span className="inline-flex items-center gap-1 min-w-0">
+          <Glyph size={13} weight="fill" className="shrink-0" aria-hidden="true" />
+          <span className="truncate">{label}</span>
         </span>
+        <ArrowDownIcon size={12} weight="bold" className="hidden sm:block text-ink-faint shrink-0 transition-transform duration-300 group-hover:translate-y-0.5" aria-hidden="true" />
       </span>
       {children}
     </a>
@@ -75,7 +79,7 @@ export default function SignalRow({ edition, weather }: { edition: Edition; weat
   const cards: React.ReactNode[] = [];
   if (lead) {
     cards.push(
-      <Card key="mk" i={cards.length} href="#market-pulse" hue="var(--hue-markets)" label="Markets">
+      <Card key="mk" i={cards.length} href="#market-pulse" hue="var(--hue-markets)" label="Markets" icon={ChartLineUpIcon}>
         <span className="flex flex-wrap items-baseline gap-x-2 min-w-0">
           <span className={NUMBER}>{lead.level.toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>
           <Pct value={lead.changePct} />
@@ -95,7 +99,7 @@ export default function SignalRow({ edition, weather }: { edition: Edition; weat
   if (next) {
     const t = until(next.date);
     cards.push(
-      <Card key="f1" i={cards.length} href="#paddock-notes" hue="var(--hue-f1)" label={`F1 · R${next.round}`}>
+      <Card key="f1" i={cards.length} href="#paddock-notes" hue="var(--hue-f1)" label={`R${next.round}`} icon={FlagCheckeredIcon}>
         <span className={NUMBER} suppressHydrationWarning>
           {t ?? next.country}
         </span>
@@ -109,7 +113,7 @@ export default function SignalRow({ edition, weather }: { edition: Edition; weat
     const night = isNight(w, skyClock(w, cityMinutes(w.utcOffsetSeconds)));
     const condition = night && w.night ? w.night.condition : w.condition;
     cards.push(
-      <Card key="wx" i={cards.length} href="#sky-report" hue="var(--hue-sky)" label={w.city}>
+      <Card key="wx" i={cards.length} href="#sky-report" hue="var(--hue-sky)" label={w.city} icon={MapPinIcon}>
         <span className="flex items-center gap-2">
           <span className={NUMBER}>{w.tempC}°</span>
           <span style={{ color: "var(--hue-sky)" }}>

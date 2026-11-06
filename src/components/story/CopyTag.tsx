@@ -1,3 +1,4 @@
+import { HourglassMediumIcon, QuotesIcon } from "@phosphor-icons/react";
 import type { Story } from "@/lib/types";
 
 // The small label on a story whose paragraph isn't Gemini's: its failure shows
@@ -13,14 +14,20 @@ export default function CopyTag({ copy }: { copy: Story["copy"] }) {
         style={{ color: "color-mix(in srgb, var(--mood-fear) 70%, var(--ink))" }}
         title="Gemini couldn't write this one yet. This is the publisher's own text, and it's being retried."
       >
-        Summary pending
+        <span className="inline-flex items-center gap-1">
+          <HourglassMediumIcon size={13} aria-hidden="true" />
+          Summary pending
+        </span>
       </span>
     );
   }
   if (copy === "wire") {
     return (
       <span className="font-label text-[11px] text-ink-soft shrink-0" title="This comes straight from the publisher's feed. Gemini hasn't touched it.">
-        Publisher&rsquo;s text
+        <span className="inline-flex items-center gap-1">
+          <QuotesIcon size={13} aria-hidden="true" />
+          Publisher&rsquo;s text
+        </span>
       </span>
     );
   }

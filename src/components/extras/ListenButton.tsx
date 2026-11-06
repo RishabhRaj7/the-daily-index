@@ -1,5 +1,6 @@
 "use client";
 
+import { PlayIcon } from "@phosphor-icons/react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { Edition } from "@/lib/types";
 import { allStories } from "@/lib/format";
@@ -65,9 +66,7 @@ export default function ListenButton({ edition }: { edition: Edition }) {
           ))}
         </span>
       ) : (
-        <svg viewBox="0 0 12 12" className="w-3 h-3" fill="currentColor" aria-hidden="true">
-          <path d="M3 1.8v8.4c0 .4.4.6.7.4l6.6-4.2c.3-.2.3-.6 0-.8L3.7 1.4c-.3-.2-.7 0-.7.4Z" />
-        </svg>
+        <PlayIcon size={13} weight="fill" aria-hidden="true" />
       )}
       {speaking ? "Stop" : "Listen"}
     </button>

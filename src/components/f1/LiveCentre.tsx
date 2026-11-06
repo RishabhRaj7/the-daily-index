@@ -1,5 +1,7 @@
 "use client";
 
+import MoveArrow from "@/components/chrome/MoveArrow";
+import { ArrowLeftIcon, ArrowRightIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { F1Race } from "@/lib/types";
@@ -209,7 +211,7 @@ function PitNow({ stop, row, snap, className = "" }: { stop: PitStopNow | null; 
       <div className="mt-2 grid grid-cols-1 sm:grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-2 items-center flex-1 min-h-0">
         <div className="flex items-baseline gap-2 min-w-0 whitespace-nowrap">
           <span className="font-display font-extrabold text-[1.8rem] leading-none text-ink-soft">P{row.position}</span>
-          <span className="font-mono text-[13px] text-ink-faint" aria-hidden="true">→</span>
+          <ArrowRightIcon size={13} weight="bold" className="text-ink-faint" aria-hidden="true" />
           <span className="font-display font-extrabold text-[1.8rem] leading-none" style={{ color: !stop ? "var(--ink-faint)" : lost > 0 ? "var(--down)" : "var(--up)" }}>
             {stop ? `P${stop.pos}` : "—"}
           </span>
@@ -283,7 +285,7 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
           )}
         </span>
         <button type="button" onClick={() => openDriver(row.code)} className="chip h-8 text-[11.5px] shrink-0" title={`${row.name || row.code}'s season, round by round`}>
-          Season →
+          Season <ArrowRightIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" />
         </button>
       </div>
 
@@ -397,7 +399,7 @@ function TitleRow({ label, team, colour, position, predicted, points, predictedP
         </DriverName>
       </span>
       <span className="font-mono text-[10px] text-center" style={{ color: moved > 0 ? "var(--f1-personal)" : moved < 0 ? "var(--down)" : "var(--ink-faint)" }}>
-        {moved > 0 ? `▲${moved}` : moved < 0 ? `▼${-moved}` : "–"}
+        {moved === 0 ? "–" : <><MoveArrow up={moved > 0} size={10} />{Math.abs(moved)}</>}
       </span>
       <span className="font-mono text-[12px] tabular-nums text-right">{Math.round(predictedPoints)}</span>
       <span className="font-mono text-[10.5px] tabular-nums text-right" style={{ color: predictedPoints > points ? "var(--f1-personal)" : "var(--ink-faint)" }}>
@@ -622,7 +624,7 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
     <>
       <div className="flex items-center justify-between gap-2">
         <Link href="/#paddock-notes" className="chip shrink-0">
-          <span aria-hidden="true">←</span> <span className="hidden sm:inline">Pit wall</span>
+          <ArrowLeftIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" /> <span className="hidden sm:inline">Pit wall</span>
         </Link>
         <span className="flex items-center gap-2 min-w-0">
           {/* F1's live audio coverage, while a session is live (the feed lists the stream) */}

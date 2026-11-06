@@ -1,5 +1,6 @@
 "use client";
 
+import { CheckIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 import { renderSVG } from "uqr";
 import { forgetSync, joinSync, keyFrom, leaveSync, loadSync, startSync, SYNC_CHANGED_EVENT, syncLink, syncNow, type SyncState } from "@/lib/sync";
@@ -160,7 +161,7 @@ export default function SyncCard() {
                   }}
                   className="chip h-8 px-3 text-[12px]"
                 >
-                  {copied ? "Copied ✓" : "Copy link"}
+                  {copied ? <>Copied <CheckIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" /></> : "Copy link"}
                 </button>
                 {typeof navigator !== "undefined" && "share" in navigator && (
                   <button type="button" onClick={() => void navigator.share({ title: "The Daily Index · sync", url: link }).catch(() => {})} className="chip h-8 px-3 text-[12px]">

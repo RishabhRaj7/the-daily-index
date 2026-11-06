@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowLeftIcon } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { PastMeeting } from "@/lib/live/f1-live";
@@ -105,7 +106,7 @@ export default function PastSessions({ current, label, onPick }: { current: stri
               }}
               className="w-full text-left rounded-xl px-3 py-2.5 mb-2 font-sans text-[12.5px] font-semibold border hairline hover:border-[color:var(--ink-soft)]"
             >
-              ← Back to the latest session
+              <ArrowLeftIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" /> Back to the latest session
             </button>
           )}
           {!meetings ? (

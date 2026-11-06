@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowRightIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import type { CarNow, LapTrace, LiveSnapshot, TrackModel } from "@/lib/f1-live-types";
@@ -469,7 +470,7 @@ function Dial({ now, colour, code, onOpen, source, className = "" }: { now: CarN
     <button type="button" onClick={onOpen} className={`group flex flex-col w-full rounded-xl border hairline px-3 pt-2.5 pb-2 text-left hover:border-[color:var(--ink-faint)] transition-colors overflow-hidden ${className}`} title={`${code}'s telemetry in detail`}>
       <span className="flex items-baseline justify-between gap-2 font-label text-[9.5px] text-ink-faint shrink-0">
         <span>Telemetry</span>
-        <span className="group-hover:text-ink transition-colors">Detail →</span>
+        <span className="group-hover:text-ink transition-colors">Detail <ArrowRightIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" /></span>
       </span>
       <span className="flex-1 min-h-0 grid place-items-center">{body}</span>
       <span className="block text-center font-mono text-[10px] text-ink-faint truncate shrink-0">{source}</span>

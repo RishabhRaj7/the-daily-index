@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowSquareOutIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import type { ValMatchStats, ValPlayerStats, ValStatLine } from "@/lib/types";
 
@@ -253,7 +254,7 @@ export default function MatchStats({
         {live ? "The scoreboard appears once the first round is played." : "No scoreboard for this match yet."}
         {vlr && (
           <a href={vlr} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted ml-1">
-            See it on VLR.gg ↗
+            See it on VLR.gg <ArrowSquareOutIcon size={13} className="inline align-[-2px]" aria-hidden="true" />
           </a>
         )}
       </p>
@@ -331,7 +332,7 @@ export default function MatchStats({
         {current.id !== "all" && current.duration && <span>{current.duration}</span>}
         {vod && (
           <a href={vod.url} target="_blank" rel="noopener noreferrer" className="hover:text-ink underline decoration-dotted underline-offset-2">
-            Watch map {mapNo} ↗
+            Watch map {mapNo} <ArrowSquareOutIcon size={13} className="inline align-[-2px]" aria-hidden="true" />
           </a>
         )}
         {current.id !== "all" && current.rounds.length > 0 && (
@@ -355,7 +356,7 @@ export default function MatchStats({
         <span className="ml-auto text-ink-faint">
           Stats:{" "}
           <a href={data.url} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted hover:text-ink">
-            VLR.gg ↗
+            VLR.gg <ArrowSquareOutIcon size={13} className="inline align-[-2px]" aria-hidden="true" />
           </a>
         </span>
       </div>

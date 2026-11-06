@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 
 // How far down the page you are, along the top of the window. On the paper it
 // wears the colour of the section being read (--now-hue, set by the menu in
-// chrome/PaperNav.tsx); elsewhere the site's accent.
+// chrome/PaperNav.tsx); elsewhere the site's accent. On the paper on a phone the
+// line along the bottom menu does this job instead (.reading-bar in globals.css).
 export default function ReadingProgressBar() {
   const [progress, setProgress] = useState(0);
 
@@ -26,7 +27,7 @@ export default function ReadingProgressBar() {
 
   return (
     <div
-      className="fixed top-0 left-0 right-0 h-[3px] z-50 bg-transparent"
+      className="reading-bar fixed top-0 left-0 right-0 h-[3px] z-50 bg-transparent"
       aria-hidden="true"
     >
       <div

@@ -1,5 +1,6 @@
 "use client";
 
+import MoveArrow from "@/components/chrome/MoveArrow";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PriceBar } from "@/lib/types";
 import Sheet from "@/components/extras/Sheet";
@@ -175,7 +176,7 @@ export default function MarketChartSheet({ target, onClose }: { target: ChartTar
             className={`rounded-full px-3 py-1 font-mono text-[13px] font-semibold ${up ? "bg-up" : "bg-down"}`}
             style={{ color: "var(--paper)" }}
           >
-            {up ? "▲" : "▼"} {fmt(Math.abs(stats.change), prefix)} ({Math.abs(stats.changePct).toFixed(2)}%)
+            <MoveArrow up={up} size={13} /> {fmt(Math.abs(stats.change), prefix)} ({Math.abs(stats.changePct).toFixed(2)}%)
           </span>
         )}
       </div>

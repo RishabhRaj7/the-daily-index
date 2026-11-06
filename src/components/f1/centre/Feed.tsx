@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowRightIcon } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 import type { LivePitStop, LiveRadio, LiveSnapshot } from "@/lib/f1-live-types";
 import { readRaceControl, type RcItem, type RcTone } from "@/lib/f1-race-control";
@@ -191,7 +192,7 @@ function PitRow({ p, tyre, t }: { p: LivePitStop; tyre: { compound: keyof typeof
           {p.lane !== null && <span className="font-mono text-[10.5px] text-ink-soft tabular-nums">{p.lane.toFixed(1)} s in the lane</span>}
           {tyre && (
             <span className="flex items-center gap-1.5 font-mono text-[10.5px] text-ink-soft" title={`Out on ${tyre.fresh ? "new" : "used"} ${TYRE[tyre.compound].name.toLowerCase()}s`}>
-              <span aria-hidden="true">→</span>
+              <ArrowRightIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" />
               <span
                 className="rounded-[4px] px-1.5 h-[16px] leading-[16px] font-bold"
                 style={{

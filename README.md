@@ -13,10 +13,11 @@ Vercel.
 The page runs in one order, with one subject on each row at every screen size,
 and the menu jumps between its parts: **Today**, **News** (Dateline, The Nation,
 Two Cities, Sky Report), **Sport** (Paddock Notes, Clutch, Sports), **Money** (The
-Ledger, Market Pulse), **Next** (The Circuit Board, Straw Poll, your own sections,
-The Week Ahead) and **Back** (The Grapevine and the day's extras). A wider screen
-shows more of a section at once. Stories print in full from laptop width; on a phone or
-tablet they open in place.
+Ledger, Market Pulse) and **Next** (The Circuit Board, Straw Poll, your own sections,
+The Week Ahead, The Grapevine), then the day's extras. A wider screen shows more of a
+section at once. Stories print in full from laptop width; on a phone or tablet they
+show their first sentence and open in place. On a phone, anything else that shows more
+slides up in a sheet. Each story's source is its publisher's logo and name.
 
 | Section | What it carries |
 |---|---|
@@ -149,14 +150,20 @@ src/
   components/
     sections/          one component per paper section
     widgets/           pit wall, gauges, sparklines, weather blocks…
-    masthead/ chrome/  masthead, the menu (PaperNav, TopBar), motion runtime
+    masthead/ chrome/  masthead, the menu (PaperNav, TopBar, nav-icons), motion runtime
     settings/ onboarding/
   lib/
     live/              feed list (feeds.ts), fetchers, digest pipeline (digest.ts)
     preferences/       preference schema, defaults, prompts, projection onto sections
     chapters.ts        which group each section belongs to
+    publishers.ts      a publisher's proper name and logo, from its web address
     server/            edition store, snapshots, Gemini client
 ```
+
+Publisher logos live in `public/publishers/` as `<slug>.light.png` and
+`<slug>.dark.png`. To add one, add both files and a row in `src/lib/publishers.ts`;
+without one, a publisher gets a letter tile. Icons are
+[Phosphor](https://phosphoricons.com) (`@phosphor-icons/react`).
 
 To change what the paper reads, edit `src/lib/live/feeds.ts`; each pool notes
 which feeds were dropped and why. Default sections and their prompts live in

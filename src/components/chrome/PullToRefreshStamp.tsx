@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowClockwiseIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { clearSummaryCaches, requestForcedSummarize } from "@/lib/summary-cache";
 import { clearDigestCache, markEditionRefresh } from "@/lib/digest-cache";
@@ -54,19 +55,7 @@ export default function PullToRefreshStamp() {
       className="chip group"
       title="Clear every cache and print a fresh edition"
     >
-      <svg
-        viewBox="0 0 16 16"
-        className={`w-3.5 h-3.5 transition-transform duration-500 group-hover:rotate-180 ${refreshing ? "animate-spin" : ""}`}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" />
-        <path d="M13.8 2.2v2.9h-2.9" />
-      </svg>
+      <ArrowClockwiseIcon size={14} weight="bold" className={`transition-transform duration-500 group-hover:rotate-180 ${refreshing ? "animate-spin" : ""}`} aria-hidden="true" />
       {refreshing ? "Printing…" : "Refresh"}
     </button>
   );

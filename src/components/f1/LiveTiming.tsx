@@ -1,5 +1,6 @@
 "use client";
 
+import MoveArrow from "@/components/chrome/MoveArrow";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { LapMark, LiveRow, LiveSector, LiveSnapshot, SegmentMark } from "@/lib/f1-live-types";
 import { loadPersonalization, PERSONALIZATION_CHANGED_EVENT } from "@/lib/personalization";
@@ -206,7 +207,7 @@ function Moved({ r }: { r: LiveRow }) {
   if (!d) return null;
   return (
     <span className="font-mono text-[9px] font-semibold tabular-nums whitespace-nowrap" style={{ color: d > 0 ? "var(--up)" : "var(--down)" }} title={`Started P${r.grid}: ${Math.abs(d)} place${Math.abs(d) === 1 ? "" : "s"} ${d > 0 ? "gained" : "lost"}`}>
-      {d > 0 ? "▲" : "▼"}
+      <MoveArrow up={d > 0} size={9} />
       {Math.abs(d)}
     </span>
   );

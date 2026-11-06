@@ -1,5 +1,6 @@
 "use client";
 
+import { CaretRightIcon } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { LiveSnapshot, TrackTone } from "@/lib/f1-live-types";
@@ -92,7 +93,7 @@ export default function LiveCard({ snap }: { snap: LiveSnapshot }) {
       <div className="flex items-baseline justify-between gap-2 mt-1">
         <span className="font-headline text-[15px] leading-tight truncate">{snap.meeting}</span>
         <Link href="/f1/live" className="font-label text-[10.5px] text-ink-soft hover:text-ink shrink-0 group">
-          Live centre <span className="inline-block transition-transform group-hover:translate-x-0.5">›</span>
+          Live centre <CaretRightIcon size={12} weight="bold" className="inline-block align-[-1px] transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
         </Link>
       </div>
 

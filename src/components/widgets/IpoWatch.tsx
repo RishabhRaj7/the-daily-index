@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowSquareOutIcon, BellRingingIcon, CaretDownIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 import type { IpoDetail, IpoEntry, IpoStage, PriceBar } from "@/lib/types";
 import Sheet from "@/components/extras/Sheet";
@@ -180,9 +181,7 @@ function Chatter({ name, stage }: { name: string; stage: IpoEntry["stage"] }) {
           {live.data && view === "show" ? `${live.data.posts.length} post${live.data.posts.length === 1 ? "" : "s"}` : ""}
           {!isPaused(health.reddit, now) && <SourceLogo source="reddit" size={13} />}
           {!isPaused(health.x, now) && <SourceLogo source="x" size={13} />}
-          <span className="transition-transform group-open/chatter:rotate-180" aria-hidden>
-            ▾
-          </span>
+          <CaretDownIcon size={12} weight="bold" className="transition-transform group-open/chatter:rotate-180" aria-hidden="true" />
         </span>
       </summary>
       <div className="px-4 pb-4">
@@ -430,12 +429,12 @@ function IpoSheet({ ipo, onClose }: { ipo: IpoEntry; onClose: () => void }) {
       <div className="flex flex-wrap items-center gap-2 mt-6">
         {d.documents.map((doc) => (
           <a key={doc.url} href={doc.url} target="_blank" rel="noopener noreferrer" className="chip h-8 text-[12px]">
-            {doc.label} ↗
+            {doc.label} <ArrowSquareOutIcon size={13} className="inline align-[-2px]" aria-hidden="true" />
           </a>
         ))}
         {d.gmpUrl && (
           <a href={d.gmpUrl} target="_blank" rel="noopener noreferrer" className="chip h-8 text-[12px]">
-            GMP source ↗
+            GMP source <ArrowSquareOutIcon size={13} className="inline align-[-2px]" aria-hidden="true" />
           </a>
         )}
       </div>
@@ -489,7 +488,10 @@ export default function IpoWatch() {
   return (
     <div className="mt-12">
       <div className="flex items-baseline justify-between gap-4 mb-3">
-        <h3 className="font-display font-bold text-[1.8rem] leading-none">IPO watch</h3>
+        <h3 className="font-display font-bold text-[1.8rem] leading-none inline-flex items-center gap-1.5">
+          <BellRingingIcon size={22} weight="bold" style={{ color: "var(--section-hue)" }} aria-hidden="true" />
+          IPO watch
+        </h3>
         <span className="font-mono text-[11px] text-ink-soft text-right">
           Mainboard · GMP{" "}
           <span className="inline-block w-2 h-2 rounded-full align-middle" style={{ background: "var(--down)" }} /> &lt;20%{" "}

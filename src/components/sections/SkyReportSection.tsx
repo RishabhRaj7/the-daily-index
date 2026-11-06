@@ -1,5 +1,6 @@
 "use client";
 
+import { CloudRainIcon, DropIcon, type Icon, MapTrifoldIcon, MoonIcon, MoonStarsIcon, SunHorizonIcon, SunIcon, ThermometerIcon, WindIcon } from "@phosphor-icons/react";
 import SettingsLink from "@/components/chrome/SettingsLink";
 import type { WeatherAlert, WeatherNow } from "@/lib/types";
 import WeatherAlerts from "@/components/widgets/WeatherAlerts";
@@ -21,12 +22,15 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 /** A labelled 0..max meter that fills in on reveal. */
-function Meter({ label, value, max, note }: { label: string; value: number; max: number; note: string }) {
+function Meter({ label, value, max, note, icon: Glyph }: { label: string; value: number; max: number; note: string; icon: Icon }) {
   const pct = Math.max(0.04, Math.min(1, value / max));
   return (
     <div>
       <div className="flex flex-wrap items-baseline justify-between gap-x-2">
-        <span className="font-label text-[11px] text-ink-soft">{label}</span>
+        <span className="font-label text-[11px] text-ink-soft inline-flex items-center gap-1">
+          <Glyph size={14} aria-hidden="true" />
+          {label}
+        </span>
         <span className="font-mono text-[11px] text-ink-soft">{note}</span>
       </div>
       <div className="font-display font-bold text-[2rem] leading-none mt-1">{value}</div>
@@ -190,8 +194,8 @@ export function CityMini({ weather }: { weather: WeatherNow }) {
         )}
         <p className="font-headline italic text-ink-soft text-[14px] mt-3">{words.quip}</p>
         <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 font-mono text-[11px] text-ink-soft">
-          <span>↑ {weather.sunrise}</span>
-          <span>↓ {weather.sunset}</span>
+          <span><SunHorizonIcon size={14} className="inline align-[-2px]" aria-hidden="true" /> {weather.sunrise}</span>
+          <span><MoonStarsIcon size={14} className="inline align-[-2px]" aria-hidden="true" /> {weather.sunset}</span>
           <span>AQI {weather.aqi} · {weather.aqiLabel.toLowerCase()}</span>
           {!night && <span>UV {weather.uvIndex}</span>}
         </div>
@@ -256,8 +260,18 @@ function SkyReading({
             </span>
           </div>
           <div className="flex flex-wrap gap-x-5 gap-y-1 mt-4 font-mono text-[12px] text-ink-soft tabular-nums">
-            {typeof weather.feelsLikeC === "number" && <span>Feels like {weather.feelsLikeC}°</span>}
-            {typeof weather.humidity === "number" && <span>Humidity {weather.humidity}%</span>}
+            {typeof weather.feelsLikeC === "number" && (
+              <span className="inline-flex items-center gap-1">
+                <ThermometerIcon size={14} aria-hidden="true" />
+                Feels like {weather.feelsLikeC}°
+              </span>
+            )}
+            {typeof weather.humidity === "number" && (
+              <span className="inline-flex items-center gap-1">
+                <DropIcon size={14} aria-hidden="true" />
+                {weather.humidity}%
+              </span>
+            )}
           </div>
           {hasRange && (
             <div className="mt-3 max-w-[26rem]">
@@ -275,14 +289,14 @@ function SkyReading({
           </div>
           <div className="grid grid-cols-3 gap-4 pt-4 border-t hairline">
             {typeof weather.humidity === "number" && (
-              <Meter label="Humidity" value={weather.humidity} max={100} note={humidityLabel(weather.humidity)} />
+              <Meter icon={DropIcon} label="Humidity" value={weather.humidity} max={100} note={humidityLabel(weather.humidity)} />
             )}
             {night ? (
-              <Meter label="Moonlight" value={Math.round(moon.illumination * 100)} max={100} note="% lit" />
+              <Meter icon={MoonIcon} label="Moonlight" value={Math.round(moon.illumination * 100)} max={100} note="% lit" />
             ) : (
-              <Meter label="UV index" value={weather.uvIndex} max={11} note={uvLabel(weather.uvIndex)} />
+              <Meter icon={SunIcon} label="UV index" value={weather.uvIndex} max={11} note={uvLabel(weather.uvIndex)} />
             )}
-            <Meter label="AQI" value={weather.aqi} max={300} note={weather.aqiLabel} />
+            <Meter icon={WindIcon} label="AQI" value={weather.aqi} max={300} note={weather.aqiLabel} />
           </div>
         </div>
 
@@ -290,7 +304,10 @@ function SkyReading({
       {weather.blocks && weather.blocks.length > 0 && (
         <div>
           <div className="flex items-baseline justify-between gap-4 mb-2">
-            <h3 className="font-label text-[11px] text-ink-soft">The rest of the day · chance of rain</h3>
+            <h3 className="font-label text-[11px] text-ink-soft inline-flex items-center gap-1">
+              <CloudRainIcon size={14} aria-hidden="true" />
+              The rest of the day · chance of rain
+            </h3>
             {typeof weather.rainChance === "number" && (
               <span className="font-mono text-[11px] text-ink-soft">Today&rsquo;s peak {weather.rainChance}%</span>
             )}
@@ -301,7 +318,10 @@ function SkyReading({
 
       {others.length > 0 && (
         <div className="mt-5 space-y-3">
-          <h3 className="font-label text-[11px] text-ink-soft">Also on your map</h3>
+          <h3 className="font-label text-[11px] text-ink-soft inline-flex items-center gap-1">
+            <MapTrifoldIcon size={14} aria-hidden="true" />
+            Also on your map
+          </h3>
           {others.map((o) => (
             <CityMini key={o.city} weather={o} />
           ))}

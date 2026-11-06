@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowSquareOutIcon, CaretDownIcon, CaretLeftIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { ValEvent, ValMatch, ValorantData, ValTeam } from "@/lib/types";
 import Sheet from "@/components/extras/Sheet";
@@ -421,7 +422,7 @@ function EventView({ event, data, follows, go }: { event: ValEvent; data: Valora
           <p className="font-mono text-[11px] text-ink-faint mt-4">
             Polymarket · ${Math.round(event.odds.volume).toLocaleString("en-US")} traded ·{" "}
             <a href={event.odds.url} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted">
-              open ↗
+              open <ArrowSquareOutIcon size={13} className="inline align-[-2px]" aria-hidden="true" />
             </a>{" "}
             (needs a VPN in India)
           </p>
@@ -661,7 +662,7 @@ function MatchView({ a, b, id, data, follows, go }: { a: string; b: string; id?:
             >
               {label}
               {k !== "h2h" && (k === "a" ? ha : hb) && <Form list={(k === "a" ? ha : hb)!} code={k === "a" ? a : b} n={5} />}
-              <span className={`inline-block transition-transform ${past === k ? "rotate-180" : ""}`}>▾</span>
+              <CaretDownIcon size={12} weight="bold" className={`inline-block transition-transform ${past === k ? "rotate-180" : ""}`} aria-hidden="true" />
             </button>
           ))}
           {ha && meetings.length > 0 && <span className="ml-auto font-mono text-[11px] text-ink-faint">since 2024 · maps {mapsA}–{mapsB}</span>}
@@ -722,7 +723,7 @@ export default function ClutchSheet({ start, data, follows, onClose }: { start: 
     <span className="flex items-center gap-3">
       {back && (
         <button type="button" onClick={back} className="font-label text-[11px] hover:text-ink" style={{ color: "var(--section-hue)" }}>
-          ‹ Back
+          <CaretLeftIcon size={12} weight="bold" className="inline align-[-2px]" aria-hidden="true" /> Back
         </button>
       )}
       <span>

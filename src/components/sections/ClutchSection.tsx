@@ -1,5 +1,7 @@
 "use client";
 
+import { ArrowsLeftRightIcon, CaretRightIcon, HourglassMediumIcon, NewspaperIcon, PencilSimpleIcon, TreeStructureIcon, UsersThreeIcon } from "@phosphor-icons/react";
+import { PublisherLogo } from "@/components/story/PublisherMark";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { ValEvent, ValMatch, ValorantData, ValTeam } from "@/lib/types";
 import SectionHeader from "@/components/story/SectionHeader";
@@ -181,7 +183,7 @@ function TeamCard({ team, data, open }: { team: ValTeam; data: ValorantData; ope
         <Logo src={team.image} name={team.code} size={26} />
         <div className="min-w-0 flex-1">
           <div className="font-sans font-semibold text-[14px] leading-tight truncate group-hover:text-[color:var(--section-hue)]">
-            {team.name} <span className="font-mono text-[11px] text-ink-faint font-normal">›</span>
+            {team.name} <span className="text-ink-faint"><CaretRightIcon size={12} weight="bold" className="inline align-[-2px]" aria-hidden="true" /></span>
           </div>
           <div className="font-mono text-[11px] text-ink-soft truncate">{status}</div>
         </div>
@@ -261,7 +263,7 @@ function EventPanel({ event, data, follows, now, open }: { event: ValEvent; data
             {event.stage || "Scheduled"} · {date(event.start)}–{date(event.end)}
           </div>
         </div>
-        <span className="chip h-7 px-2.5 text-[11px] shrink-0">Bracket ›</span>
+        <span className="chip h-7 px-2.5 text-[11px] shrink-0 gap-1"><TreeStructureIcon size={13} aria-hidden="true" />Bracket</span>
       </button>
       <div className="relative h-1 rounded-full bg-[color:var(--rule)] mt-3" title={`${Math.round(progress * 100)}% of the way through`}>
         <div className="h-full rounded-full bar-grow" style={{ width: `${progress * 100}%`, background: "var(--section-hue)" }} />
@@ -358,7 +360,10 @@ function Wire({ data, teams, now }: { data: ValorantData; teams: ValTeam[]; now:
               {mine.includes(n) && <span className="text-[color:var(--section-hue)]">● </span>}
               {n.title}
             </span>
-            <span className="block font-mono text-[11px] text-ink-faint mt-0.5">VLR.gg · {ago(n.publishedAt, now)}</span>
+            <span className="flex items-center gap-1 font-mono text-[11px] text-ink-faint mt-0.5">
+              <PublisherLogo source="vlr.gg" size={13} />
+              VLR.gg · {ago(n.publishedAt, now)}
+            </span>
           </a>
         </li>
       ))}
@@ -382,7 +387,10 @@ function TransferWindow({ teams }: { teams: ValTeam[] }) {
     <div className="module min-w-0 flex flex-col" data-reveal>
       <div className="flex items-center justify-between gap-3 mb-3">
         <span className="min-w-0">
-          <span className="block font-label text-[11px] text-ink-soft">Transfer window</span>
+          <span className="font-label text-[11px] text-ink-soft flex items-center gap-1.5">
+            <ArrowsLeftRightIcon size={14} aria-hidden="true" />
+            Transfer window
+          </span>
           {feed && <span className="block font-mono text-[11px] text-ink-faint truncate mt-0.5">{describeFeed(feed.config)}</span>}
         </span>
         <EditFeedsButton section="clutch" />
@@ -438,6 +446,7 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
 
   const edit = (
     <button type="button" className="chip h-7 px-3 text-[11px]" onClick={() => setPicking(true)}>
+      <PencilSimpleIcon size={13} aria-hidden="true" />
       {teams.length ? "Edit teams" : "Pick teams"}
     </button>
   );
@@ -456,7 +465,10 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
           <div className="flex flex-col gap-4 min-w-0">
             <div className="module">
               <div className="flex items-center justify-between gap-3">
-                <span className="font-label text-[11px] text-ink-soft">Between events</span>
+                <span className="font-label text-[11px] text-ink-soft inline-flex items-center gap-1.5">
+                  <HourglassMediumIcon size={14} aria-hidden="true" />
+                  Between events
+                </span>
                 {edit}
               </div>
               <p className="font-sans text-[14px] mt-3 leading-snug">
@@ -480,7 +492,10 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
             </div>
             {data.news.length > 0 && (
               <div className="module flex-1" data-reveal>
-                <div className="font-label text-[11px] text-ink-soft mb-3">From the scene</div>
+                <div className="font-label text-[11px] text-ink-soft mb-3 flex items-center gap-1.5">
+                  <NewspaperIcon size={14} aria-hidden="true" />
+                  From the scene
+                </div>
                 <Wire data={data} teams={teams} now={now} />
               </div>
             )}
@@ -510,7 +525,10 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,0.95fr)] items-stretch">
         <div className="module h-full" data-reveal>
           <div className="flex items-center justify-between gap-3 mb-3">
-            <span className="font-label text-[11px] text-ink-soft">Your teams</span>
+            <span className="font-label text-[11px] text-ink-soft inline-flex items-center gap-1.5">
+              <UsersThreeIcon size={14} aria-hidden="true" />
+              Your teams
+            </span>
             {edit}
           </div>
           {teams.length > 0 ? (
@@ -529,7 +547,10 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
           <EventPanel event={event} data={data} follows={follows} now={now} open={setView} />
         </div>
         <div className="module h-full md:col-span-2 lg:col-span-1" data-reveal>
-          <div className="font-label text-[11px] text-ink-soft mb-3">From the scene</div>
+          <div className="font-label text-[11px] text-ink-soft mb-3 flex items-center gap-1.5">
+            <NewspaperIcon size={14} aria-hidden="true" />
+            From the scene
+          </div>
           <Wire data={data} teams={teams} now={now} />
         </div>
       </div>
