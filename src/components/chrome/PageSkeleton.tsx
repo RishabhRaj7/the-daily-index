@@ -12,7 +12,7 @@ const Block = ({ className = "" }: { className?: string }) => <div className={`r
 export default function PageSkeleton({ kind, label }: { kind: "edition" | "live" | "archive"; label: string }) {
   return (
     <>
-      <div className="page-scale with-rail flex-1 flex flex-col w-full">
+      <div className={`page-scale with-rail flex-1 flex flex-col w-full ${kind === "live" ? "live-page" : ""}`}>
       {kind === "live" ? <LiveNav /> : <SiteNav />}
       <main className="page-skeleton flex-1 page-wrap px-4 sm:px-6 pt-10 pb-28 w-full" aria-busy="true" aria-label={label}>
         <p className="font-label text-[11px] text-ink-faint mb-6">{label}</p>

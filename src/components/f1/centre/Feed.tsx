@@ -288,7 +288,7 @@ export default function Feed({
       {shown.length === 0 ? (
         <Empty>{onlyMine ? "Nothing about your drivers here yet." : "Nothing here yet."}</Empty>
       ) : (
-        <ol className="space-y-1">
+        <ol className={`space-y-1 ${pinned ? "" : "feed-list"}`}>
           {shown.map((it, i) => {
             const lap = laps.get(it) ?? null;
             const header = lap !== null && (i === 0 || laps.get(shown[i - 1]) !== lap);
@@ -327,8 +327,8 @@ export default function Feed({
   );
 
   return pinned ? (
-    <div className="flex flex-col lg:grid lg:grid-cols-[11rem_minmax(0,1fr)] lg:gap-6 min-h-0 flex-1">
-      <div className="shrink-0 pb-3 border-b hairline lg:pb-0 lg:border-b-0 lg:border-r lg:pr-5 [&>div]:lg:flex-col [&>div]:lg:items-start">{filters}</div>
+    <div className="feed-pinned flex flex-col lg:grid lg:grid-cols-[11rem_minmax(0,1fr)] lg:gap-6 min-h-0 flex-1">
+      <div className="feed-filters shrink-0 pb-3 border-b hairline lg:pb-0 lg:border-b-0 lg:border-r lg:pr-5 [&>div]:lg:flex-col [&>div]:lg:items-start">{filters}</div>
       <div className="min-h-0 flex-1 overflow-y-auto -mr-2 pr-2 [scrollbar-width:thin] overscroll-contain lg:max-w-4xl">{list}</div>
     </div>
   ) : (

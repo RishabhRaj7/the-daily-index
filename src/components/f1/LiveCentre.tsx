@@ -397,12 +397,13 @@ function LiveView({ snap, live, replay, replayT }: { snap: LiveSnapshot; live: b
   // A phone reads down: the map, the order, the feed. A wide screen puts the
   // order and the map side by side, with the feed under the order filling the
   // rest of the left column beside the map and the followed driver's card, so
-  // the two columns end together; its list scrolls inside.
+  // the two columns end together; its list scrolls inside. The map takes up what's
+  // left of its column. An ultrawide gives each its own column (.live-grid).
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:grid-rows-[auto_minmax(0,1fr)] gap-5 lg:gap-6 items-stretch">
+    <div className="live-grid grid grid-cols-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:grid-rows-[auto_minmax(0,1fr)] gap-5 lg:gap-6 items-stretch">
       {track ? (
         <Panel id="track" icon={MapTrifoldIcon} label={track.name || "Track"} meta={live || replay ? "Cars placed from the timing loops" : track.corners.length ? `${track.corners.length} corners` : undefined} className="order-1 lg:col-start-2 lg:row-start-1 lg:row-span-2">
-          <TrackMap model={track} snap={snap} focus={focus} onFocus={setPicked} onExpand={() => setEnlarged(true)} fit controls className="h-[40vh] max-h-[24rem] lg:h-[24rem] lg:max-h-none" />
+          <TrackMap model={track} snap={snap} focus={focus} onFocus={setPicked} onExpand={() => setEnlarged(true)} fit controls className="live-map h-[40vh] max-h-[24rem] lg:h-[24rem] lg:max-h-none" />
           {enlarged && <MapSheet model={track} snap={snap} focus={focus} onFocus={setPicked} onClose={() => setEnlarged(false)} />}
           {focusRow && <FocusCard row={focusRow} photo={photos[focusRow.code] ?? driverPhotoByCode(focusRow.code, focusRow.team)} snap={snap} track={track} live={live && !replay} replayT={replay ? replayT : null} />}
           {focusRow && snap.running && (

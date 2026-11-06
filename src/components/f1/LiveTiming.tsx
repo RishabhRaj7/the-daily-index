@@ -392,12 +392,12 @@ export default function LiveTiming({
     // In the pit lane, on an out-lap, or the stops made (runs, off a race).
     { key: "pit", head: "Pit", w: layout === "narrow" ? "2.1rem" : "minmax(3.2rem,0.5fr)", cell: (r: LiveRow) => <PitCell r={r} running={snap.running} short={layout === "narrow"} /> },
   ];
-  const driverW = layout === "wide" ? "minmax(10rem,1.5fr)" : layout === "roomy" ? (sectors ? "minmax(4.5rem,0.8fr)" : "minmax(8rem,1.4fr)") : "minmax(0,1fr)";
+  const driverW = layout === "wide" ? "minmax(10rem,2.4fr)" : layout === "roomy" ? (sectors ? "minmax(4.5rem,0.8fr)" : "minmax(8rem,2.4fr)") : "minmax(0,1fr)";
   const cols = `${moved ? "2.7rem" : layout === "narrow" || layout === "medium" ? "1.5rem" : "1.6rem"} ${driverW} ${columns.map((c) => c.w).join(" ")}`;
   const gapX = layout === "narrow" ? "gap-x-2" : "gap-x-2.5";
 
   return (
-    <div ref={box}>
+    <div ref={box} className="timing-box">
       {layout !== "wide" && onFocus && (
         <div className="flex justify-end mb-2">
           <div className="inline-flex rounded-full border hairline p-0.5 gap-0.5" role="tablist" aria-label="Show">
@@ -431,7 +431,7 @@ export default function LiveTiming({
           </span>
         ))}
       </div>
-      <div className="relative">
+      <div className="timing-rows relative">
         {rows.map((r) => {
           const mine = fav.codes.has(r.code) || (fav.team !== "" && r.team === fav.team);
           const faded = r.out || (r.knockedOut && !race);
@@ -461,8 +461,8 @@ export default function LiveTiming({
                     <span className="font-sans font-bold tracking-[0.02em] shrink-0">{r.code}</span>
                     {showName && !(layout === "roomy" && sectors) && <span className="font-sans text-ink-soft truncate min-w-0">{r.name}</span>}
                   </DriverName>
-                  {/* Once it's over everyone has the flag: on a phone that room goes to the name and DNF. */}
-                  {(layout !== "narrow" || snap.running) && <Chequered r={r} race={race} running={snap.running} status={snap.status} />}
+                  {/* Once it's over everyone has the flag: that room goes to the name and DNF. */}
+                  {snap.running && <Chequered r={r} race={race} running={snap.running} status={snap.status} />}
                   <Status r={r} race={race} running={snap.running} />
                   <StewardMarks s={stewards.get(r.code)} code={r.code} compact={layout === "narrow" || layout === "medium"} />
                 </span>

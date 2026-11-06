@@ -1,10 +1,10 @@
+import { jolpicaRaces } from "./jolpica";
 // Two drivers, head to head, for the season so far: who out-qualified whom,
 // who finished ahead, and the typical qualifying gap — from Jolpica's
 // qualifying and race classifications (free, no key). Teammates by default
 // (the team's two most frequent drivers, so a one-off substitute doesn't
 // replace the regular teammate), or any two drivers the reader follows.
 
-const API = "https://api.jolpi.ca/ergast/f1";
 
 interface Row {
   number: string;
@@ -44,20 +44,11 @@ const secs = (t?: string) => {
 };
 
 async function all(kind: "qualifying" | "results", year: number): Promise<Race[]> {
-  const pages = await Promise.all(
-    [0, 100, 200, 300, 400, 500].map(async (offset) => {
-      try {
-        const res = await fetch(`${API}/${year}/${kind}/?limit=100&offset=${offset}`, { next: { revalidate: 6 * 3600 } });
-        if (!res.ok) return [] as Race[];
-        return ((await res.json()) as { MRData: { RaceTable: { Races: Race[] } } }).MRData.RaceTable.Races;
-      } catch {
-        return [] as Race[];
-      }
-    }),
-  );
+  // Every page or none (lib/live/jolpica.ts): half a season would read as a real score.
+  const pages = await jolpicaRaces<Race>(`${year}/${kind}/`, 6 * 3600);
   // A round can straddle two pages; join its rows back up.
   const byRound = new Map<string, Race>();
-  for (const r of pages.flat()) {
+  for (const r of pages) {
     const had = byRound.get(r.round);
     byRound.set(r.round, had ? { ...had, QualifyingResults: [...(had.QualifyingResults ?? []), ...(r.QualifyingResults ?? [])], Results: [...(had.Results ?? []), ...(r.Results ?? [])] } : r);
   }
@@ -115,7 +106,8 @@ function who(races: Race[], code: string): { code: string; name: string; team: s
 /** A team's regular pairing, head to head. */
 export async function teammateH2H(team: string, year = new Date().getUTCFullYear()): Promise<HeadToHead | null> {
   const want = teamOf(team);
-  const [quali, races] = await Promise.all([all("qualifying", year), all("results", year)]);
+  const quali = await all("qualifying", year);
+  const races = await all("results", year);
   const count = new Map<string, number>();
   for (const r of races) for (const row of r.Results ?? []) if (teamOf(row.Constructor.name) === want) count.set(codeOf(row), (count.get(codeOf(row)) ?? 0) + 1);
   const [a, b] = [...count.entries()].sort((x, y) => y[1] - x[1]).map(([c]) => c);
@@ -127,7 +119,8 @@ export async function teammateH2H(team: string, year = new Date().getUTCFullYear
 
 /** Any two drivers, head to head (by timing code). */
 export async function driversH2H(a: string, b: string, year = new Date().getUTCFullYear()): Promise<HeadToHead | null> {
-  const [quali, races] = await Promise.all([all("qualifying", year), all("results", year)]);
+  const quali = await all("qualifying", year);
+  const races = await all("results", year);
   const da = who(races, a.toUpperCase());
   const db = who(races, b.toUpperCase());
   if (!da || !db || da.code === db.code) return null;

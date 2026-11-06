@@ -16,7 +16,7 @@ export default async function LivePage() {
   const schedule = await getF1Schedule().catch(() => null);
   return (
     <>
-      <div className="page-scale with-rail flex-1 flex flex-col w-full">
+      <div className="page-scale with-rail live-page flex-1 flex flex-col w-full">
       <LiveNav />
       <main className="flex-1 page-wrap px-4 sm:px-6 pt-8 pb-28 w-full" style={{ ["--section-hue" as string]: "var(--hue-f1)" }}>
         <LiveCentre race={schedule?.nextRace ?? null} />

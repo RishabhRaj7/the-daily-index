@@ -20,7 +20,9 @@ import { Panel } from "./ui";
 //                 lap, the weather; open any one here (the one on show is
 //                 marked); the ones to come with a countdown
 //   the form      every driver's place in every session so far, in one grid
-//                 (tap a driver for their season)
+//                 (tap a driver for their season); a driver a row, or from
+//                 2400px a driver a column across the full width, with the
+//                 three panels below sharing the row under it
 //   history       who won, took pole and set the fastest lap here lately,
 //                 and the most wins here ever
 //   then the lap references and the rounds after this one.
@@ -113,14 +115,69 @@ function SessionCard({ s, on, onOpen }: { s: WeekendSession; on: boolean; onOpen
   );
 }
 
-/** Every driver's place in every session so far. */
+/** A driver's place in a session, coloured like the season's grid. */
+function Place({ s, code, name }: { s: WeekendSession; code: string; name: string }) {
+  const r = s.rows.find((x) => x.code === code);
+  if (!r) return <td className="text-center text-ink-faint">–</td>;
+  const out = r.out && s.type === "Race";
+  const t = tone({ pos: r.pos, text: out ? "DNF" : String(r.pos), points: 0, grid: null, status: "", laps: null, fastestLap: null, fastestOfAll: false });
+  return (
+    <td className="p-0">
+      <span className="block rounded-md h-7 leading-7 text-center font-mono font-semibold text-[11px]" style={{ background: t.bg, color: t.fg }} title={`${name} · ${s.name}: P${r.pos}${r.time ? ` · ${r.time}` : ""}`}>
+        {out ? "DNF" : r.pos}
+      </span>
+    </td>
+  );
+}
+
+/** Every driver's place in every session so far: a driver a row, or from 2400px a driver a column. */
 function Form({ sessions, onDriver }: { sessions: WeekendSession[]; onDriver: (code: string) => void }) {
   const latest = sessions.at(-1);
   if (!latest) return null;
   const order = latest.rows.map((r) => r.code);
   const all = new Map(sessions.flatMap((s) => s.rows.map((r) => [r.code, r] as const)));
   return (
-    <div className="overflow-x-auto -mx-1 px-1">
+    <>
+    <div className="week-form-across hidden">
+      <table className="data-table matrix w-full table-fixed border-separate border-spacing-[3px] text-[11.5px] tabular-nums">
+        <colgroup>
+          <col style={{ width: "3.6rem" }} />
+          {order.map((code) => (
+            <col key={code} />
+          ))}
+        </colgroup>
+        <thead>
+          <tr>
+            <th aria-label="Session" />
+            {order.map((code) => {
+              const d = all.get(code)!;
+              return (
+                <th key={code} className="font-normal pb-1.5">
+                  <button type="button" onClick={() => onDriver(code)} aria-label={d.name} title={d.name} className="group w-full flex flex-col items-center gap-1">
+                    <span className="w-5 h-[3px] rounded-full" style={{ background: d.colour }} />
+                    <TeamGlyph team={d.team} colour={d.colour} size={14} />
+                    <span className="font-sans font-semibold group-hover:text-[color:var(--hue-f1)] transition-colors">{code}</span>
+                  </button>
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {sessions.map((s) => (
+            <tr key={s.path}>
+              <th scope="row" className="font-label font-normal text-[11px] text-ink-faint text-left px-1">
+                {SHORT[s.name] ?? s.name}
+              </th>
+              {order.map((code) => (
+                <Place key={code} s={s} code={code} name={all.get(code)!.name} />
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <div className="week-form overflow-x-auto -mx-1 px-1">
       <table className="data-table matrix border-separate border-spacing-[3px] text-[11.5px] tabular-nums">
         {/* The driver a fixed width; every session the same width beside it. */}
         <colgroup>
@@ -151,24 +208,16 @@ function Form({ sessions, onDriver }: { sessions: WeekendSession[]; onDriver: (c
                     <span className="font-sans font-semibold group-hover:text-[color:var(--hue-f1)] transition-colors">{d.name}</span>
                   </button>
                 </td>
-                {sessions.map((s) => {
-                  const r = s.rows.find((x) => x.code === code);
-                  if (!r) return <td key={s.path} className="text-center text-ink-faint">–</td>;
-                  const t = tone({ pos: r.pos, text: r.out && s.type === "Race" ? "DNF" : String(r.pos), points: 0, grid: null, status: "", laps: null, fastestLap: null, fastestOfAll: false });
-                  return (
-                    <td key={s.path} className="p-0">
-                      <span className="block rounded-md h-7 leading-7 text-center font-mono font-semibold text-[11px]" style={{ background: t.bg, color: t.fg }} title={`${d.name} · ${s.name}: P${r.pos}${r.time ? ` · ${r.time}` : ""}`}>
-                        {r.out && s.type === "Race" ? "DNF" : r.pos}
-                      </span>
-                    </td>
-                  );
-                })}
+                {sessions.map((s) => (
+                  <Place key={s.path} s={s} code={code} name={d.name} />
+                ))}
               </tr>
             );
           })}
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 
@@ -188,7 +237,8 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
   const h = data?.history;
   const first = done[0]?.end ?? upcoming[0]?.start;
   const last = upcoming.at(-1)?.start ?? done.at(-1)?.end;
-  const after = season?.rounds.filter((r) => !r.done && new Date(r.date).getTime() > now + 2 * 86_400_000).slice(0, 3) ?? [];
+  // The rounds after the one on show; with no round known, those beyond this weekend.
+  const after = season?.rounds.filter((r) => (data?.round ? r.round > data.round : !r.done && new Date(r.date).getTime() > now + 2 * 86_400_000)).slice(0, 3) ?? [];
 
   return (
     <div className="space-y-6">
@@ -265,19 +315,20 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
 
       {/* The weekend's form (five or six sessions: a narrow table) beside the
           circuit's history, the lap benchmarks and the rounds after this one. */}
-      {/* Both columns end level: the shorter one's last panel stretches to the other's foot. */}
-      <div className={`grid grid-cols-1 gap-6 items-stretch ${done.length > 1 ? "lg:grid-cols-[auto_minmax(0,1fr)]" : ""}`}>
+      {/* Both columns end level: the shorter one's last panel stretches to the other's foot.
+          From 2400px the form runs the full width and the other three share a row under it. */}
+      <div className={`week-lower grid grid-cols-1 gap-6 items-stretch ${done.length > 1 ? "lg:grid-cols-[auto_minmax(0,1fr)]" : ""}`}>
         {done.length > 1 && (
-          <Panel icon={TableIcon} label="Across the weekend" meta="Tap a name for their season" className="lg:w-max">
+          <Panel icon={TableIcon} label="Across the weekend" meta="Tap a name for their season" className="week-across lg:w-max">
             <Form sessions={done} onDriver={openDriver} />
           </Panel>
         )}
-        <div className="flex flex-col gap-6 min-w-0 [&>*:last-child]:flex-1">
-          <Panel icon={ClockCounterClockwiseIcon} label="Recent years here" meta={h ? `${h.races} Grands Prix since ${h.firstYear}` : undefined}>
+        <div className="week-rest flex flex-col gap-6 min-w-0 [&>*:last-child]:flex-1">
+          <Panel icon={ClockCounterClockwiseIcon} className="week-recent" label="Recent years here" meta={h ? `${h.races} Grands Prix since ${h.firstYear}` : undefined}>
             {!h ? (
               <p className="font-mono text-[11px] text-ink-faint">{data === undefined ? "Reading…" : "No history: a new venue."}</p>
             ) : (
-              <div className="overflow-x-auto -mx-1 px-1">
+              <div className="week-recent-body overflow-x-auto -mx-1 px-1">
                 <table className="data-table text-[12px] min-w-[28rem]">
                   <colgroup>
                     <col style={{ width: "3.5rem" }} />
@@ -319,11 +370,11 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
               </div>
             )}
           </Panel>
-          <Panel icon={WatchIcon} label="Lap benchmarks">
+          <Panel icon={WatchIcon} className="week-bench" label="Lap benchmarks">
             <Benchmarks snap={snap} />
           </Panel>
         {after.length > 0 && (
-          <Panel icon={CalendarDotsIcon} label="After this">
+          <Panel icon={CalendarDotsIcon} className="week-after" label="After this">
             <ol className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {after.map((r) => (
                 <li key={r.round} className="rounded-xl border hairline px-3.5 py-3">

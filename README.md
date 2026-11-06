@@ -181,8 +181,10 @@ Nifty breadth), the Federal Reserve's FOMC calendar, FRED (Fed funds target),
 the RBI's home page (repo rate), Polymarket and Kalshi (prediction markets),
 Riot's esports API and VLR.gg (Valorant), NDMA's Sachet (weather alerts),
 GOV.UK and Google's holiday calendars (exchange holidays), Google's India holidays calendar, investorgain.com (IPO
-GMP, unofficial), OpenF1
-(F1 schedule, results and standings), Open-Meteo (weather and air quality),
+GMP, unofficial), OpenF1 and Jolpica
+(F1 schedule, results and standings; the season grid, head-to-head and circuit
+history are Jolpica alone), F1's own live timing feed (the live centre),
+Open-Meteo (weather and air quality),
 OpenStreetMap Nominatim (travel-mode place names), Merriam-Webster (Word of the
 Day), Wikipedia (On This Day) and Reddit. Every story links to its original
 publisher.

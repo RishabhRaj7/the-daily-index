@@ -1,3 +1,4 @@
+import { jolpicaGet } from "./jolpica";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { F1_DRIVERS, F1_DRIVER_SEASON } from "@/lib/config/f1-drivers";
 import { LOCAL_CIRCUITS } from "@/lib/config/f1-circuits";
@@ -15,11 +16,6 @@ import type {
   F1SessionResult,
   F1SessionTop,
 } from "@/lib/types";
-// Staged slices of LiveF1Data — each maps to one block of the F1 sidebar and
-// is fetched independently so the section can render progressively:
-//   schedule  — fastest (one memoized call): next race + upcoming calendar.
-//   standings — championship tables (OpenF1 ×2 + Ergast wins, parallelised).
-//   session   — last race result + next race's starting grid (the slow tail).
 // Staged slices of the sidebar, in the exact order the reader sees them fill
 // in. Each maps to one block and is fetched independently so the section
 // renders progressively and a failure is scoped to its own block:
@@ -91,7 +87,6 @@ export interface F1PartFailure {
 export type F1PartResult<T> = F1PartSuccess<T> | F1PartFailure;
 
 const OPENF1_API = "https://api.openf1.org/v1";
-const JOLPICA_API = "https://api.jolpi.ca/ergast/f1";
 // A race counts as finished (and its result settled) this long after the
 // session's scheduled end; qualifying and practice a little sooner.
 const SETTLE_MS = 20 * 60 * 1000;
@@ -349,13 +344,7 @@ async function openF1<T>(path: string, revalidate = 3600): Promise<T | null> {
 // positions, points and wins — in one request each.
 async function jolpica<T>(path: string, revalidate = 900): Promise<T | null> {
   try {
-    const init: RequestInit = isFreshRead() ? { cache: "no-store" } : { next: { revalidate } };
-    const response = await fetch(`${JOLPICA_API}/${path}`, init);
-    if (!response.ok) {
-      console.error(`jolpica failed: ${path} -> ${response.status} ${response.statusText}`);
-      return null;
-    }
-    return (await response.json()) as T;
+    return await jolpicaGet<T>(path, isFreshRead() ? { cache: "no-store" } : { next: { revalidate } });
   } catch (err) {
     console.error(`jolpica error: ${path}`, err);
     return null;
