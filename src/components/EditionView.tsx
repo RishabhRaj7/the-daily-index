@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowUpIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   Edition,
@@ -53,10 +54,13 @@ import {
   writePickBlurbs,
 } from "@/lib/summary-cache";
 import Masthead from "@/components/masthead/Masthead";
+import { until } from "@/components/masthead/SignalRow";
 import HeroStory from "@/components/story/HeroStory";
 import FrontStrip from "@/components/widgets/FrontStrip";
-import { spreadRows } from "@/lib/spread";
+import { chaptersFor, type PrintedChapter } from "@/lib/chapters";
 import WeekAhead from "@/components/widgets/WeekAhead";
+import ListenButton from "@/components/extras/ListenButton";
+import PullToRefreshStamp from "@/components/chrome/PullToRefreshStamp";
 import DatelineSection from "@/components/sections/DatelineSection";
 import TwoCitiesSection from "@/components/sections/TwoCitiesSection";
 import NationSection from "@/components/sections/NationSection";
@@ -97,7 +101,10 @@ import {
 } from "@/lib/digest-cache";
 import EditionPrepOverlay from "@/components/chrome/EditionPrepOverlay";
 import WritingNotice from "@/components/chrome/WritingNotice";
-import TopBar, { type NavSection } from "@/components/chrome/TopBar";
+import CatchUpCard, { useCatchUp, type CatchUpNumber } from "@/components/widgets/CatchUp";
+import { NewStories, NO_NEW_STORIES } from "@/components/story/new-stories";
+import PaperNav from "@/components/chrome/PaperNav";
+import type { NavChapter } from "@/components/chrome/TopBar";
 import Briefing from "@/components/story/Briefing";
 import { digestArticleToStory } from "@/lib/preferences/stories";
 import { SECTION_META } from "@/lib/sections";
@@ -1064,16 +1071,47 @@ export default function EditionView({
       );
   const visibleStandalone = isArchive ? [] : standaloneDigest;
 
-  // One entry per printed section for the sticky bar.
-  const navSections: NavSection[] = [
-    ...(travelling ? [{ id: "postcard", label: "Postcard", hue: "var(--hue-travel)" }] : []),
-    ...order.map((key) => ({ id: SECTION_META[key].slug, label: SECTION_META[key].short, hue: SECTION_META[key].hue })),
-    ...visibleStandalone.map(({ section }) => ({
-      id: `digest-${section.id}`,
-      label: section.label,
-      hue: digestHue(section.label),
-    })),
-  ];
+  // The running order (lib/chapters.ts). Next also carries things that aren't
+  // sections: the reader's own sections and the week ahead, after the odds. The
+  // day's extras always finish the page, whichever group comes last.
+  const extras = {
+    note: !isArchive && editorsNote ? editorsNote.text : null,
+    history: edition.onThisDay[0] ?? null,
+    word: edition.wordOfDay?.word ? edition.wordOfDay : null,
+  };
+  const chapters = chaptersFor(order).filter((c) => c.printed.length > 0 || (c.id === "next" && (!isArchive || visibleStandalone.length > 0)));
+  type Item = { kind: "section"; key: SectionKey } | { kind: "own"; at: number } | { kind: "week" };
+  const itemsOf = (c: PrintedChapter): Item[] => {
+    const items: Item[] = c.printed.map((key) => ({ kind: "section", key }));
+    if (c.id !== "next") return items;
+    const poll = c.printed.indexOf("straw-poll");
+    const grapevine = c.printed.indexOf("grapevine");
+    const place = poll >= 0 ? poll + 1 : grapevine >= 0 ? grapevine : items.length;
+    items.splice(place, 0, ...visibleStandalone.map((_, at): Item => ({ kind: "own", at })), ...(isArchive ? [] : [{ kind: "week" } as Item]));
+    return items;
+  };
+
+  // One menu, in the same words everywhere (chrome/PaperNav.tsx). The side menu
+  // prints the day's number beside a section that has one.
+  const leadIndex = edition.markets.indices.find((i) => /nifty 50/i.test(i.name)) ?? edition.markets.indices[0];
+  const toLights = nextRace ? until(nextRace.date) : null;
+  const navNotes: Partial<Record<SectionKey, { text: string; tone?: "up" | "down" }>> = {
+    ...(leadIndex
+      ? { "market-pulse": { text: `${leadIndex.changePct >= 0 ? "+" : "−"}${Math.abs(leadIndex.changePct).toFixed(2)}%`, tone: leadIndex.changePct >= 0 ? ("up" as const) : ("down" as const) } }
+      : {}),
+    ...(toLights ? { "paddock-notes": { text: toLights === "this weekend" ? "now" : toLights } } : {}),
+    ...(weather ? { "sky-report": { text: `${weather.tempC}°` } } : {}),
+  };
+  const navChapters: NavChapter[] = chapters.map((c) => ({
+    id: `ch-${c.id}`,
+    label: c.label,
+    sections: itemsOf(c).map((item) => {
+      if (item.kind === "section") return { id: SECTION_META[item.key].slug, name: SECTION_META[item.key].name, hue: SECTION_META[item.key].hue, note: navNotes[item.key] };
+      if (item.kind === "week") return { id: "week-ahead", name: "The Week Ahead", hue: "var(--hue-money)" };
+      const { section } = visibleStandalone[item.at];
+      return { id: `digest-${section.id}`, name: section.label, hue: digestHue(section.label) };
+    }),
+  }));
 
   // Where each story runs on this page, so the briefing can link down to it.
   const anchorByUrl = new Map<string, string>();
@@ -1113,6 +1151,10 @@ export default function EditionView({
   // pipeline (progress + retry), so the floating pill stays out of the way.
   const prepBlocking = prep === "boot" || prep === "cooking" || prep === "failed";
 
+  // A line pointing at the article the lead already is would say it twice.
+  const briefShown = brief ?? (prepBlocking ? null : fallbackBrief);
+  const briefLines = briefShown ? { ...briefShown, bullets: briefShown.bullets.filter((b) => !b.url || b.url !== hero?.sourceUrl) } : null;
+
   // Stories on the page still waiting for Gemini: a spare that isn't printed,
   // or a section the reader hid, is no failure of theirs to read about.
   const printedById = new Map<string, Story>();
@@ -1129,11 +1171,31 @@ export default function EditionView({
     (s) => s.copy === "pending" && (!s.reserve || s.id === hero?.id) && !personalization.hiddenSections.includes(s.section),
   ).length;
 
+  // What changed since the reader last looked (widgets/CatchUp.tsx).
+  const catchUpStories = [...printedById.values()].filter((s) => (!s.reserve || s.id === hero?.id) && !personalization.hiddenSections.includes(s.section));
+  const followedNames = new Set(oddsFollows.filter((f) => !f.rival).map((f) => f.name));
+  const watchedOdds = new Set([...Object.values(odds?.watched ?? {}).flat(), ...(personalization.oddsPins ?? []).map((p) => p.id)]);
+  const catchUpNumbers: CatchUpNumber[] = [
+    ...edition.markets.indices.map((i) => ({
+      key: `index:${i.id}`,
+      label: i.name,
+      value: i.level,
+      display: i.level.toLocaleString(i.market === "India" ? "en-IN" : "en-US", { maximumFractionDigits: i.level >= 1000 ? 0 : 2 }),
+      kind: "price" as const,
+    })),
+    // The favourite's name is in the key: a new favourite isn't a move.
+    ...(odds?.markets ?? [])
+      .filter((m) => watchedOdds.has(m.id) || followedNames.has(m.lead.name))
+      .map((m) => ({ key: `odds:${m.id}:${m.lead.name}`, label: m.title, value: m.lead.prob, display: `${Math.round(m.lead.prob)}%`, kind: "points" as const })),
+  ];
+  const catchUpData = useCatchUp(catchUpStories, catchUpNumbers, !isArchive && !prepBlocking);
+
   return (
-    <main className="flex-1 page-scale">
+    <main className="flex-1 page-scale edition-page">
       <SparksContext.Provider value={sparks}>
       <RaceOddsContext.Provider value={raceOdds}>
       <StoryOddsContext.Provider value={oddsLayout.stories}>
+      <NewStories.Provider value={catchUpData?.newUrls ?? NO_NEW_STORIES}>
       {prep !== "revealed" && (
         <EditionPrepOverlay
           failed={prep === "failed"}
@@ -1144,13 +1206,10 @@ export default function EditionView({
           onSkip={handlePrepSkip}
         />
       )}
-      <TopBar sections={navSections} isArchive={isArchive} />
-      <Masthead
-        edition={edition}
-        isArchive={isArchive}
-        weather={(travelling && travelWeather) || weather || undefined}
-      />
+      <PaperNav chapters={navChapters} date={edition.date} issue={`VOL. ${edition.volume} · NO. ${edition.issue}`} />
+      <Masthead edition={edition} weather={(travelling && travelWeather) || weather || undefined} />
       <div className="page-wrap px-4 sm:px-6">
+        {catchUpData && !isArchive && !prepBlocking && <CatchUpCard key={catchUpData.since} data={catchUpData} />}
         {!isArchive && !prepBlocking && (
           <WritingNotice
             writing={writing}
@@ -1162,106 +1221,88 @@ export default function EditionView({
             onRetry={retryNow}
           />
         )}
-        {/* Front page: the briefing beside the lead, then the day's extras
-            (editor's note, on this day, word of the day) in one slim strip;
-            on an ultrawide the extras become a third column instead.
-            On a phone the briefing comes first: the whole day in a minute. */}
+        {/* The front page: the briefing beside the lead. On a phone the briefing
+            comes first: the whole day in a minute, on the first screen. */}
         {hero && (
-          <>
-            <div className="grid grid-cols-1 gap-y-12 pt-10 md:pt-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,2.6fr)] uw:grid-cols-[minmax(0,1fr)_minmax(0,2.6fr)_minmax(0,1fr)]">
-              <div className="order-1 lg:pr-8 lg:border-r hairline">
-                <Briefing
-                  brief={brief ?? (prepBlocking ? null : fallbackBrief)}
-                  loading={summaryState === "loading"}
-                  anchorFor={(url) => anchorByUrl.get(url) ?? null}
-                />
-              </div>
-              <div className="order-2 lg:pl-9 uw:pr-9 min-w-0">
-                <HeroStory story={hero} />
-              </div>
-              <div className="order-3 lg:col-span-2 uw:col-span-1 uw:pl-8 uw:border-l hairline min-w-0">
-                <FrontStrip
-                  note={!isArchive && editorsNote ? editorsNote.text : null}
-                  then={personalOtd}
-                  history={edition.onThisDay[0] ?? null}
-                  word={edition.wordOfDay?.word ? edition.wordOfDay : null}
-                />
-              </div>
+          <div className="grid grid-cols-1 gap-y-8 pt-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2.6fr)]">
+            <div className="lg:pr-8 lg:border-r hairline min-w-0">
+              <Briefing
+                brief={briefLines}
+                loading={summaryState === "loading"}
+                anchorFor={(url) => anchorByUrl.get(url) ?? null}
+                actions={
+                  !isArchive ? (
+                    <>
+                      <ListenButton edition={edition} />
+                      <PullToRefreshStamp />
+                    </>
+                  ) : undefined
+                }
+              />
             </div>
-          </>
+            <div className="lg:pl-9 min-w-0">
+              <HeroStory story={hero} />
+            </div>
+          </div>
         )}
-        {/* Dated things coming up this week; today's paper only. */}
-        {!isArchive && <WeekAhead />}
         <div className="edition-body">
           {travelling && travel && (
-            <div className="paper-section spread-solo" style={{ ["--section-hue" as string]: "var(--hue-travel)", order: -1, counterSet: "section 1" }}>
+            <div className="paper-section" style={{ ["--section-hue" as string]: "var(--hue-travel)" }}>
               <PostcardSection travel={travel} weather={travelWeather} />
             </div>
           )}
-          {/* Ultrawide: rows of two columns (lib/spread.ts). Elsewhere the row
-              and column wrappers step aside (display: contents) and each
-              section's flex order and number follow the reader's own order. */}
-          {spreadRows(order).map((row) => {
-            const section = (key: SectionKey) => {
-              const n = order.indexOf(key);
-              return (
-                <div
-                  key={key}
-                  className="paper-section"
-                  style={{
-                    ["--section-hue" as string]: SECTION_META[key].hue,
-                    order: n,
-                    counterSet: `section ${n + (travelling && travel ? 2 : 1)}`,
-                  }}
-                >
-                  {sectionRenderers[key]()}
-                  {briefsFor(key).length > 0 && <InBrief items={briefsFor(key)} />}
-                  {oddsLayout.sections[key] && <OddsStrip picks={oddsLayout.sections[key]!} label={key === "grapevine" ? "Film and the awards" : "What traders expect"} />}
-                </div>
-              );
-            };
-            return "solo" in row ? (
-              <div key={row.solo} className="spread-row spread-solo">
-                {section(row.solo)}
-              </div>
-            ) : (
-              <div key={[...row.left, ...row.right].join("+")} className="spread-row">
-                <div className="spread-col">{row.left.map(section)}</div>
-                <div className="spread-col">{row.right.map(section)}</div>
-              </div>
-            );
-          })}
-          {/* Preference sections with no existing paper slot of their
-              own — appended after the standing sections. */}
-          {visibleStandalone.map(({ section, articles }) => (
-            <div
-              key={`digest-${section.id}`}
-              className="paper-section spread-solo"
-              style={{ ["--section-hue" as string]: digestHue(section.label), order: 1000 }}
-            >
-              <DigestSectionView section={section} articles={articles} />
+          {/* One subject on each row at every width (lib/chapters.ts). A wider
+              screen shows more of a section at once, never a second one. */}
+          {chapters.map((c) => (
+            <div key={c.id} id={`ch-${c.id}`} className="chapter">
+              {itemsOf(c).map((item) => {
+                if (item.kind === "week") return <WeekAhead key="week-ahead" />;
+                if (item.kind === "own") {
+                  const { section, articles } = visibleStandalone[item.at];
+                  return (
+                    <div key={`digest-${section.id}`} className="paper-section" style={{ ["--section-hue" as string]: digestHue(section.label) }}>
+                      <DigestSectionView section={section} articles={articles} />
+                    </div>
+                  );
+                }
+                const { key } = item;
+                return (
+                  <div key={key} className="paper-section" style={{ ["--section-hue" as string]: SECTION_META[key].hue }}>
+                    {sectionRenderers[key]()}
+                    {briefsFor(key).length > 0 && <InBrief items={briefsFor(key)} />}
+                    {oddsLayout.sections[key] && <OddsStrip picks={oddsLayout.sections[key]!} label={key === "grapevine" ? "Film and the awards" : "What traders expect"} />}
+                  </div>
+                );
+              })}
             </div>
           ))}
+          {/* The day's extras finish the paper. */}
+          <FrontStrip note={extras.note} then={personalOtd} history={extras.history} word={extras.word} />
         </div>
       </div>
-      <footer className="mt-24 border-t hairline">
-        <div className="page-wrap px-4 sm:px-6 py-10 grid gap-8 md:grid-cols-[1fr_auto] items-end">
+      <footer className="mt-14 border-t hairline">
+        <div className="page-wrap px-4 sm:px-6 py-8 grid gap-6 md:grid-cols-[1fr_auto] items-end">
           <div>
             <p className="font-display font-extrabold text-[clamp(3rem,12vw,9rem)] leading-[0.8] text-transparent [-webkit-text-stroke:1px_var(--ink-faint)] select-none" aria-hidden="true">
               The Daily Index
             </p>
-            <p className="font-mono text-[11px] text-ink-soft mt-5">
+            <p className="font-headline italic text-[15px] text-ink-soft mt-4">An index of everything that matters today.</p>
+            <p className="font-mono text-[11px] text-ink-soft mt-2">
               VOL. {edition.volume} · NO. {edition.issue} — A PERSONAL DIGEST, NOT A REAL NEWSPAPER.
             </p>
           </div>
           <div className="flex flex-col items-start md:items-end gap-3 text-[13px]">
-            <a href="#masthead" className="chip">Back to the top ↑</a>
+            <a href="#masthead" className="chip">
+              <ArrowUpIcon size={14} weight="bold" aria-hidden="true" />
+              Back to the top
+            </a>
             <span className="font-mono text-[11px] text-ink-soft max-w-[32ch] md:text-right">
               Everything this paper remembers about you stays on this device.
             </span>
           </div>
         </div>
       </footer>
+      </NewStories.Provider>
       </StoryOddsContext.Provider>
       </RaceOddsContext.Provider>
       </SparksContext.Provider>

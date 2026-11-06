@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowLeftIcon, ArrowRightIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import type { F1RosterEntry, Personalization } from "@/lib/types";
 import {
@@ -133,14 +134,14 @@ export default function OnboardingGate({ f1Roster }: { f1Roster: F1RosterEntry[]
               </div>
               <div className="flex flex-col sm:flex-row md:flex-col lg:flex-row gap-3 md:items-end lg:justify-end">
                 <button type="button" onClick={() => setStep(1)} className="chip chip-signal h-12 px-6 text-[14px]">
-                  Set it up · 1 minute →
+                  Set it up · 1 minute <ArrowRightIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" />
                 </button>
                 <button type="button" onClick={() => finish(true)} className="chip h-12 px-6 text-[14px]">
                   Show me today&rsquo;s paper
                 </button>
               </div>
             </div>
-            <p className="font-mono text-[10px] text-ink-faint mt-10">
+            <p className="font-mono text-[11px] text-ink-faint mt-10">
               EVERYTHING YOU CHOOSE STAYS ON THIS DEVICE · CHANGE IT ANY TIME IN SETTINGS
             </p>
           </div>
@@ -173,15 +174,15 @@ export default function OnboardingGate({ f1Roster }: { f1Roster: F1RosterEntry[]
         {step > 0 && (
           <div className="sticky bottom-0 -mx-5 sm:-mx-8 px-5 sm:px-8 py-4 glass border-t hairline flex items-center justify-between gap-3">
             <button type="button" onClick={() => setStep((s) => s - 1)} className="chip h-11 px-5">
-              ← Back
+              <ArrowLeftIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" /> Back
             </button>
             {last ? (
               <button type="button" onClick={() => finish(false)} className="chip chip-signal h-11 px-6">
-                Print my first edition →
+                Print my first edition <ArrowRightIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" />
               </button>
             ) : (
               <button type="button" onClick={() => setStep((s) => s + 1)} className="chip chip-signal h-11 px-6">
-                Next →
+                Next <ArrowRightIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" />
               </button>
             )}
           </div>

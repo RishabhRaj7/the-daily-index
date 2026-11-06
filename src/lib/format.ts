@@ -53,3 +53,23 @@ export function pickHeroStory(
 export function formatIssue(volume: number, issue: number): string {
   return `Vol. ${volume}, No. ${issue}`;
 }
+
+// Words a full stop follows without ending a sentence.
+const NOT_AN_END = /(?:\b(?:Mr|Mrs|Ms|Dr|Prof|St|Jr|Sr|No|Rs|vs|Inc|Ltd|Co|Gen|Lt|Col|Sgt|Capt|Sen|Rep|Gov|Hon|Mt|Ft|approx|etc|Jan|Feb|Mar|Apr|Aug|Sept|Sep|Oct|Nov|Dec)\.|\b[A-Z]\.|\b[A-Z]\.[A-Z]\.)$/;
+
+/**
+ * A paragraph's first whole sentence and the rest, for a story shown short on a
+ * phone: it reads complete, with no "…" in the middle of a word. One too short
+ * to say anything takes the next along; with no clean end, it's all "first".
+ */
+export function splitFirstSentence(text: string): [string, string] {
+  const end = /[.!?]["”’)\]]*\s+(?=["“‘(\[]?[A-Z0-9₹$])/g;
+  let m: RegExpExecArray | null;
+  while ((m = end.exec(text))) {
+    const upTo = text.slice(0, m.index + 1);
+    if (upTo.length < 40 || NOT_AN_END.test(upTo)) continue;
+    const cut = m.index + m[0].trimEnd().length;
+    return [text.slice(0, cut), text.slice(cut).trim()];
+  }
+  return [text, ""];
+}

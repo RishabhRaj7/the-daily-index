@@ -10,27 +10,39 @@ Vercel.
 
 ## What's in the paper
 
+The page runs in one order, with one subject on each row at every screen size,
+and the menu jumps between its parts: **Today**, **News** (Dateline, The Nation,
+Two Cities, Sky Report), **Sport** (Paddock Notes, Clutch, Sports), **Money** (The
+Ledger, Market Pulse) and **Next** (The Circuit Board, Straw Poll, your own sections,
+The Week Ahead, The Grapevine), then the day's extras. A wider screen shows more of a
+section at once. Stories print in full from laptop width; on a phone or tablet they
+show their first sentence and open in place. The menu stays in one place on every page. On a phone, anything else that shows more
+slides up in a sheet. Each story's source is its publisher's logo and name.
+
 | Section | What it carries |
 |---|---|
-| **Front page** | The day's lead story, *At a Glance* (six must-read one-liners), the Editor's Desk note, On This Day, Word of the Day, and **The Week Ahead**: RBI and Fed decisions, market holidays, public holidays, IPO dates and the F1 weekend, in IST |
+| **While you were away** | At the top when you come back after half an hour or more and enough has changed: a headline and two sentences on what's new, the top new stories, and the numbers that moved since your last visit on this device. New stories also carry a small "New" beside their source |
+| **Front page** | Markets, the next race and the weather as three numbers, *The Briefing* (the day's must-reads as one-liners) and the lead story |
 | **Postcard** | Travel mode: weather and local news for wherever you are (opt-in, one tap) |
 | **Dateline** | World news, grouped by the countries you follow |
 | **The Nation** | India's own news: government and policy, courts, economy, infrastructure, security and major incidents, led by what the whole country is reading |
 | **Two Cities** | Local news from your cities, side by side (Bengaluru and Ranchi by default) |
-| **Paddock Notes** | Formula 1 stories plus the pit wall: next race, countdown and circuit map, weekend session times, paddock chatter (the top posts from F1's X accounts and subreddits, yours first), last race podium, your team and drivers, championship tables. The F1 live centre (`/f1/live`) has timing (with the chequered flag as each driver takes it), the map, race control, radio, pit stops, stewards and analysis |
+| **Paddock Notes** | Formula 1 stories plus the pit wall: next race, countdown and circuit map, weekend session times, paddock chatter (the top posts from F1's X accounts and subreddits, yours first), the last race's top three on a podium, your team and drivers, championship tables. The F1 live centre (`/f1/live`), with its own views in the menu, has timing (with the chequered flag as each driver takes it), the map, race control, radio, pit stops, stewards and analysis. After a session, the live centre writes it up: a recap on the Weekend and the radio moments that mattered in the Feed |
 | **Sports** | Football and tennis, when you follow them |
 | **Clutch** | Valorant: your teams (next match with the market's odds, last result, where they stand), the running VCT major and the scene's headlines; a tap opens the bracket and groups, a team's results since 2024, or a match's scoreboard (per map, live while it's on) with the two teams' head-to-head; small, and smaller still in the off-season |
 | **The Ledger** | Markets and economy news — mostly India, some global |
-| **Market Pulse** | 16 live indices across India, US, Europe and Asia with a mood gauge per region (India: Tickertape's Market Mood Index, US: CNN Fear & Greed), gold and silver at IBJA's rate, other commodities in rupees, BTC/ETH in USDT, a tap-to-open chart for each (with its 52-week range and 50/200-day averages), a rates row (RBI repo, Fed funds, US 10-year, what FIIs and DIIs bought and sold, and the odds on the next decision), Nifty 50 breadth, when each market reopens, and IPO watch (mainboard IPOs with dates, size, GMP, the bidding's mood, and what people on X and Reddit say about each, from the accounts and subreddits you choose once for every IPO) |
+| **Market Pulse** | 16 live indices across India, US, Europe and Asia with a mood gauge per region (India: Tickertape's Market Mood Index, US: CNN Fear & Greed), gold and silver at IBJA's rate, other commodities in rupees, BTC/ETH in USDT, each card with today's line against the previous close, a tap-to-open chart for each (read any point with a finger; its day and 52-week range, 50/200-day averages), a rates row (RBI repo, Fed funds, US 10-year, what FIIs and DIIs bought and sold, and the odds on the next decision), Nifty 50 breadth, when each market reopens, and IPO watch (mainboard IPOs with dates, size, GMP, the bidding's mood, and what people on X and Reddit say about each, from the accounts and subreddits you choose once for every IPO). On a move of 1% or more, a line on what the day's headlines credit |
 | **The Circuit Board** | Technology |
+| **The Week Ahead** | Under Next: RBI and Fed decisions, market holidays, public holidays, IPO dates, the F1 weekend and your Valorant teams' matches, in IST |
 | **Straw Poll** | Prediction-market odds from Polymarket and Kalshi, chosen for you: the day's biggest moves with the news that lines up with them, where the money is, your watchlist, a track record; plus three or four questions at the foot of each section and a line under a story when a market is about it. Every market opens with every contender's chart (1D to all time) and why it moved |
 | **Sky Report** | Severe-weather alerts near you (NDMA), weather that follows the clock (moon and stars after sunset), rain chances through the day, air quality, and your other cities |
 | **The Grapevine** | The Search Bar (what India, the US and the world are searching right now, from Google Trends) beside what's trending on X and Reddit, then posts from the X accounts and subreddits you follow, a puzzle desk, and the film odds. If X or Reddit keeps failing it is paused for an hour and quietly left out, with a "Try again" line |
+| **The day's extras** | At the end of the page: the editor's note, On This Day and Word of the Day |
 
 Also: an archive of past editions as a calendar, a share sheet that turns any
 story into an image, light/dark editions, a particle-animated masthead, and a
-settings page to choose sections, their order and what fills each one (one
-list), summary length (Standard by default) and voice.
+settings page to choose sections, their order within each group and what fills
+each one (one list, under the menu's headings), summary length (Standard by default) and voice.
 
 ## How it works
 
@@ -89,8 +101,9 @@ restarts, and Reddit is off.
 | Variable | Needed for |
 |---|---|
 | `GEMINI_API_KEY` | AI selection and summaries (strongly recommended) |
-| `GEMINI_MODEL` | Model override (default in `.env.example`) |
-| `GEMINI_F1_API_KEY` | F1 team radio transcripts on their own Google project (falls back to `GEMINI_API_KEY`) |
+| `GEMINI_MODEL`, `GEMINI_FALLBACK_MODEL` | The paper's models, tried in order (comma-separated lists work): AI selection, summaries, the editor's note and odds explanations. Not radio, whose order is in code. |
+| `GEMINI_LIGHT_MODEL` | The paper's small one-liners: why a market or the odds moved, While you were away, the editor's note, pick blurbs (default `gemini-3.5-flash-lite`, then `gemini-3.1-flash-lite`) |
+| `GEMINI_F1_API_KEY` | F1 team radio transcripts, on their own Google project. Without it there are no transcripts. |
 | `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Stored editions and the archive (Upstash Redis; `UPSTASH_REDIS_REST_*` also works) |
 | `CRON_SECRET` | Protects `/api/cron/*`; Vercel Cron sends it automatically |
 | `REDDIT_ENABLED`, `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `REDDIT_USER_AGENT` | Reddit in the Grapevine (optional) |
@@ -138,14 +151,21 @@ src/
     api/cron           daily builds
   components/
     sections/          one component per paper section
-    widgets/           pit wall, gauges, sparklines, weather blocks…
-    masthead/ chrome/  masthead, top bar, motion runtime
+    widgets/           pit wall, gauges, market charts, weather blocks…
+    masthead/ chrome/  masthead, the menu (PaperNav, TopBar, nav-icons), motion runtime
     settings/ onboarding/
   lib/
     live/              feed list (feeds.ts), fetchers, digest pipeline (digest.ts)
     preferences/       preference schema, defaults, prompts, projection onto sections
+    chapters.ts        which group each section belongs to
+    publishers.ts      a publisher's proper name and logo, from its web address
     server/            edition store, snapshots, Gemini client
 ```
+
+Publisher logos live in `public/publishers/` as `<slug>.light.png` and
+`<slug>.dark.png`. To add one, add both files and a row in `src/lib/publishers.ts`;
+without one, a publisher gets a letter tile. Icons are
+[Phosphor](https://phosphoricons.com) (`@phosphor-icons/react`).
 
 To change what the paper reads, edit `src/lib/live/feeds.ts`; each pool notes
 which feeds were dropped and why. Default sections and their prompts live in
@@ -163,8 +183,10 @@ Nifty breadth), the Federal Reserve's FOMC calendar, FRED (Fed funds target),
 the RBI's home page (repo rate), Polymarket and Kalshi (prediction markets),
 Riot's esports API and VLR.gg (Valorant), NDMA's Sachet (weather alerts),
 GOV.UK and Google's holiday calendars (exchange holidays), Google's India holidays calendar, investorgain.com (IPO
-GMP, unofficial), OpenF1
-(F1 schedule, results and standings), Open-Meteo (weather and air quality),
+GMP, unofficial), OpenF1 and Jolpica
+(F1 schedule, results and standings; the season grid, head-to-head and circuit
+history are Jolpica alone), F1's own live timing feed (the live centre),
+Open-Meteo (weather and air quality),
 OpenStreetMap Nominatim (travel-mode place names), Merriam-Webster (Word of the
 Day), Wikipedia (On This Day) and Reddit. Every story links to its original
 publisher.

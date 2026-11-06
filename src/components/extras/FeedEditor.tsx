@@ -1,5 +1,6 @@
 "use client";
 
+import { SlidersHorizontalIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { cleanXHandle, loadPersonalization } from "@/lib/personalization";
 import { defaultFeed, FEED_LIMITS, FEED_META, feedFor, saveFeed, type FeedConfig, type FeedSection } from "@/lib/feeds";
@@ -57,11 +58,11 @@ function ChipField({
   return (
     <div className="py-4 border-t hairline first:border-t-0 first:pt-0">
       <div className="flex items-center justify-between gap-3 mb-2">
-        <span className="flex items-center gap-2 font-label text-[10px] text-ink-soft">
+        <span className="flex items-center gap-2 font-label text-[11px] text-ink-soft">
           {logo && <SourceLogo source={logo} size={14} />}
           {label}
         </span>
-        <span className="font-mono text-[10px] text-ink-faint tabular-nums">
+        <span className="font-mono text-[11px] text-ink-faint tabular-nums">
           {values.length}/{max}
         </span>
       </div>
@@ -203,11 +204,7 @@ export function EditFeedsButton({ section, className = "", iconOnly = false }: {
         title="Choose the X accounts, searches and subreddits this list reads"
         aria-label={iconOnly ? "Edit feeds" : undefined}
       >
-        <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M2.5 4.5h6M11.5 4.5h2M2.5 11.5h2M7.5 11.5h6" />
-          <circle cx="10" cy="4.5" r="1.5" />
-          <circle cx="6" cy="11.5" r="1.5" />
-        </svg>
+        <SlidersHorizontalIcon size={14} aria-hidden="true" />
         {!iconOnly && "Edit feeds"}
       </button>
       {open && (

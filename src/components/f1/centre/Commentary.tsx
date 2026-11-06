@@ -1,5 +1,6 @@
 "use client";
 
+import { HeadphonesIcon } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 
 // F1's live audio coverage, as the live timing feed lists it (AudioStreams:
@@ -70,11 +71,7 @@ export default function Commentary({ src }: { src: string }) {
         title={on ? "Stop the commentary" : "Listen to F1's live commentary"}
         aria-pressed={on}
       >
-        <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
-          <path d="M2.5 9.5v-1a5.5 5.5 0 0 1 11 0v1" />
-          <rect x="2" y="9" width="3" height="4.5" rx="1" fill="currentColor" stroke="none" />
-          <rect x="11" y="9" width="3" height="4.5" rx="1" fill="currentColor" stroke="none" />
-        </svg>
+        <HeadphonesIcon size={14} aria-hidden="true" />
         <span className="hidden sm:inline">{state === "loading" ? "Connecting…" : "Commentary"}</span>
         {state === "playing" && <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--hue-f1)" }} />}
       </button>

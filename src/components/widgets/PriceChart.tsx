@@ -4,10 +4,11 @@ import { useEffect, useRef } from "react";
 import type { PriceBar } from "@/lib/types";
 import { useUnzoomed } from "@/lib/use-unzoomed";
 
-// A TradingView Lightweight Charts price chart in the paper's colours: an
-// area (or candles) in the section's hue, volume as faint bars along the
-// bottom, and the previous close as a dashed line. The library is loaded
-// only when a chart is first opened.
+// A TradingView Lightweight Charts price chart in the paper's colours: a line, an
+// area or candles, volume as faint bars along the bottom, and where the move starts
+// as a dashed line. `plain` is the market detail chart: no grid, numbers only on
+// candles, a dot on the latest price, and a finger or pointer anywhere on it reads
+// that moment. The library is loaded only when a chart is first opened.
 
 type Mode = "area" | "candles" | "line";
 
@@ -40,7 +41,10 @@ export default function PriceChart({
   onHover,
   format,
   reference = null,
+  plain = false,
 }: {
+  /** The market chart's quiet form: see above. */
+  plain?: boolean;
   /** A second price to mark (the tile's official rate): a dotted line with
    *  its own axis tag, and a dot where it was set when that's on the chart. */
   reference?: { price: number; label: string; t?: number } | null;
@@ -94,17 +98,31 @@ export default function PriceChart({
           fontSize: 11,
           attributionLogo: false,
         },
-        grid: { vertLines: { visible: false }, horzLines: { color: alpha(rule, 0.6) || rule } },
-        rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.12, bottom: showVolume ? 0.22 : 0.08 } },
-        timeScale: { borderVisible: false, timeVisible: intraday, secondsVisible: false, fixLeftEdge: true, fixRightEdge: true },
+        grid: { vertLines: { visible: false }, horzLines: plain ? { visible: false } : { color: alpha(rule, 0.6) || rule } },
+        rightPriceScale: { visible: !plain || mode === "candles", borderVisible: false, scaleMargins: { top: plain ? 0.06 : 0.12, bottom: showVolume ? 0.22 : plain ? 0.04 : 0.08 } },
+        timeScale: { borderVisible: false, timeVisible: intraday, secondsVisible: false, fixLeftEdge: true, fixRightEdge: !plain, rightOffset: plain ? 2 : 0 },
         crosshair: {
           mode: lc.CrosshairMode.Magnet,
-          vertLine: { color: soft, labelBackgroundColor: ink },
-          horzLine: { color: soft, labelBackgroundColor: ink },
+          vertLine: { color: soft, labelBackgroundColor: ink, labelVisible: !plain },
+          horzLine: plain ? { visible: false, labelVisible: false } : { color: soft, labelBackgroundColor: ink },
         },
         localization: format ? { priceFormatter: format } : undefined,
-        handleScale: { axisPressedMouseMove: false },
+        handleScale: plain ? false : { axisPressedMouseMove: false },
+        handleScroll: !plain,
       });
+      // The dashed start and the official rate stay in view, wherever the line goes.
+      const keepInView = [previousClose, reference?.price].filter((p): p is number => p != null);
+      const autoscaleInfoProvider: import("lightweight-charts").AutoscaleInfoProvider = (base) => {
+        const auto = base();
+        if (!plain || !auto?.priceRange || keepInView.length === 0) return auto;
+        return {
+          ...auto,
+          priceRange: {
+            minValue: Math.min(auto.priceRange.minValue, ...keepInView),
+            maxValue: Math.max(auto.priceRange.maxValue, ...keepInView),
+          },
+        };
+      };
 
       const time = (t: number) => (t + shift) as import("lightweight-charts").UTCTimestamp;
       let series;
@@ -115,10 +133,18 @@ export default function PriceChart({
           wickUpColor: up,
           wickDownColor: down,
           borderVisible: false,
+          autoscaleInfoProvider,
         });
         series.setData(bars.map((b) => ({ time: time(b.t), open: b.o, high: b.h, low: b.l, close: b.c })));
       } else if (mode === "line") {
-        series = chart.addSeries(lc.LineSeries, { color, lineWidth: 2, pointMarkersVisible: bars.length < 40 });
+        series = chart.addSeries(lc.LineSeries, {
+          color,
+          lineWidth: 2,
+          pointMarkersVisible: !plain && bars.length < 40,
+          priceLineVisible: !plain,
+          lastValueVisible: !plain,
+          autoscaleInfoProvider,
+        });
         series.setData(bars.map((b) => ({ time: time(b.t), value: b.c })));
       } else {
         series = chart.addSeries(lc.AreaSeries, {
@@ -130,6 +156,7 @@ export default function PriceChart({
         });
         series.setData(bars.map((b) => ({ time: time(b.t), value: b.c })));
       }
+      const markers: import("lightweight-charts").SeriesMarker<import("lightweight-charts").Time>[] = [];
       if (previousClose !== null) {
         series.createPriceLine({
           price: previousClose,
@@ -137,7 +164,7 @@ export default function PriceChart({
           lineWidth: 1,
           lineStyle: lc.LineStyle.Dashed,
           axisLabelVisible: false,
-          title: "prev",
+          title: plain ? "" : "prev",
         });
       }
       if (reference) {
@@ -147,20 +174,23 @@ export default function PriceChart({
           color: mark,
           lineWidth: 2,
           lineStyle: lc.LineStyle.Dotted,
-          axisLabelVisible: true,
+          axisLabelVisible: !plain,
           axisLabelColor: mark,
           axisLabelTextColor: "#111",
-          title: reference.label,
+          title: plain ? "" : reference.label,
         });
         const at = reference.t;
         if (at != null && at >= bars[0].t && at <= bars[bars.length - 1].t) {
           // The bar the rate was set on (the last one at or before it).
           const bar = [...bars].reverse().find((b) => b.t <= at) ?? bars[0];
-          lc.createSeriesMarkers(series, [
-            { time: time(bar.t), position: "aboveBar", color: mark, shape: "circle", text: reference.label },
-          ]);
+          markers.push({ time: time(bar.t), position: "aboveBar", color: mark, shape: "circle", text: reference.label });
         }
       }
+      // The latest price, as a dot at the end of the line.
+      if (plain && mode !== "candles") {
+        markers.push({ time: time(bars[bars.length - 1].t), position: "inBar", color, shape: "circle", size: 1 });
+      }
+      if (markers.length) lc.createSeriesMarkers(series, markers);
       if (showVolume && bars.some((b) => b.v)) {
         const vol = chart.addSeries(lc.HistogramSeries, { priceScaleId: "vol", priceFormat: { type: "volume" }, lastValueVisible: false, priceLineVisible: false });
         vol.priceScale().applyOptions({ scaleMargins: { top: 0.84, bottom: 0 } });
@@ -174,20 +204,50 @@ export default function PriceChart({
       }
       chart.timeScale().fitContent();
 
-      const byTime = new Map(bars.map((b) => [b.t + shift, b]));
-      chart.subscribeCrosshairMove((param) => {
-        const t = typeof param.time === "number" ? param.time : null;
-        hoverRef.current?.(t !== null ? (byTime.get(t) ?? null) : null);
-      });
-
-      cleanup = () => chart.remove();
+      if (plain) {
+        // A sheet over the canvas takes the pointer, so a finger reads the chart
+        // straight away and a swipe up or down still scrolls the page.
+        const touch = document.createElement("div");
+        touch.style.cssText = "position:absolute;inset:0;z-index:3;touch-action:pan-y;cursor:crosshair";
+        el.style.position = "relative";
+        el.appendChild(touch);
+        const read = (e: PointerEvent) => {
+          const logical = chart.timeScale().coordinateToLogical(e.offsetX);
+          if (logical === null) return;
+          const bar = bars[Math.max(0, Math.min(bars.length - 1, Math.round(logical)))];
+          chart.setCrosshairPosition(bar.c, time(bar.t), series);
+          hoverRef.current?.(bar);
+        };
+        const leave = () => {
+          chart.clearCrosshairPosition();
+          hoverRef.current?.(null);
+        };
+        touch.addEventListener("pointerdown", read);
+        touch.addEventListener("pointermove", read);
+        touch.addEventListener("pointerleave", leave);
+        touch.addEventListener("pointercancel", leave);
+        touch.addEventListener("pointerup", (e) => {
+          if (e.pointerType !== "mouse") leave();
+        });
+        cleanup = () => {
+          touch.remove();
+          chart.remove();
+        };
+      } else {
+        const byTime = new Map(bars.map((b) => [b.t + shift, b]));
+        chart.subscribeCrosshairMove((param) => {
+          const t = typeof param.time === "number" ? param.time : null;
+          hoverRef.current?.(t !== null ? (byTime.get(t) ?? null) : null);
+        });
+        cleanup = () => chart.remove();
+      }
     });
 
     return () => {
       disposed = true;
       cleanup();
     };
-  }, [bars, mode, previousClose, showVolume, intraday, hue, trend, format, reference]);
+  }, [bars, mode, previousClose, showVolume, intraday, hue, trend, format, reference, plain]);
 
   return (
     <div ref={box} style={{ height }} className="w-full">

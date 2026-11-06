@@ -136,7 +136,8 @@ html[data-edition="evening"] {
   --mood-xgreed: #3cffd0;
 }
 
-@custom-variant uw (@media (min-width: 2800px) and (min-aspect-ratio: 2/1));
+/* From here the paper has a side menu instead of a top bar (chrome/PaperNav.tsx). */
+@custom-variant wide (@media (min-width: 1500px));
 
 @theme inline {
   --color-paper: var(--paper);
@@ -165,7 +166,16 @@ html[data-edition="evening"] {
 html {
   background-color: var(--paper);
   scroll-behavior: smooth;
-  scroll-padding-top: 4.5rem;
+  /* A jump lands clear of the sticky bar; a phone and a wide screen have none on
+     the paper (the other pages' bars are short enough for this to matter little). */
+  scroll-padding-top: 4.25rem;
+}
+@media (min-width: 1500px) {
+  html { scroll-padding-top: 0.75rem; }
+}
+/* A phone's slim row of where you are takes the top once the masthead has gone. */
+@media (max-width: 767.98px) {
+  html { scroll-padding-top: 3.25rem; }
 }
 
 body {
@@ -225,9 +235,9 @@ html.theme-transition *::after {
 /* The page's width. A big screen gets the same page, larger — never a
    stretched one: `.page-scale` zooms the whole edition in steps (type,
    cards, images and gaps together, so every proportion of the laptop design
-   holds), and the design width only widens a little with it. The steps read
-   the window's height too, so a wide but short window isn't blown up; an
-   ultrawide keeps margins rather than dragging lines and images across it.
+   holds). The steps read the window's height too, so a wide but short window
+   isn't blown up. The paper then uses the whole width by showing more of each
+   section (see Page rhythm); the other pages keep a design width.
    Pop-up sheets render outside the page (portals) and take the same step
    through .sheet-scale; a height in vh inside one is divided by the step
    (zoom multiplies vh too), so a sheet still fits the window. */
@@ -252,31 +262,30 @@ html.theme-transition *::after {
   :root { --page-zoom: 1.45; }
   .page-scale .page-wrap { max-width: 1680px; }
 }
-/* Ultrawide (21:9 and wider): not a bigger page but a spread. The design
-   width roughly doubles and sections sit two to a row (lib/spread.ts), each
-   column about as wide as the laptop page, so every section keeps the
-   layout it was designed at. The front page gains a third column for the
-   day's extras. Other screens let the row wrappers step aside. */
+/* Ultrawide (21:9 and wider): the other pages (archive, live centre) get a wide
+   design width; the paper sets its own just below. */
 @media (min-width: 2800px) and (min-aspect-ratio: 2/1) {
   :root { --page-zoom: 1.3; }
   .page-scale .page-wrap { max-width: 2480px; }
-  .page-scale .edition-body { display: block; }
-  .edition-body .spread-row {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: 4.5rem;
-    align-items: start;
-  }
-  .edition-body .spread-col { display: block; min-width: 0; }
-  /* A section with no partner keeps one column's width, centred, rather
-     than stretching across both. */
-  .edition-body .spread-row.spread-solo,
-  .edition-body > .spread-solo {
-    display: block;
-    width: calc(50% - 2.25rem);
-    margin-inline: auto;
-  }
 }
+/* The paper from 1500px: the side menu takes the left edge, the page takes the
+   rest. How much it shows of each section follows its width (container queries
+   on .edition-body, under Page rhythm), so a 2560x1080 screen gets the same page
+   as a 3440x1440 one, just fewer columns. */
+@media (min-width: 1500px) {
+  .edition-page { padding-left: 204px; }
+  .edition-page .page-wrap { max-width: none; }
+  .edition-page .top-bar-paper { display: none; }
+  /* The pages around the paper carry the same menu (chrome/SiteNav.tsx). */
+  .with-rail { padding-left: 204px; }
+  .with-rail .top-bar { display: none; }
+  .with-rail .settings-save { left: 196px; }
+  /* The side menu carries Analysis's parts (f1/LiveNav.tsx). */
+  .analysis-subs { display: none; }
+  /* The live centre takes the width beside the menu, as the paper does. */
+  .live-page .page-wrap { max-width: none; }
+}
+.settings-save[data-held] { box-shadow: 0 -2px 0 var(--accent); }
 
 /* A boxed item: a strong top rule, hairline bottom, no fill. */
 .paper-box {
@@ -378,7 +387,7 @@ html.js .mask-rise > span {
 }
 html.js .is-in .mask-rise > span { transform: none; }
 
-/* SVG strokes that draw on reveal (sparklines, gauges). */
+/* SVG strokes that draw on reveal (market lines, gauges). */
 /* The dash pattern lives only while the line draws: left on, a stretched
    line (preserveAspectRatio="none" with a non-scaling stroke) measures its
    dashes wrong and shows gaps along it. */
@@ -387,6 +396,19 @@ html.js .stroke-draw {
   stroke-dashoffset: var(--len, 400);
 }
 html.js .is-in .stroke-draw { animation: stroke-draw 1.6s var(--ease-out) 0.2s both; }
+/* A market card's line (DayLineChart): uncovered left to right, then its dot. */
+html.js .day-line-draw { clip-path: inset(-20% 100% -20% -2%); }
+html.js .is-in .day-line-draw { animation: day-line-draw 0.7s var(--ease-out) both; }
+html.js .day-line-dot { opacity: 0; }
+html.js .is-in .day-line-dot { animation: day-line-dot 0.7s var(--ease-out) both; }
+@keyframes day-line-draw {
+  from { clip-path: inset(-20% 100% -20% -2%); }
+  to { clip-path: inset(-20% -2% -20% -2%); }
+}
+@keyframes day-line-dot {
+  0%, 85% { opacity: 0; }
+  100% { opacity: 1; }
+}
 @keyframes stroke-draw {
   0% { stroke-dasharray: var(--len, 400); stroke-dashoffset: var(--len, 400); }
   99% { stroke-dasharray: var(--len, 400); stroke-dashoffset: 0; }
@@ -518,20 +540,28 @@ table.data-table :is(th, td).mid {
   border-radius: 2px;
 }
 section[id],
-article[id] { scroll-margin-top: 5rem; }
+article[id] { scroll-margin-top: 0.5rem; }
 
 /* ---- Page rhythm ---------------------------------------------------------
-   Every front-page section is a .paper-section: generous air above, a
-   section header that owns its colour (--section-hue), then the content. */
+   The paper is sections in groups (lib/chapters.ts), one subject on each row at
+   every width.
+   Each .paper-section owns its colour (--section-hue). Everything below reads
+   the width of .edition-body (a container named `ed`), so a section lays itself
+   out by the room it has rather than by which screen it's on:
+     under 700    one column
+     700+         two
+     1080+        three, the lead across two
+     1700+        four: the lead with its plate across two, two rows beside it
+     2200+        In Brief moves to a column of its own beside the stories */
+.edition-body { container: ed / inline-size; }
+/* A jump to a group lands on its first section's name, past the air above it. */
+.chapter { scroll-margin-top: -2.75rem; }
 .paper-section {
   position: relative;
-  padding: 4.5rem 0 1rem;
+  padding: 3.5rem 0 0.5rem;
   /* Inside a section, the accent is the section's own colour: drop caps,
      "for you" tags and links match its header, not the masthead's. */
   --accent: var(--section-hue);
-}
-@media (min-width: 768px) {
-  .paper-section { padding-top: 6.5rem; }
 }
 .section-head { margin-bottom: 2rem; }
 
@@ -547,21 +577,659 @@ article[id] { scroll-margin-top: 5rem; }
   }
 }
 
-/* Story grid: the first story leads full-width, the rest pair up in two
-   columns separated by a hairline, like a magazine section front. */
+/* Story grid: one column, more as the section widens. Every story has a hairline
+   above it, except those on the grid's first row. */
 .story-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
 }
 .story-grid > * {
   border-top: 1px solid var(--rule);
-  padding: 1.5rem 0;
+  padding: 0.9rem 0;
 }
 .story-grid > *:first-child { border-top: 0; padding-top: 0; }
-@media (min-width: 768px) {
-  .story-grid.is-paired { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 2.5rem; }
+@container ed (min-width: 700px) {
+  .story-grid.is-paired { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 2rem; }
   .story-grid.is-paired > *:first-child { grid-column: 1 / -1; }
-  .story-grid.is-paired > *:nth-child(2) { border-top: 1px solid var(--rule); }
+}
+@container ed (min-width: 1080px) {
+  .story-grid.is-paired { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 2.25rem; }
+  .story-grid.is-paired > *:first-child { grid-column: span 2; }
+  .story-grid.is-paired > *:nth-child(-n + 2) { border-top: 0; padding-top: 0; }
+}
+@container ed (min-width: 1700px) {
+  .story-grid.is-paired { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .story-grid.is-paired > *:first-child { grid-column: span 2; grid-row: span 2; }
+  .story-grid.is-paired > *:nth-child(-n + 3) { border-top: 0; padding-top: 0; }
+}
+
+/* In Brief and the odds at a section's foot. */
+@container ed (min-width: 2200px) {
+  .paper-section:has(> aside) { display: grid; grid-template-columns: minmax(0, 4.4fr) minmax(0, 1fr); column-gap: 2.5rem; align-items: start; }
+  .paper-section:has(> aside) > section { grid-column: 1; }
+  .paper-section > aside { grid-column: 2; grid-row: 1; margin-top: 3.4rem; }
+  .paper-section > aside ul { grid-template-columns: minmax(0, 1fr); }
+  .paper-section:has(> aside) > :not(section, aside) { grid-column: 1 / -1; }
+}
+
+/* A story. On a phone or tablet it shows its headline and its summary's first
+   sentence, whole, and opens in place (StoryArticle sets data-open). From 1024px
+   the whole summary prints and there's nothing to open. The text is always in the
+   page, so the browser's find still reaches it. Its foot sits at the bottom of
+   the story, so a row of stories lines its publishers up. */
+.story-plate { display: none; }
+.story .story-more { display: none; }
+.story > .min-w-0 { height: 100%; }
+.story-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.45rem;
+  font: 600 12.5px var(--font-sans);
+}
+.story-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+  color: var(--ink);
+  transition: color 0.2s;
+}
+.story-source:hover { color: var(--section-hue, var(--accent)); }
+.story-foot .icon-btn { width: 2rem; height: 2rem; }
+@media (max-width: 1023.98px) {
+  .story .story-more { display: inline-grid; }
+  .story:not([data-open]) .story-after,
+  .story:not([data-open]) .story-rest,
+  html[data-why="on"] .story:not([data-open]) .why-line { display: none; }
+  .story:not([data-open]) .story-body > p:first-child { cursor: pointer; }
+  /* A big first letter is too much for one sentence. */
+  .story .drop-cap::first-letter { all: unset; }
+}
+
+/* A publisher's mark (story/PublisherMark.tsx). Each logo has a version for each
+   paper; a thin ring keeps a black tile on the dark paper and a white one on the
+   light paper from melting into it. */
+.pub-logo,
+.pub-letter {
+  flex: none;
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px var(--rule);
+}
+.pub-logo { object-fit: contain; }
+.pub-on-dark { display: none; }
+html[data-edition="evening"] .pub-on-dark { display: inline-block; }
+html[data-edition="evening"] .pub-on-light { display: none; }
+.pub-letter {
+  display: inline-grid;
+  place-items: center;
+  color: #fff;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  line-height: 1;
+}
+
+
+/* The plate only where it fills real room beside the lead. */
+@container ed (min-width: 1700px) {
+  .story-lead { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); column-gap: 1.75rem; align-items: stretch; }
+  .story-lead .story-plate { display: block; position: relative; overflow: hidden; border-radius: 6px; min-height: 100%; }
+  .story-lead .story-plate > * { position: absolute; inset: 0; height: 100%; }
+}
+
+/* Paddock Notes: stories beside the pit wall; every table stays printed. The
+   stories flow down two balanced columns, so they end level with each other
+   whatever their lengths, with the paddock card filling the desk beside them. */
+@container ed (min-width: 1080px) {
+  .paddock-stories { display: block; columns: 2; column-gap: 2rem; }
+  .paddock-stories > * {
+    break-inside: avoid;
+    border-top: 0;
+    border-bottom: 1px solid var(--rule);
+    padding: 0 0 0.9rem;
+    margin-bottom: 0.9rem;
+  }
+}
+@container ed (min-width: 1700px) {
+  .paddock-grid { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+  .pit-desk { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
+  .pit-desk > :first-child,
+  .pit-desk > :last-child { grid-column: 1 / -1; }
+  /* The tall result and paddock cards side by side, the two tables stacked level
+     with them, then the race's odds and the calendar. */
+  .pit-archive { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .pit-result { grid-column: 1 / span 2; grid-row: 1 / span 2; }
+  .pit-you { grid-column: 3 / span 2; grid-row: 1 / span 2; }
+  .pit-teams { grid-column: 5 / span 2; grid-row: 1; }
+  .pit-drivers { grid-column: 5 / span 2; grid-row: 2; }
+  .pit-wins { grid-column: 1 / span 3; }
+  .pit-coming { grid-column: 4 / span 3; }
+  .pit-archive:not(:has(.pit-result)) .pit-you { grid-column: 1 / span 4; }
+  .pit-archive:not(:has(.pit-coming)) .pit-wins,
+  .pit-archive:not(:has(.pit-wins)) .pit-coming { grid-column: 1 / -1; }
+  .pit-teams, .pit-drivers { display: flex; flex-direction: column; }
+  .pit-teams ol, .pit-drivers ol { flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+}
+
+/* Two Cities: side by side from a tablet up; each city's stories run across
+   when there's the room. */
+@container ed (min-width: 1700px) {
+  .city-stories { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 1.75rem; }
+  .city-stories > * { border-top: 0; padding-top: 0; }
+}
+
+/* Sky Report: the reading and the sun; the rest of the day under them, or
+   beside them when there's the room. */
+.sky-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem 2.5rem; align-items: start; }
+@container ed (min-width: 700px) {
+  .sky-layout { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+  .sky-rest { grid-column: 1 / -1; }
+}
+@container ed (min-width: 1700px) {
+  .sky-layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr); }
+  .sky-rest { grid-column: auto; }
+}
+
+/* Market Pulse. */
+@container ed (max-width: 699.98px) {
+  .pulse-tiles > li:nth-child(n + 4) { display: none; }
+  .pulse-prices { display: flex; overflow-x: auto; gap: 0.5rem; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .pulse-prices > * { flex: 0 0 44%; scroll-snap-align: start; display: flex; height: auto; }
+  .pulse-prices > * > * { height: auto; }
+}
+@container ed (min-width: 700px) { .fold-toggle.pulse-all { display: none; } }
+@container ed (min-width: 1700px) {
+  .pulse-tiles { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .pulse-tiles > li:first-child { grid-row: auto; grid-column: auto; }
+  .pulse-prices { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+}
+
+/* Straw Poll: swipe between the two leads on a phone; both blocks abreast when
+   there's the room. */
+@container ed (max-width: 699.98px) {
+  .poll-leads { display: flex; overflow-x: auto; gap: 0.6rem; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .poll-leads > * { flex: 0 0 88%; scroll-snap-align: start; height: auto; }
+  .poll-movers > li:nth-child(n + 4) { display: none; }
+}
+@container ed (min-width: 700px) { .fold-toggle.poll-all { display: none; } }
+@container ed (min-width: 1700px) {
+  .poll-top { display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr); column-gap: 2rem; align-items: start; }
+  .poll-top > .poll-more { margin-top: 0; grid-template-columns: minmax(0, 1fr); }
+}
+
+/* The Grapevine: its four blocks in one row when there's the room. */
+@container ed (min-width: 1700px) {
+  .grapevine-blocks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 3rem; align-items: start; }
+  .grapevine-blocks > * { margin-bottom: 0; }
+}
+
+/* Opens in place (chrome/Fold.tsx). The quiet form is a line of text; the phone's
+   card stands in for a whole block of the section, so it wears the section's
+   colour. From `md` the block prints and the card isn't there. */
+.fold-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  column-gap: 0.75rem;
+  width: 100%;
+  min-height: 3.75rem;
+  padding: 0.7rem 0.85rem 0.7rem 1rem;
+  text-align: left;
+  color: var(--ink);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--section-hue, var(--accent)) 45%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--section-hue, var(--accent)) 10%, var(--paper));
+}
+.fold-card > .min-w-0 { flex: 1; }
+.fold-glyph { flex: none; color: var(--section-hue, var(--accent)); }
+.fold-arrow {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: var(--section-hue, var(--accent));
+  color: var(--paper);
+  font: 700 15px var(--font-sans);
+}
+.fold-phone[data-open] > .fold-body { margin-top: 0.9rem; }
+.fold-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.25rem;
+  font: 600 13px var(--font-sans);
+  color: var(--ink-soft);
+}
+.fold-toggle:hover { color: var(--ink); }
+.fold:not([data-open]) > .fold-body { display: none; }
+.fold:has(> .fold-body:empty) { display: none; }
+@media (min-width: 768px) {
+  .fold-phone > .fold-card { display: none; }
+  .fold-phone:not([data-open]) > .fold-body { display: block; }
+  .fold-phone[data-open] > .fold-body { margin-top: 0; }
+}
+/* The mood card runs two rows of tiles tall here: its details fill it. */
+@container ed (min-width: 960px) and (max-width: 1699.98px) {
+  .pulse-tiles .fold > .fold-toggle { display: none; }
+  .pulse-tiles .fold:not([data-open]) > .fold-body { display: block; }
+}
+
+/* The phone's menu, along the foot of the screen: an outline icon and a word, the
+   current one filled, in its section's colour, on a tint of it. The line along its
+   top is the reading progress bar too, so the one at the top of the screen steps
+   aside: a piece per word, filled as its part of the page goes by, so it always
+   ends above the current word (chrome/PaperNav.tsx). */
+.paper-dock {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 40;
+  display: grid;
+  height: calc(3.5rem + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--paper);
+}
+.paper-dock a {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  margin: 0.3rem 0.15rem 0.15rem;
+  border-radius: 10px;
+  font: 600 11.5px/1 var(--font-sans);
+  color: var(--ink-soft);
+  transition: color 0.3s, background-color 0.3s;
+}
+.paper-dock a[aria-current] {
+  color: var(--now-hue, var(--accent));
+  background: color-mix(in srgb, var(--now-hue, var(--accent)) 13%, transparent);
+}
+.dock-line {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  display: grid;
+  gap: 2px;
+}
+.dock-line > span {
+  position: relative;
+  overflow: hidden;
+  background: var(--rule);
+}
+.dock-line > span > span {
+  position: absolute;
+  inset: 0;
+  transform: scaleX(0);
+  transform-origin: left center;
+  background: var(--now-hue, var(--accent));
+  transition: background-color 0.3s;
+}
+@media (min-width: 768px) {
+  .paper-dock { display: none; }
+}
+@media (max-width: 767.98px) {
+  .edition-page { padding-bottom: calc(3.5rem + env(safe-area-inset-bottom)); }
+  html:has(.paper-dock) .reading-bar { display: none; }
+}
+
+/* The phone's slim row once the masthead has gone: the section you're in, in its
+   colour, and the way to any of them. */
+.phone-now {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  height: 2.75rem;
+  padding: 0 1rem;
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+  transform: translateY(-100%);
+  visibility: hidden;
+  transition: transform 0.25s var(--ease-out), visibility 0.25s;
+}
+.phone-now[data-shown] { transform: none; visibility: visible; }
+.phone-now-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  font: 800 1.2rem/1 var(--font-display);
+  text-transform: uppercase;
+  transition: color 0.3s;
+}
+.phone-now-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: none;
+  min-height: 2.25rem;
+  font: 600 13px var(--font-sans);
+  color: var(--ink-soft);
+}
+@media (min-width: 768px) {
+  .phone-now { display: none; }
+}
+
+/* The side menu, from 1500px: the paper's own index, in its groups. It sits
+   inside the zoomed page, so it scales with it. Each section keeps its colour as
+   a bar, and fills with it while it's the one being read. */
+.paper-rail {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 40;
+  width: 196px;
+  flex-direction: column;
+  padding: 0.9rem 0.65rem 0.65rem 0.85rem;
+  background: var(--paper);
+  border-right: 1px solid var(--rule);
+}
+.rail-mark {
+  display: grid;
+  grid-template-columns: repeat(3, 4px);
+  gap: 2.5px;
+  margin-bottom: 0.45rem;
+}
+.rail-mark > span {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--ink);
+}
+.rail-mark > span:nth-child(5) {
+  background: var(--now-hue, var(--accent));
+  transition: background-color 0.3s;
+}
+.rail-group {
+  display: block;
+  margin-top: 0.7rem;
+  padding-bottom: 0.2rem;
+  margin-bottom: 0.15rem;
+  font: 600 11px/1 var(--font-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--rule);
+}
+.rail-group:hover,
+.rail-group[aria-current] { color: var(--ink); }
+.rail-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  padding: 0.24rem 0.4rem 0.22rem 0.35rem;
+  border-radius: 5px;
+  font: 800 1.02rem/1.05 var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+  color: var(--ink);
+  transition: background-color 0.2s, color 0.2s;
+}
+.rail-row-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.rail-icon { flex: none; color: var(--row-hue); }
+/* The live centre's cards end level, whatever's in them: on a laptop, a row's
+   shorter card grows; from 2400px (2560x1080 and 3440x1440) more of a view shares
+   the width, instead of everything stretching. */
+@media (min-width: 1024px) {
+  #track .live-map { flex: 1 1 24rem; height: auto; min-height: 24rem; }
+  .pace-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "bench bench" "traps sect"; }
+  .pace-traps { grid-area: traps; }
+  .pace-bench { grid-area: bench; }
+  .pace-sect { grid-area: sect; }
+  .pace-bench .bench-list { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); align-items: stretch; }
+  .pace-traps .pace-rows { flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+  .week-form { flex: 1; display: flex; }
+  .week-form > table { flex: 1; }
+  .tyre-grid > :only-child { grid-column: 1 / -1; }
+}
+@media (min-width: 2400px) {
+  .live-grid { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 0.8fr); grid-template-rows: auto auto; }
+  .live-grid > #timing { grid-column: 1; grid-row: 1; }
+  .live-grid > #track { grid-column: 2; grid-row: 1; }
+  /* Takes the row's height from its neighbours; its list scrolls inside. */
+  .live-grid > #feed { grid-column: 3; grid-row: 1; height: 0; min-height: 100%; max-height: none; }
+  .live-grid > #stewards { grid-column: 1 / -1; grid-row: 2; }
+  /* The order's rows share the column's height, so it ends level with the map and the feed. */
+  .live-grid .timing-box, .live-grid .timing-rows { flex: 1; display: flex; flex-direction: column; }
+  .live-grid .timing-rows > div { flex: 1; display: flex; flex-direction: column; }
+  .live-grid .timing-rows > div > :first-child { flex: 1; }
+  .live-grid .feed-pinned { display: flex; flex-direction: column; gap: 0.75rem; }
+  .live-grid .feed-filters { padding: 0 0 0.75rem; border-right: 0; border-bottom: 1px solid var(--rule); }
+  .live-grid .feed-filters > div { flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .feed-list { columns: 3; column-gap: 2.5rem; }
+  .feed-list > li { break-inside: avoid; margin-top: 0; margin-bottom: 0.25rem; }
+  .feed-list > li > .sticky { position: static; }
+  .tyre-grid { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+  .stew-grid { display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(0, 1.6fr); gap: 1.5rem; }
+  .stew-grid > * { margin-block: 0 !important; }
+  /* The weekend's form runs the full width, a driver a column; the rest share the row under it. */
+  .week-lower { grid-template-columns: minmax(0, 1fr); }
+  .week-across { width: auto; }
+  .week-form { display: none; }
+  .week-form-across { display: block; }
+  .week-rest { display: grid; grid-auto-flow: column; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 0.8fr); }
+  .week-rest:not(:has(.week-after)) { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
+  .week-recent-body { flex: 1; display: flex; }
+  .week-recent-body > table { flex: 1; }
+  .week-after ol { flex: 1; grid-template-columns: minmax(0, 1fr); grid-auto-rows: 1fr; }
+}
+
+/* A finished session, written up (f1/centre/Insights.tsx). */
+.recap-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
+@media (min-width: 1024px) { .recap-grid { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: clamp(1.5rem, 3vw, 3rem); } }
+.recap-track { position: relative; height: 12px; border-radius: 99px; margin-top: 0.5rem; overflow: hidden; background: color-mix(in srgb, var(--f1-personal) 45%, var(--rule)); }
+.recap-track i { position: absolute; top: 0; bottom: 0; }
+.moments { margin-bottom: 1.25rem; }
+.moments-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
+.moment {
+  display: grid;
+  grid-template-columns: 3.4rem minmax(0, 1fr);
+  gap: 0.8rem;
+  min-width: 0;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--team) 45%, var(--card-border));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--team) 26%, var(--card-bg)) 0%, var(--card-bg) 72%);
+}
+.moment-photo { position: relative; width: 3.4rem; height: 3.4rem; border-radius: 50%; overflow: hidden; background: color-mix(in srgb, var(--team) 35%, var(--paper)); }
+.moment-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.moment-name { font-size: 1.25rem; }
+.moment-play { margin-left: auto; flex: none; width: 2rem; height: 2rem; border-radius: 50%; display: grid; place-items: center; background: var(--team); color: #fff; }
+.moment-quote { font-size: 17px; line-height: 1.3; margin: 0.45rem 0 0.35rem; }
+.moments-narrow .moments-row { grid-template-columns: minmax(0, 1fr); }
+.moments-narrow .moment { grid-template-columns: 2.6rem minmax(0, 1fr); gap: 0.65rem; padding: 0.7rem 0.8rem; }
+.moments-narrow .moment-photo { width: 2.6rem; height: 2.6rem; }
+.moments-narrow .moment-name { font-size: 1.05rem; }
+.moments-narrow .moment-play { width: 1.75rem; height: 1.75rem; }
+.moments-narrow .moment-quote { font-size: 15px; margin: 0.3rem 0 0.25rem; }
+/* A laptop's Feed panel is short, and has them in the Feed view: an ultrawide's column and a phone's panel have room. */
+@media (min-width: 1024px) and (max-width: 2399.98px) { .moments-narrow { display: none; } }
+@media (max-width: 767.98px) {
+  .moments-row, .moments-narrow .moments-row { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; margin-inline: -1rem; padding-inline: 1rem; }
+  .moments-narrow .moments-row { margin-inline: 0; padding-inline: 0; }
+  .moment { flex: 0 0 84%; scroll-snap-align: center; }
+}
+/* A region's big day, between its card and its indices (widgets/MarketWhyLine.tsx). */
+.market-why {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: clamp(0.75rem, 2vw, 1.5rem);
+  align-items: center;
+  margin-top: 0.625rem;
+  padding: 0.75rem 1rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--move) 40%, var(--card-border));
+  background: linear-gradient(100deg, color-mix(in srgb, var(--move) 16%, var(--card-bg)) 0%, var(--card-bg) 60%);
+}
+@media (max-width: 767.98px) { .market-why { grid-template-columns: minmax(0, 1fr); gap: 0.4rem; } }
+/* What changed since the last visit, at the top of the paper (widgets/CatchUp.tsx). */
+.since-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.9rem;
+  margin: 0.9rem 0 1.4rem;
+  padding: 1rem;
+  background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 9%, var(--card-bg)) 0%, var(--card-bg) 55%);
+}
+/* A phone keeps it under a screen: its label and two rows in each list. */
+@media (max-width: 767.98px) { .since-list > :nth-child(n + 4) { display: none; } }
+@media (min-width: 768px) { .since-card { padding: 1.1rem 1.25rem; } }
+@media (min-width: 1024px) { .since-card { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.35fr) minmax(0, 0.9fr); gap: clamp(1rem, 2.5vw, 2.25rem); } }
+.story-new { flex-shrink: 0; font-size: 10.5px; letter-spacing: 0.06em; line-height: 1; padding: 0.2rem 0.4rem; border-radius: 999px; color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); }
+
+/* A view's parts, under it (the live centre's Analysis). */
+.rail-row-sub { margin-left: 0.85rem; padding-block: 0.16rem; font-size: 0.88rem; }
+/* A big heading leaning forward, like the race card's name. */
+.lean-title { transform: skewX(-7deg); transform-origin: left bottom; }
+.rail-row b {
+  font: 500 11px var(--font-mono);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-soft);
+}
+.rail-row b.rail-note-up { color: var(--up); }
+.rail-row b.rail-note-down { color: var(--down); }
+.rail-row:hover { background: color-mix(in srgb, var(--row-hue) 14%, transparent); }
+.rail-row[aria-current] { background: var(--row-hue); color: var(--paper); }
+.rail-row[aria-current] .rail-icon,
+.rail-row[aria-current] b { color: var(--paper); }
+
+/* The top bar: sticky, except on the paper on a phone, where the chapters are at
+   the foot and every pixel of height goes to reading. */
+.top-bar {
+  position: sticky;
+  top: 0;
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+}
+@media (max-width: 767.98px) {
+  .top-bar-paper { position: static; background: none; border-bottom: 0; }
+}
+
+/* The race card (StartingGrid): a chequered band along its top edge, the race's name
+   leaning forward, and where the weekend is as a run of timing sectors. */
+.result-check {
+  height: 9px;
+  margin: -1rem -1.1rem 0.75rem;
+  border-radius: 13px 13px 0 0;
+  background: repeating-conic-gradient(#111113 0 25%, #f4f3ef 0 50%) 0 0 / 9px 9px;
+}
+.result-title {
+  font: 800 clamp(1.5rem, 1.1rem + 1.2vw, 1.9rem)/1 var(--font-display);
+  text-transform: uppercase;
+  margin-top: 0.4rem;
+}
+.result-title span { display: inline-block; transform: skewX(-7deg); transform-origin: left bottom; }
+.result-sectors {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 3px;
+  margin-top: 0.6rem;
+  font: 600 11px/1.2 var(--font-sans);
+  color: var(--ink-faint);
+}
+.result-sectors i {
+  display: block;
+  height: 4px;
+  margin-bottom: 0.25rem;
+  background: var(--rule);
+  transform: skewX(-20deg);
+}
+.result-sectors [data-state="done"] { color: var(--ink-soft); }
+.result-sectors [data-state="done"] i { background: var(--ink-soft); }
+.result-sectors [data-state="now"] { color: var(--ink); }
+.result-sectors [data-state="now"] i { background: var(--hue-f1); }
+
+/* The top three (RacePodium): drivers on slanted steps in their team's colour. */
+.podium {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 5px;
+  margin: 1.6rem 0 0.75rem;
+  max-width: 38rem;
+  width: 100%;
+  align-self: center;
+}
+.podium-step { min-width: 0; }
+.podium-art { position: relative; height: var(--step); }
+.podium-p1 { --step: 142px; }
+.podium-p2 { --step: 118px; }
+.podium-p3 { --step: 100px; }
+.podium-art::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 62%, rgba(0, 0, 0, 0.14) 62% 74%, transparent 74%), var(--team);
+  clip-path: polygon(0 16px, 100% 0, 100% 100%, 0 100%);
+}
+.podium-num {
+  position: absolute;
+  left: 6px;
+  top: 19px;
+  z-index: 1;
+  font: 800 2.7rem/1 var(--font-display);
+  color: var(--on-team);
+  transform: skewX(-7deg);
+}
+.podium-face {
+  position: absolute;
+  right: -2px;
+  bottom: 0;
+  z-index: 2;
+  height: calc(100% + 20px);
+  max-width: 92%;
+  width: auto;
+  object-fit: contain;
+  object-position: bottom right;
+}
+.podium-mark {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 2;
+  width: 45%;
+  max-height: 60%;
+  object-fit: contain;
+}
+.podium-plate {
+  position: relative;
+  z-index: 3;
+  padding: 6px 7px 7px;
+  background: #111113;
+  color: #f4f3ef;
+}
+.podium-code {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  font: 800 1.3rem/1 var(--font-display);
+}
+.podium-code span { display: inline-block; min-width: 0; overflow: hidden; text-overflow: ellipsis; transform: skewX(-7deg); }
+.podium-code img { flex: none; object-fit: contain; }
+.podium-time {
+  margin-top: 3px;
+  font: 400 11px var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: #c9c9cf;
+  white-space: nowrap;
 }
 
 /* Surface card for data modules (weather almanac, mood, F1 widgets). */
@@ -597,6 +1265,8 @@ article[id] { scroll-margin-top: 5rem; }
     transition: none !important;
   }
   html.js .stroke-draw { stroke-dasharray: none; stroke-dashoffset: 0; animation: none; }
+  html.js .day-line-draw, html.js .is-in .day-line-draw { clip-path: none; animation: none; }
+  html.js .day-line-dot, html.js .is-in .day-line-dot { opacity: 1; animation: none; }
   .marquee-track,
   .ink-stamp,
   .prep-dot,
@@ -656,6 +1326,13 @@ article[id] { scroll-margin-top: 5rem; }
 .icon-btn:hover { background: var(--card-bg); color: var(--ink); }
 .icon-btn:active { transform: scale(0.92); }
 
+/* A finger needs more than a pointer does. */
+@media (pointer: coarse) {
+  .chip { min-height: 2.75rem; }
+  .icon-btn { width: 2.75rem; height: 2.75rem; }
+  .story-source { min-height: 2.25rem; }
+}
+
 /* Per-article tools stay out of the way until the article is hovered. */
 @media (hover: hover) {
   .reveal-on-hover { opacity: 0; }
@@ -668,14 +1345,6 @@ article[id] { scroll-margin-top: 5rem; }
   50% { transform: scaleY(1); }
 }
 
-/* Section numbers come from a counter on the front page, so no component
-   has to know its own position. */
-/* Sections are numbered by their place in the reader's order (set inline
-   with counter-set), and flex order keeps that order wherever the ultrawide
-   spread's row and column wrappers put them in the markup. */
-.edition-body { counter-reset: section; display: flex; flex-direction: column; }
-.spread-row, .spread-col { display: contents; }
-.section-number::before { content: "§ " counter(section, decimal-leading-zero); }
 .headline-link { background-image: linear-gradient(var(--section-hue, var(--accent)), var(--section-hue, var(--accent))); }
 .group:hover .headline-link { background-size: 100% 2px; }
 
@@ -835,8 +1504,8 @@ html[data-why="on"] .why-line { display: block; }
   .on-air { animation: none; }
 }
 
-/* The F1 link in the top bar while a session is live. */
-html[data-f1-live] [data-nav="paddock-notes"]::after {
+/* The Sport chapter in the menu while a session is live. */
+html[data-f1-live] [data-nav="ch-sport"]::after {
   content: "";
   position: absolute;
   top: 5px;
@@ -852,7 +1521,7 @@ html[data-f1-live] [data-nav="paddock-notes"]::after {
   70%, 100% { box-shadow: 0 0 0 6px transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
-  html[data-f1-live] [data-nav="paddock-notes"]::after { animation: none; }
+  html[data-f1-live] [data-nav="ch-sport"]::after { animation: none; }
 }
 
 /* Live centre: tyre stints slide in from the left; a radio clip's progress. */

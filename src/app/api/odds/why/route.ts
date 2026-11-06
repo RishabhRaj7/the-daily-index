@@ -1,4 +1,4 @@
-import { decodeEntities } from "@/lib/live/rss";
+import { searchNews as news, type WhyItem } from "@/lib/live/news-search";
 import { resolveGoogleLinks } from "@/lib/live/google-links";
 import { aiEnabled, generateJson, Type } from "@/lib/server/gemini";
 import { getStore } from "@/lib/server/store";
@@ -8,18 +8,11 @@ import { getStore } from "@/lib/server/store";
 // searched with the question's own words), dated, so the chart can pin a
 // headline to the jump it lines up with. With a big enough move and AI
 // configured, one sentence on which of those stories most likely moved
-// it, grounded only in the headlines given; it is kept for the day.
+// it, grounded only in the headlines given, on the light models; it is kept for the day.
 // Polymarket and Kalshi show news beside their charts; their APIs don't
 // say why, so the paper reads the news itself.
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
-
-export interface WhyItem {
-  title: string;
-  source: string;
-  url: string;
-  at: string;
-}
 
 /** "Will the U.S. invade Iran before 2027?" → "US invade Iran". */
 function searchFor(question: string): string {
@@ -37,32 +30,6 @@ function searchFor(question: string): string {
     .join(" ");
 }
 
-async function news(q: string, days: number): Promise<WhyItem[]> {
-  try {
-    const res = await fetch(`https://news.google.com/rss/search?q=${encodeURIComponent(`${q} when:${days}d`)}&hl=en-US&gl=US&ceid=US:en`, {
-      next: { revalidate: 1800 },
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!res.ok) return [];
-    const xml = await res.text();
-    const tag = (item: string, t: string) => decodeEntities(item.match(new RegExp(`<${t}[^>]*>([\\s\\S]*?)</${t}>`))?.[1]?.replace(/<!\[CDATA\[|\]\]>/g, "").trim() ?? "");
-    return xml
-      .split("<item>")
-      .slice(1)
-      .map((item) => {
-        const source = tag(item, "source");
-        const title = tag(item, "title").replace(new RegExp(`\\s+-\\s+${source.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`), "");
-        const at = Date.parse(tag(item, "pubDate"));
-        return { title, source, url: tag(item, "link"), at: Number.isNaN(at) ? "" : new Date(at).toISOString() };
-      })
-      .filter((n) => n.title && n.url && n.at)
-      .sort((a, b) => b.at.localeCompare(a.at))
-      .slice(0, 8);
-  } catch {
-    return [];
-  }
-}
-
 async function explain(question: string, move: number, days: number, items: WhyItem[]): Promise<string | null> {
   if (!aiEnabled() || items.length === 0) return null;
   const prompt = `A prediction market asks: "${question}". Over the past ${days === 1 ? "day" : `${days} days`} the favourite's chance moved ${move > 0 ? "up" : "down"} ${Math.abs(Math.round(move))} points.
@@ -77,6 +44,7 @@ Return JSON: {"why": string, "item": number (index of the story, or -1)}`;
       temperature: 0.2,
       timeoutMs: 12_000,
       label: "odds-why",
+      light: true,
     });
     const out = JSON.parse(text) as { why?: string; item?: number };
     const why = (out.why ?? "").trim();

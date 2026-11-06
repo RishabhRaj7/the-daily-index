@@ -1,4 +1,4 @@
-import type { Commodity, CryptoQuote, MarketIndex, MarketMood, MarketRegion } from "@/lib/types";
+import type { Commodity, CryptoQuote, DayLine, MarketIndex, MarketMood, MarketRegion } from "@/lib/types";
 import { getMarketHolidays } from "./market-holidays";
 import type { HolidayMap } from "@/lib/market-hours";
 import { getCnnFearGreed, getIbjaRates, getTickertapeMood, type IbjaRates, type PublishedMood } from "./published-markets";
@@ -82,6 +82,7 @@ export const COMMODITIES: CommoditySpec[] = [
 ];
 
 interface SparkSeries {
+  timestamp?: number[];
   close?: (number | null)[];
   fulldayPrice?: number;
   fulldayChangePercent?: number;
@@ -106,7 +107,55 @@ function dayChange(series: SparkSeries | undefined): number | undefined {
   return typeof level === "number" && prev ? ((level - prev) / prev) * 100 : undefined;
 }
 
-function toIndex(spec: Spec, series: SparkSeries | undefined): MarketIndex | null {
+/** Where each market's day is told, so a closed session names the right day. */
+const MARKET_TZ: Record<MarketRegion, string> = { India: "Asia/Kolkata", US: "America/New_York", Europe: "Europe/London", Asia: "Asia/Tokyo" };
+const CARD_POINTS = 48;
+/** No new price for this long and the market counts as not trading. */
+const QUIET_SECONDS = 30 * 60;
+
+interface Session {
+  t: number;
+  closes: number[];
+}
+
+/** The latest session in a series: what follows its last long gap, 24 hours at most. */
+function lastSession(series: SparkSeries | undefined): Session | null {
+  const rows = (series?.timestamp ?? []).flatMap((t, i) => {
+    const c = series?.close?.[i];
+    return typeof c === "number" ? [{ t, c }] : [];
+  });
+  if (rows.length < 2) return null;
+  const last = rows[rows.length - 1].t;
+  let from = rows.length - 1;
+  while (from > 0 && rows[from].t - rows[from - 1].t < 3 * 3600 && rows[from - 1].t >= last - 86400) from--;
+  const closes = rows.slice(from).map((r) => r.c);
+  return closes.length < 2 ? null : { t: last, closes };
+}
+
+function thin(values: number[], most: number): number[] {
+  if (values.length <= most) return values;
+  const step = (values.length - 1) / (most - 1);
+  return Array.from({ length: most }, (_, i) => values[Math.round(i * step)]);
+}
+
+/**
+ * A card's line. The base comes from the card's own price and move, so the line
+ * and the number beside it can't disagree, and the price ends the line.
+ */
+function dayLine(session: Session | null, price: number, changePct: number, tz: string): DayLine | undefined {
+  if (!session) return undefined;
+  const round = (v: number) => Math.round(v * 100) / 100;
+  const quiet = Date.now() / 1000 - session.t > QUIET_SECONDS;
+  return {
+    points: [...thin(session.closes, CARD_POINTS - 1), price].map(round),
+    base: round(price / (1 + changePct / 100)),
+    ...(quiet
+      ? { closed: new Date(session.t * 1000).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: tz }).replace(",", "") }
+      : {}),
+  };
+}
+
+function toIndex(spec: Spec, series: SparkSeries | undefined, session: Session | null): MarketIndex | null {
   const validCloses = closes(series);
   const level = levelOf(series);
   const changePct = dayChange(series);
@@ -120,7 +169,6 @@ function toIndex(spec: Spec, series: SparkSeries | undefined): MarketIndex | nul
   const close1mAgo = validCloses.length >= 2 ? validCloses[0] : null;
   const change1m = close1mAgo != null ? ((level - close1mAgo) / close1mAgo) * 100 : null;
 
-  const sparkline = validCloses.slice(-7);
   // A typical day: the mean size of the month's daily moves before today.
   const moves = validCloses.slice(0, -1).flatMap((c, i, arr) => (i === 0 ? [] : [Math.abs((c - arr[i - 1]) / arr[i - 1]) * 100]));
   const usualMove = moves.length >= 10 ? Math.round((moves.reduce((a, b) => a + b, 0) / moves.length) * 100) / 100 : null;
@@ -139,21 +187,21 @@ function toIndex(spec: Spec, series: SparkSeries | undefined): MarketIndex | nul
     change7d,
     change1m,
     usualMove,
-    sparkline: sparkline.length > 1 ? sparkline : [level, level],
+    today: dayLine(session, level, changePct, MARKET_TZ[spec.market]),
     narrative,
   };
 }
 
 // Yahoo's spark endpoint answers up to 20 symbols per request; the board
 // needs ~24, so it is asked in two batches at once.
-async function fetchSpark(symbols: string[], revalidate: number): Promise<Record<string, SparkSeries>> {
+async function fetchSpark(symbols: string[], revalidate: number, range = "1mo", interval = "1d"): Promise<Record<string, SparkSeries>> {
   const batches: string[][] = [];
   for (let i = 0; i < symbols.length; i += 20) batches.push(symbols.slice(i, i + 20));
   const parts = await Promise.all(
     batches.map(async (batch) => {
       try {
         const res = await fetch(
-          `https://query1.finance.yahoo.com/v8/finance/spark?symbols=${batch.map(encodeURIComponent).join(",")}&range=1mo&interval=1d`,
+          `https://query1.finance.yahoo.com/v8/finance/spark?symbols=${batch.map(encodeURIComponent).join(",")}&range=${range}&interval=${interval}`,
           { headers: { "User-Agent": BROWSER_UA }, next: { revalidate } },
         );
         return res.ok ? ((await res.json()) as Record<string, SparkSeries>) : {};
@@ -165,7 +213,18 @@ async function fetchSpark(symbols: string[], revalidate: number): Promise<Record
   return Object.assign({}, ...parts);
 }
 
-function toCommodity(spec: CommoditySpec, series: SparkSeries | undefined, fx: SparkSeries | undefined): Commodity | null {
+/**
+ * Each symbol's latest session, for the cards' lines. A closed market has nothing
+ * under "1d", so those are asked again for their last few days.
+ */
+async function fetchSessions(symbols: string[], revalidate: number): Promise<Record<string, Session | null>> {
+  const day = await fetchSpark(symbols, revalidate, "1d", "5m");
+  const closed = symbols.filter((s) => !lastSession(day[s]));
+  const week = closed.length ? await fetchSpark(closed, Math.max(revalidate, 300), "5d", "15m") : {};
+  return Object.fromEntries(symbols.map((s) => [s, lastSession(day[s]) ?? lastSession(week[s])]));
+}
+
+function toCommodity(spec: CommoditySpec, series: SparkSeries | undefined, fx: SparkSeries | undefined, session: Session | null): Commodity | null {
   const usd = levelOf(series);
   const inr = levelOf(fx);
   const change = dayChange(series);
@@ -173,11 +232,8 @@ function toCommodity(spec: CommoditySpec, series: SparkSeries | undefined, fx: S
   // The rupee moves too: the day's change in rupees combines both.
   const fxChange = dayChange(fx) ?? 0;
   const changePct = ((1 + change / 100) * (1 + fxChange / 100) - 1) * 100;
-  const fxCloses = closes(fx);
-  const spark = closes(series)
-    .slice(-7)
-    .map((c, i, arr) => spec.toInr(c, fxCloses[fxCloses.length - arr.length + i] ?? inr));
   const priceInr = spec.toInr(usd, inr);
+  const inRupees = session ? { t: session.t, closes: session.closes.map((c) => spec.toInr(c, inr)) } : null;
   return {
     id: spec.id,
     name: spec.name,
@@ -185,23 +241,22 @@ function toCommodity(spec: CommoditySpec, series: SparkSeries | undefined, fx: S
     priceInr,
     priceUsd: usd,
     changePct,
-    sparkline: spark.length > 1 ? spark : [priceInr, priceInr],
+    today: dayLine(inRupees, priceInr, changePct, "America/New_York"),
     note: spec.note,
   };
 }
 
-function usdInr(fx: SparkSeries | undefined): Commodity | null {
+function usdInr(fx: SparkSeries | undefined, session: Session | null): Commodity | null {
   const level = levelOf(fx);
   const changePct = dayChange(fx);
   if (typeof level !== "number" || typeof changePct !== "number") return null;
-  const spark = closes(fx).slice(-7);
   return {
     id: "usdinr",
     name: "US dollar",
     unit: "USD",
     priceInr: level,
     changePct,
-    sparkline: spark.length > 1 ? spark : [level, level],
+    today: dayLine(session, level, changePct, "Asia/Kolkata"),
     note: "Rupees per dollar — up means a weaker rupee",
   };
 }
@@ -278,14 +333,12 @@ function ibjaCommodity(base: Commodity, rates: IbjaRates): Commodity {
   const gold = base.id === "gold";
   const price = gold ? rates.gold : rates.silver;
   const prev = gold ? rates.prevGold : rates.prevSilver;
-  const history = gold ? rates.goldHistory : rates.silverHistory;
-  const spark = history.slice(-7);
-  if (spark.at(-1) !== price) spark.push(price);
   return {
     ...base,
     priceInr: price,
     changePct: prev ? ((price - prev) / prev) * 100 : base.changePct,
-    sparkline: spark.length > 1 ? spark.slice(-7) : base.sparkline,
+    // IBJA publishes twice a day, so the line stays COMEX's, and says so.
+    today: base.today && { ...base.today, source: "COMEX" },
     note: `IBJA ${gold ? "999 gold" : "999 silver"} rate, ${rates.date} ${rates.session} — what jewellers and banks quote, before GST`,
     source: "IBJA",
     asOf: rates.asOf,
@@ -308,7 +361,7 @@ async function fetchCrypto(revalidate: number): Promise<CryptoQuote[]> {
     const [tickerRes, ...klineRes] = await Promise.all([
       fetch(`${BINANCE}/ticker/24hr?symbols=${symbols}`, { next: { revalidate } }),
       ...CRYPTO_PAIRS.map((c) =>
-        fetch(`${BINANCE}/klines?symbol=${c.pair}&interval=1d&limit=7`, { next: { revalidate: 3600 } }),
+        fetch(`${BINANCE}/klines?symbol=${c.pair}&interval=5m&limit=288`, { next: { revalidate } }),
       ),
     ]);
     if (!tickerRes.ok) return [];
@@ -318,17 +371,18 @@ async function fetchCrypto(revalidate: number): Promise<CryptoQuote[]> {
       const t = tickers.find((x) => x.symbol === c.pair);
       if (!t) return [];
       const price = Number(t.lastPrice);
-      const spark = (klines[i] as string[][]).map((k) => Number(k[4])).filter(Number.isFinite);
+      const closes24h = (klines[i] as string[][]).map((k) => Number(k[4])).filter(Number.isFinite);
+      const changePct = Number(t.priceChangePercent);
       return [
         {
           id: c.id,
           name: c.name,
           pair: c.pair,
           price,
-          changePct: Number(t.priceChangePercent),
+          changePct,
           high24h: Number(t.highPrice),
           low24h: Number(t.lowPrice),
-          sparkline: spark.length > 1 ? [...spark.slice(0, -1), price] : [price, price],
+          today: dayLine(closes24h.length > 1 ? { t: Date.now() / 1000, closes: closes24h } : null, price, changePct, "UTC"),
         },
       ];
     });
@@ -348,7 +402,7 @@ export interface LiveMarkets {
   holidays?: HolidayMap;
 }
 
-// Real numbers only — levels, changes and sparklines come straight from
+// Real numbers only — levels, changes and the day's lines come straight from
 // Yahoo Finance; India's and the US's moods are their published indices,
 // Europe's and Asia's a transparent formula over the region's numbers; gold
 // and silver are IBJA's rates. Partial is fine: one missing symbol never
@@ -370,16 +424,12 @@ async function readLiveMarkets(revalidate: number): Promise<LiveMarkets | null> 
     getIbjaRates(1800),
     niftyBreadth(Math.min(revalidate, 300)),
   ]);
-  const data = await fetchSpark(
-    [
-      ...SYMBOLS.map((s) => s.symbol),
-      ...Object.values(VOLATILITY),
-      USD_INR,
-      ...COMMODITIES.map((c) => c.symbol),
-    ],
-    revalidate,
-  );
-  const indices = SYMBOLS.map((spec) => toIndex(spec, data[spec.symbol])).filter(
+  const lineSymbols = [...SYMBOLS.map((s) => s.symbol), USD_INR, ...COMMODITIES.map((c) => c.symbol)];
+  const [data, sessions] = await Promise.all([
+    fetchSpark([...lineSymbols, ...Object.values(VOLATILITY)], revalidate),
+    fetchSessions(lineSymbols, revalidate),
+  ]);
+  const indices = SYMBOLS.map((spec) => toIndex(spec, data[spec.symbol], sessions[spec.symbol])).filter(
     (i): i is MarketIndex => i !== null,
   );
   if (indices.length === 0) return null;
@@ -400,8 +450,8 @@ async function readLiveMarkets(revalidate: number): Promise<LiveMarkets | null> 
 
   const fx = data[USD_INR];
   const commodities = [
-    ...COMMODITIES.map((spec) => toCommodity(spec, data[spec.symbol], fx)),
-    usdInr(fx),
+    ...COMMODITIES.map((spec) => toCommodity(spec, data[spec.symbol], fx, sessions[spec.symbol])),
+    usdInr(fx, sessions[USD_INR]),
   ]
     .filter((c): c is Commodity => c !== null)
     .map((c) => (ibja && (c.id === "gold" || c.id === "silver") ? ibjaCommodity(c, ibja) : c));

@@ -1,5 +1,8 @@
 "use client";
 
+import { ArrowClockwiseIcon, ArrowRightIcon, CaretDownIcon, CaretUpIcon, MedalIcon, TrophyIcon } from "@phosphor-icons/react";
+import Sheet from "@/components/extras/Sheet";
+import { PHONE, useMedia } from "@/lib/use-media";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   F1ConstructorStanding,
@@ -130,7 +133,7 @@ function PartFailure({ note, onRetry }: { note: string; onRetry: () => void }) {
       <button
         type="button"
         onClick={onRetry}
-        className="font-label text-[10px] text-accent underline not-italic ml-1"
+        className="font-label text-[11px] text-accent underline not-italic ml-1"
       >
         Try again
       </button>
@@ -141,12 +144,12 @@ function PartFailure({ note, onRetry }: { note: string; onRetry: () => void }) {
 // A block that still has rows but whose last refresh failed.
 function StaleNote({ onRetry }: { onRetry: () => void }) {
   return (
-    <p className="text-[10px] text-ink-soft italic mt-2">
+    <p className="text-[11px] text-ink-soft italic mt-2">
       Showing the last figures we have.{" "}
       <button
         type="button"
         onClick={onRetry}
-        className="font-label text-[10px] text-accent underline not-italic"
+        className="font-label text-[11px] text-accent underline not-italic"
       >
         Try again
       </button>
@@ -200,7 +203,7 @@ function StandingsBars({
               <DriverName code={r.code} className="truncate">
                 {r.name}
               </DriverName>
-              {r.sub && <span className="font-mono text-[10px] text-ink-faint shrink-0">{r.sub}</span>}
+              {r.sub && <span className="font-mono text-[11px] text-ink-faint shrink-0">{r.sub}</span>}
             </span>
             <span className="font-mono text-[12px] text-right">{r.points}</span>
             <span />
@@ -462,19 +465,51 @@ export default function F1Sidebar({
   const roster: F1RosterEntry[] = drivers.data?.drivers ?? [];
   const [showAllDrivers, setShowAllDrivers] = useState(false);
   const [showAllConstructors, setShowAllConstructors] = useState(false);
-  const visibleDrivers = showAllDrivers ? driverRows : driverRows.slice(0, 5);
-  const visibleConstructors = showAllConstructors
+  // On a phone the whole table slides up in a sheet; on anything bigger it opens in place.
+  const phone = useMedia(PHONE);
+  const visibleDrivers = showAllDrivers && !phone ? driverRows : driverRows.slice(0, 5);
+  const visibleConstructors = showAllConstructors && !phone
     ? constructorRows
     : constructorRows.slice(0, 5);
+  const constructorBars = (rows: F1ConstructorStanding[]) => (
+    <StandingsBars
+      rows={rows.map((cs) => ({
+        key: `c-${cs.position}`,
+        position: cs.position,
+        name: cs.team.replace(/\s*F1 Team$/i, "").trim(),
+        color: teamColor(cs.team),
+        team: cs.team,
+        points: cs.points,
+      }))}
+      leader={constructorRows[0]?.points ?? 0}
+    />
+  );
+  const driverBars = (rows: F1Standing[]) => (
+    <StandingsBars
+      rows={rows.map((d) => ({
+        key: `d-${d.position}`,
+        position: d.position,
+        name: d.name,
+        sub: d.code,
+        code: d.code,
+        color: teamColor(d.team),
+        team: d.team,
+        points: d.points,
+      }))}
+      leader={driverRows[0]?.points ?? 0}
+    />
+  );
 
   return (
     // Two blocks that join the section's own grid (the root is
     // display: contents): the race desk sits beside the stories, the two
     // championship tables run full width underneath, so the stories column
-    // is never outgrown by a tall sidebar.
+    // is never outgrown by a tall sidebar. Everything stays printed at every
+    // width, and cards on one row are one height; with the room the desk runs
+    // two across and the tables rearrange (globals.css, .pit-desk, .pit-archive).
     <div className="contents">
       {/* A column: the paddock card at its foot grows to the stories' height (PaddockChatter). */}
-      <div className="flex flex-col gap-4 min-w-0 lg:col-start-2 lg:row-start-1">
+      <div className="pit-desk flex flex-col gap-4 min-w-0 lg:col-start-2 lg:row-start-1">
       {/* Pit wall header — the single section-scoped refresh control. It
           asks the server afresh (OpenF1 first, then the kept copy, then
           Jolpica), and a failed answer never blanks a table on screen. */}
@@ -482,7 +517,7 @@ export default function F1Sidebar({
         <span className="font-display font-extrabold text-[1.6rem] leading-none">Pit wall</span>
         <span className="flex items-center gap-2">
           {checkedAt && !refreshing && (
-            <span className="font-mono text-[10px] text-ink-soft">
+            <span className="font-mono text-[11px] text-ink-soft">
               {new Date(checkedAt).toLocaleTimeString("en-GB", {
                 hour: "2-digit",
                 minute: "2-digit",
@@ -501,7 +536,10 @@ export default function F1Sidebar({
                 <SpinGlyph /> Refreshing…
               </>
             ) : (
-              "↻ Refresh"
+              <>
+                <ArrowClockwiseIcon size={13} weight="bold" aria-hidden="true" />
+                Refresh
+              </>
             )}
           </button>
         </span>
@@ -534,7 +572,7 @@ export default function F1Sidebar({
         />
       ) : (
         <div className="module">
-          <div className="font-label text-[10px] text-ink-soft mb-1">Starting Grid</div>
+          <div className="font-label text-[11px] text-ink-soft mb-1">Starting Grid</div>
           {map.status === "loading" ? (
             <>
               <TableSkeleton rows={4} />
@@ -554,9 +592,9 @@ export default function F1Sidebar({
 
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start lg:col-span-2">
-      {/* Last race and the calendar run full width, beside each other, so the
-          desk column stays shorter than the stories. */}
+      <div className="pit-archive grid grid-cols-1 md:grid-cols-2 gap-4 lg:col-span-2">
+      {/* Last race, the tables and the calendar run full width, so the desk
+          column stays about as tall as the stories. */}
       {map.status === "ready" && map.data && (
         <StartingGrid
           part="archive"
@@ -592,8 +630,9 @@ export default function F1Sidebar({
       />
       {/* Constructors' Championship — before the drivers' table, matching the
           order the section fills in. */}
-      <div className="module" data-reveal>
-        <div className="font-label text-[10px] text-ink-soft mb-3">
+      <div className="module pit-teams" data-reveal>
+        <div className="font-label text-[11px] text-ink-soft mb-3 flex items-center gap-1.5">
+          <TrophyIcon size={14} aria-hidden="true" />
           Constructors&rsquo; Championship
         </div>
 
@@ -608,27 +647,21 @@ export default function F1Sidebar({
 
         {constructorRows.length > 0 && (
           <>
-            <StandingsBars
-              rows={visibleConstructors.map((cs) => ({
-                key: `c-${cs.position}`,
-                position: cs.position,
-                name: cs.team.replace(/\s*F1 Team$/i, "").trim(),
-                color: teamColor(cs.team),
-                team: cs.team,
-                points: cs.points,
-              }))}
-              leader={constructorRows[0]?.points ?? 0}
-            />
+            {constructorBars(visibleConstructors)}
             {constructorRows.length > 5 && (
               <button
                 type="button"
                 onClick={() => setShowAllConstructors((value) => !value)}
-                className="font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-3"
+                className="inline-flex items-center gap-1 font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-3"
               >
-                {showAllConstructors
-                  ? "Show top 5"
-                  : `Show all ${constructorRows.length} teams`}
+                {showAllConstructors && !phone ? "Show top 5" : `Show all ${constructorRows.length} teams`}
+                {phone ? <ArrowRightIcon size={13} weight="bold" aria-hidden="true" /> : showAllConstructors ? <CaretUpIcon size={13} weight="bold" aria-hidden="true" /> : <CaretDownIcon size={13} weight="bold" aria-hidden="true" />}
               </button>
+            )}
+            {showAllConstructors && phone && (
+              <Sheet title="Constructors' Championship" onClose={() => setShowAllConstructors(false)} width={560}>
+                <div data-reveal>{constructorBars(constructorRows)}</div>
+              </Sheet>
             )}
             {constructors.stale && <StaleNote onRetry={() => retry("constructors")} />}
           </>
@@ -636,8 +669,9 @@ export default function F1Sidebar({
       </div>
 
       {/* Drivers' Championship */}
-      <div className="module" data-reveal>
-        <div className="font-label text-[10px] text-ink-soft mb-3">
+      <div className="module pit-drivers" data-reveal>
+        <div className="font-label text-[11px] text-ink-soft mb-3 flex items-center gap-1.5">
+          <MedalIcon size={14} aria-hidden="true" />
           Drivers&rsquo; Championship
         </div>
 
@@ -659,32 +693,37 @@ export default function F1Sidebar({
 
         {driverRows.length > 0 && (
           <>
-            <StandingsBars
-              rows={visibleDrivers.map((d) => ({
-                key: `d-${d.position}`,
-                position: d.position,
-                name: d.name,
-                sub: d.code,
-                code: d.code,
-                color: teamColor(d.team),
-                team: d.team,
-                points: d.points,
-              }))}
-              leader={driverRows[0]?.points ?? 0}
-            />
+            {driverBars(visibleDrivers)}
             {driverRows.length > 5 && (
               <button
                 type="button"
                 onClick={() => setShowAllDrivers((value) => !value)}
-                className="font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-3"
+                className="inline-flex items-center gap-1 font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-3"
               >
-                {showAllDrivers ? "Show top 5" : `Show all ${driverRows.length} drivers`}
+                {showAllDrivers && !phone ? "Show top 5" : `Show all ${driverRows.length} drivers`}
+                {phone ? <ArrowRightIcon size={13} weight="bold" aria-hidden="true" /> : showAllDrivers ? <CaretUpIcon size={13} weight="bold" aria-hidden="true" /> : <CaretDownIcon size={13} weight="bold" aria-hidden="true" />}
               </button>
+            )}
+            {showAllDrivers && phone && (
+              <Sheet title="Drivers' Championship" onClose={() => setShowAllDrivers(false)} width={560}>
+                <div data-reveal>{driverBars(driverRows)}</div>
+              </Sheet>
             )}
             {standings.stale && <StaleNote onRetry={() => retry("standings")} />}
           </>
         )}
       </div>
+      {map.status === "ready" && map.data && (
+        <StartingGrid
+          part="calendar"
+          nextRace={map.data.nextRace}
+          upcoming={calendar.data?.upcoming ?? []}
+          calendarStatus={calendar.status}
+          onRetryCalendar={() => retry("calendar")}
+          currentRace={results.data?.currentRace ?? null}
+          racePhase={results.data?.racePhase ?? "last-race"}
+        />
+      )}
       </div>
     </div>
   );

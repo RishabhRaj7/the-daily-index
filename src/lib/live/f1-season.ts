@@ -1,5 +1,6 @@
 import { getStore } from "@/lib/server/store";
 import { teamColor } from "@/lib/personalization";
+import { jolpicaRaces } from "./jolpica";
 
 // The season so far, from Jolpica (the Ergast successor: free, no key):
 //   - every driver's points and finishing place, round by round, Grand Prix
@@ -11,10 +12,12 @@ import { teamColor } from "@/lib/personalization";
 //   - lap benchmarks for a meeting: last year's pole or fastest race lap, and
 //     the fastest race lap there since the current cars came in (2022).
 // Built once and kept for three hours (benchmarks a week), so the page costs
-// Jolpica a handful of calls a day.
+// Jolpica a handful of calls a day. Only a complete read is kept: if Jolpica can't
+// finish one, the season stays at its last complete read (KEEP_LAST_SECONDS), and
+// a circuit's history and benchmarks aren't kept at all, so the next visit asks again.
 
-const API = "https://api.jolpi.ca/ergast/f1";
 const KEEP_SECONDS = 3 * 3600;
+const KEEP_LAST_SECONDS = 30 * 86_400;
 
 interface JDriver {
   code?: string;
@@ -117,22 +120,12 @@ export interface Season {
   updated: string;
 }
 
-async function pages(path: string, total = 6): Promise<JRace[]> {
-  const got = await Promise.all(
-    Array.from({ length: total }, (_, i) => i * 100).map(async (offset) => {
-      try {
-        const res = await fetch(`${API}/${path}?limit=100&offset=${offset}`, { next: { revalidate: 3 * 3600 } });
-        if (!res.ok) return [] as JRace[];
-        return ((await res.json()) as { MRData: { RaceTable: { Races: JRace[] } } }).MRData.RaceTable.Races;
-      } catch {
-        return [] as JRace[];
-      }
-    }),
-  );
+async function pages(path: string): Promise<JRace[]> {
+  const got = await jolpicaRaces<JRace>(path, 3 * 3600);
   // A round can straddle two pages; join its rows back up (by season and
   // round: a circuit's history spans many seasons).
   const byRound = new Map<string, JRace>();
-  for (const r of got.flat()) {
+  for (const r of got) {
     const id = `${r.season}-${r.round}`;
     const had = byRound.get(id);
     byRound.set(
@@ -252,7 +245,11 @@ function statsFor(sets: { race: JRace; results: JResult[]; grid1?: JResult | nul
 }
 
 async function build(year: number): Promise<Season | null> {
-  const [schedule, results, sprints, quali] = await Promise.all([pages(`${year}/races/`, 1), pages(`${year}/results/`), pages(`${year}/sprint/`, 2), pages(`${year}/qualifying/`)]);
+  // One after another (lib/live/jolpica.ts paces them): all four, or none.
+  const schedule = await pages(`${year}/races/`);
+  const results = await pages(`${year}/results/`);
+  const sprints = await pages(`${year}/sprint/`);
+  const quali = await pages(`${year}/qualifying/`);
   if (schedule.length === 0) return null;
   const byRound = (list: JRace[]) => new Map(list.map((r) => [Number(r.round), r]));
   const res = byRound(results);
@@ -323,14 +320,21 @@ async function build(year: number): Promise<Season | null> {
 
 export async function getSeason(year = new Date().getUTCFullYear()): Promise<Season | null> {
   const store = getStore();
-  const k = `f1:season:v5:${year}`;
+  const k = `f1:season:v6:${year}`;
+  const last = `f1:season:last:v1:${year}`;
   const kept = await store.get<Season>(k).catch(() => null);
   if (kept) return kept;
-  const built = await build(year);
+  const built = await build(year).catch(async (err) => {
+    console.error("[f1/season]", err instanceof Error ? err.message : err);
+    const previous = await store.get<Season>(last).catch(() => null);
+    if (previous) return previous;
+    throw err;
+  });
   // A season with no results yet (January) falls back to last year's.
   if (!built) return null;
   if (built.drivers.length === 0) return year > 2020 ? getSeason(year - 1) : null;
   await store.set(k, built, { ttlSeconds: KEEP_SECONDS }).catch(() => {});
+  await store.set(last, built, { ttlSeconds: KEEP_LAST_SECONDS }).catch(() => {});
   return built;
 }
 
@@ -346,7 +350,7 @@ export interface Benchmark {
 
 /** The season's Jolpica race for an F1 meeting name. */
 async function raceOf(meeting: string, year: number): Promise<JRace | null> {
-  const schedule = await pages(`${year}/races/`, 1);
+  const schedule = await pages(`${year}/races/`);
   const want = meeting.toLowerCase();
   // F1 and Jolpica don't always name a meeting alike ("Bahrain Grand Prix" was
   // held at Sepang in 2026 and Jolpica calls it "… in Malaysia").
@@ -383,13 +387,15 @@ export interface CircuitHistory {
 /** Who has won, started on pole and set the fastest lap here, kept a week. */
 export async function circuitHistory(meeting: string, year = new Date().getUTCFullYear()): Promise<CircuitHistory | null> {
   const store = getStore();
-  const k = `f1:circuit-history:v2:${year}:${meeting.toLowerCase().replace(/\W+/g, "-")}`;
+  const k = `f1:circuit-history:v3:${year}:${meeting.toLowerCase().replace(/\W+/g, "-")}`;
   const kept = await store.get<CircuitHistory>(k).catch(() => null);
   if (kept) return kept;
   const race = await raceOf(meeting, year);
   if (!race) return null;
   const id = race.Circuit.circuitId;
-  const [wins, poles, fastest] = await Promise.all([pages(`circuits/${id}/results/1/`, 2), pages(`circuits/${id}/qualifying/1/`, 1), pages(`circuits/${id}/fastest/1/results/`, 1)]);
+  const wins = await pages(`circuits/${id}/results/1/`);
+  const poles = await pages(`circuits/${id}/qualifying/1/`);
+  const fastest = await pages(`circuits/${id}/fastest/1/results/`);
   const before = (r: JRace) => Number(r.season) < year;
   const won = wins.filter(before);
   const by = (list: JRace[]) => new Map(list.filter(before).map((r) => [Number(r.season), r]));
@@ -437,17 +443,15 @@ export async function circuitHistory(meeting: string, year = new Date().getUTCFu
  */
 export async function benchmarks(meeting: string, type: string, year = new Date().getUTCFullYear()): Promise<Benchmark[]> {
   const store = getStore();
-  const k = `f1:bench:v3:${year}:${meeting.toLowerCase().replace(/\W+/g, "-")}:${type === "Race" ? "race" : "quali"}`;
+  const k = `f1:bench:v4:${year}:${meeting.toLowerCase().replace(/\W+/g, "-")}:${type === "Race" ? "race" : "quali"}`;
   const kept = await store.get<Benchmark[]>(k).catch(() => null);
   if (kept) return kept;
   const race = await raceOf(meeting, year);
   if (!race) return [];
   const id = race.Circuit.circuitId;
   const out: Benchmark[] = [];
-  const [prevQuali, fastest] = await Promise.all([
-    type === "Race" ? Promise.resolve([] as JRace[]) : pages(`${year - 1}/circuits/${id}/qualifying/1/`, 1),
-    pages(`circuits/${id}/fastest/1/results/`, 1),
-  ]);
+  const prevQuali = type === "Race" ? ([] as JRace[]) : await pages(`${year - 1}/circuits/${id}/qualifying/1/`);
+  const fastest = await pages(`circuits/${id}/fastest/1/results/`);
   if (type !== "Race") {
     const q = prevQuali[0]?.QualifyingResults?.[0];
     const t = q?.Q3 || q?.Q2 || q?.Q1;

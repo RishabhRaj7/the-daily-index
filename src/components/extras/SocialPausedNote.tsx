@@ -55,7 +55,7 @@ export default function SocialPausedNote({ place, className = "" }: { place: Sec
   const until = Math.max(...paused.map((s) => health[s].pausedUntil));
 
   return (
-    <p className={`font-mono text-[10px] text-ink-faint flex items-center gap-1.5 ${className}`} role="status">
+    <p className={`font-mono text-[11px] text-ink-faint flex items-center gap-1.5 ${className}`} role="status">
       {trying ? (
         <>
           <svg viewBox="0 0 16 16" className="w-3 h-3 animate-spin" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">

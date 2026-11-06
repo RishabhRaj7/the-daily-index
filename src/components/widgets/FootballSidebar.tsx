@@ -16,7 +16,7 @@ export default function FootballSidebar({
         const top8 = standings.slice(0, 8);
         return (
           <div key={league} className="first:pt-0 pt-4 first:border-t-0 border-t hairline">
-            <div className="font-label text-[10px] text-ink-soft mb-2">
+            <div className="font-label text-[11px] text-ink-soft mb-2">
               {league.toUpperCase()}
             </div>
             {top8.length > 0 ? (
@@ -28,7 +28,7 @@ export default function FootballSidebar({
             <col style={{ width: "2.5rem" }} />
           </colgroup>
           <thead>
-            <tr className="text-left text-ink-soft font-label text-[10px]">
+            <tr className="text-left text-ink-soft font-label text-[11px]">
               <th className="font-normal pb-1">#</th>
               <th className="font-normal pb-1">Club</th>
               <th className="font-normal pb-1 num">P</th>
@@ -62,7 +62,7 @@ export default function FootballSidebar({
               <div className="mt-4 pt-3 border-t hairline space-y-3">
                 {leagueData.leaders.slice(0, 3).map((category) => (
                   <div key={category.name}>
-                    <div className="font-label text-[10px] text-ink-soft mb-1">
+                    <div className="font-label text-[11px] text-ink-soft mb-1">
                       {category.label.toUpperCase()}
                     </div>
                     <ol className="space-y-1 text-[11px]">

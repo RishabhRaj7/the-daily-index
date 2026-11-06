@@ -5,6 +5,7 @@ import type { F1RosterEntry, Personalization } from "@/lib/types";
 import { F1_TEAM_COLORS } from "@/lib/personalization";
 import { SECTION_ORDER } from "@/lib/sections";
 import PageOrderList from "./PageOrderList";
+import { moveChapter, moveWithinChapter, type ChapterId } from "@/lib/chapters";
 import type { DigestPreferences } from "@/lib/preferences/types";
 
 type Sport = "f1" | "football" | "tennis";
@@ -211,14 +212,12 @@ export default function PersonalizationForm({
     });
   };
 
-  const moveSection = (key: (typeof SECTION_ORDER)[number], dir: -1 | 1) => {
-    const order = [...value.sectionOrder];
-    const i = order.indexOf(key);
-    const j = i + dir;
-    if (i < 0 || j < 0 || j >= order.length) return;
-    [order[i], order[j]] = [order[j], order[i]];
-    onChange({ ...value, sectionOrder: order });
-  };
+  // A section moves within its chapter; a chapter moves past its neighbour
+  // (lib/chapters.ts).
+  const moveSection = (key: (typeof SECTION_ORDER)[number], dir: -1 | 1) =>
+    onChange({ ...value, sectionOrder: moveWithinChapter(value.sectionOrder, key, dir) });
+  const moveWholeChapter = (id: ChapterId, dir: -1 | 1) =>
+    onChange({ ...value, sectionOrder: moveChapter(value.sectionOrder, id, dir) });
 
   return (
     <div>
@@ -392,6 +391,7 @@ export default function PersonalizationForm({
           order={value.sectionOrder}
           hidden={value.hiddenSections}
           onMove={moveSection}
+          onMoveChapter={moveWholeChapter}
           onToggle={toggleSection}
           news={news}
           onNewsChange={onNewsChange}

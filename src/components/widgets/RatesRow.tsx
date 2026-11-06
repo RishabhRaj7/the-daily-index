@@ -1,5 +1,8 @@
 "use client";
 
+import { PublisherLogo } from "@/components/story/PublisherMark";
+import MoveArrow from "@/components/chrome/MoveArrow";
+import { BankIcon, CaretRightIcon, HandshakeIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import type { FlowDay, OddsMarket, RatesPanel } from "@/lib/types";
 import { policyMarket } from "@/lib/odds-pick";
@@ -36,10 +39,10 @@ function Expect({ m, on }: { m?: OddsMarket; on: string | null }) {
         style={{ borderColor: "color-mix(in srgb, var(--hue-poll) 60%, transparent)" }}
         title={`A forecast, not data: what traders on ${m.source} expect. ${m.title}`}
       >
-        <span className="font-label text-[9px] rounded px-1 py-[1px] shrink-0" style={{ background: "var(--hue-poll)", color: "var(--paper)" }}>
+        <span className="font-label text-[11px] rounded px-1 py-[1px] shrink-0" style={{ background: "var(--hue-poll)", color: "var(--paper)" }}>
           Odds
         </span>
-        <span className="font-mono text-[10px] truncate" style={{ color: "var(--hue-poll)" }}>
+        <span className="font-mono text-[11px] min-w-0" style={{ color: "var(--hue-poll)" }}>
           {Math.round(m.lead.prob)}% {name}
           {on ? ` on ${day(on)}` : ""}
           {m.vol < 50_000 ? " · thin" : ""}
@@ -51,15 +54,19 @@ function Expect({ m, on }: { m?: OddsMarket; on: string | null }) {
 }
 
 /** A published figure: the number, where it comes from, and its context. */
-function Cell({ label, source, value, children }: { label: string; source: string; value: React.ReactNode; children?: React.ReactNode }) {
+function Cell({ label, source, value, children }: { label: string; source: React.ReactNode; value: React.ReactNode; children?: React.ReactNode }) {
   return (
     <div className="min-w-0 pr-3 py-3 lg:px-4 lg:first:pl-0 lg:border-l hairline lg:first:border-l-0">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="font-label text-[10px] text-ink-soft truncate">{label}</span>
-        <span className="font-mono text-[9.5px] text-ink-faint shrink-0">{source}</span>
+        <span className="font-label text-[11px] text-ink-soft min-w-0 inline-flex items-center gap-1">
+          <BankIcon size={14} className="shrink-0" aria-hidden="true" />
+          <span className="truncate">{label}</span>
+        </span>
+        {/* A publisher's name gives way to the label on a phone; a logo has room. */}
+        <span className={`font-mono text-[11px] text-ink-faint shrink-0 ${typeof source === "string" ? "hidden sm:inline" : ""}`}>{source}</span>
       </div>
       <div className="font-display font-bold text-[1.35rem] leading-none tabular-nums mt-1">{value}</div>
-      <div className="font-mono text-[10px] text-ink-soft mt-1 leading-snug">{children}</div>
+      <div className="font-mono text-[11px] text-ink-soft mt-1 leading-snug">{children}</div>
     </div>
   );
 }
@@ -81,7 +88,7 @@ function Split({ d, max }: { d: FlowDay; max: number }) {
 function FlowLine({ who, d, max }: { who: string; d: FlowDay; max: number }) {
   return (
     <span className="grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-x-2">
-      <span className="font-label text-[10px] text-ink-soft">{who}</span>
+      <span className="font-label text-[11px] text-ink-soft">{who}</span>
       <span className={`font-display font-bold text-[1.05rem] leading-none tabular-nums ${d.net >= 0 ? "text-up" : "text-down"}`}>
         {d.net >= 0 ? "+" : "−"}
         {fmt(d.net)}
@@ -119,7 +126,7 @@ function FlowsSheet({ flows, onClose }: { flows: NonNullable<RatesPanel["flows"]
           <col />
         </colgroup>
         <thead>
-          <tr className="font-label text-[10px] text-ink-soft text-right">
+          <tr className="font-label text-[11px] text-ink-soft text-right">
             <th className="text-left font-normal pb-2" />
             <th className="font-normal pb-2">Bought</th>
             <th className="font-normal pb-2">Sold</th>
@@ -158,10 +165,10 @@ function FlowsSheet({ flows, onClose }: { flows: NonNullable<RatesPanel["flows"]
       {flows.days.length >= 2 && (
         <div className="mt-7">
           <div className="flex items-baseline justify-between gap-3">
-            <span className="font-label text-[10px] text-ink-soft">
+            <span className="font-label text-[11px] text-ink-soft">
               {new Date(`${flows.date}T12:00:00Z`).toLocaleDateString("en-GB", { month: "long", timeZone: TZ })}, day by day
             </span>
-            <span className="flex gap-3 font-mono text-[10px] text-ink-soft">
+            <span className="flex gap-3 font-mono text-[11px] text-ink-soft">
               <span>
                 <span className="inline-block w-2 h-2 rounded-sm mr-1 align-middle" style={{ background: "var(--hue-markets)" }} />
                 FII
@@ -196,7 +203,7 @@ function FlowsSheet({ flows, onClose }: { flows: NonNullable<RatesPanel["flows"]
               </span>
             ))}
           </div>
-          <div className="flex justify-between font-mono text-[10px] text-ink-faint mt-1">
+          <div className="flex justify-between font-mono text-[11px] text-ink-faint mt-1">
             <span>{day(flows.days[0].date)}</span>
             <span>{day(flows.days[flows.days.length - 1].date)}</span>
           </div>
@@ -207,7 +214,7 @@ function FlowsSheet({ flows, onClose }: { flows: NonNullable<RatesPanel["flows"]
           )}
         </div>
       )}
-      <p className="font-mono text-[10px] text-ink-faint mt-6 leading-relaxed">
+      <p className="font-mono text-[11px] text-ink-faint mt-6 leading-relaxed">
         NSE&rsquo;s provisional figures for the cash market, out each evening. FIIs are foreign institutions; DIIs are Indian mutual funds,
         insurers and banks. When foreign money leaves and Indian funds take the other side, the index holds up far better than the
         foreign selling alone would suggest. The month fills in as the paper keeps each day.
@@ -222,15 +229,22 @@ function FlowCell({ flows }: { flows: NonNullable<RatesPanel["flows"]> }) {
   return (
     <div className="min-w-0 pr-3 py-3 lg:px-4 lg:border-l hairline">
       <button type="button" onClick={() => setOpen(true)} className="w-full text-left group">
-        <span className="flex items-baseline justify-between gap-2">
-          <span className="font-label text-[10px] text-ink-soft">Who&rsquo;s buying · {day(flows.date)}</span>
-          <span className="font-mono text-[9.5px] text-ink-faint group-hover:text-ink">NSE · more ›</span>
+        <span className="flex items-center justify-between gap-2">
+          <span className="font-label text-[11px] text-ink-soft min-w-0 inline-flex items-center gap-1">
+            <HandshakeIcon size={14} className="shrink-0" aria-hidden="true" />
+            <span className="truncate">Who&rsquo;s buying</span>
+          </span>
+          <span className="font-mono text-[11px] text-ink-faint group-hover:text-ink shrink-0 inline-flex items-center gap-0.5">
+            <span className="hidden sm:inline">NSE</span>
+            <CaretRightIcon size={12} weight="bold" aria-hidden="true" />
+          </span>
         </span>
         <span className="grid gap-1.5 mt-1.5">
           <FlowLine who="FII" d={flows.fii} max={max} />
           <FlowLine who="DII" d={flows.dii} max={max} />
         </span>
-        <span className="flex gap-3 font-mono text-[10px] text-ink-faint mt-1.5">
+        <span className="flex flex-wrap gap-x-3 font-mono text-[11px] text-ink-faint mt-1.5">
+          <span>{day(flows.date)}</span>
           <span>
             <span className="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle" style={{ background: "var(--up)" }} />
             bought
@@ -262,13 +276,13 @@ export default function RatesRow({ markets = [] }: { markets?: OddsMarket[] }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 border-y hairline mt-5" data-reveal>
       {repo && (
-        <Cell label="RBI repo rate" source="RBI" value={`${repo.rate.toFixed(2)}%`}>
+        <Cell label="RBI repo rate" source={<PublisherLogo source="rbi.org.in" size={15} />} value={`${repo.rate.toFixed(2)}%`}>
           {repo.next ? `Next decision ${day(repo.next)}` : "Next decision not announced"}
           <Expect m={policyMarket(markets, "rbi", repo.next)} on={repo.next} />
         </Cell>
       )}
       {fed && (
-        <Cell label="Fed funds target" source="FRED" value={`${fed.lower.toFixed(2)}–${fed.upper.toFixed(2)}%`}>
+        <Cell label="Fed funds" source="FRED" value={`${fed.lower.toFixed(2)}–${fed.upper.toFixed(2)}%`}>
           {fed.move ? `${fed.move === "cut" ? "Cut" : "Raised"} ${day(fed.since)}` : `Held since ${day(fed.since)}`}
           {fed.next ? ` · next ${day(fed.next)}` : ""}
           <Expect m={policyMarket(markets, "fed", fed.next)} on={fed.next} />
@@ -278,7 +292,7 @@ export default function RatesRow({ markets = [] }: { markets?: OddsMarket[] }) {
         <Cell label="US 10-year yield" source="Yahoo" value={`${us10y.yield.toFixed(2)}%`}>
           {us10y.change != null && Math.abs(us10y.change) >= 0.01 ? (
             <span className={us10y.change > 0 ? "text-down" : "text-up"}>
-              {us10y.change > 0 ? "▲" : "▼"} {Math.abs(us10y.change).toFixed(2)} pts today
+              <MoveArrow up={us10y.change > 0} /> {Math.abs(us10y.change).toFixed(2)} pts today
             </span>
           ) : (
             "Flat today"
@@ -287,10 +301,10 @@ export default function RatesRow({ markets = [] }: { markets?: OddsMarket[] }) {
         </Cell>
       )}
       {flows && <FlowCell flows={flows} />}
-      <p className="col-span-2 lg:col-span-4 font-mono text-[10.5px] text-ink-faint pb-2 -mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+      <p className="hidden md:flex col-span-2 lg:col-span-4 font-mono text-[11px] text-ink-faint pb-2 -mt-0.5 flex-wrap items-center gap-x-3 gap-y-1">
         <span>Big numbers: the latest published figures, source top right.</span>
         <span className="inline-flex items-center gap-1">
-          <span className="font-label text-[9px] rounded px-1 py-[1px]" style={{ background: "var(--hue-poll)", color: "var(--paper)" }}>
+          <span className="font-label text-[11px] rounded px-1 py-[1px]" style={{ background: "var(--hue-poll)", color: "var(--paper)" }}>
             Odds
           </span>
           in a dashed box: what prediction-market traders expect next, a forecast, not a fact.

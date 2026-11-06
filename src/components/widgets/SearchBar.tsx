@@ -1,5 +1,8 @@
 "use client";
 
+import { ArrowRightIcon, CaretDownIcon, CaretUpIcon, MagnifyingGlassIcon } from "@phosphor-icons/react";
+import Sheet from "@/components/extras/Sheet";
+import { PHONE, useMedia } from "@/lib/use-media";
 import { useEffect, useMemo, useState } from "react";
 import { useFitRows } from "@/lib/use-fit-rows";
 import type { TrendCountry, TrendItem } from "@/lib/live/trends";
@@ -63,7 +66,7 @@ function Row({ t, i, max, inPaper, now, hidden = false }: { t: TrendItem; i: num
           >
             {termCase(t.term)}
           </a>
-          <span className="font-mono text-[10px] text-ink-soft shrink-0 tabular-nums" title="Roughly how many searched">
+          <span className="font-mono text-[11px] text-ink-soft shrink-0 tabular-nums" title="Roughly how many searched">
             {t.traffic}
             {t.started ? ` · ${since(t.started, now)}` : ""}
           </span>
@@ -72,21 +75,21 @@ function Row({ t, i, max, inPaper, now, hidden = false }: { t: TrendItem; i: num
           <span className="block h-full rounded-full" style={{ width: `${width}%`, background: "var(--section-hue)", opacity: 0.75 }} />
         </span>
         {t.countries && (
-          <span className="block font-mono text-[10px] mt-1 truncate" style={{ color: "var(--section-hue)" }}>
+          <span className="block font-mono text-[11px] mt-1 truncate" style={{ color: "var(--section-hue)" }}>
             Trending in {t.countries.length} countries: {t.countries.map((g) => COUNTRY[g] ?? g).join(" · ")}
           </span>
         )}
         {!story && t.related.length > 0 && (
-          <span className="block font-mono text-[10.5px] text-ink-soft mt-1 truncate">also searched: {t.related.join(" · ")}</span>
+          <span className="block font-mono text-[11px] text-ink-soft mt-1 truncate">also searched: {t.related.join(" · ")}</span>
         )}
         {story && (
           <a href={story.url} target="_blank" rel="noopener noreferrer" className="block font-sans text-[12px] text-ink-soft mt-1 truncate hover:text-ink">
             {inPaper && (
-              <span className="font-label text-[9px] mr-1.5 align-[1px]" style={{ color: "var(--section-hue)" }}>
+              <span className="font-label text-[11px] mr-1.5 align-[1px]" style={{ color: "var(--section-hue)" }}>
                 In today&rsquo;s paper
               </span>
             )}
-            {story.title} <span className="font-mono text-[10px] text-ink-faint">· {story.source}</span>
+            {story.title} <span className="font-mono text-[11px] text-ink-faint">· {story.source}</span>
           </a>
         )}
       </span>
@@ -99,6 +102,7 @@ export default function SearchBar({ headlines = [], home = "IN", className = "" 
   const [geo, setGeo] = useState(home);
   const [all, setAll] = useState(false);
   const [at, setAt] = useState<number>(0);
+  const phone = useMedia(PHONE);
   useEffect(() => {
     let live = true;
     let retry: number | undefined;
@@ -132,7 +136,7 @@ export default function SearchBar({ headlines = [], home = "IN", className = "" 
   const { box, fit, minHeight } = useFitRows(FEW, [country, at], !all);
   if (!countries || !country) return null;
   const items = country.items.slice(0, MANY);
-  const shown = all ? items.length : Math.min(fit, items.length);
+  const shown = all && !phone ? items.length : Math.min(fit, items.length);
   const half = Math.ceil(items.length / 2);
   const max = Math.max(...items.slice(0, shown).map((t) => t.volume), 1);
   const inPaper = (t: TrendItem) => {
@@ -145,7 +149,10 @@ export default function SearchBar({ headlines = [], home = "IN", className = "" 
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 pb-3 border-b hairline">
         <div>
           <div className="flex items-center gap-3">
-            <h3 className="font-display font-extrabold text-[1.9rem] leading-none">The Search Bar</h3>
+            <h3 className="font-display font-extrabold text-[1.9rem] leading-none inline-flex items-center gap-2">
+              <MagnifyingGlassIcon size={24} weight="bold" style={{ color: "var(--section-hue)" }} aria-hidden="true" />
+              The Search Bar
+            </h3>
             <LiveBadge />
           </div>
           <p className="font-body italic text-xs text-ink-soft mt-0.5">
@@ -169,7 +176,7 @@ export default function SearchBar({ headlines = [], home = "IN", className = "" 
           ))}
         </div>
       </div>
-      {all ? (
+      {all && !phone ? (
         // Twenty: in two columns when it has the whole width.
         <div className="grid gap-x-10 @2xl:grid-cols-2">
           <ol className="divide-y hairline">
@@ -194,10 +201,20 @@ export default function SearchBar({ headlines = [], home = "IN", className = "" 
         </div>
       )}
       {items.length > shown || all ? (
-        <button type="button" onClick={() => setAll((v) => !v)} className="self-start font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-2">
-          {all ? `Show the top ${Math.min(fit, items.length)} ↑` : `Show the top ${items.length} ↓`}
+        <button type="button" onClick={() => setAll((v) => !v)} className="self-start inline-flex items-center gap-1 font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-2">
+          {all && !phone ? `Show the top ${Math.min(fit, items.length)}` : `Show the top ${items.length}`}
+          {phone ? <ArrowRightIcon size={13} weight="bold" aria-hidden="true" /> : all ? <CaretUpIcon size={13} weight="bold" aria-hidden="true" /> : <CaretDownIcon size={13} weight="bold" aria-hidden="true" />}
         </button>
       ) : null}
+      {all && phone && (
+        <Sheet title="The Search Bar" kicker={`Top ${items.length} · ${SHORT[country.geo] ?? country.name}`} onClose={() => setAll(false)}>
+          <ol className="divide-y hairline">
+            {items.map((t, i) => (
+              <Row key={t.term} t={t} i={i} max={Math.max(...items.map((x) => x.volume), 1)} inPaper={inPaper(t)} now={at} />
+            ))}
+          </ol>
+        </Sheet>
+      )}
     </div>
   );
 }

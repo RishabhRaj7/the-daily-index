@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowSquareOutIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import type { ValMatchStats, ValPlayerStats, ValStatLine } from "@/lib/types";
 
@@ -75,7 +76,7 @@ function Agent({ slug }: { slug: string }) {
     // eslint-disable-next-line @next/next/no-img-element
     <img src={`/val/agents/${slug}.webp`} alt={slug} title={slug} width={20} height={20} className="rounded-[4px] bg-[#17171c] shrink-0" onError={() => setOk(false)} />
   ) : (
-    <span className="grid place-items-center w-[20px] h-[20px] rounded-[4px] bg-[#17171c] text-[9px] text-white uppercase shrink-0" title={slug}>
+    <span className="grid place-items-center w-[20px] h-[20px] rounded-[4px] bg-[#17171c] text-[11px] text-white uppercase shrink-0" title={slug}>
       {slug.slice(0, 2)}
     </span>
   );
@@ -94,7 +95,7 @@ function Table({ team, players, side, best, mine }: { team: string; players: Val
           ))}
         </colgroup>
         <thead>
-          <tr className="font-label text-[9.5px] text-ink-faint text-right">
+          <tr className="font-label text-[11px] text-ink-faint text-right">
             <th className="text-left font-normal py-1 sticky left-0 bg-surface" style={mine ? { color: "var(--section-hue)" } : undefined}>
               {team}
             </th>
@@ -171,7 +172,7 @@ function Rounds({ rounds, teams }: { rounds: ValMatchStats["maps"][number]["roun
           <span className="w-[3.2rem] shrink-0" />
           {rounds.flatMap((_, i) => [
             ...(gap(i) ? [<span key={`hg-${i}`} className="w-[6px] shrink-0" />] : []),
-            <span key={`n-${i}`} className="w-[22px] shrink-0 text-center font-mono text-[10.5px] text-ink-faint tabular-nums">
+            <span key={`n-${i}`} className="w-[22px] shrink-0 text-center font-mono text-[11px] text-ink-faint tabular-nums">
               {String(i + 1).padStart(2, "0")}
             </span>,
           ])}
@@ -253,7 +254,7 @@ export default function MatchStats({
         {live ? "The scoreboard appears once the first round is played." : "No scoreboard for this match yet."}
         {vlr && (
           <a href={vlr} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted ml-1">
-            See it on VLR.gg ↗
+            See it on VLR.gg <ArrowSquareOutIcon size={13} className="inline align-[-2px]" aria-hidden="true" />
           </a>
         )}
       </p>
@@ -275,7 +276,7 @@ export default function MatchStats({
     <section className="mt-4">
       <div className="flex flex-wrap items-center gap-2">
         {data.live && (
-          <span className="font-label text-[10px] inline-flex items-center gap-1 mr-1" style={{ color: "var(--section-hue)" }}>
+          <span className="font-label text-[11px] inline-flex items-center gap-1 mr-1" style={{ color: "var(--section-hue)" }}>
             <span className="live-dot" /> Live · every minute
           </span>
         )}
@@ -292,7 +293,7 @@ export default function MatchStats({
               "All maps"
             ) : (
               <>
-                <span className="font-mono text-[10px] opacity-60">{i}</span>
+                <span className="font-mono text-[11px] opacity-60">{i}</span>
                 {m.name}
                 {m.score[0] != null && (
                   <span className="font-mono text-[11px] tabular-nums">
@@ -316,7 +317,7 @@ export default function MatchStats({
               type="button"
               onClick={() => setSide(k)}
               aria-pressed={side === k}
-              className="font-mono text-[10.5px] rounded-full px-2.5 py-1 border hairline"
+              className="font-mono text-[11px] rounded-full px-2.5 py-1 border hairline"
               style={side === k ? { background: "var(--section-hue)", color: "var(--paper)", borderColor: "var(--section-hue)" } : undefined}
             >
               {label}
@@ -325,13 +326,13 @@ export default function MatchStats({
         </span>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[10.5px] text-ink-soft">
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[11px] text-ink-soft">
         {current.id !== "all" && current.pickedBy != null && <span>{data.teams[current.pickedBy]}&rsquo;s pick</span>}
         {current.id !== "all" && current.pickedBy == null && <span>Decider</span>}
         {current.id !== "all" && current.duration && <span>{current.duration}</span>}
         {vod && (
           <a href={vod.url} target="_blank" rel="noopener noreferrer" className="hover:text-ink underline decoration-dotted underline-offset-2">
-            Watch map {mapNo} ↗
+            Watch map {mapNo} <ArrowSquareOutIcon size={13} className="inline align-[-2px]" aria-hidden="true" />
           </a>
         )}
         {current.id !== "all" && current.rounds.length > 0 && (
@@ -355,7 +356,7 @@ export default function MatchStats({
         <span className="ml-auto text-ink-faint">
           Stats:{" "}
           <a href={data.url} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted hover:text-ink">
-            VLR.gg ↗
+            VLR.gg <ArrowSquareOutIcon size={13} className="inline align-[-2px]" aria-hidden="true" />
           </a>
         </span>
       </div>

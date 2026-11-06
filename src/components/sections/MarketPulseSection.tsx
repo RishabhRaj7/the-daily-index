@@ -1,13 +1,16 @@
 "use client";
 
+import { ArrowRightIcon, CaretDownIcon, CaretUpIcon, CoinsIcon } from "@phosphor-icons/react";
+import Sheet from "@/components/extras/Sheet";
 import { useState, useSyncExternalStore } from "react";
-import type { Commodity, CryptoQuote, MarketIndex, MarketMood, MarketRegion, OddsMarket, Story } from "@/lib/types";
+import type { Commodity, CryptoQuote, DayLine, MarketIndex, MarketMood, MarketRegion, OddsMarket, Story } from "@/lib/types";
 import SectionHeader from "@/components/story/SectionHeader";
 import StoryArticle from "@/components/story/StoryArticle";
 import MarketIndexCard from "@/components/widgets/MarketIndexCard";
 import MoodGauge from "@/components/widgets/MoodGauge";
-import SparklineChart from "@/components/widgets/SparklineChart";
+import DayLineChart from "@/components/widgets/DayLineChart";
 import MarketChartSheet, { type ChartTarget } from "@/components/widgets/MarketChartSheet";
+import MarketWhyLine, { useMarketWhy } from "@/components/widgets/MarketWhyLine";
 import IpoWatch from "@/components/widgets/IpoWatch";
 import SocialPausedNote from "@/components/extras/SocialPausedNote";
 import RatesRow from "@/components/widgets/RatesRow";
@@ -17,8 +20,10 @@ import { regionState, reopenLabel, type HolidayMap, type SessionState } from "@/
 
 // Market Pulse: the world's markets one region at a time. A row of region
 // cards (each with its own mood) doubles as the tabs; the selected region
-// opens as a mood gauge beside its four index tiles. Commodities follow, in
-// rupees.
+// opens as a mood gauge beside its four index tiles (two on a phone, with all of
+// them a sheet away). On a move of 1% or more, a line between the two says what
+// today's headlines report moved that region. Commodities follow, in rupees: a swipe row on a phone, one
+// row with the room (globals.css, .pulse-tiles and .pulse-prices).
 
 const REGIONS: MarketRegion[] = ["India", "US", "Europe", "Asia"];
 
@@ -60,16 +65,16 @@ function RegionTab({
       role="tab"
       aria-selected={selected}
       onClick={onSelect}
-      className={`text-left rounded-2xl border px-4 py-3 transition-[border-color,background-color,transform] duration-300 hover:-translate-y-0.5 ${
+      className={`text-left rounded-2xl border px-3.5 py-2.5 transition-[border-color,background-color,transform] duration-300 hover:-translate-y-0.5 ${
         selected ? "border-[color:var(--section-hue)]" : "hairline border-[color:var(--rule)]"
       }`}
       style={selected ? { background: "color-mix(in srgb, var(--section-hue) 10%, var(--paper))" } : undefined}
     >
       <span className="flex items-center justify-between gap-2">
-        <span className="font-label text-[10px]">{region}</span>
+        <span className="font-label text-[11px]">{region}</span>
         {open !== null && (
           <span
-            className={`flex items-center gap-1 font-mono text-[10px] whitespace-nowrap ${open ? "text-up" : "text-ink-faint"}`}
+            className={`flex items-center gap-1 font-mono text-[11px] whitespace-nowrap ${open ? "text-up" : "text-ink-faint"}`}
             title={session?.holiday ? `Closed for ${session.holiday}` : undefined}
           >
             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${open ? "bg-up animate-pulse" : "bg-ink-faint"}`} />
@@ -77,8 +82,8 @@ function RegionTab({
           </span>
         )}
       </span>
-      <span className="flex items-baseline justify-between gap-2 mt-2">
-        <span className="font-display font-bold text-[1.35rem] leading-none truncate">{mood?.label ?? "—"}</span>
+      <span className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 mt-1.5">
+        <span className="font-display font-bold text-[1.25rem] leading-none">{mood?.label ?? "—"}</span>
         <span className={`font-mono text-[12px] ${avg >= 0 ? "text-up" : "text-down"}`}>{signed(avg)}</span>
       </span>
       {mood && (
@@ -99,7 +104,7 @@ function PriceTile({
   unit,
   price,
   changePct,
-  sparkline,
+  today,
   note,
   source,
   stale,
@@ -111,7 +116,7 @@ function PriceTile({
   unit: string;
   price: string;
   changePct: number;
-  sparkline: number[];
+  today?: DayLine;
   note?: string;
   /** Publisher of the price, when it isn't the converted benchmark. */
   source?: string;
@@ -132,17 +137,18 @@ function PriceTile({
         <span className="flex items-start justify-between gap-2 w-full">
           <span className="min-w-0">
             <span className="block font-sans font-semibold text-[14px] leading-tight">{name}</span>
-            <span className="block font-label text-[9px] text-ink-faint mt-0.5">
+            <span className="block font-label text-[11px] text-ink-faint mt-0.5">
               {unit}
               {source ? ` · ${source}` : ""}
             </span>
           </span>
-          <span className={`font-mono text-[11px] font-semibold ${up ? "text-up" : "text-down"}`}>
-            {up ? "▲" : "▼"} {Math.abs(changePct).toFixed(2)}%
+          <span className={`font-mono text-[11px] font-semibold inline-flex items-center gap-0.5 ${up ? "text-up" : "text-down"}`}>
+            {up ? <CaretUpIcon size={12} weight="fill" aria-label="Up" /> : <CaretDownIcon size={12} weight="fill" aria-label="Down" />}
+            {Math.abs(changePct).toFixed(2)}%
           </span>
         </span>
         <span className="font-display font-bold text-[1.7rem] leading-none tracking-tight tabular-nums">{price}</span>
-        <SparklineChart values={sparkline} positive={up} className="w-full h-8" />
+        <DayLineChart line={today} className="h-9" />
         {stale && <StaleTag asOf={asOf} />}
       </button>
     </li>
@@ -184,6 +190,7 @@ export default function MarketPulseSection({
 }) {
   const [region, setRegion] = useState<MarketRegion>("India");
   const [chart, setChart] = useState<ChartTarget | null>(null);
+  const [allTiles, setAllTiles] = useState(false);
   const minute = useSyncExternalStore(subscribe, minuteNow, () => null);
   const updated = updatedAt
     ? new Date(updatedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
@@ -199,6 +206,8 @@ export default function MarketPulseSection({
   const now = minute === null ? null : minute * 60_000;
   const sessionOf = (r: MarketRegion) => (now === null ? null : regionState(r, now, holidays));
   const activeSession = sessionOf(active);
+  const activePct = activeIndices.reduce((s, i) => s + i.changePct, 0) / (activeIndices.length || 1);
+  const why = useMarketWhy(active, activePct);
 
   return (
     <section id="market-pulse">
@@ -223,7 +232,7 @@ export default function MarketPulseSection({
               indices they summarise. */}
           <RatesRow markets={oddsMarkets} />
 
-          <div role="tablist" aria-label="Markets by region" className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-5" data-reveal>
+          <div role="tablist" aria-label="Markets by region" className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 mt-3" data-reveal>
             {regions.map((r) => (
               <RegionTab
                 key={r}
@@ -238,7 +247,9 @@ export default function MarketPulseSection({
             ))}
           </div>
 
-          <ul key={active} role="tabpanel" aria-label={`${active} markets`} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-5">
+          {why && <MarketWhyLine region={active} pct={activePct} why={why} />}
+
+          <ul key={active} role="tabpanel" aria-label={`${active} markets`} className="pulse-tiles grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
             {activeMood && (
               <li className="sm:col-span-2 lg:col-span-1 lg:row-span-2">
                 <MoodGauge mood={activeMood} indices={activeIndices} title={`${active} mood`} />
@@ -254,21 +265,45 @@ export default function MarketPulseSection({
               />
             ))}
           </ul>
+          {activeIndices.length > 2 && (
+            <button type="button" onClick={() => setAllTiles(true)} className="pulse-all fold-toggle mt-1">
+              All {activeIndices.length} {active} indices
+              <ArrowRightIcon size={13} weight="bold" aria-hidden="true" />
+            </button>
+          )}
+          {allTiles && (
+            <Sheet title={`${active} indices`} kicker="Market Pulse" onClose={() => setAllTiles(false)} hue="var(--hue-markets)">
+              <ul className="grid grid-cols-1 gap-3">
+                {activeIndices.map((idx, i) => (
+                  <MarketIndexCard
+                    key={idx.id}
+                    index={idx}
+                    i={i}
+                    live={updatedAt !== null}
+                    onOpen={() => setChart({ kind: "index", id: idx.id, name: idx.name, kicker: `${idx.market} · index` })}
+                  />
+                ))}
+              </ul>
+            </Sheet>
+          )}
 
           <IpoWatch />
           <SocialPausedNote place="market-pulse" className="mt-3" />
 
           {(commodities.length > 0 || crypto.length > 0) && (
-            <div className="mt-12">
-              <div className="flex items-baseline justify-between gap-4 mb-4">
-                <h3 className="font-display font-bold text-[1.8rem] leading-none">Commodities &amp; crypto</h3>
-                <span className="font-mono text-[10px] text-ink-soft text-right">
+            <div className="mt-6">
+              <div className="flex items-baseline justify-between gap-4 mb-2.5">
+                <h3 className="font-display font-bold text-[1.5rem] leading-none inline-flex items-center gap-1.5">
+                  <CoinsIcon size={20} weight="bold" style={{ color: "var(--section-hue)" }} aria-hidden="true" />
+                  Commodities &amp; crypto
+                </h3>
+                <span className="hidden md:inline font-mono text-[11px] text-ink-soft text-right">
                   {commodities.some((c) => c.source === "IBJA")
                     ? "Gold and silver at IBJA's published rate, before GST · other benchmarks in rupees · crypto in USDT · tap for a chart"
                     : "Benchmarks in rupees · bullion incl. 6% import duty, before GST · crypto in USDT · tap for a chart"}
                 </span>
               </div>
-              <ul className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <ul className="pulse-prices grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 {commodities.map((c, i) => (
                   <PriceTile
                     key={c.id}
@@ -276,7 +311,7 @@ export default function MarketPulseSection({
                     unit={c.id === "usdinr" ? "₹ per USD" : `₹ per ${c.unit}`}
                     price={inr(c.priceInr)}
                     changePct={c.changePct}
-                    sparkline={c.sparkline}
+                    today={c.today}
                     note={c.note}
                     source={c.source}
                     stale={c.stale}
@@ -292,7 +327,7 @@ export default function MarketPulseSection({
                     unit={`${c.pair.replace("USDT", "")} / USDT · 24h`}
                     price={usdt(c.price)}
                     changePct={c.changePct}
-                    sparkline={c.sparkline}
+                    today={c.today}
                     stale={c.stale}
                     asOf={c.asOf}
                     i={commodities.length + i}
@@ -302,7 +337,7 @@ export default function MarketPulseSection({
               </ul>
             </div>
           )}
-          {chart && <MarketChartSheet target={chart} onClose={() => setChart(null)} />}
+          {chart && <MarketChartSheet target={chart} why={chart.kind === "index" && chart.kicker.startsWith(active) ? why : null} onClose={() => setChart(null)} />}
         </>
       ) : (
         <div className="border-l-2 border-accent pl-4 py-1">
@@ -313,7 +348,7 @@ export default function MarketPulseSection({
         </div>
       )}
       {stories.length > 0 && (
-        <div className="story-grid mt-10">
+        <div className="story-grid mt-5">
           {stories.map((s) => (
             <StoryArticle key={s.id} story={s} />
           ))}

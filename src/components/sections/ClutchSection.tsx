@@ -1,5 +1,7 @@
 "use client";
 
+import { ArrowsLeftRightIcon, CaretRightIcon, HourglassMediumIcon, NewspaperIcon, PencilSimpleIcon, TreeStructureIcon, UsersThreeIcon } from "@phosphor-icons/react";
+import { PublisherLogo } from "@/components/story/PublisherMark";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { ValEvent, ValMatch, ValorantData, ValTeam } from "@/lib/types";
 import SectionHeader from "@/components/story/SectionHeader";
@@ -55,7 +57,7 @@ function OddsBar({ m, focus }: { m: ValMatch; focus?: string }) {
   const leftIsFocus = !focus || a.code === focus;
   return (
     <span title={`Polymarket · $${Math.round(m.odds.volume).toLocaleString("en-US")} traded`} className="block mt-1.5">
-      <span className="flex justify-between font-mono text-[10px] tabular-nums">
+      <span className="flex justify-between font-mono text-[11px] tabular-nums">
         <span className={leftIsFocus ? "text-[color:var(--section-hue)] font-semibold" : "text-ink-soft"}>
           {a.code} {m.odds.a}%
         </span>
@@ -95,7 +97,7 @@ function TeamPicker({ teams, onClose }: { teams: ValTeam[]; onClose: () => void 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
         {regions.map((region) => (
           <div key={region}>
-            <div className="font-label text-[10px] text-ink-soft mb-2">{region}</div>
+            <div className="font-label text-[11px] text-ink-soft mb-2">{region}</div>
             <div className="flex flex-wrap gap-2">
               {teams
                 .filter((t) => (t.region ?? "Other") === region)
@@ -123,7 +125,7 @@ function TeamPicker({ teams, onClose }: { teams: ValTeam[]; onClose: () => void 
         The transfer window&rsquo;s X accounts, searches and subreddits are under Edit feeds, beside it.
       </p>
       <div className="sticky bottom-0 mt-6 pt-4 pb-1 bg-surface border-t hairline flex items-center justify-between gap-2">
-        <span className="font-mono text-[10px] text-ink-faint">
+        <span className="font-mono text-[11px] text-ink-faint">
           {picked.length}/{MAX_TEAMS} picked
         </span>
         <span className="flex gap-2">
@@ -181,14 +183,14 @@ function TeamCard({ team, data, open }: { team: ValTeam; data: ValorantData; ope
         <Logo src={team.image} name={team.code} size={26} />
         <div className="min-w-0 flex-1">
           <div className="font-sans font-semibold text-[14px] leading-tight truncate group-hover:text-[color:var(--section-hue)]">
-            {team.name} <span className="font-mono text-[10px] text-ink-faint font-normal">›</span>
+            {team.name} <span className="text-ink-faint"><CaretRightIcon size={12} weight="bold" className="inline align-[-2px]" aria-hidden="true" /></span>
           </div>
-          <div className="font-mono text-[10px] text-ink-soft truncate">{status}</div>
+          <div className="font-mono text-[11px] text-ink-soft truncate">{status}</div>
         </div>
         {chance && (
           <div className="text-right shrink-0" title={`${data.featured!.odds!.title} · Polymarket`}>
             <div className="font-display font-bold text-[1.35rem] leading-none tabular-nums">{Math.round(chance.prob)}%</div>
-            <div className="font-label text-[9px] text-ink-faint mt-0.5">to win it</div>
+            <div className="font-label text-[11px] text-ink-faint mt-0.5">to win it</div>
           </div>
         )}
       </button>
@@ -196,7 +198,7 @@ function TeamCard({ team, data, open }: { team: ValTeam; data: ValorantData; ope
         <div className="mt-2 pl-[36px] font-sans text-[12.5px]">
           <span className="text-ink-soft">Next </span>
           {pending.stage}, from {when(pending.start)}
-          <span className="block font-mono text-[10px] text-ink-soft">Opponent set when the draw is made</span>
+          <span className="block font-mono text-[11px] text-ink-soft">Opponent set when the draw is made</span>
         </div>
       )}
       {next && (
@@ -213,7 +215,7 @@ function TeamCard({ team, data, open }: { team: ValTeam; data: ValorantData; ope
               {them(next).code === "TBD" ? "opponent to be decided" : them(next).name}
             </span>
           </div>
-          <div className="font-mono text-[10px] text-ink-soft">
+          <div className="font-mono text-[11px] text-ink-soft">
             {next.state === "inProgress" ? `Live · ${us(next).wins ?? 0}–${them(next).wins ?? 0}` : when(next.start)} · Bo{next.bestOf}
           </div>
           <OddsBar m={next} focus={team.code} />
@@ -223,7 +225,7 @@ function TeamCard({ team, data, open }: { team: ValTeam; data: ValorantData; ope
         <button
           type="button"
           onClick={() => open({ kind: "match", a: team.code, b: them(last).code, id: last.id })}
-          className="block w-full text-left mt-1.5 pl-[36px] font-mono text-[10.5px] text-ink-soft truncate hover:text-ink"
+          className="block w-full text-left mt-1.5 pl-[36px] font-mono text-[11px] text-ink-soft truncate hover:text-ink"
         >
           <span className={us(last).outcome === "win" ? "text-up font-semibold" : us(last).outcome === "loss" ? "text-down font-semibold" : ""}>
             {us(last).outcome === "win" ? "W" : us(last).outcome === "loss" ? "L" : "–"} {us(last).wins ?? 0}–{them(last).wins ?? 0}
@@ -257,11 +259,11 @@ function EventPanel({ event, data, follows, now, open }: { event: ValEvent; data
         <Logo src={event.logo} name={event.name} size={22} />
         <div className="min-w-0 flex-1">
           <div className="font-display font-bold text-[1.25rem] leading-none truncate group-hover:text-[color:var(--section-hue)]">{event.name}</div>
-          <div className="font-mono text-[10px] text-ink-soft mt-1">
+          <div className="font-mono text-[11px] text-ink-soft mt-1">
             {event.stage || "Scheduled"} · {date(event.start)}–{date(event.end)}
           </div>
         </div>
-        <span className="chip h-7 px-2.5 text-[10.5px] shrink-0">Bracket ›</span>
+        <span className="chip h-7 px-2.5 text-[11px] shrink-0 gap-1"><TreeStructureIcon size={13} aria-hidden="true" />Bracket</span>
       </button>
       <div className="relative h-1 rounded-full bg-[color:var(--rule)] mt-3" title={`${Math.round(progress * 100)}% of the way through`}>
         <div className="h-full rounded-full bar-grow" style={{ width: `${progress * 100}%`, background: "var(--section-hue)" }} />
@@ -284,7 +286,7 @@ function EventPanel({ event, data, follows, now, open }: { event: ValEvent; data
                 onClick={() => open({ kind: "match", a: a.code, b: b.code, id: m.id })}
                 className={`w-full text-left py-2 grid grid-cols-[4.4rem_minmax(0,1fr)_auto] items-center gap-2 text-[12px] hover:bg-card-bg rounded-md ${done ? "opacity-80" : ""}`}
               >
-              <span className="font-mono text-[10px] text-ink-soft whitespace-nowrap">
+              <span className="font-mono text-[11px] text-ink-soft whitespace-nowrap">
                 {m.state === "inProgress" ? (
                   <span className="text-[color:var(--section-hue)] font-semibold">LIVE</span>
                 ) : done ? (
@@ -302,7 +304,7 @@ function EventPanel({ event, data, follows, now, open }: { event: ValEvent; data
                 <Logo src={b.image} name={b.code} size={14} />
                 <span className={`${mineB ? "font-semibold text-[color:var(--section-hue)]" : ""} ${done && b.outcome === "loss" ? "text-ink-soft" : ""}`}>{b.code}</span>
               </span>
-              <span className="font-mono text-[10.5px] tabular-nums text-right">
+              <span className="font-mono text-[11px] tabular-nums text-right">
                 {done || m.state === "inProgress" ? (
                   `${a.wins ?? 0}–${b.wins ?? 0}`
                 ) : m.odds ? (
@@ -320,7 +322,7 @@ function EventPanel({ event, data, follows, now, open }: { event: ValEvent; data
       </ul>
 
       {field.length > 0 && event.odds && (
-        <p className="font-mono text-[10px] text-ink-soft mt-auto pt-2 leading-relaxed">
+        <p className="font-mono text-[11px] text-ink-soft mt-auto pt-2 leading-relaxed">
           <a href={event.odds.url} target="_blank" rel="noopener noreferrer" className="hover:text-ink" title="Polymarket (needs VPN in India)">
             To win:
           </a>{" "}
@@ -358,7 +360,10 @@ function Wire({ data, teams, now }: { data: ValorantData; teams: ValTeam[]; now:
               {mine.includes(n) && <span className="text-[color:var(--section-hue)]">● </span>}
               {n.title}
             </span>
-            <span className="block font-mono text-[10px] text-ink-faint mt-0.5">VLR.gg · {ago(n.publishedAt, now)}</span>
+            <span className="flex items-center gap-1 font-mono text-[11px] text-ink-faint mt-0.5">
+              <PublisherLogo source="vlr.gg" size={13} />
+              VLR.gg · {ago(n.publishedAt, now)}
+            </span>
           </a>
         </li>
       ))}
@@ -379,15 +384,18 @@ function TransferWindow({ teams }: { teams: ValTeam[] }) {
   // Nothing to show, or X and Reddit failing: not there at all (lib/social-health.ts).
   if (useSocialView(live.data).view === "hide") return null;
   return (
-    <div className="module min-w-0 h-full" data-reveal>
+    <div className="module min-w-0 flex flex-col" data-reveal>
       <div className="flex items-center justify-between gap-3 mb-3">
         <span className="min-w-0">
-          <span className="block font-label text-[10px] text-ink-soft">Transfer window</span>
-          {feed && <span className="block font-mono text-[10px] text-ink-faint truncate mt-0.5">{describeFeed(feed.config)}</span>}
+          <span className="font-label text-[11px] text-ink-soft flex items-center gap-1.5">
+            <ArrowsLeftRightIcon size={14} aria-hidden="true" />
+            Transfer window
+          </span>
+          {feed && <span className="block font-mono text-[11px] text-ink-faint truncate mt-0.5">{describeFeed(feed.config)}</span>}
         </span>
         <EditFeedsButton section="clutch" />
       </div>
-      <SocialList data={live.data} refresh={live} compact max={6} filterKey="transfer-window" more={{ title: "Transfer window", kicker: "Clutch · r/ValorantCompetitive and X" }} />
+      <SocialList data={live.data} refresh={live} compact max={6} fill={{ min: 3 }} filterKey="transfer-window" more={{ title: "Transfer window", kicker: "Clutch · r/ValorantCompetitive and X" }} />
     </div>
   );
 }
@@ -438,12 +446,13 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
 
   const edit = (
     <button type="button" className="chip h-7 px-3 text-[11px]" onClick={() => setPicking(true)}>
+      <PencilSimpleIcon size={13} aria-hidden="true" />
       {teams.length ? "Edit teams" : "Pick teams"}
     </button>
   );
 
-  // Off-season: two columns that end level — the dates and the scene's
-  // headlines stacked on the left, the transfer window on the right.
+  // Off-season: the dates and the scene's headlines stacked on the left, the
+  // transfer window on the right showing as many posts as fit, so the two end level.
   if (data.phase === "off" || !event) {
     const lastFinal = data.lastEvent
       ? [...data.matches].reverse().find((m) => m.eventKey === data.lastEvent!.key && m.state === "completed")
@@ -452,11 +461,14 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
     return (
       <section id="clutch">
         <SectionHeader sectionKey="clutch" folio="Off-season" />
-        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)] gap-6 items-stretch">
-          <div className="flex flex-col gap-6 min-w-0">
+        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)] gap-4 items-stretch">
+          <div className="flex flex-col gap-4 min-w-0">
             <div className="module">
               <div className="flex items-center justify-between gap-3">
-                <span className="font-label text-[10px] text-ink-soft">Between events</span>
+                <span className="font-label text-[11px] text-ink-soft inline-flex items-center gap-1.5">
+                  <HourglassMediumIcon size={14} aria-hidden="true" />
+                  Between events
+                </span>
                 {edit}
               </div>
               <p className="font-sans text-[14px] mt-3 leading-snug">
@@ -480,7 +492,10 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
             </div>
             {data.news.length > 0 && (
               <div className="module flex-1" data-reveal>
-                <div className="font-label text-[10px] text-ink-soft mb-3">From the scene</div>
+                <div className="font-label text-[11px] text-ink-soft mb-3 flex items-center gap-1.5">
+                  <NewspaperIcon size={14} aria-hidden="true" />
+                  From the scene
+                </div>
                 <Wire data={data} teams={teams} now={now} />
               </div>
             )}
@@ -510,7 +525,10 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,0.95fr)] items-stretch">
         <div className="module h-full" data-reveal>
           <div className="flex items-center justify-between gap-3 mb-3">
-            <span className="font-label text-[10px] text-ink-soft">Your teams</span>
+            <span className="font-label text-[11px] text-ink-soft inline-flex items-center gap-1.5">
+              <UsersThreeIcon size={14} aria-hidden="true" />
+              Your teams
+            </span>
             {edit}
           </div>
           {teams.length > 0 ? (
@@ -529,7 +547,10 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
           <EventPanel event={event} data={data} follows={follows} now={now} open={setView} />
         </div>
         <div className="module h-full md:col-span-2 lg:col-span-1" data-reveal>
-          <div className="font-label text-[10px] text-ink-soft mb-3">From the scene</div>
+          <div className="font-label text-[11px] text-ink-soft mb-3 flex items-center gap-1.5">
+            <NewspaperIcon size={14} aria-hidden="true" />
+            From the scene
+          </div>
           <Wire data={data} teams={teams} now={now} />
         </div>
       </div>

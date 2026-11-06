@@ -1,13 +1,15 @@
+import { ArrowDownIcon, CaretDownIcon, CaretUpIcon, ChartLineUpIcon, FlagCheckeredIcon, type Icon, MapPinIcon } from "@phosphor-icons/react";
 import type { Edition, WeatherNow } from "@/lib/types";
 import WeatherIcon from "@/components/widgets/WeatherIcon";
 import { cityMinutes, isNight, skyClock } from "@/lib/sky";
 
-// The signal row under the masthead: one card per desk — markets, the next
-// Grand Prix, the sky, the word of the day — each in its section's colour
-// and each a shortcut down to that section. Static on purpose: the day's
-// numbers at a glance, nothing scrolling past.
+// The signal row under the masthead: the three numbers you look up every day —
+// markets, the next Grand Prix, the sky — each in its section's colour and each
+// a shortcut down to that section. Static on purpose: nothing scrolling past. A
+// phone prints the number alone, so nothing is ever cut off; the line of detail
+// under it starts at a tablet's width.
 
-function until(iso: string): string | null {
+export function until(iso: string): string | null {
   const ms = Date.parse(iso) - Date.now();
   if (Number.isNaN(ms)) return null;
   if (ms <= 0) return "this weekend";
@@ -18,8 +20,8 @@ function until(iso: string): string | null {
 
 function Pct({ value }: { value: number }) {
   return (
-    <span className={`font-mono text-[12px] font-semibold ${value >= 0 ? "text-up" : "text-down"}`}>
-      {value >= 0 ? "▲" : "▼"} {Math.abs(value).toFixed(2)}%
+    <span className={`font-mono text-[12px] font-semibold whitespace-nowrap ${value >= 0 ? "text-up" : "text-down"}`}>
+      {value >= 0 ? <CaretUpIcon size={12} weight="fill" className="inline align-[-1px]" aria-label="Up" /> : <CaretDownIcon size={12} weight="fill" className="inline align-[-1px]" aria-label="Down" />} {Math.abs(value).toFixed(2)}%
     </span>
   );
 }
@@ -28,12 +30,14 @@ function Card({
   href,
   hue,
   label,
+  icon: Glyph,
   children,
   i,
 }: {
   href: string;
   hue: string;
   label: string;
+  icon: Icon;
   children: React.ReactNode;
   i: number;
 }) {
@@ -47,19 +51,22 @@ function Card({
         background: `color-mix(in srgb, ${hue} 9%, var(--paper))`,
         borderColor: `color-mix(in srgb, ${hue} 28%, transparent)`,
       }}
-      className="group relative flex flex-col gap-1.5 rounded-2xl border px-4 py-3.5 min-w-0 overflow-hidden transition-transform duration-300 hover:-translate-y-0.5"
+      className="group relative flex flex-col gap-0.5 md:gap-1 rounded-xl border pl-3.5 pr-2 py-2 md:pl-4 md:pr-3 md:py-2.5 min-w-0 overflow-hidden transition-transform duration-300 hover:-translate-y-0.5"
     >
-      <span className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full" style={{ background: hue }} />
-      <span className="flex items-center justify-between font-label text-[10px]" style={{ color: hue }}>
-        {label}
-        <span className="text-ink-faint transition-transform duration-300 group-hover:translate-y-0.5" aria-hidden="true">
-          ↓
+      <span className="flex items-center justify-between gap-1 font-label text-[11px]" style={{ color: hue }}>
+        <span className="inline-flex items-center gap-1 min-w-0">
+          <Glyph size={13} weight="fill" className="shrink-0" aria-hidden="true" />
+          <span className="truncate">{label}</span>
         </span>
+        <ArrowDownIcon size={12} weight="bold" className="hidden sm:block text-ink-faint shrink-0 transition-transform duration-300 group-hover:translate-y-0.5" aria-hidden="true" />
       </span>
       {children}
     </a>
   );
 }
+
+const DETAIL = "hidden md:block font-sans text-[12px] text-ink-soft";
+const NUMBER = "font-display font-bold text-[1.3rem] md:text-[1.5rem] leading-none";
 
 export default function SignalRow({ edition, weather }: { edition: Edition; weather?: WeatherNow | null }) {
   const indices = edition.markets.indices;
@@ -67,19 +74,16 @@ export default function SignalRow({ edition, weather }: { edition: Edition; weat
   const second = indices.find((i) => /s&p/i.test(i.name)) ?? indices.find((i) => i !== lead);
   const next = edition.f1?.nextRace;
   const w = weather ?? edition.weather;
-  const word = edition.wordOfDay;
 
   const cards: React.ReactNode[] = [];
   if (lead) {
     cards.push(
-      <Card key="mk" i={cards.length} href="#market-pulse" hue="var(--hue-markets)" label="Markets">
-        <span className="flex items-baseline gap-2 min-w-0">
-          <span className="font-display font-bold text-[1.7rem] leading-none truncate">
-            {lead.level.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-          </span>
+      <Card key="mk" i={cards.length} href="#market-pulse" hue="var(--hue-markets)" label="Markets" icon={ChartLineUpIcon}>
+        <span className="flex flex-wrap items-baseline gap-x-2 min-w-0">
+          <span className={NUMBER}>{lead.level.toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>
           <Pct value={lead.changePct} />
         </span>
-        <span className="font-sans text-[12px] text-ink-soft truncate">
+        <span className={DETAIL}>
           {lead.name}
           {second && (
             <>
@@ -94,11 +98,11 @@ export default function SignalRow({ edition, weather }: { edition: Edition; weat
   if (next) {
     const t = until(next.date);
     cards.push(
-      <Card key="f1" i={cards.length} href="#paddock-notes" hue="var(--hue-f1)" label={`F1 · Round ${next.round}`}>
-        <span className="font-display font-bold text-[1.7rem] leading-none truncate" suppressHydrationWarning>
+      <Card key="f1" i={cards.length} href="#paddock-notes" hue="var(--hue-f1)" label={`R${next.round}`} icon={FlagCheckeredIcon}>
+        <span className={NUMBER} suppressHydrationWarning>
           {t ?? next.country}
         </span>
-        <span className="font-sans text-[12px] text-ink-soft truncate">Lights out · {next.name}</span>
+        <span className={DETAIL}>Lights out · {next.name}</span>
       </Card>,
     );
   }
@@ -108,27 +112,16 @@ export default function SignalRow({ edition, weather }: { edition: Edition; weat
     const night = isNight(w, skyClock(w, cityMinutes(w.utcOffsetSeconds)));
     const condition = night && w.night ? w.night.condition : w.condition;
     cards.push(
-      <Card key="wx" i={cards.length} href="#sky-report" hue="var(--hue-sky)" label={w.city}>
+      <Card key="wx" i={cards.length} href="#sky-report" hue="var(--hue-sky)" label={w.city} icon={MapPinIcon}>
         <span className="flex items-center gap-2">
-          <span className="font-display font-bold text-[1.7rem] leading-none">{w.tempC}°</span>
+          <span className={NUMBER}>{w.tempC}°</span>
           <span style={{ color: "var(--hue-sky)" }}>
-            <WeatherIcon code={w.weatherCode} size={22} night={night} />
+            <WeatherIcon code={w.weatherCode} size={20} night={night} />
           </span>
         </span>
-        <span className="font-sans text-[12px] text-ink-soft truncate">
+        <span className={DETAIL}>
           {condition}
           {typeof w.tempMax === "number" && typeof w.tempMin === "number" ? ` · ${w.tempMax}°/${w.tempMin}°` : ""} · AQI {w.aqi}
-        </span>
-      </Card>,
-    );
-  }
-  if (word?.word) {
-    cards.push(
-      <Card key="wd" i={cards.length} href="#word-of-the-day" hue="var(--hue-world)" label="Word of the day">
-        <span className="font-headline italic text-[1.55rem] leading-none truncate">{word.word}</span>
-        <span className="font-sans text-[12px] text-ink-soft truncate">
-          {word.partOfSpeech}
-          {word.pronunciation ? ` · ${word.pronunciation}` : ""}
         </span>
       </Card>,
     );
@@ -136,8 +129,10 @@ export default function SignalRow({ edition, weather }: { edition: Edition; weat
   if (cards.length === 0) return null;
 
   return (
-    <div className="page-wrap px-4 sm:px-6">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">{cards}</div>
+    <div className="page-wrap px-4 sm:px-6 mt-1.5">
+      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${cards.length}, minmax(0, 1fr))` }}>
+        {cards}
+      </div>
     </div>
   );
 }

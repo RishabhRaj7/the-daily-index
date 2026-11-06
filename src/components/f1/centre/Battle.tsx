@@ -74,7 +74,7 @@ function Side({ title, other, gap, lapped = "", rate, chaser, idle = false, race
   if (!other) {
     return (
       <div className="px-3 py-2 min-w-0 overflow-hidden">
-        <div className="font-label text-[9px] text-ink-faint whitespace-nowrap">{title}</div>
+        <div className="font-label text-[11px] text-ink-faint whitespace-nowrap">{title}</div>
         <div className="font-mono text-[15px] font-semibold text-ink-faint mt-1 truncate">{idle ? "—" : chaser === "me" ? "Leading" : "No one behind"}</div>
       </div>
     );
@@ -90,7 +90,7 @@ function Side({ title, other, gap, lapped = "", rate, chaser, idle = false, race
   const drs = gap === null || !race ? null : gap <= 1 ? "In Overtake range" : toRange !== null && toRange <= 30 ? `Overtake range in ~${toRange} lap${toRange === 1 ? "" : "s"}` : null;
   return (
     <div className="px-3 py-2 min-w-0 overflow-hidden">
-      <div className="font-label text-[9px] text-ink-faint flex items-center gap-1.5 whitespace-nowrap">
+      <div className="font-label text-[11px] text-ink-faint flex items-center gap-1.5 whitespace-nowrap">
         {title}
         <span className="w-[3px] h-2.5 rounded-full shrink-0" style={{ background: other.colour }} />
         <span className="text-ink-soft">{other.code}</span>
@@ -98,14 +98,14 @@ function Side({ title, other, gap, lapped = "", rate, chaser, idle = false, race
       <div className="font-mono text-[15px] font-semibold tabular-nums mt-1 whitespace-nowrap">{gap !== null ? `${gap.toFixed(3)} s` : /L/i.test(lapped) ? "A lap or more" : "—"}</div>
       {verb && (
         <div
-          className="font-mono text-[10px] tabular-nums mt-0.5 whitespace-nowrap"
+          className="font-mono text-[11px] tabular-nums mt-0.5 whitespace-nowrap"
           style={{ color: tone }}
           title={`${chaser === "me" ? `${verb} on ${other.code}` : `${other.code} ${verb.toLowerCase()}`}${steady ? "" : ` ${Math.abs(r!).toFixed(2)} s a lap`} · ${rate?.over ? `over the last ${rate.over} lap${rate.over === 1 ? "" : "s"}` : "from the last lap times"}`}
         >
           {steady ? verb : `${verb} ${Math.abs(r!).toFixed(2)}/lap`}
         </div>
       )}
-      {drs && <div className="font-mono text-[10px] text-ink-faint mt-0.5 truncate" title="Within a second at the detection point earns Overtake Mode">{drs}</div>}
+      {drs && <div className="font-mono text-[11px] text-ink-faint mt-0.5 truncate" title="Within a second at the detection point earns Overtake Mode">{drs}</div>}
     </div>
   );
 }

@@ -1,34 +1,95 @@
 "use client";
 
+import { ArchiveIcon, type Icon, NewspaperIcon, SlidersHorizontalIcon } from "@phosphor-icons/react";
+import { usePathname } from "next/navigation";
+import { CHAPTER_ICONS } from "@/components/chrome/nav-icons";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import EditionToggle from "@/components/masthead/EditionToggle";
 import SettingsLink from "@/components/chrome/SettingsLink";
 
-export interface NavSection {
+/** A word in the top bar, for a page with its own menu (the live centre). */
+export interface TopBarItem {
   id: string;
   label: string;
-  hue: string;
+  href: string;
+  Glyph: Icon;
+  current: boolean;
+  onClick?: (e: React.MouseEvent) => void;
 }
 
-// The sticky bar. The small wordmark only appears once the big particle one
-// has scrolled away; the section links track where the reader is, and the
-// underline of the current section slides between links in its colour.
+export interface NavChapter {
+  /** The element the chapter starts at. */
+  id: string;
+  label: string;
+  sections: Array<{
+    id: string;
+    name: string;
+    /** The section's colour, a CSS value. */
+    hue: string;
+    /** The day's number beside it in the side menu. */
+    note?: { text: string; tone?: "up" | "down" };
+  }>;
+}
+
+/**
+ * The evening switch, the archive and settings, wherever the menu puts them. The
+ * same icons in the same order on every page: the one for the page you're on is
+ * filled, in the accent, and a second click on it goes back to the paper.
+ */
+export function TopBarTools() {
+  const inArchive = usePathname().startsWith("/archive");
+  return (
+    <div className="flex items-center gap-1 shrink-0">
+      <EditionToggle compact />
+      <Link
+        href={inArchive ? "/" : "/archive"}
+        className="icon-btn"
+        title={inArchive ? "Back to the paper" : "Archive"}
+        aria-label={inArchive ? "Back to the paper" : "Archive"}
+        aria-current={inArchive ? "page" : undefined}
+      >
+        <ArchiveIcon size={18} weight={inArchive ? "fill" : "regular"} style={inArchive ? { color: "var(--accent)" } : undefined} aria-hidden="true" />
+      </Link>
+      <SettingsLink className="icon-btn">
+        {(current) => <SlidersHorizontalIcon size={18} weight={current ? "fill" : "regular"} style={current ? { color: "var(--accent)" } : undefined} aria-hidden="true" />}
+      </SettingsLink>
+    </div>
+  );
+}
+
+// The top bar, on every page. The small wordmark only appears once the big
+// particle one has scrolled away. On the paper itself it carries the chapters
+// on a tablet or laptop (the current one's icon filled, and underlined in its section's colour); on a phone it's a plain
+// row that scrolls away, the chapters being at the foot of the screen; from
+// 1500px the side menu takes over and the bar steps aside (chrome/PaperNav.tsx). The
+// pages around the paper give it the same words, going back to the paper (linkBase,
+// chrome/SiteNav.tsx).
 export default function TopBar({
-  sections,
-  isArchive = false,
+  chapters = [],
+  active = null,
+  today,
   alwaysShowLogo = false,
+  date,
+  linkBase = "",
+  items,
 }: {
-  sections: NavSection[];
-  isArchive?: boolean;
+  /** A page's own words in place of the paper's (the live centre). */
+  items?: TopBarItem[];
+  chapters?: NavChapter[];
+  active?: string | null;
+  /** The element "Today" jumps to, on the paper. */
+  today?: string;
+  /** Off the paper: "/", so its words go back to that part of the paper. */
+  linkBase?: string;
   /** Pages without the particle masthead show the small wordmark from the start. */
   alwaysShowLogo?: boolean;
+  /** Printed in the phone's plain row, where the masthead has no room for it. */
+  date?: string;
 }) {
   const [scrolledPast, setPastMasthead] = useState(false);
   const pastMasthead = alwaysShowLogo || scrolledPast;
-  const [active, setActive] = useState<string | null>(null);
-  const navRef = useRef<HTMLDivElement>(null);
-  const [indicator, setIndicator] = useState<{ left: number; width: number; hue: string } | null>(null);
+  const paper = (chapters.length > 0 && !linkBase) || !!items;
 
   // Show the compact wordmark once the masthead is out of view.
   useEffect(() => {
@@ -41,49 +102,24 @@ export default function TopBar({
     return () => io.disconnect();
   }, []);
 
-  // Scroll-spy: the section whose top most recently crossed the upper third.
-  useEffect(() => {
-    const els = sections
-      .map((s) => document.getElementById(s.id))
-      .filter((el): el is HTMLElement => el !== null);
-    if (els.length === 0) return;
-    const onScroll = () => {
-      const line = window.innerHeight * 0.33;
-      let current: string | null = null;
-      for (const el of els) {
-        if (el.getBoundingClientRect().top <= line) current = el.id;
-      }
-      setActive(current);
-    };
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [sections]);
-
-  // Slide the underline under the active link, and keep it in view on phones.
-  useEffect(() => {
-    const nav = navRef.current;
-    if (!nav) return;
-    const link = active ? nav.querySelector<HTMLElement>(`[data-nav="${active}"]`) : null;
-    if (!link) {
-      // Nothing active (above the first section) — the underline just fades.
-      setIndicator((cur) => (cur ? { ...cur, width: 0 } : null));
-      return;
-    }
-    const hue = sections.find((s) => s.id === active)?.hue ?? "var(--accent)";
-    setIndicator({ left: link.offsetLeft, width: link.offsetWidth, hue });
-    const { scrollLeft, clientWidth } = nav;
-    if (link.offsetLeft < scrollLeft || link.offsetLeft + link.offsetWidth > scrollLeft + clientWidth) {
-      nav.scrollTo({ left: link.offsetLeft - 16, behavior: "smooth" });
-    }
-  }, [active, sections]);
+  const words = today ? [{ id: today, label: "Today" }, ...chapters] : linkBase ? [{ id: "masthead", label: "Today" }, ...chapters] : [];
+  const links: TopBarItem[] =
+    items ??
+    words.map((c) => ({
+      id: c.id,
+      label: c.label,
+      href: linkBase ? (c.id === "masthead" ? linkBase : `${linkBase}#${c.id}`) : `#${c.id}`,
+      Glyph: CHAPTER_ICONS[c.id] ?? NewspaperIcon,
+      current: active === c.id,
+    }));
 
   return (
-    <div className="sticky top-0 z-40 glass border-b hairline">
-      <div className="page-wrap px-4 sm:px-6 flex flex-wrap md:flex-nowrap items-center gap-x-4 md:h-14">
+    <div className={`top-bar z-40 ${paper ? "top-bar-paper" : ""}`} data-site-nav>
+      <div className="page-wrap px-4 sm:px-6 flex items-center gap-x-4 h-12 md:h-14">
+        {paper && date && <span className="md:hidden font-mono text-[11px] text-ink-soft truncate">{date}</span>}
         <Link
           href="/"
-          className="flex items-center gap-2 shrink-0 h-12 md:h-auto transition-all duration-500"
+          className={`${paper ? "hidden md:flex" : "flex"} items-center gap-2 shrink-0 transition-all duration-500`}
           style={{
             opacity: pastMasthead ? 1 : 0,
             transform: pastMasthead ? "none" : "translateY(-6px)",
@@ -106,53 +142,32 @@ export default function TopBar({
           </span>
         </Link>
 
-        <nav
-          ref={navRef}
-          aria-label="Sections"
-          className="relative order-last md:order-none basis-full md:basis-auto flex-1 min-w-0 flex items-center gap-1 overflow-x-auto h-10 md:h-auto -mx-2 md:mx-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          {sections.map((s) => (
-            <a
-              key={s.id}
-              href={`#${s.id}`}
-              data-nav={s.id}
-              className={`relative px-2.5 py-1.5 text-[13px] font-sans font-semibold whitespace-nowrap transition-colors ${
-                active === s.id ? "text-ink" : "text-ink-soft hover:text-ink"
-              }`}
-            >
-              {s.label}
-            </a>
-          ))}
-          {indicator && (
-            <span
-              aria-hidden="true"
-              className="absolute bottom-0 h-[2px] rounded-full transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
-              style={{ left: indicator.left + 10, width: Math.max(0, indicator.width - 20), background: indicator.hue }}
-            />
-          )}
-        </nav>
+        {links.length > 0 && (
+          <nav aria-label="Chapters" className="hidden md:flex flex-1 min-w-0 items-center gap-1">
+            {links.map((c) => {
+              const Anchor = c.href.startsWith("/") ? Link : "a";
+              return (
+              <Anchor
+                key={c.id}
+                href={c.href}
+                onClick={c.onClick}
+                data-nav={c.id}
+                aria-current={c.current ? "true" : undefined}
+                className={`relative inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[14px] font-sans font-semibold whitespace-nowrap transition-colors ${
+                  c.current ? "text-ink" : "text-ink-soft hover:text-ink"
+                }`}
+              >
+                <c.Glyph size={16} weight={c.current ? "fill" : "regular"} style={c.current ? { color: "var(--now-hue, var(--accent))" } : undefined} aria-hidden="true" />
+                {c.label}
+                {c.current && <span aria-hidden="true" className="absolute left-2.5 right-2.5 bottom-0 h-[2px] rounded-full transition-colors duration-300" style={{ background: "var(--now-hue, var(--accent))" }} />}
+              </Anchor>
+              );
+            })}
+          </nav>
+        )}
 
-        <div className="flex items-center gap-1 shrink-0 ml-auto md:ml-0">
-          <EditionToggle compact />
-          <Link
-            href={isArchive ? "/" : "/archive"}
-            className="icon-btn"
-            title={isArchive ? "Today's edition" : "Archive"}
-            aria-label={isArchive ? "Today's edition" : "Archive"}
-          >
-            <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true">
-              <rect x="2" y="3" width="12" height="3" rx="0.8" />
-              <path d="M3 6v6.2c0 .5.3.8.8.8h8.4c.5 0 .8-.3.8-.8V6M6.5 8.8h3" strokeLinecap="round" />
-            </svg>
-          </Link>
-          <SettingsLink className="icon-btn">
-            <span className="sr-only">Settings</span>
-            <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
-              <path d="M2.5 4.5h6M11.5 4.5h2M2.5 11.5h2M7.5 11.5h6" />
-              <circle cx="10" cy="4.5" r="1.5" />
-              <circle cx="6" cy="11.5" r="1.5" />
-            </svg>
-          </SettingsLink>
+        <div className="ml-auto">
+          <TopBarTools />
         </div>
       </div>
     </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowClockwiseIcon, ArrowRightIcon, CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { SocialAnswer, SocialPost, SocialSource, SourceState } from "@/lib/live/social";
 import { isPaused, pausedSources, readHealth, report, RETRY_AFTER_MS, SOCIAL_RETRY_EVENT, sourceView, useSocialHealth } from "@/lib/social-health";
@@ -150,7 +151,7 @@ export function RefreshStamp({ asOf, busy, onRefresh, className = "" }: { asOf?:
   const mins = now && Number.isFinite(at) ? Math.max(0, Math.round((now - at) / 60_000)) : null;
   const label = mins === null ? "" : mins < 1 ? "Updated just now" : mins < 60 ? `Updated ${mins}m ago` : `Updated ${Math.floor(mins / 60)}h ago`;
   return (
-    <span className={`inline-flex items-center gap-1.5 font-mono text-[10px] text-ink-faint ${className}`}>
+    <span className={`inline-flex items-center gap-1.5 font-mono text-[11px] text-ink-faint ${className}`}>
       {label && <span>{label}</span>}
       <button
         type="button"
@@ -160,10 +161,7 @@ export function RefreshStamp({ asOf, busy, onRefresh, className = "" }: { asOf?:
         aria-label="Refresh"
         title="Read it again now"
       >
-        <svg viewBox="0 0 16 16" className={`w-3.5 h-3.5 ${busy ? "animate-spin" : ""}`} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M13.5 8a5.5 5.5 0 1 1-1.7-4" />
-          <path d="M13.5 2.5v3h-3" />
-        </svg>
+        <ArrowClockwiseIcon size={14} weight="bold" className={busy ? "animate-spin" : ""} aria-hidden="true" />
       </button>
     </span>
   );
@@ -208,14 +206,14 @@ export function SocialItem({ post, compact = false, clamp = false, hidden = fals
           <span className="headline-link">{post.title}</span>
         </a>
         {post.text && !compact && <p className="font-body text-[13px] leading-relaxed text-ink-soft mt-1 line-clamp-2">{post.text}</p>}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 font-mono text-[10px] text-ink-soft">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 font-mono text-[11px] text-ink-soft">
           <span className="truncate max-w-[14rem]">{post.where}</span>
           {post.source === "reddit" && post.author && <span className="text-ink-faint truncate max-w-[9rem]">u/{post.author}</span>}
           <span className="text-ink-faint">
             <Ago iso={post.at} />
           </span>
           {post.tags?.map((t) => (
-            <span key={t} className="font-label text-[9.5px] text-accent">
+            <span key={t} className="font-label text-[11px] text-accent">
               {t}
             </span>
           ))}
@@ -306,7 +304,7 @@ export function SourceFilter({ value, counts, onChange }: { value: SourcePick; c
             }`}
           >
             {o.id === "all" ? "All" : <SourceLogo source={o.id} size={14} />}
-            <span className="font-mono text-[10px] tabular-nums text-ink-faint">{counts[o.id]}</span>
+            <span className="font-mono text-[11px] tabular-nums text-ink-faint">{counts[o.id]}</span>
           </button>
         );
       })}
@@ -414,8 +412,9 @@ export function SocialList({
         </ul>
       )}
       {more && (hidden > 0 || (all && more === "inline")) && (
-        <button type="button" onClick={() => setAll((v) => !v)} className="self-start font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-2">
-          {more === "inline" && all ? "Show fewer ↑" : `See all ${shown.length} posts ${more === "inline" ? "↓" : "→"}`}
+        <button type="button" onClick={() => setAll((v) => !v)} className="self-start inline-flex items-center gap-1 font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-2">
+          {more === "inline" && all ? "Show fewer" : `See all ${shown.length} posts`}
+          {more === "inline" ? all ? <CaretUpIcon size={13} weight="bold" aria-hidden="true" /> : <CaretDownIcon size={13} weight="bold" aria-hidden="true" /> : <ArrowRightIcon size={13} weight="bold" aria-hidden="true" />}
         </button>
       )}
       {all && more && more !== "inline" && (

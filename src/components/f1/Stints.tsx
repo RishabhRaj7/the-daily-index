@@ -16,7 +16,7 @@ export function LapAxis({ total }: { total: number }) {
   const step = total > 40 ? 10 : 5;
   const marks = Array.from({ length: Math.floor(total / step) + 1 }, (_, i) => i * step);
   return (
-    <div className="relative h-4 font-mono text-[10.5px] text-ink-faint">
+    <div className="relative h-4 font-mono text-[11px] text-ink-faint">
       {marks.map((m) => (
         <span key={m} className="absolute -translate-x-1/2" style={{ left: `${(m / total) * 100}%` }}>
           {m}
@@ -58,7 +58,7 @@ export function StintLine({ stints, total, running = true, delay = 0, size = "md
             title={`${t.name}${s.fresh ? ", new" : ", used"} · ${s.laps} lap${s.laps === 1 ? "" : "s"}${current ? " so far" : ""}`}
           >
             {/* the compound and its laps, where there's room ("M 12", else "12") */}
-            <span className="font-mono font-bold text-[10px] leading-none tabular-nums whitespace-nowrap px-1">
+            <span className="font-mono font-bold text-[11px] leading-none tabular-nums whitespace-nowrap px-1">
               <span className={share >= 0.1 ? "" : "hidden"}>{t.letter} </span>
               <span className={share >= 0.045 ? "" : "hidden"}>{s.laps}</span>
             </span>
@@ -72,7 +72,7 @@ export function StintLine({ stints, total, running = true, delay = 0, size = "md
 /** The compounds as swatches, and what a striped bar means. */
 export function StintKey() {
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 font-mono text-[10px] text-ink-soft">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 font-mono text-[11px] text-ink-soft">
       {(["SOFT", "MEDIUM", "HARD", "INTERMEDIATE", "WET"] as const).map((c) => (
         <span key={c} className="flex items-center gap-1.5">
           <span className="w-4 h-2.5 rounded-[3px]" style={{ background: TYRE[c].colour }} />

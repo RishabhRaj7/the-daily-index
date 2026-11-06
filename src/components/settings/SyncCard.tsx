@@ -1,5 +1,6 @@
 "use client";
 
+import { CheckIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 import { renderSVG } from "uqr";
 import { forgetSync, joinSync, keyFrom, leaveSync, loadSync, startSync, SYNC_CHANGED_EVENT, syncLink, syncNow, type SyncState } from "@/lib/sync";
@@ -77,7 +78,7 @@ export default function SyncCard() {
   return (
     <section className="module space-y-5">
       <div>
-        <div className="font-label text-[10px] text-accent mb-1">Sync across devices</div>
+        <div className="font-label text-[11px] text-accent mb-1">Sync across devices</div>
         <p className="font-body text-sm text-ink-soft leading-relaxed">
           Keep your paddock, watchlist, topics, section order, news settings, puzzles and reading streak the same on every device you
           read on. Each device keeps its own theme, map view and travel mode.
@@ -107,7 +108,7 @@ export default function SyncCard() {
             {busy ? "Turning on…" : "Turn on sync"}
           </button>
           <div>
-            <label htmlFor="sync-paste" className="font-label text-[10px] text-ink-soft block mb-1.5">
+            <label htmlFor="sync-paste" className="font-label text-[11px] text-ink-soft block mb-1.5">
               Already on another device? Paste its sync link
             </label>
             <div className="flex gap-2">
@@ -160,7 +161,7 @@ export default function SyncCard() {
                   }}
                   className="chip h-8 px-3 text-[12px]"
                 >
-                  {copied ? "Copied ✓" : "Copy link"}
+                  {copied ? <>Copied <CheckIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" /></> : "Copy link"}
                 </button>
                 {typeof navigator !== "undefined" && "share" in navigator && (
                   <button type="button" onClick={() => void navigator.share({ title: "The Daily Index · sync", url: link }).catch(() => {})} className="chip h-8 px-3 text-[12px]">
@@ -168,14 +169,14 @@ export default function SyncCard() {
                   </button>
                 )}
               </div>
-              <p className="font-mono text-[10.5px] text-ink-faint leading-snug">
+              <p className="font-mono text-[11px] text-ink-faint leading-snug">
                 Anyone with this link can see and change your settings. Keep it to your own devices.
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-x-5 gap-y-2 pt-1 border-t hairline">
-            <button type="button" disabled={busy} onClick={() => run(leaveSync, "Sync is off on this device. Its settings stay as they are.")} className="font-label text-[10px] text-ink-soft underline mt-3">
+            <button type="button" disabled={busy} onClick={() => run(leaveSync, "Sync is off on this device. Its settings stay as they are.")} className="font-label text-[11px] text-ink-soft underline mt-3">
               Stop on this device
             </button>
             <button
@@ -184,7 +185,7 @@ export default function SyncCard() {
               onClick={() => {
                 if (window.confirm("Delete the synced copy? Every device stops syncing; each keeps its settings as they are now.")) void run(forgetSync, "The synced copy is deleted.");
               }}
-              className="font-label text-[10px] text-down underline mt-3"
+              className="font-label text-[11px] text-down underline mt-3"
             >
               Delete synced copy
             </button>

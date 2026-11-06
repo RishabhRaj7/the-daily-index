@@ -66,7 +66,7 @@ export default function WritingNotice({
     >
       <div className="min-w-0 flex-1 basis-[28rem]">
         {/* Mixed toward the ink: the bare orange is too faint at this size on the light paper. */}
-        <p className="font-label text-[10px] font-semibold mb-1" style={{ color: `color-mix(in srgb, ${tone} 70%, var(--ink))` }}>
+        <p className="font-label text-[11px] font-semibold mb-1" style={{ color: `color-mix(in srgb, ${tone} 70%, var(--ink))` }}>
           {writing?.disabled ? "AI writing is off" : problem ? "Gemini failed" : "This edition may be out of date"}
         </p>
         {lines.map((line) => (

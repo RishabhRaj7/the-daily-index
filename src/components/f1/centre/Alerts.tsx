@@ -1,5 +1,6 @@
 "use client";
 
+import { BellIcon, BellSlashIcon } from "@phosphor-icons/react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import type { LivePitStop, LiveRaceControl, LiveSnapshot } from "@/lib/f1-live-types";
@@ -120,6 +121,7 @@ function events(snap: LiveSnapshot, mine: Set<string>): Map<string, Omit<Alert, 
   return out;
 }
 
+const STALE_MS = 120_000;
 const seenKey = (snap: LiveSnapshot) => `f1-alerts-seen:v2:${snap.sessionKey}`;
 const when = (utc: string) => Date.parse(/Z|[+-]\d{2}:?\d{2}$/.test(utc) ? utc : `${utc}Z`) || 0;
 
@@ -129,29 +131,38 @@ const when = (utc: string) => Date.parse(/Z|[+-]\d{2}:?\d{2}$/.test(utc) ? utc :
  */
 export default function LiveAlerts({ snap, mine, onOpen }: { snap: LiveSnapshot; mine: Set<string>; onOpen: () => void }) {
   const muted = useSyncExternalStore(sub, readMuted, () => false);
-  const seen = useRef<{ key: string; ids: Set<string> } | null>(null);
+  const seen = useRef<{ key: string; ids: Set<string>; stops: boolean } | null>(null);
 
   useEffect(() => {
     const key = seenKey(snap);
     const now = events(snap, mine);
     if (seen.current?.key !== key) {
-      // This session's alerts already shown (a refresh), or none yet: what is
-      // already there and more than two minutes old isn't news any more.
+      // This session's alerts already shown (a refresh), or none yet: what's
+      // already there with no time of its own isn't news any more.
       let kept: string[] = [];
       try {
         kept = JSON.parse(sessionStorage.getItem(key) ?? "[]");
       } catch {}
       const ids = new Set(kept);
       const first = !kept.length;
-      for (const [id, e] of now) if (first && (!e.utc || Date.now() - when(e.utc) > 120_000)) ids.add(id);
-      seen.current = { key, ids };
+      for (const [id, e] of now) if (first && !e.utc) ids.add(id);
+      seen.current = { key, ids, stops: false };
     }
     const ids = seen.current.ids;
+    // The quick first answer has no pit stops, and the next has them all at once. Those
+    // came before the page did. Their times can't say so: a stop no server had read yet
+    // is stamped with the moment one first does.
+    if (!seen.current.stops && snap.pitStops) {
+      seen.current.stops = true;
+      for (const id of now.keys()) if (id.startsWith("pit:")) ids.add(id);
+    }
     let fresh = false;
     for (const [id, e] of now) {
       if (ids.has(id)) continue;
       ids.add(id);
       fresh = true;
+      // The same for race control's history, which has F1's own times.
+      if (e.utc && Date.now() - when(e.utc) > STALE_MS) continue;
       if (!readMuted()) push({ id, label: e.label, text: e.text, colour: e.colour, long: e.long, at: Date.now() });
     }
     if (fresh || !sessionStorage.getItem(key)) {
@@ -179,11 +190,7 @@ export default function LiveAlerts({ snap, mine, onOpen }: { snap: LiveSnapshot;
         aria-label={muted ? "Turn live alerts on" : "Turn live alerts off"}
         aria-pressed={!muted}
       >
-        <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M4 11.5V7a4 4 0 0 1 8 0v4.5l1 1H3z" />
-          <path d="M6.5 14a1.6 1.6 0 0 0 3 0" />
-          {muted && <path d="M2.5 2.5l11 11" />}
-        </svg>
+        {muted ? <BellSlashIcon size={14} className="shrink-0" aria-hidden="true" /> : <BellIcon size={14} className="shrink-0" aria-hidden="true" />}
       </button>
       <Toasts onOpen={onOpen} />
     </>
@@ -195,7 +202,7 @@ function Toasts({ onOpen }: { onOpen: () => void }) {
   const mounted = useSyncExternalStore(sub, () => true, () => false);
   if (!mounted || !list.length) return null;
   return createPortal(
-    <div className="sheet-scale fixed z-[80] top-3 right-3 left-3 sm:left-auto sm:top-[6.75rem] sm:right-4 sm:w-[21rem] flex flex-col gap-2 pointer-events-none" role="status" aria-live="polite">
+    <div className="sheet-scale fixed z-[80] top-3 right-3 left-3 sm:left-auto sm:top-[8.25rem] sm:right-4 sm:w-[21rem] flex flex-col gap-2 pointer-events-none" role="status" aria-live="polite">
       {list.map((a) => (
         <Toast key={a.id} a={a} onOpen={onOpen} />
       ))}
@@ -228,7 +235,7 @@ function Toast({ a, onOpen }: { a: Alert; onOpen: () => void }) {
         }}
         title="Open the feed"
       >
-        <span className="flex items-center gap-1.5 font-label text-[10px]" style={{ color: a.colour }}>
+        <span className="flex items-center gap-1.5 font-label text-[11px]" style={{ color: a.colour }}>
           <span className="w-1.5 h-1.5 rounded-full" style={{ background: a.colour }} />
           {a.label}
         </span>

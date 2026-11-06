@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type { SectionKey } from "@/lib/types";
 import { SECTION_META } from "@/lib/sections";
 
@@ -6,12 +7,12 @@ export function RisingWords({ text }: { text: string }) {
   return (
     <>
       {text.split(" ").map((word, i, all) => (
-        <span key={`${word}-${i}`} className="mask-rise" style={{ ["--rise-i" as string]: i }}>
-          <span>
-            {word}
-            {i < all.length - 1 ? " " : ""}
+        <Fragment key={`${word}-${i}`}>
+          <span className="mask-rise" style={{ ["--rise-i" as string]: i }}>
+            <span>{word}</span>
           </span>
-        </span>
+          {i < all.length - 1 ? " " : ""}
+        </Fragment>
       ))}
     </>
   );

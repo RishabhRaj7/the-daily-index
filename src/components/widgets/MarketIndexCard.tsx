@@ -1,11 +1,12 @@
+import MoveArrow from "@/components/chrome/MoveArrow";
 import type { MarketIndex } from "@/lib/types";
-import SparklineChart from "./SparklineChart";
+import DayLineChart from "./DayLineChart";
 import StaleTag from "./StaleTag";
 
 function Pct({ label, value }: { label: string; value: number | null }) {
   return (
     <div className="flex flex-col">
-      <span className="font-label text-[9px] text-ink-faint">{label}</span>
+      <span className="font-label text-[11px] text-ink-faint">{label}</span>
       {value == null ? (
         <span className="font-mono text-xs text-ink-soft">—</span>
       ) : (
@@ -18,8 +19,8 @@ function Pct({ label, value }: { label: string; value: number | null }) {
   );
 }
 
-// One index as a tile: the level large, today's move as a pill, the month
-// as a line that draws itself in.
+// One index as a tile: the level large, today's move as a pill, and the same day
+// as a line against yesterday's close (DayLineChart).
 export default function MarketIndexCard({
   index,
   i = 0,
@@ -54,7 +55,7 @@ export default function MarketIndexCard({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="font-label text-[10px] text-ink-soft">{index.market}</div>
+          <div className="font-label text-[11px] text-ink-soft">{index.market}</div>
           <div className="font-sans font-semibold text-[15px] leading-tight truncate">{index.name}</div>
         </div>
         <span
@@ -62,7 +63,7 @@ export default function MarketIndexCard({
             positive ? "bg-up text-paper" : "bg-down text-paper"
           }`}
         >
-          {positive ? "▲" : "▼"} {Math.abs(index.changePct).toFixed(2)}%
+          <MoveArrow up={positive} /> {Math.abs(index.changePct).toFixed(2)}%
         </span>
       </div>
       <div
@@ -71,13 +72,13 @@ export default function MarketIndexCard({
       >
         {index.level.toLocaleString("en-US", { maximumFractionDigits: 1 })}
       </div>
-      <SparklineChart values={index.sparkline} positive={positive} className="w-full h-12" />
+      <DayLineChart line={index.today} className="h-12" />
       <div className="flex gap-5">
         <Pct label="7D" value={index.change7d} />
         <Pct label="1M" value={index.change1m} />
         {unusual && (
           <span
-            className="ml-auto self-end font-mono text-[10px] rounded-full border px-2 py-0.5"
+            className="ml-auto self-end font-mono text-[11px] rounded-full border px-2 py-0.5"
             style={{ borderColor: positive ? "var(--up)" : "var(--down)", color: positive ? "var(--up)" : "var(--down)" }}
             title={`A usual day this past month moved ${index.usualMove!.toFixed(2)}%`}
           >

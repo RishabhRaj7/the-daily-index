@@ -111,13 +111,14 @@ export const SECTION_META: Record<SectionKey, SectionMeta> = {
   },
 };
 
-// The day in the order you'd read it: the world, the country, then home, then your
-// sport, then money (stories, then the numbers), then tech, the sky, and
-// the extras.
+// The day in the order you'd read it: the world, the country, then home and its
+// weather, then your sport, then money (stories, then the numbers), then what's
+// next, and the extras. These group into chapters (lib/chapters.ts).
 export const SECTION_ORDER: SectionKey[] = [
   "dateline",
   "the-nation",
   "two-cities",
+  "sky-report",
   "paddock-notes",
   "sports",
   "clutch",
@@ -125,7 +126,6 @@ export const SECTION_ORDER: SectionKey[] = [
   "market-pulse",
   "circuit-board",
   "straw-poll",
-  "sky-report",
   "grapevine",
 ];
 

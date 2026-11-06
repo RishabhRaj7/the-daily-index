@@ -997,7 +997,7 @@ function MapButton({ on, onClick, label, children, disabled }: { on?: boolean; o
 function Choice<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: [T, string][]; onChange: (v: T) => void }) {
   return (
     <div>
-      <div className="font-label text-[9.5px] text-ink-faint mb-1.5">{label}</div>
+      <div className="font-label text-[11px] text-ink-faint mb-1.5">{label}</div>
       <div className="grid rounded-lg border hairline p-0.5 gap-0.5" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }} role="radiogroup" aria-label={label}>
         {options.map(([v, text]) => (
           <button
@@ -1074,7 +1074,7 @@ function MapTools(p: {
           Map options
         </button>
         {p.tyres.length > 0 && !open && (
-          <span className="glass border hairline rounded-full h-8 px-3 flex items-center gap-2.5 font-mono text-[10.5px] text-ink-soft">
+          <span className="glass border hairline rounded-full h-8 px-3 flex items-center gap-2.5 font-mono text-[11px] text-ink-soft">
             {p.tyres.map((t) => (
               <span key={t} className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full" style={{ background: TYRE[t].colour }} />
@@ -1116,7 +1116,7 @@ function MapTools(p: {
               ]}
             />
             <div>
-              <div className="font-label text-[9.5px] text-ink-faint mb-1.5">On the map</div>
+              <div className="font-label text-[11px] text-ink-faint mb-1.5">On the map</div>
               <div className="space-y-1">
                 {(
                   [
@@ -1143,14 +1143,14 @@ function MapTools(p: {
                 ))}
               </div>
             </div>
-            <p className="font-mono text-[10.5px] text-ink-faint leading-relaxed">The followed driver always keeps their name. {p.view === "3d" ? "Drag to move; right-drag or two fingers to tilt and turn." : <>Drag to look around once zoomed{" "}in.</>}</p>
+            <p className="font-mono text-[11px] text-ink-faint leading-relaxed">The followed driver always keeps their name. {p.view === "3d" ? "Drag to move; right-drag or two fingers to tilt and turn." : <>Drag to look around once zoomed{" "}in.</>}</p>
           </div>
         )}
       </div>
       <div className="absolute right-0 bottom-0 z-10 glass border hairline rounded-2xl overflow-hidden flex flex-col divide-y divide-[var(--rule)]">
         {p.view && (
           <MapButton on={p.view === "3d"} onClick={() => p.onView(p.view === "3d" ? "basic" : "3d")} label={p.view === "3d" ? "Back to the basic map" : "Show the circuit in 3D"}>
-            <span className="font-sans text-[10.5px] font-extrabold tracking-tight">3D</span>
+            <span className="font-sans text-[11px] font-extrabold tracking-tight">3D</span>
           </MapButton>
         )}
         <MapButton on={p.follow} onClick={() => p.onFollow(!p.follow)} disabled={!p.canFollow} label={p.follow ? "Stop following the car" : "Follow the chosen car"}>

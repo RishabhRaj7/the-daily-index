@@ -1,17 +1,24 @@
 "use client";
 
+import { CaretRightIcon } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import Sheet from "@/components/extras/Sheet";
 import type { LiveSnapshot, TrackTone } from "@/lib/f1-live-types";
 import { clockLeft } from "@/lib/use-f1-live";
+import { PHONE, useMedia } from "@/lib/use-media";
 import LiveTiming from "./LiveTiming";
 
 // The Pit wall's timing card during a session: the same card, same place,
 // carrying the running order live. Everything else live (race control in
 // full, radio, strategy, the projected title fight, weather) waits on
 // /f1/live, one tap away, so the section never grows.
+// It ends level with the cards beside it, and shows as many drivers as fit in
+// that height (never fewer than eight). The rest are a tap away: in place, or in
+// a sheet that slides up on a phone.
 
-const ROW_H = 29;
+// Eight rows and the column heads, so the card's floor holds them whole.
+const MIN_LIST_H = 8 * 31 + 30;
 const BASE_ROWS = 8;
 
 export const TONE: Record<TrackTone, { bg: string; fg: string }> = {
@@ -52,17 +59,29 @@ export function sessionLine(s: LiveSnapshot): string {
 
 export default function LiveCard({ snap }: { snap: LiveSnapshot }) {
   const [showAll, setShowAll] = useState(false);
+  const phone = useMedia(PHONE);
+  // In place above a phone's width; there, the whole order in a sheet.
+  const inPlace = showAll && !phone;
   const listRef = useRef<HTMLDivElement>(null);
   const [fit, setFit] = useState(BASE_ROWS);
   useEffect(() => {
     const el = listRef.current;
-    if (!el || showAll) return;
-    const measure = () => setFit(Math.max(BASE_ROWS, Math.floor((el.clientHeight - 18) / ROW_H)));
+    if (!el || inPlace) return;
+    // Screen sizes throughout, so the page's zoom cancels out.
+    const measure = () => {
+      const rows = el.querySelectorAll(".timing-rows > div");
+      if (rows.length < 2) return;
+      const list = el.getBoundingClientRect();
+      const first = rows[0].getBoundingClientRect();
+      // Top to top, since a row's margin falls outside its own box.
+      const pitch = rows[1].getBoundingClientRect().top - first.top;
+      if (pitch > 0) setFit(Math.max(BASE_ROWS, Math.floor((list.height - (first.top - list.top)) / pitch)));
+    };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [showAll]);
+  }, [inPlace]);
 
   const latest = snap.raceControl?.[0];
   // Only a message from the last few minutes of the read earns the line.
@@ -71,9 +90,9 @@ export default function LiveCard({ snap }: { snap: LiveSnapshot }) {
   const ended = !snap.running;
 
   return (
-    <div className={`module self-stretch flex flex-col ${snap.running ? "on-air" : ""}`} data-reveal>
+    <div className={`module self-stretch flex flex-col flex-1 min-w-0 ${snap.running ? "on-air" : ""}`} data-reveal>
       <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-2 font-label text-[10px] min-w-0">
+        <span className="flex items-center gap-2 font-label text-[11px] min-w-0">
           <LiveDot running={snap.running} />
           <span style={{ color: snap.running ? "var(--hue-f1)" : undefined }} className={snap.running ? "" : "text-ink-soft"}>
             {snap.running ? "Live" : snap.status === "Inactive" ? "Starting soon" : "Chequered flag"}
@@ -82,7 +101,7 @@ export default function LiveCard({ snap }: { snap: LiveSnapshot }) {
         </span>
         <span className="flex items-center gap-2 shrink-0">
           {snap.track.tone !== "green" && snap.running && (
-            <span className="rounded-full px-2 py-0.5 font-label text-[9.5px]" style={{ background: tone.bg, color: tone.fg }}>
+            <span className="rounded-full px-2 py-0.5 font-label text-[11px]" style={{ background: tone.bg, color: tone.fg }}>
               {snap.track.label}
             </span>
           )}
@@ -91,34 +110,40 @@ export default function LiveCard({ snap }: { snap: LiveSnapshot }) {
       </div>
       <div className="flex items-baseline justify-between gap-2 mt-1">
         <span className="font-headline text-[15px] leading-tight truncate">{snap.meeting}</span>
-        <Link href="/f1/live" className="font-label text-[10.5px] text-ink-soft hover:text-ink shrink-0 group">
-          Live centre <span className="inline-block transition-transform group-hover:translate-x-0.5">›</span>
+        <Link href="/f1/live" className="font-label text-[11px] text-ink-soft hover:text-ink shrink-0 group">
+          Live centre <CaretRightIcon size={12} weight="bold" className="inline-block align-[-1px] transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
         </Link>
       </div>
 
-      <div ref={listRef} className={showAll ? "mt-3" : "relative flex-1 mt-3"} style={showAll ? undefined : { minHeight: BASE_ROWS * ROW_H + 18 }}>
-        <div className={showAll ? "" : "absolute inset-x-0 top-0"}>
-          <LiveTiming snap={snap} limit={showAll ? undefined : fit} />
+      <div ref={listRef} className={inPlace ? "mt-3" : "relative flex-1 mt-3 overflow-hidden"} style={inPlace ? undefined : { minHeight: MIN_LIST_H }}>
+        <div className={inPlace ? "" : "absolute inset-x-0 top-0"}>
+          <LiveTiming snap={snap} limit={inPlace ? undefined : fit} />
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-3 mt-3">
+      {/* A phone stacks these; from there up a long message shortens rather than taking a second line. */}
+      <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-x-3 gap-y-1 mt-3">
         {snap.rows.length > fit ? (
-          <button type="button" onClick={() => setShowAll((v) => !v)} className="font-sans text-[12px] font-semibold text-ink-soft hover:text-ink">
-            {showAll ? "Show fewer" : `Show all ${snap.rows.length} drivers`}
+          <button type="button" onClick={() => setShowAll((v) => !v)} className="font-sans text-[12px] font-semibold text-ink-soft hover:text-ink whitespace-nowrap">
+            {inPlace ? "Show fewer" : `Show all ${snap.rows.length} drivers`}
           </button>
         ) : (
           <span />
         )}
         {fresh && latest && (
-          <Link href="/f1/live#race-control" className="font-mono text-[10px] text-ink-soft hover:text-ink truncate min-w-0" title={latest.message}>
-            <span className="font-label text-[9.5px] mr-1.5" style={{ color: latest.flag ? "var(--f1-slower)" : undefined }}>
+          <Link href="/f1/live#race-control" className="font-mono text-[11px] text-ink-soft hover:text-ink truncate min-w-0 max-w-full" title={latest.message}>
+            <span className="font-label text-[11px] mr-1.5" style={{ color: latest.flag ? "var(--f1-slower)" : undefined }}>
               Race control
             </span>
             {latest.message.charAt(0) + latest.message.slice(1).toLowerCase()}
           </Link>
         )}
       </div>
+      {showAll && phone && (
+        <Sheet title={snap.meeting} kicker={sessionLine(snap)} onClose={() => setShowAll(false)} hue="var(--hue-f1)">
+          <LiveTiming snap={snap} />
+        </Sheet>
+      )}
     </div>
   );
 }

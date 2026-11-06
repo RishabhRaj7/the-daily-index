@@ -13,8 +13,11 @@ export const maxDuration = 20;
 //                            its flags, laps and parts on the first ask
 // &have=<part.fingerprint,…> (full reads) leaves out the slow parts the reader
 //                            already holds as they are (listed in `same`)
+// &first=1                   a page's first look: the latest copy of the running
+//                            session at once, with a fresh read going on behind it
 //
 // { live: false, next } when no session is near (no connection is made);
+// { live: false, retry: true } a session is on but this read couldn't get it: ask again;
 // { live: true, snapshot } from a few seconds before the start until half an
 // hour after the flag. One read of F1's live timing is shared by every reader
 // (lib/live/f1-live.ts), so polling every few seconds costs F1 almost nothing.
@@ -45,7 +48,7 @@ export async function GET(req: Request) {
     }
     const answer = path
       ? await replay(path, t ? Number(t) : undefined)
-      : await getLive({ fresh: params.get("fresh") === "1", withLast: full });
+      : await getLive({ fresh: params.get("fresh") === "1", withLast: full, first: params.get("first") === "1" });
     const servedAt = new Date().toISOString();
     const body = answer.live ? { live: true, snapshot: { ...(full ? without(answer.snapshot, params.get("have")) : compact(answer.snapshot)), servedAt } } : answer;
     return Response.json(body, { headers: { "Cache-Control": "no-store" } });

@@ -1,3 +1,4 @@
+import { jolpicaGet } from "./jolpica";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { F1_DRIVERS, F1_DRIVER_SEASON } from "@/lib/config/f1-drivers";
 import { LOCAL_CIRCUITS } from "@/lib/config/f1-circuits";
@@ -15,11 +16,6 @@ import type {
   F1SessionResult,
   F1SessionTop,
 } from "@/lib/types";
-// Staged slices of LiveF1Data — each maps to one block of the F1 sidebar and
-// is fetched independently so the section can render progressively:
-//   schedule  — fastest (one memoized call): next race + upcoming calendar.
-//   standings — championship tables (OpenF1 ×2 + Ergast wins, parallelised).
-//   session   — last race result + next race's starting grid (the slow tail).
 // Staged slices of the sidebar, in the exact order the reader sees them fill
 // in. Each maps to one block and is fetched independently so the section
 // renders progressively and a failure is scoped to its own block:
@@ -91,7 +87,6 @@ export interface F1PartFailure {
 export type F1PartResult<T> = F1PartSuccess<T> | F1PartFailure;
 
 const OPENF1_API = "https://api.openf1.org/v1";
-const JOLPICA_API = "https://api.jolpi.ca/ergast/f1";
 // A race counts as finished (and its result settled) this long after the
 // session's scheduled end; qualifying and practice a little sooner.
 const SETTLE_MS = 20 * 60 * 1000;
@@ -349,13 +344,7 @@ async function openF1<T>(path: string, revalidate = 3600): Promise<T | null> {
 // positions, points and wins — in one request each.
 async function jolpica<T>(path: string, revalidate = 900): Promise<T | null> {
   try {
-    const init: RequestInit = isFreshRead() ? { cache: "no-store" } : { next: { revalidate } };
-    const response = await fetch(`${JOLPICA_API}/${path}`, init);
-    if (!response.ok) {
-      console.error(`jolpica failed: ${path} -> ${response.status} ${response.statusText}`);
-      return null;
-    }
-    return (await response.json()) as T;
+    return await jolpicaGet<T>(path, isFreshRead() ? { cache: "no-store" } : { next: { revalidate } });
   } catch (err) {
     console.error(`jolpica error: ${path}`, err);
     return null;
@@ -383,6 +372,8 @@ interface JolpicaRace extends Partial<Record<"FirstPractice" | "SecondPractice" 
 interface JolpicaClassified {
   number: string;
   position: string;
+  Driver?: { code?: string; givenName: string; familyName: string };
+  Constructor?: { name: string };
   points?: string;
   laps?: string;
   status?: string;
@@ -446,6 +437,21 @@ async function jolpicaRace(race: OpenF1Session): Promise<JolpicaRace | undefined
   if (race.meeting_key < 0) return races.find((r) => Number(r.round) === -race.meeting_key);
   const t = Date.parse(race.date_start);
   return races.find((r) => Math.abs(Date.parse(`${r.date}T12:00:00Z`) - t) < 3 * 86_400_000);
+}
+
+/**
+ * Round numbers from Jolpica, matched on the race's date. OpenF1's season still
+ * lists rounds that were cancelled, so counting its races runs ahead (São Paulo
+ * read Round 22 when it was Round 20). With no answer, the count stands.
+ */
+async function withOfficialRounds<T extends { round: number; date: string }>(races: T[]): Promise<T[]> {
+  if (races.length === 0) return races;
+  const season = await getJolpicaSeason(new Date(races[0].date).getUTCFullYear()).catch(() => [] as JolpicaRace[]);
+  return races.map((race) => {
+    const t = Date.parse(race.date);
+    const found = season.find((r) => Math.abs(Date.parse(`${r.date}T12:00:00Z`) - t) < 3 * 86_400_000);
+    return found ? { ...race, round: Number(found.round) } : race;
+  });
 }
 
 /** "1:31.234" or "+5.123" → seconds. */
@@ -626,6 +632,31 @@ async function withSessionDrivers(drivers: Map<number, OpenF1Driver>, sessionKey
   const out = new Map(drivers);
   for (const [n, d] of extra) if (!out.has(n)) out.set(n, d);
   return out;
+}
+
+/**
+ * The same for a race: the session's roster, and Jolpica's classification when
+ * OpenF1 can't say (it locks every endpoint while a session is live). So a stand-in
+ * prints by name: Haas's Ryo Hirakawa in Mexico City 2026 printed as "Car 50".
+ */
+async function withRaceDrivers(drivers: Map<number, OpenF1Driver>, race: OpenF1Session, numbers: number[]): Promise<Map<number, OpenF1Driver>> {
+  const out = await withSessionDrivers(drivers, race.session_key, numbers);
+  if (numbers.every((n) => out.has(n))) return out;
+  const rows = await jolpicaClassification(race, "results").catch(() => [] as JolpicaClassified[]);
+  const added = new Map(out);
+  for (const r of rows) {
+    const n = Number(r.number);
+    if (added.has(n) || !r.Driver) continue;
+    added.set(n, {
+      driver_number: n,
+      full_name: `${r.Driver.givenName} ${r.Driver.familyName}`,
+      first_name: r.Driver.givenName,
+      last_name: r.Driver.familyName,
+      name_acronym: r.Driver.code ?? r.Driver.familyName.slice(0, 3).toUpperCase(),
+      team_name: r.Constructor?.name ?? "",
+    });
+  }
+  return added;
 }
 
 // The track map: the site's own copy when it has one (lib/config/f1-circuits.ts),
@@ -856,7 +887,8 @@ export async function getF1Map(): Promise<F1MapData | null> {
     getMeetingImage(nextSession).catch(() => undefined),
     getMeetingSessions(nextSession).catch(() => []),
   ]);
-  return { nextRace: { ...raceFromSession(nextSession, nextRound, circuitImageUrl), sessions: weekend } };
+  const [race] = await withOfficialRounds([raceFromSession(nextSession, nextRound, circuitImageUrl)]);
+  return { nextRace: { ...race, sessions: weekend } };
 }
 
 /** 2. Driver details — served from static season data, so this resolves
@@ -877,7 +909,7 @@ export async function getF1Drivers(): Promise<F1DriversData> {
 export async function getF1Calendar(): Promise<F1CalendarData | null> {
   const sessions = await getSeasonSessions();
   if (!sessions?.length) return null;
-  return { upcoming: analyzeSeason(sessions).upcoming };
+  return { upcoming: await withOfficialRounds(analyzeSeason(sessions).upcoming) };
 }
 
 /** 4. Constructors' championship — one Jolpica call (points and wins). */
@@ -944,7 +976,10 @@ export async function getF1Results(): Promise<F1ResultsData | null> {
     getDriverDetails(lastSession?.session_key),
     weekendRace ? getMeetingRaw(weekendRace).catch(() => [] as OpenF1Session[]) : Promise.resolve([] as OpenF1Session[]),
   ]);
-  const lastRace = race && results.length > 0 ? labelRaceResults(race, results, drivers) : null;
+  const lastRace =
+    race && results.length > 0
+      ? labelRaceResults(race, results, await withRaceDrivers(drivers, race, results.map((r) => r.driver_number)))
+      : null;
   const weekendName = weekendRace ? grandPrixName(weekendRace) : null;
 
   // Sessions of this weekend that have finished (the race itself excluded:
@@ -1018,9 +1053,10 @@ export async function getF1Schedule(): Promise<F1ScheduleData | null> {
     getMeetingImage(nextSession).catch(() => undefined),
     getMeetingSessions(nextSession).catch(() => []),
   ]);
+  const [race, calendar] = await Promise.all([withOfficialRounds([raceFromSession(nextSession, nextRound, circuitImageUrl)]), withOfficialRounds(upcoming)]);
   return {
-    nextRace: { ...raceFromSession(nextSession, nextRound, circuitImageUrl), sessions: weekend },
-    upcoming,
+    nextRace: { ...race[0], sessions: weekend },
+    upcoming: calendar,
   };
 }
 

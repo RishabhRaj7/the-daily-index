@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { CaretRightIcon, CheckCircleIcon, EyeIcon, GavelIcon, HourglassMediumIcon, type Icon, MagnifyingGlassIcon, RoadHorizonIcon, TimerIcon, WarningIcon } from "@phosphor-icons/react";
+import { createElement, useMemo, useState } from "react";
 import type { LiveSnapshot } from "@/lib/f1-live-types";
 import { stewardsTally, type DriverTally } from "@/lib/f1-race-control";
 import { stewardsByCode, type IncidentState, type Stewards } from "@/lib/f1-stewards";
@@ -24,10 +25,10 @@ import { StewardIcon, StewardDetails } from "./StewardsTable";
 // every message about that driver. Read up to the current lap, so it follows
 // a replay as it plays.
 
-const STATE: Record<IncidentState, { text: string; colour: string }> = {
-  investigating: { text: "Under investigation", colour: "#60a5fa" },
-  after: { text: "After the race", colour: "#60a5fa" },
-  noted: { text: "Noted", colour: "var(--ink-soft)" },
+const STATE: Record<IncidentState, { text: string; colour: string; Glyph: Icon }> = {
+  investigating: { text: "Under investigation", colour: "#60a5fa", Glyph: MagnifyingGlassIcon },
+  after: { text: "After the race", colour: "#60a5fa", Glyph: HourglassMediumIcon },
+  noted: { text: "Noted", colour: "var(--ink-soft)", Glyph: EyeIcon },
 };
 
 const STRIKES = 4;
@@ -46,7 +47,7 @@ function shortPenalty(what: string): string {
 function Chip({ children, colour, faint = false, title }: { children: React.ReactNode; colour: string; faint?: boolean; title?: string }) {
   return (
     <span
-      className="inline-flex items-center rounded-full border px-2 h-[20px] font-mono text-[10.5px] whitespace-nowrap"
+      className="inline-flex items-center gap-1 rounded-full border px-2 h-[20px] font-mono text-[11px] whitespace-nowrap"
       style={{ borderColor: faint ? "var(--rule)" : colour, color: faint ? "var(--ink-faint)" : colour }}
       title={title}
     >
@@ -75,7 +76,7 @@ function Limits({ t }: { t: DriverTally }) {
           <b className="font-display font-extrabold text-[14px] tabular-nums ml-1">{n}</b>
         </span>
       )}
-      {other > 0 && <span className="font-mono text-[10.5px] text-ink-faint">+{other} other deleted</span>}
+      {other > 0 && <span className="font-mono text-[11px] text-ink-faint">+{other} other deleted</span>}
     </span>
   );
 }
@@ -87,7 +88,8 @@ function WithStewards({ st, t }: { st: Stewards | undefined; t: DriverTally }) {
       <span className="flex flex-col gap-1 min-w-0">
         {open.map((inc, i) => (
           <span key={i} className="text-[12px] leading-snug min-w-0">
-            <b className="font-semibold" style={{ color: STATE[inc.state].colour }}>
+            <b className="font-semibold inline-flex items-center gap-1 align-bottom" style={{ color: STATE[inc.state].colour }}>
+              {createElement(STATE[inc.state].Glyph, { size: 14, className: "shrink-0", "aria-hidden": true })}
               {STATE[inc.state].text}
             </b>
             <span className="text-ink-soft">: {inc.why.toLowerCase()}</span>
@@ -96,7 +98,12 @@ function WithStewards({ st, t }: { st: Stewards | undefined; t: DriverTally }) {
       </span>
     );
   if (t.counts.noted || t.counts.investigated || t.counts.cleared)
-    return <span className="text-[12px] text-ink-faint">{t.counts.cleared ? "Cleared, no further action" : "Settled"}</span>;
+    return (
+      <span className="text-[12px] text-ink-faint inline-flex items-center gap-1">
+        <CheckCircleIcon size={14} className="shrink-0" aria-hidden="true" />
+        {t.counts.cleared ? "Cleared, no further action" : "Settled"}
+      </span>
+    );
   return <None />;
 }
 
@@ -111,11 +118,12 @@ function Sanctions({ st, t }: { st: Stewards | undefined; t: DriverTally }) {
     )),
     ...served.map((p, i) => (
       <Chip key={`s${i}`} colour="var(--down)" faint title={p.what}>
+        <TimerIcon size={13} aria-hidden="true" />
         {shortPenalty(p.what)} served
       </Chip>
     )),
-    ...(t.counts.reprimands ? [<Chip key="r" colour="#fb923c">{t.counts.reprimands > 1 ? `${t.counts.reprimands} reprimands` : "Reprimand"}</Chip>] : []),
-    ...(t.counts.warnings ? [<Chip key="w" colour="#facc15">{t.counts.warnings > 1 ? `${t.counts.warnings} warnings` : "Warning"}</Chip>] : []),
+    ...(t.counts.reprimands ? [<Chip key="r" colour="#fb923c"><WarningIcon size={13} aria-hidden="true" />{t.counts.reprimands > 1 ? `${t.counts.reprimands} reprimands` : "Reprimand"}</Chip>] : []),
+    ...(t.counts.warnings ? [<Chip key="w" colour="#facc15"><WarningIcon size={13} aria-hidden="true" />{t.counts.warnings > 1 ? `${t.counts.warnings} warnings` : "Warning"}</Chip>] : []),
     ...(t.counts.blackWhite ? [<Chip key="b" colour="var(--ink)">Black &amp; white flag</Chip>] : []),
   ];
   return chips.length ? <span className="flex flex-wrap gap-1.5">{chips}</span> : <None />;
@@ -165,6 +173,7 @@ export default function StewardsView({ snap, className = "" }: { snap: LiveSnaps
   return (
     <Panel
       id="stewards"
+      icon={GavelIcon}
       label="Stewards"
       className={className}
       meta={tally.length ? `${tally.length} driver${tally.length === 1 ? "" : "s"} involved${field > tally.length ? ` · the other ${field - tally.length} clean` : ""}` : snap.session}
@@ -175,16 +184,16 @@ export default function StewardsView({ snap, className = "" }: { snap: LiveSnaps
         <>
           {corners.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 mb-3">
-              <span className="font-label text-[9.5px] text-ink-faint mr-1">Track limits at</span>
+              <span className="font-label text-[11px] text-ink-faint mr-1 inline-flex items-center gap-1"><RoadHorizonIcon size={13} aria-hidden="true" />Track limits at</span>
               {corners.map(([turn, n]) => (
-                <span key={turn} className="font-mono text-[10.5px] rounded-full border hairline px-2 py-[2px] text-ink-soft">
+                <span key={turn} className="font-mono text-[11px] rounded-full border hairline px-2 py-[2px] text-ink-soft">
                   Turn {turn} <b className="text-ink">{n}</b>
                 </span>
               ))}
             </div>
           )}
           {/* the column heads, on a wide screen; a phone labels each line instead */}
-          <div className={`hidden md:grid ${COLS} gap-x-4 pb-2 font-label text-[9.5px] text-ink-faint`}>
+          <div className={`hidden md:grid ${COLS} gap-x-4 pb-2 font-label text-[11px] text-ink-faint`}>
             <span>Driver</span>
             <Head k="limits">Track limits</Head>
             <Head k="investigated">With the stewards</Head>
@@ -206,20 +215,20 @@ export default function StewardsView({ snap, className = "" }: { snap: LiveSnaps
                     <span className="flex items-center gap-2 whitespace-nowrap row-span-3 md:row-span-1">
                       <TeamGlyph team={row?.team ?? ""} colour={row?.colour ?? "var(--ink-faint)"} size={14} />
                       <b className="font-sans text-[13px]">{t.code}</b>
-                      <span className={`text-ink-faint text-[10px] transition-transform ${isOpen ? "rotate-90" : ""}`} aria-hidden="true">
-                        ›
+                      <span className={`text-ink-faint text-[11px] transition-transform ${isOpen ? "rotate-90" : ""}`} aria-hidden="true">
+                        <CaretRightIcon size={12} weight="bold" className="inline align-[-2px]" aria-hidden="true" />
                       </span>
                     </span>
                     <span className="min-w-0">
-                      <span className="md:hidden block font-label text-[9px] text-ink-faint mb-0.5">Track limits</span>
+                      <span className="md:hidden block font-label text-[11px] text-ink-faint mb-0.5">Track limits</span>
                       <Limits t={t} />
                     </span>
                     <span className="min-w-0 col-start-2 md:col-start-auto">
-                      <span className="md:hidden block font-label text-[9px] text-ink-faint mb-0.5">With the stewards</span>
+                      <span className="md:hidden block font-label text-[11px] text-ink-faint mb-0.5">With the stewards</span>
                       <WithStewards st={st} t={t} />
                     </span>
                     <span className="min-w-0 col-start-2 md:col-start-auto">
-                      <span className="md:hidden block font-label text-[9px] text-ink-faint mb-0.5">Penalties &amp; warnings</span>
+                      <span className="md:hidden block font-label text-[11px] text-ink-faint mb-0.5">Penalties &amp; warnings</span>
                       <Sanctions st={st} t={t} />
                     </span>
                   </button>

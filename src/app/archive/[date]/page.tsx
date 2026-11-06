@@ -1,5 +1,7 @@
+import { ArrowLeftIcon, CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react/ssr";
+import PublisherMark from "@/components/story/PublisherMark";
 import Link from "next/link";
-import TopBar from "@/components/chrome/TopBar";
+import SiteNav from "@/components/chrome/SiteNav";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { archiveDates, archivedEdition, readSnapshot } from "@/lib/server/editions";
@@ -8,7 +10,8 @@ import { EDITION_COOKIE } from "@/lib/edition-client";
 
 export const dynamic = "force-dynamic";
 
-// One back issue, read from the archive.
+// One back issue, read from the archive: a plain reading page of its own, not
+// the front page's layout. Its stories run in as many columns as fit.
 // The top bar and the page are zoomed together on big screens (one
 // .page-scale wrapper, as on the front page), so their edges line up.
 
@@ -55,13 +58,13 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
 
   return (
     <>
-    <div className="page-scale flex-1 flex flex-col w-full">
-    <TopBar sections={[]} isArchive alwaysShowLogo />
+    <div className="page-scale with-rail flex-1 flex flex-col w-full">
+    <SiteNav />
     <main className="flex-1 page-wrap px-4 sm:px-6 pt-10 pb-20 w-full">
       <nav className="flex items-center justify-between gap-4 font-sans text-[13px] font-semibold mb-8">
         <span className="flex flex-wrap gap-2">
           <Link href="/" className="chip chip-signal">
-            ← Today&rsquo;s paper
+            <ArrowLeftIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" /> Today&rsquo;s paper
           </Link>
           <Link href="/archive" className="chip">
             All back issues
@@ -70,12 +73,12 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
         <span className="flex gap-4">
           {older && (
             <Link href={`/archive/${older}`} className="chip">
-              ‹ {fmt(older, { day: "numeric", month: "short" })}
+              <CaretLeftIcon size={12} weight="bold" className="inline align-[-2px]" aria-hidden="true" /> {fmt(older, { day: "numeric", month: "short" })}
             </Link>
           )}
           {newer && (
             <Link href={`/archive/${newer}`} className="chip">
-              {fmt(newer, { day: "numeric", month: "short" })} ›
+              {fmt(newer, { day: "numeric", month: "short" })} <CaretRightIcon size={12} weight="bold" className="inline align-[-2px]" aria-hidden="true" />
             </Link>
           )}
         </span>
@@ -111,7 +114,7 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
                       className="group font-headline text-[1.05rem] leading-snug"
                     >
                       <span className="headline-link">{g.summary}</span>
-                      <span className="font-mono text-[10px] text-ink-soft ml-2">{g.pool}</span>
+                      <span className="font-mono text-[11px] text-ink-soft ml-2">{g.pool}</span>
                     </a>
                   </li>
                 ))}
@@ -126,7 +129,8 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
               <section key={section.id}>
                 <h2 className="font-display font-extrabold text-[clamp(2.4rem,6vw,3.6rem)] leading-[0.85]">{section.label}</h2>
                 <div className="h-[3px] bg-accent mt-3 mb-6" />
-                <div className="space-y-7">
+                {/* More room shows more stories across, never longer lines. */}
+                <div className="grid gap-x-8 gap-y-7 [grid-template-columns:repeat(auto-fill,minmax(min(100%,22rem),1fr))]">
                   {articles.map((a) => (
                     <article key={a.url}>
                       <a
@@ -137,8 +141,8 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
                       >
                         <span className="headline-link">{a.title}</span>
                       </a>
-                      <p className="font-mono text-[10px] text-ink-soft mt-1">
-                        {a.source}
+                      <p className="font-mono text-[11px] text-ink-soft mt-1 flex flex-wrap items-center gap-x-1">
+                        <PublisherMark source={a.source} size={14} className="font-sans" />
                         {a.group && a.group !== "f1" ? ` · ${a.group}` : ""}
                         {a.matchedEntity ? ` · for you: ${a.matchedEntity}` : ""}
                         {a.written === false ? " · Gemini didn't write this one: the publisher's text" : ""}
@@ -156,7 +160,7 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
           <aside className="space-y-5 h-fit md:sticky md:top-24">
             {snapshot.markets.length > 0 && (
               <div className="module">
-                <h2 className="font-label text-[10px] text-ink-soft mb-3">Markets that day</h2>
+                <h2 className="font-label text-[11px] text-ink-soft mb-3">Markets that day</h2>
                 <table className="data-table font-mono text-xs">
                   <colgroup>
                     <col />
@@ -185,7 +189,7 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
 
             {snapshot.f1.lastRace && snapshot.f1.lastRace.podium.length > 0 && (
               <div className="module">
-                <h2 className="font-label text-[10px] text-ink-soft mb-2">Latest race</h2>
+                <h2 className="font-label text-[11px] text-ink-soft mb-2">Latest race</h2>
                 <p className="font-headline text-sm mb-2">{snapshot.f1.lastRace.name}</p>
                 <ol className="font-mono text-xs space-y-0.5">
                   {snapshot.f1.lastRace.podium.map((p) => (
@@ -199,7 +203,7 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
 
             {snapshot.f1.standings.length > 0 && (
               <div className="module">
-                <h2 className="font-label text-[10px] text-ink-soft mb-3">Drivers&rsquo; championship</h2>
+                <h2 className="font-label text-[11px] text-ink-soft mb-3">Drivers&rsquo; championship</h2>
                 <table className="data-table font-mono text-xs">
                   <colgroup>
                     <col style={{ width: "2rem" }} />
@@ -221,9 +225,9 @@ export default async function ArchivedEditionPage({ params }: { params: Promise<
 
             {snapshot.f1.nextRace && (
               <div className="module">
-                <h2 className="font-label text-[10px] text-ink-soft mb-2">Next up</h2>
+                <h2 className="font-label text-[11px] text-ink-soft mb-2">Next up</h2>
                 <p className="font-headline text-sm">{snapshot.f1.nextRace.name}</p>
-                <p className="font-mono text-[10px] text-ink-soft">
+                <p className="font-mono text-[11px] text-ink-soft">
                   {new Date(snapshot.f1.nextRace.date).toLocaleDateString("en-GB", {
                     day: "numeric",
                     month: "long",

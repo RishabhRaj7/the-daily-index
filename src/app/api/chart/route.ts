@@ -1,8 +1,8 @@
 import { CHART_RANGES, getChart, type ChartKind, type ChartRange } from "@/lib/live/charts";
 
 // GET /api/chart?kind=index|commodity|crypto&id=nifty50&range=1D
-// Price history for the market detail charts. Each range is cached for
-// about as long as its bars last (a minute for 1D, hours for 5Y).
+// Price history for the market detail charts. Cached for a minute (1D) to five
+// (the rest), so every range ends near the live price.
 export const dynamic = "force-dynamic";
 
 const KINDS: ChartKind[] = ["index", "commodity", "crypto"];
@@ -17,6 +17,6 @@ export async function GET(req: Request) {
   }
   const data = await getChart(kind, id, range).catch(() => null);
   if (!data || data.bars.length === 0) return Response.json({ error: "no data" }, { status: 404 });
-  const maxAge = range === "1D" ? 60 : range === "5D" ? 300 : 900;
+  const maxAge = range === "1D" ? 60 : 300;
   return Response.json(data, { headers: { "Cache-Control": `public, max-age=${Math.min(maxAge, 60)}, s-maxage=${maxAge}` } });
 }

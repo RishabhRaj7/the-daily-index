@@ -1,5 +1,6 @@
 "use client";
 
+import { TimerIcon } from "@phosphor-icons/react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { LiveSnapshot } from "@/lib/f1-live-types";
 
@@ -106,16 +107,13 @@ export function DelayControl() {
         title="Hold the timing back to match the commentary or TV"
         aria-expanded={open}
       >
-        <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
-          <circle cx="8" cy="8.5" r="5.5" />
-          <path d="M8 5.5v3l2 1.5M6.5 1.5h3" />
-        </svg>
+        <TimerIcon size={14} aria-hidden="true" />
         <span className="tabular-nums">{seconds ? `−${seconds} s` : <span className="hidden sm:inline">Delay</span>}</span>
       </button>
       {open && (
         <div className="absolute right-0 top-10 z-40 w-[min(19rem,calc(100vw-2rem))] rounded-xl border hairline bg-[var(--paper)] shadow-xl p-3 font-sans text-[12px]">
           <div className="flex items-baseline justify-between">
-            <span className="font-label text-[10px] text-ink-faint">Timing delay</span>
+            <span className="font-label text-[11px] text-ink-faint">Timing delay</span>
             <span className="font-mono text-[12px] font-semibold tabular-nums">{seconds} s</span>
           </div>
           <input type="range" min={0} max={60} step={1} value={seconds} onChange={(e) => write(Number(e.target.value))} className="w-full mt-2" aria-label="Seconds to hold the timing back" />

@@ -1,5 +1,6 @@
 "use client";
 
+import MoveArrow from "@/components/chrome/MoveArrow";
 import { createContext, useContext, useState } from "react";
 import type { OddsPick } from "@/lib/odds-pick";
 import OddsSheet from "@/components/widgets/OddsSheet";
@@ -28,7 +29,7 @@ export default function StoryOdds({ headline }: { headline: string }) {
         style={{ borderColor: "color-mix(in srgb, var(--hue-poll) 45%, transparent)" }}
         data-clip-ignore="true"
       >
-        <span className="font-label text-[10px] shrink-0" style={{ color: "var(--hue-poll)" }}>
+        <span className="font-label text-[11px] shrink-0" style={{ color: "var(--hue-poll)" }}>
           Markets
         </span>
         <span className="font-display font-bold text-[1rem] tabular-nums shrink-0">{Math.round(m.lead.prob)}%</span>
@@ -36,8 +37,8 @@ export default function StoryOdds({ headline }: { headline: string }) {
           {who} · {m.title}
         </span>
         {move != null && (
-          <span className={`font-mono text-[10px] shrink-0 ${move > 0 ? "text-up" : "text-down"}`}>
-            {move > 0 ? "▲" : "▼"} {Math.abs(Math.round(move))}
+          <span className={`font-mono text-[11px] shrink-0 ${move > 0 ? "text-up" : "text-down"}`}>
+            <MoveArrow up={move > 0} /> {Math.abs(Math.round(move))}
           </span>
         )}
       </button>

@@ -1,6 +1,10 @@
 "use client";
 
+import { ChartLineUpIcon, CheckCircleIcon, GaugeIcon, GavelIcon, LightningIcon, MagnifyingGlassIcon, WatchIcon, TimerIcon, TireIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
+import { stewardsByCode } from "@/lib/f1-stewards";
+import { useFitRows } from "@/lib/use-fit-rows";
+import { SUBS, type Sub } from "../live-views";
 import type { LiveSnapshot, LiveStats, LiveStints } from "@/lib/f1-live-types";
 import { stewardsCases, type StewardsCase } from "@/lib/f1-race-control";
 import StewardsView from "./StewardsView";
@@ -19,7 +23,7 @@ import { Empty, Panel, Seg, clock } from "./ui";
 //   Stewards  open and decided cases, penalties, and the laps each driver
 //             has had deleted (three for track limits: black and white flag)
 
-export type Sub = "tyres" | "laps" | "pace" | "stewards";
+
 
 const secs = (t?: string | null) => {
   const m = /^(?:(\d+):)?(\d+\.\d+)$/.exec(t ?? "");
@@ -61,32 +65,38 @@ function Strategy({ stints, total, highlight, running }: { stints: LiveStints[];
   );
 }
 
+const timedStops = (snap: LiveSnapshot) => (snap.pitStops ?? []).filter((p) => p.stationary !== null && p.stationary > 1 && p.stationary < 15).sort((a, b) => a.stationary! - b.stationary!);
+
 function Stops({ snap }: { snap: LiveSnapshot }) {
-  const stops = (snap.pitStops ?? []).filter((p) => p.stationary !== null && p.stationary > 1 && p.stationary < 15).sort((a, b) => a.stationary! - b.stationary!);
-  if (stops.length === 0) return <Empty>No pit stops timed yet.</Empty>;
+  // As many as fit beside the strategy chart (twelve when they stack on a phone).
+  const { box, fit, minHeight } = useFitRows(12, [snap.pitStops?.length], true, "(min-width: 1024px)");
+  const stops = timedStops(snap);
+  if (stops.length === 0) return null;
   const team = new Map(snap.rows.map((r) => [r.code, r.team]));
   const best = stops[0].stationary!;
   return (
-    <ol>
-      {stops.slice(0, 12).map((p, i) => (
-        <li key={`${p.code}-${p.lap}`} className="grid grid-cols-[1.4rem_minmax(0,1fr)_auto] items-center gap-3 border-t hairline first:border-t-0 py-[7px] text-[12.5px]">
+    <div ref={box} className="relative flex-1 overflow-hidden" style={{ minHeight }}>
+    <ol className="lg:absolute inset-x-0 top-0">
+      {stops.map((p, i) => (
+        <li key={`${p.code}-${p.lap}`} data-fit-row className={`grid grid-cols-[1.4rem_minmax(0,1fr)_auto] items-center gap-3 border-t hairline first:border-t-0 py-[7px] text-[12.5px] ${i >= fit ? "hidden lg:grid lg:invisible" : ""}`}>
           <span className="font-mono text-[11px] text-ink-soft">{i + 1}</span>
           <span className="flex items-center gap-2 min-w-0">
             <span className="w-[3px] h-3.5 rounded-full shrink-0" style={{ background: p.colour }} />
             <TeamGlyph team={team.get(p.code) ?? ""} colour={p.colour} />
             <b className="font-sans">{p.code}</b>
-            <span className="font-mono text-[10.5px] text-ink-faint">lap {p.lap}</span>
+            <span className="font-mono text-[11px] text-ink-faint">lap {p.lap}</span>
             <span className="flex-1 h-[6px] rounded-full bg-[var(--rule)] overflow-hidden min-w-[2rem] hidden sm:block">
               <span className="block h-full rounded-full" style={{ width: `${(best / p.stationary!) * 100}%`, background: i === 0 ? "var(--f1-fastest)" : p.colour }} />
             </span>
           </span>
           <span className="font-mono tabular-nums text-right">
             <b style={i === 0 ? { color: "var(--f1-fastest)" } : undefined}>{p.stationary!.toFixed(1)} s</b>
-            {p.lane !== null && <span className="text-ink-faint text-[10.5px]"> · lane {p.lane.toFixed(1)}</span>}
+            {p.lane !== null && <span className="text-ink-faint text-[11px]"> · lane {p.lane.toFixed(1)}</span>}
           </span>
         </li>
       ))}
     </ol>
+    </div>
   );
 }
 
@@ -111,19 +121,19 @@ function Speeds({ stats, mine }: { stats: LiveStats[]; mine: Set<string> }) {
       <div className="mb-3">
         <Seg label="Trap" value={trap} onChange={setTrap} options={TRAPS} size="sm" />
       </div>
-      <ol className="space-y-[3px]">
+      <ol className="pace-rows space-y-[3px]">
         {list.map((s, i) => (
           <li key={s.code} className={`grid grid-cols-[1.4rem_2.6rem_minmax(0,1fr)_3.6rem] items-center gap-2 text-[12px] ${mine.has(s.code) ? "font-bold" : ""}`}>
-            <span className="font-mono text-[10.5px] text-ink-soft">{i + 1}</span>
+            <span className="font-mono text-[11px] text-ink-soft">{i + 1}</span>
             <span className="font-sans font-bold">{s.code}</span>
             <span className="h-[8px] rounded-full bg-[var(--rule)] overflow-hidden">
               <span className="block h-full rounded-full" style={{ width: `${Math.max(4, ((s.speeds[trap]! - floor) / (top - floor)) * 100)}%`, background: s.colour, opacity: mine.has(s.code) ? 1 : 0.75 }} />
             </span>
-            <span className="font-mono tabular-nums text-right">{s.speeds[trap]} <span className="text-ink-faint text-[10.5px]">km/h</span></span>
+            <span className="font-mono tabular-nums text-right">{s.speeds[trap]} <span className="text-ink-faint text-[11px]">km/h</span></span>
           </li>
         ))}
       </ol>
-      <p className="font-mono text-[10.5px] text-ink-faint mt-3">Each car&rsquo;s best this session. Bars start at {floor} km/h. Int. 1 and 2 are the intermediate traps in sectors 1 and 2.</p>
+      <p className="font-mono text-[11px] text-ink-faint mt-3">Each car&rsquo;s best this session. Bars start at {floor} km/h. Int. 1 and 2 are the intermediate traps in sectors 1 and 2.</p>
     </>
   );
 }
@@ -162,7 +172,7 @@ function Ideal({ stats, mine }: { stats: LiveStats[]; mine: Set<string> }) {
             <col />
           </colgroup>
           <thead>
-            <tr className="font-label text-[9.5px] text-ink-faint text-right">
+            <tr className="font-label text-[11px] text-ink-faint text-right">
               <th className="text-left font-normal py-1">Driver</th>
               <th className="font-normal">S1</th>
               <th className="font-normal">S2</th>
@@ -223,9 +233,9 @@ export function Benchmarks({ snap }: { snap: LiveSnapshot }) {
   const best = snap.rows.find((r) => r.bestFastest && r.best) ?? null;
   const mine = secs(best?.best);
   return (
-    <div className="flex flex-col gap-2.5">
+    <div className="bench-list flex flex-col gap-2.5">
       <div className="rounded-xl px-3.5 py-3" style={{ background: "color-mix(in srgb, var(--f1-fastest) 13%, transparent)" }}>
-        <div className="font-label text-[9.5px] text-ink-faint">{snap.type === "Race" ? "Fastest lap" : "Session best"}</div>
+        <div className="font-label text-[11px] text-ink-faint flex items-center gap-1"><LightningIcon size={13} weight="fill" style={{ color: "var(--f1-fastest)" }} aria-hidden="true" />{snap.type === "Race" ? "Fastest lap" : "Session best"}</div>
         <div className="flex items-end justify-between gap-3 mt-1">
           <span className="font-mono font-semibold text-[1.55rem] leading-none tabular-nums" style={{ color: "var(--f1-fastest)" }}>
             {best?.best ?? "—"}
@@ -241,19 +251,19 @@ export function Benchmarks({ snap }: { snap: LiveSnapshot }) {
       {list === null ? (
         <div className="h-16 rounded-xl bg-[var(--rule)] animate-pulse opacity-40" />
       ) : list.length === 0 ? (
-        <p className="font-mono text-[10.5px] text-ink-faint px-1">No reference laps: these cars haven&rsquo;t raced here before.</p>
+        <p className="font-mono text-[11px] text-ink-faint px-1">No reference laps: these cars haven&rsquo;t raced here before.</p>
       ) : (
         list.map((b) => {
           const ref = secs(b.time);
           const gap = mine !== null && ref !== null ? mine - ref : null;
           return (
             <div key={b.label} className="rounded-xl border hairline px-3.5 py-2.5">
-              <div className="font-label text-[9.5px] text-ink-faint">{b.label}</div>
+              <div className="font-label text-[11px] text-ink-faint">{b.label}</div>
               <div className="flex items-baseline justify-between gap-3 mt-1">
                 <span className="font-mono font-semibold text-[1.05rem] tabular-nums">{b.time}</span>
                 {gap !== null && (
                   <span
-                    className="font-mono text-[10.5px] font-semibold tabular-nums rounded-md px-1.5 py-0.5"
+                    className="font-mono text-[11px] font-semibold tabular-nums rounded-md px-1.5 py-0.5"
                     style={{ color: gap <= 0 ? "var(--f1-personal)" : "var(--down)", background: `color-mix(in srgb, ${gap <= 0 ? "var(--f1-personal)" : "var(--down)"} 13%, transparent)` }}
                     title={gap <= 0 ? "This session is quicker" : "This session is slower"}
                   >
@@ -280,13 +290,14 @@ function CaseRow({ c }: { c: StewardsCase }) {
     <li className="border-t hairline first:border-t-0 py-2.5">
       <div className="flex items-baseline justify-between gap-3">
         <span className="font-sans font-bold text-[13px]">{c.drivers.join(" · ")}</span>
-        <span className="font-mono text-[10.5px] text-ink-faint">{clock(c.utc)}</span>
+        <span className="font-mono text-[11px] text-ink-faint">{clock(c.utc)}</span>
       </div>
       <div className="text-[12.5px] text-ink-soft">
         {c.where ? `${c.where}: ` : ""}
         {c.reason}
       </div>
-      <div className="mt-1 font-label text-[9.5px]" style={{ color: c.penalty ? "var(--down)" : c.decided ? "var(--f1-personal)" : "#c084fc" }}>
+      <div className="mt-1 font-label text-[11px] flex items-center gap-1" style={{ color: c.penalty ? "var(--down)" : c.decided ? "var(--f1-personal)" : "#c084fc" }}>
+        {c.penalty ? <GavelIcon size={13} className="shrink-0" aria-hidden="true" /> : c.decided ? <CheckCircleIcon size={13} className="shrink-0" aria-hidden="true" /> : <MagnifyingGlassIcon size={13} className="shrink-0" aria-hidden="true" />}
         {c.status}
       </div>
     </li>
@@ -298,14 +309,32 @@ function Stewards({ snap }: { snap: LiveSnapshot }) {
   const cases = useMemo(() => stewardsCases(rc ?? []), [rc]);
   const open = cases.filter((c) => !c.decided);
   const decided = cases.filter((c) => c.decided);
+  // The session's stewarding in four numbers, under the open cases.
+  const given = decided.filter((c) => c.penalty);
+  const seconds = given.reduce((n, c) => n + Number(/(\d+)\s*second/i.exec(c.status)?.[1] ?? 0), 0);
+  const upTo = snap.lap?.current ?? null;
+  const limits = useMemo(() => [...stewardsByCode(rc, upTo).values()].reduce((n, s) => n + s.trackLimits, 0), [rc, upTo]);
   return (
-    <div className="space-y-6">
+    <div className="stew-grid space-y-6">
       <StewardsView snap={snap} />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        <Panel label="Open cases" meta={`${open.length}`}>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Panel icon={MagnifyingGlassIcon} label="Open cases" meta={`${open.length}`}>
           {open.length ? <ol>{open.map((c, i) => <CaseRow key={i} c={c} />)}</ol> : <Empty>Nothing open with the stewards.</Empty>}
+          <dl className="hidden lg:grid grid-cols-2 gap-2 mt-auto pt-4">
+            {[
+              ["Penalties", given.length],
+              ["Seconds added", seconds],
+              ["Cleared", decided.length - given.length],
+              ["Track limits", limits],
+            ].map(([k, v]) => (
+              <div key={k} className="rounded-xl border hairline px-3 py-2.5 min-w-0">
+                <dt className="font-label text-[11px] text-ink-faint truncate">{k}</dt>
+                <dd className="font-display font-extrabold text-[1.45rem] leading-none mt-1.5">{v}</dd>
+              </div>
+            ))}
+          </dl>
         </Panel>
-        <Panel label="Decided" meta={`${decided.length}`}>
+        <Panel icon={CheckCircleIcon} label="Decided" meta={`${decided.length}`}>
           {decided.length ? <ol>{decided.map((c, i) => <CaseRow key={i} c={c} />)}</ol> : <Empty>No decisions yet.</Empty>}
         </Panel>
       </div>
@@ -318,42 +347,43 @@ function Stewards({ snap }: { snap: LiveSnapshot }) {
 export default function Analysis({ snap, sub, onSub, highlight, mine }: { snap: LiveSnapshot; sub: Sub; onSub: (s: Sub) => void; highlight: Set<string>; mine: Set<string> }) {
   const race = snap.type === "Race";
   const hasLaps = (snap.lapPositions?.length ?? 0) > 0;
-  const subs: { value: Sub; label: string }[] = [
-    { value: "tyres", label: "Tyres" },
-    ...(hasLaps ? [{ value: "laps" as Sub, label: "Lap chart" }] : []),
-    { value: "pace", label: "Pace" },
-    { value: "stewards", label: "Stewards" },
-  ];
+  const subs = SUBS.filter((s) => s.id !== "laps" || hasLaps).map((s) => ({ value: s.id, label: s.label, icon: s.Glyph }));
   const cur = subs.some((s) => s.value === sub) ? sub : "tyres";
+  // A session with no lap chart: the menu follows to what's showing.
+  useEffect(() => {
+    if (sub !== cur) onSub(cur);
+  }, [sub, cur, onSub]);
   return (
     <div>
-      <div className="mb-5">
+      {/* The side menu carries these from 1500px. */}
+      <div className="analysis-subs mb-5">
         <Seg label="Analysis" value={cur} onChange={onSub} options={subs} />
       </div>
       {cur === "tyres" && (
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] gap-6 items-start">
-          <Panel label="Tyre strategy" meta={race && snap.lap ? `${snap.lap.total} laps` : "Laps on each set"}>
+        <div className="tyre-grid grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] gap-6">
+          <Panel icon={TireIcon} label="Tyre strategy" meta={race && snap.lap ? `${snap.lap.total} laps` : "Laps on each set"}>
             {snap.stints?.some((d) => d.stints.length) ? <Strategy stints={snap.stints} total={race ? (snap.lap?.total ?? 0) : 0} highlight={highlight} running={snap.running} /> : <Empty>No stints yet.</Empty>}
           </Panel>
-          <Panel label="Quickest stops" meta="Time standing still">
-            <Stops snap={snap} />
-          </Panel>
+          {/* No timed stops, no card: the strategy chart takes the whole row. */}
+          {timedStops(snap).length > 0 && (
+            <Panel icon={TimerIcon} label="Quickest stops" meta="Time standing still">
+              <Stops snap={snap} />
+            </Panel>
+          )}
         </div>
       )}
       {cur === "laps" && snap.lapPositions && (
-        <Panel label="The race, lap by lap" meta="Point at a line to see whose it is">
+        <Panel icon={ChartLineUpIcon} label="The race, lap by lap" meta="Point at a line to see whose it is">
           <RaceStory data={snap.lapPositions} highlight={highlight} names={Object.fromEntries(snap.rows.map((r) => [r.code, r.name]))} />
         </Panel>
       )}
       {cur === "pace" && (
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-6 items-start">
-          <Panel label="Speed traps">{snap.stats?.length ? <Speeds stats={snap.stats} mine={mine} /> : <Empty>No speeds yet.</Empty>}</Panel>
-          <div className="space-y-6 min-w-0">
-            <Panel label="Lap benchmarks" meta={snap.meeting.replace(/ Grand Prix$/, "")}>
-              <Benchmarks snap={snap} />
-            </Panel>
-          </div>
-          <Panel label="Best sectors and the ideal lap" meta="Purple: quickest of all" className="lg:col-span-2">
+        <div className="pace-grid grid grid-cols-1 gap-6">
+          <Panel icon={GaugeIcon} label="Speed traps" className="pace-traps">{snap.stats?.length ? <Speeds stats={snap.stats} mine={mine} /> : <Empty>No speeds yet.</Empty>}</Panel>
+          <Panel icon={WatchIcon} label="Lap benchmarks" meta={snap.meeting.replace(/ Grand Prix$/, "")} className="pace-bench">
+            <Benchmarks snap={snap} />
+          </Panel>
+          <Panel icon={TimerIcon} label="Best sectors and the ideal lap" meta="Purple: quickest of all" className="pace-sect">
             {snap.stats?.length ? <Ideal stats={snap.stats} mine={mine} /> : <Empty>No sectors yet.</Empty>}
           </Panel>
         </div>

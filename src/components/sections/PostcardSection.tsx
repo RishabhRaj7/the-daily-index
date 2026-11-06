@@ -1,5 +1,7 @@
 "use client";
 
+import { MapPinIcon } from "@phosphor-icons/react";
+import PublisherMark from "@/components/story/PublisherMark";
 import { useSyncExternalStore } from "react";
 import type { WeatherNow, WireBrief } from "@/lib/types";
 import type { TravelState } from "@/lib/travel";
@@ -39,8 +41,8 @@ function Headlines({ title, items }: { title: string; items: WireBrief[] }) {
                 <a href={b.url} target="_blank" rel="noopener noreferrer" className="group font-headline text-[1.12rem] leading-snug">
                   <span className="headline-link">{b.title}</span>
                 </a>
-                <span className="block font-mono text-[10px] text-ink-soft mt-1">
-                  {b.domain}
+                <span className="flex items-center gap-1 flex-wrap font-mono text-[11px] text-ink-soft mt-1">
+                  <PublisherMark source={b.domain} size={14} className="font-sans" />
                   {b.postedAgo || b.postedAt ? (
                     <>
                       {" · "}
@@ -84,16 +86,14 @@ export default function PostcardSection({
         label="Postcard"
         folio={
           <>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
-              <path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z" />
-            </svg>
+            <MapPinIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" />
             {place.city}
             {refreshing ? " · updating" : ""}
           </>
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-10 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-6 items-start">
         {/* Where you are: the place, its clock and its sky. */}
         <div className="space-y-5" data-reveal>
           <div>
@@ -146,7 +146,7 @@ export default function PostcardSection({
         </div>
 
         {/* What is happening there. */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
           <Headlines title={`In ${place.city}`} items={travel.city} />
           <Headlines title={`Across ${place.wide}`} items={travel.area} />
         </div>

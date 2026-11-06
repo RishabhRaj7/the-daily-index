@@ -9,13 +9,14 @@
 // Controlled: the settings page owns the draft and saves it with everything
 // else in one action.
 
+import { WarningCircleIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { DEFAULT_DIGEST_PREFERENCES } from "@/lib/preferences/storage";
 import type { DigestPreferences, DigestSection } from "@/lib/preferences/types";
 
 export const inputCls =
   "w-full border hairline bg-surface rounded-lg px-3 py-2 text-sm font-body transition-colors focus:outline-none focus:border-accent";
-export const labelCls = "font-label text-[10px] text-ink-soft block mb-1";
+export const labelCls = "font-label text-[11px] text-ink-soft block mb-1";
 
 const TONES = [
   { label: "Straight news", value: DEFAULT_DIGEST_PREFERENCES.global.tone },
@@ -130,7 +131,7 @@ function Choice<T extends string | number>({
           type="button"
           onClick={() => onChange(o.value)}
           aria-pressed={value === o.value}
-          className={`font-label text-[10px] px-3.5 py-1.5 border rounded-full transition-colors ${
+          className={`font-label text-[11px] px-3.5 py-1.5 border rounded-full transition-colors ${
             value === o.value ? "border-accent bg-accent text-accent-ink" : "hairline hover:bg-card-bg"
           }`}
         >
@@ -242,7 +243,7 @@ export default function DigestPreferencesEditor({
             className="accent-[var(--accent)] w-4 h-4 mt-0.5 shrink-0"
           />
           <span>
-            <span className="font-label text-[10px] block">Skip party politics</span>
+            <span className="font-label text-[11px] block">Skip party politics</span>
             <span className="font-body text-xs text-ink-soft">
               Elections, campaigns and party fights stay out. Geopolitics and policy that moves
               markets, tech or sport stay in.
@@ -262,7 +263,7 @@ export default function DigestPreferencesEditor({
 
       {view !== "general" && (
       <details className="border-t hairline pt-3">
-        <summary className="font-label text-[10px] text-ink-soft cursor-pointer">Advanced — edit as JSON</summary>
+        <summary className="font-label text-[11px] text-ink-soft cursor-pointer">Advanced — edit as JSON</summary>
         <div className="space-y-2 mt-3">
           <textarea
             className={`${inputCls} font-mono text-xs min-h-72`}
@@ -273,13 +274,13 @@ export default function DigestPreferencesEditor({
             }}
             spellCheck={false}
           />
-          {jsonError && <p className="font-mono text-xs text-accent">✗ {jsonError}</p>}
+          {jsonError && <p className="font-mono text-xs text-accent"><WarningCircleIcon size={13} className="inline align-[-2px]" aria-hidden="true" /> {jsonError}</p>}
           <div className="flex gap-4 items-center">
             <button
               type="button"
               onClick={applyJson}
               disabled={jsonText === null}
-              className="font-label text-[10px] px-3 py-1.5 bg-ink text-paper disabled:opacity-40"
+              className="font-label text-[11px] px-3 py-1.5 bg-ink text-paper disabled:opacity-40"
             >
               Apply JSON
             </button>
@@ -290,7 +291,7 @@ export default function DigestPreferencesEditor({
                 setJsonText(null);
                 setCustomTone(false);
               }}
-              className="font-label text-[10px] underline text-ink-soft"
+              className="font-label text-[11px] underline text-ink-soft"
             >
               Reset news preferences to defaults
             </button>

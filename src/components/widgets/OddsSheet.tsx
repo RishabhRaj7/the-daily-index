@@ -1,5 +1,7 @@
 "use client";
 
+import MoveArrow from "@/components/chrome/MoveArrow";
+import { ArrowSquareOutIcon, StarIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import type { OddsMarket } from "@/lib/types";
 import Sheet from "@/components/extras/Sheet";
@@ -91,7 +93,7 @@ export default function OddsSheet({ market: m, why, watched = false, onClose }: 
             </span>
             <span className="pb-1">
               <span className="block font-sans font-semibold text-[16px] leading-tight">{leader}</span>
-              <span className="flex gap-3 mt-1 font-mono text-[10.5px] text-ink-soft">
+              <span className="flex gap-3 mt-1 font-mono text-[11px] text-ink-soft">
                 {m.lead.move != null && Math.abs(m.lead.move) >= 1 ? (
                   <span>
                     <Move v={m.lead.move} /> today
@@ -110,7 +112,7 @@ export default function OddsSheet({ market: m, why, watched = false, onClose }: 
         )}
         {watched && !starred ? (
           <span className="chip h-8 text-[12px] gap-1.5" title="One of your watchlist's questions (edit it under Straw Poll)" style={{ borderColor: "var(--section-hue)", color: "var(--section-hue)" }}>
-            ★ On your watchlist
+            <StarIcon size={13} weight="fill" className="inline align-[-2px]" aria-hidden="true" /> On your watchlist
           </span>
         ) : (
           <button
@@ -120,7 +122,7 @@ export default function OddsSheet({ market: m, why, watched = false, onClose }: 
             className="chip h-8 text-[12px] gap-1.5"
             style={starred ? { background: "var(--section-hue)", borderColor: "var(--section-hue)", color: "var(--paper)" } : undefined}
           >
-            {starred ? "★ Starred" : "☆ Watch this"}
+            {starred ? <><StarIcon size={13} weight="fill" className="inline align-[-2px]" aria-hidden="true" /> Starred</> : <><StarIcon size={13} className="inline align-[-2px]" aria-hidden="true" /> Watch this</>}
           </button>
         )}
       </div>
@@ -128,7 +130,7 @@ export default function OddsSheet({ market: m, why, watched = false, onClose }: 
       {/* Every contender over time. */}
       <div className="mt-6">
         <div className="flex items-center justify-between gap-3 mb-2">
-          <span className="font-label text-[10px] text-ink-soft">{m.binary ? "The chance" : m.hit ? "The closest calls" : "The front-runners"} over time</span>
+          <span className="font-label text-[11px] text-ink-soft">{m.binary ? "The chance" : m.hit ? "The closest calls" : "The front-runners"} over time</span>
           <span className="flex gap-1">
             {(["1d", "1w", "1m", "all"] as const).map((r) => (
               <button
@@ -136,7 +138,7 @@ export default function OddsSheet({ market: m, why, watched = false, onClose }: 
                 type="button"
                 onClick={() => setRange(r)}
                 aria-pressed={range === r}
-                className="font-mono text-[10.5px] rounded-full px-2.5 py-1 border hairline"
+                className="font-mono text-[11px] rounded-full px-2.5 py-1 border hairline"
                 style={range === r ? { background: "var(--ink)", color: "var(--paper)", borderColor: "var(--ink)" } : undefined}
               >
                 {r === "all" ? "All" : r.toUpperCase()}
@@ -157,7 +159,7 @@ export default function OddsSheet({ market: m, why, watched = false, onClose }: 
 
       {/* Why it moved. */}
       <div className="mt-6">
-        <div className="font-label text-[10px] text-ink-soft mb-2">{bigMove ? "Why it moved" : "In the news"}</div>
+        <div className="font-label text-[11px] text-ink-soft mb-2">{bigMove ? "Why it moved" : "In the news"}</div>
         {news === null ? (
           <div className="space-y-2 animate-pulse">
             <div className="h-4 w-3/4 rounded bg-card-bg" />
@@ -180,17 +182,17 @@ export default function OddsSheet({ market: m, why, watched = false, onClose }: 
                     <li key={n.url} className="py-2 grid grid-cols-[1.4rem_minmax(0,1fr)] gap-2 items-start">
                       <span className="pt-0.5">
                         {pin && (
-                          <span className="grid place-items-center w-5 h-5 rounded-full border border-[color:var(--ink)] font-mono text-[10px] font-bold">{pin.n}</span>
+                          <span className="grid place-items-center w-5 h-5 rounded-full border border-[color:var(--ink)] font-mono text-[11px] font-bold">{pin.n}</span>
                         )}
                       </span>
                       <a href={n.url} target="_blank" rel="noopener noreferrer" className="group min-w-0">
                         <span className="block font-sans text-[13.5px] leading-snug group-hover:underline decoration-dotted underline-offset-2">{n.title}</span>
-                        <span className="block font-mono text-[10px] text-ink-faint mt-0.5">
+                        <span className="block font-mono text-[11px] text-ink-faint mt-0.5">
                           {n.source} · {ago(n.at)}
                           {pin && (
                             <span className={pin.move > 0 ? "text-up" : "text-down"}>
                               {" "}
-                              · {leader} {pin.move > 0 ? "▲" : "▼"} {Math.abs(Math.round(pin.move))} pts after
+                              · {leader} <MoveArrow up={pin.move > 0} /> {Math.abs(Math.round(pin.move))} pts after
                             </span>
                           )}
                         </span>
@@ -206,7 +208,7 @@ export default function OddsSheet({ market: m, why, watched = false, onClose }: 
 
       {/* The field. */}
       <div className="mt-6">
-        <div className="font-label text-[10px] text-ink-soft mb-2">{m.hit ? "Every level" : "The field"}</div>
+        <div className="font-label text-[11px] text-ink-soft mb-2">{m.hit ? "Every level" : "The field"}</div>
         {m.hit ? (
           <HitLadder m={m} rows={10} size="lg" />
         ) : (
@@ -227,8 +229,8 @@ export default function OddsSheet({ market: m, why, watched = false, onClose }: 
                     <span className="text-right">
                       <span className="font-display font-bold text-[1.25rem] leading-none tabular-nums">{Math.round(o.prob)}%</span>
                       {d != null && Math.abs(d) >= 1 && (
-                        <span className={`block font-mono text-[10px] ${d > 0 ? "text-up" : "text-down"}`}>
-                          {d > 0 ? "▲" : "▼"} {Math.abs(Math.round(d))}
+                        <span className={`block font-mono text-[11px] ${d > 0 ? "text-up" : "text-down"}`}>
+                          <MoveArrow up={d > 0} /> {Math.abs(Math.round(d))}
                         </span>
                       )}
                     </span>
@@ -236,7 +238,7 @@ export default function OddsSheet({ market: m, why, watched = false, onClose }: 
                 );
               })}
             </ul>
-            {m.outcomes.some((o) => o.prev != null) && <p className="font-mono text-[10px] text-ink-faint mt-2">The thin line marks where each stood a day ago.</p>}
+            {m.outcomes.some((o) => o.prev != null) && <p className="font-mono text-[11px] text-ink-faint mt-2">The thin line marks where each stood a day ago.</p>}
           </>
         )}
       </div>
@@ -249,7 +251,7 @@ export default function OddsSheet({ market: m, why, watched = false, onClose }: 
           ["Price gap", m.spread != null ? `${m.spread} pts` : "—"],
         ].map(([k, v]) => (
           <div key={k}>
-            <dt className="font-label text-[10px] text-ink-soft">{k}</dt>
+            <dt className="font-label text-[11px] text-ink-soft">{k}</dt>
             <dd className="font-mono text-[14px] tabular-nums mt-0.5">{v}</dd>
           </div>
         ))}
@@ -266,18 +268,18 @@ export default function OddsSheet({ market: m, why, watched = false, onClose }: 
       )}
       {m.rules && (
         <details className="mt-5 group">
-          <summary className="font-label text-[10px] text-ink-soft cursor-pointer">How it&rsquo;s decided</summary>
+          <summary className="font-label text-[11px] text-ink-soft cursor-pointer">How it&rsquo;s decided</summary>
           <p className="font-sans text-[13px] text-ink-soft leading-relaxed mt-2">
             {m.rules}
             {m.rules.length >= 400 ? "…" : ""}
           </p>
         </details>
       )}
-      <p className="font-mono text-[10px] text-ink-faint mt-6 leading-relaxed">
+      <p className="font-mono text-[11px] text-ink-faint mt-6 leading-relaxed">
         Prices are what traders pay for a share that pays $1 if it happens, read as a chance. News from Google News; the paper links stories to jumps by
         their timing, which suggests a cause but doesn&rsquo;t prove one. The paper reads prices; it takes no bets.{" "}
         <a href={m.url} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted underline-offset-2 hover:text-ink">
-          {m.source} ↗
+          {m.source} <ArrowSquareOutIcon size={13} className="inline align-[-2px]" aria-hidden="true" />
         </a>{" "}
         (needs a VPN in India)
       </p>

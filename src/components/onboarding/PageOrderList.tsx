@@ -1,13 +1,17 @@
 "use client";
 
+import { ArrowDownIcon, ArrowUpIcon, CaretDownIcon } from "@phosphor-icons/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { SectionKey } from "@/lib/types";
 import type { DigestPreferences, DigestSection } from "@/lib/preferences/types";
 import { SECTION_META } from "@/lib/sections";
+import { chaptersFor, type ChapterId } from "@/lib/chapters";
 import { SectionSettings, sectionSummary } from "@/components/settings/DigestPreferencesEditor";
 
-// Page order: every section under the name the paper prints it with
-// ("The Ledger"), its subject beneath ("Finance"), in the order it prints.
+// Page order: the menu's groups (lib/chapters.ts), and under each its sections by
+// the name the paper prints them with ("The Ledger"), the subject beneath
+// ("Finance"), in the order they print. A section moves within its group; the
+// group itself moves with the arrows on its heading.
 // The one place for what prints and in what order. In Settings it also holds
 // what fills each section (`news`): a row the AI editor fills says so under
 // its name and opens to its settings (stories, what it puts first, a note to
@@ -22,14 +26,12 @@ import { SectionSettings, sectionSummary } from "@/components/settings/DigestPre
 const SLIDE_MS = 320;
 
 const roundBtn = "font-mono text-xs px-1.5 py-0.5 border hairline rounded-full disabled:opacity-30 hover:bg-card-bg transition-transform";
-const editBtn = "flex items-center gap-1 font-label text-[10px] px-2 py-1 rounded-full text-ink-soft hover:text-ink hover:bg-card-bg";
+const editBtn = "flex items-center gap-1 font-label text-[11px] px-2 py-1 rounded-full text-ink-soft hover:text-ink hover:bg-card-bg";
 const rowCls = "relative flex flex-wrap items-center gap-3 py-2.5 px-2 -mx-2 rounded-lg transition-[background-color,box-shadow] duration-500";
 
 function Chevron({ open }: { open: boolean }) {
   return (
-    <svg viewBox="0 0 16 16" className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 6l4 4 4-4" />
-    </svg>
+    <CaretDownIcon size={14} className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} aria-hidden="true" />
   );
 }
 
@@ -43,6 +45,7 @@ export default function PageOrderList({
   order,
   hidden,
   onMove,
+  onMoveChapter,
   onToggle,
   news,
   onNewsChange,
@@ -50,6 +53,7 @@ export default function PageOrderList({
   order: SectionKey[];
   hidden: SectionKey[];
   onMove: (key: SectionKey, dir: -1 | 1) => void;
+  onMoveChapter: (id: ChapterId, dir: -1 | 1) => void;
   onToggle: (key: SectionKey) => void;
   /** Settings: what fills each section, edited under its row. */
   news?: DigestPreferences | null;
@@ -131,13 +135,16 @@ export default function PageOrderList({
     else rows.current.delete(key);
   };
   const shownCount = order.filter((k) => !hidden.includes(k)).length;
+  // Printing order: each chapter's sections together.
+  const chapters = chaptersFor(order).filter((c) => c.printed.length > 0);
+  const flat = chapters.flatMap((c) => c.printed);
   // A row's settings, opened beneath it across the row's whole width.
   const settings = (key: string, sections: DigestSection[]) =>
     openKey === key && (
       <div className="basis-full pl-10 pr-1 pb-2 pt-1 space-y-5">
         {sections.map((sec) => (
           <div key={sec.id}>
-            {sections.length > 1 && <span className="block font-label text-[10px] text-ink-soft mb-2">{sec.label}</span>}
+            {sections.length > 1 && <span className="block font-label text-[11px] text-ink-soft mb-2">{sec.label}</span>}
             <SectionSettings section={sec} onChange={setSection} />
           </div>
         ))}
@@ -147,10 +154,22 @@ export default function PageOrderList({
   return (
     <>
       <ol className="divide-y hairline border-y hairline">
-        {order.map((key, idx) => {
+        {chapters.flatMap((chapter, chapterAt) => [
+          <li key={`chapter-${chapter.id}`} className="flex items-center justify-between gap-3 pt-4 pb-1.5">
+            <span className="font-display font-extrabold uppercase text-[1.15rem] leading-none">{chapter.label}</span>
+            <span className="flex gap-1">
+              <button type="button" aria-label={`Move ${chapter.label} up`} disabled={chapterAt === 0} onClick={() => onMoveChapter(chapter.id, -1)} className={roundBtn}>
+                <ArrowUpIcon size={14} weight="bold" aria-hidden="true" />
+              </button>
+              <button type="button" aria-label={`Move ${chapter.label} down`} disabled={chapterAt === chapters.length - 1} onClick={() => onMoveChapter(chapter.id, 1)} className={roundBtn}>
+                <ArrowDownIcon size={14} weight="bold" aria-hidden="true" />
+              </button>
+            </span>
+          </li>,
+          ...chapter.printed.map((key, inChapter) => {
           const meta = SECTION_META[key];
           const active = !hidden.includes(key);
-          const position = order.slice(0, idx + 1).filter((k) => !hidden.includes(k)).length;
+          const position = flat.slice(0, flat.indexOf(key) + 1).filter((k) => !hidden.includes(k)).length;
           const filled = fills(key);
           const open = openKey === key;
           return (
@@ -159,8 +178,8 @@ export default function PageOrderList({
               <span className="w-1 self-stretch rounded-full shrink-0" style={{ background: active ? meta.hue : "var(--rule)" }} aria-hidden="true" />
               <span className="flex-1 min-w-0">
                 <span className={`block font-headline text-[15px] leading-tight ${active ? "font-semibold" : "text-ink-soft italic"}`}>{meta.name}</span>
-                <span className="block font-label text-[10px] text-ink-soft mt-0.5">{meta.kicker}</span>
-                {filled.length > 0 && <span className="block font-mono text-[10px] text-ink-faint mt-0.5 truncate">{filled.map(sectionSummary).join(" · ")}</span>}
+                <span className="block font-label text-[11px] text-ink-soft mt-0.5">{meta.kicker}</span>
+                {filled.length > 0 && <span className="block font-mono text-[11px] text-ink-faint mt-0.5 truncate">{filled.map(sectionSummary).join(" · ")}</span>}
               </span>
               {filled.length > 0 && (
                 <button type="button" onClick={() => setOpenKey(open ? null : key)} aria-expanded={open} aria-label={`${open ? "Close" : "Edit"} what fills ${meta.name}`} className={editBtn}>
@@ -170,11 +189,11 @@ export default function PageOrderList({
               )}
               {active && (
                 <span className="flex gap-1">
-                  <button type="button" aria-label={`Move ${meta.name} up`} disabled={idx === 0} onClick={() => move(key, -1)} className={`${roundBtn} active:-translate-y-0.5`}>
-                    ↑
+                  <button type="button" aria-label={`Move ${meta.name} up`} disabled={inChapter === 0} onClick={() => move(key, -1)} className={`${roundBtn} active:-translate-y-0.5`}>
+                    <ArrowUpIcon size={14} weight="bold" aria-hidden="true" />
                   </button>
-                  <button type="button" aria-label={`Move ${meta.name} down`} disabled={idx === order.length - 1} onClick={() => move(key, 1)} className={`${roundBtn} active:translate-y-0.5`}>
-                    ↓
+                  <button type="button" aria-label={`Move ${meta.name} down`} disabled={inChapter === chapter.printed.length - 1} onClick={() => move(key, 1)} className={`${roundBtn} active:translate-y-0.5`}>
+                    <ArrowDownIcon size={14} weight="bold" aria-hidden="true" />
                   </button>
                 </span>
               )}
@@ -182,15 +201,16 @@ export default function PageOrderList({
                 type="button"
                 onClick={() => onToggle(key)}
                 aria-pressed={active}
-                className={`font-label text-[10px] px-2.5 py-1 border hairline rounded-full transition-colors ${active ? "bg-accent text-accent-ink border-accent" : "hover:bg-card-bg"}`}
+                className={`font-label text-[11px] px-2.5 py-1 border hairline rounded-full transition-colors ${active ? "bg-accent text-accent-ink border-accent" : "hover:bg-card-bg"}`}
               >
                 {active ? "Shown" : "Hidden"}
               </button>
               {settings(key, filled)}
             </li>
           );
-        })}
-        {/* The reader's own sections print after the paper's. */}
+          }),
+        ])}
+        {/* The reader's own sections print at the end of Next. */}
         {own.map((sec, i) => {
           const key = `own:${sec.id}`;
           const open = openKey === key;
@@ -209,8 +229,8 @@ export default function PageOrderList({
                 ) : (
                   <span className="block font-headline text-[15px] leading-tight font-semibold truncate">{sec.label}</span>
                 )}
-                <span className="block font-label text-[10px] text-ink-soft mt-0.5">Your section</span>
-                <span className="block font-mono text-[10px] text-ink-faint mt-0.5 truncate">{sectionSummary(sec)}</span>
+                <span className="block font-label text-[11px] text-ink-soft mt-0.5">Your section</span>
+                <span className="block font-mono text-[11px] text-ink-faint mt-0.5 truncate">{sectionSummary(sec)}</span>
               </span>
               <button type="button" onClick={() => setOpenKey(open ? null : key)} aria-expanded={open} className={editBtn}>
                 {open ? "Done" : "Edit"}
@@ -218,13 +238,13 @@ export default function PageOrderList({
               </button>
               <span className="flex gap-1">
                 <button type="button" aria-label={`Move ${sec.label} up`} disabled={i === 0} onClick={() => moveOwn(sec.id, -1)} className={`${roundBtn} active:-translate-y-0.5`}>
-                  ↑
+                  <ArrowUpIcon size={14} weight="bold" aria-hidden="true" />
                 </button>
                 <button type="button" aria-label={`Move ${sec.label} down`} disabled={i === own.length - 1} onClick={() => moveOwn(sec.id, 1)} className={`${roundBtn} active:translate-y-0.5`}>
-                  ↓
+                  <ArrowDownIcon size={14} weight="bold" aria-hidden="true" />
                 </button>
               </span>
-              <button type="button" onClick={() => removeOwn(sec.id)} className="font-label text-[10px] px-2.5 py-1 border hairline rounded-full text-accent hover:bg-card-bg">
+              <button type="button" onClick={() => removeOwn(sec.id)} className="font-label text-[11px] px-2.5 py-1 border hairline rounded-full text-accent hover:bg-card-bg">
                 Remove
               </button>
               {settings(key, [sec])}
@@ -233,7 +253,7 @@ export default function PageOrderList({
         })}
       </ol>
       {editable && (
-        <button type="button" onClick={addOwn} className="mt-3 font-label text-[10px] px-3 py-1.5 border hairline rounded-full hover:bg-card-bg">
+        <button type="button" onClick={addOwn} className="mt-3 font-label text-[11px] px-3 py-1.5 border hairline rounded-full hover:bg-card-bg">
           + Add a section
         </button>
       )}

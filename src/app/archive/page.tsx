@@ -1,6 +1,8 @@
+import MoveArrow from "@/components/chrome/MoveArrow";
+import { ArrowLeftIcon, ArrowRightIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { cookies } from "next/headers";
-import TopBar from "@/components/chrome/TopBar";
+import SiteNav from "@/components/chrome/SiteNav";
 import { RisingWords } from "@/components/story/SectionHeader";
 import { archiveAvailable, archiveDates, archivedEdition, readSnapshot } from "@/lib/server/editions";
 import type { EditionRecord } from "@/lib/server/editions";
@@ -70,7 +72,7 @@ function Market({ market }: { market: Issue["market"] }) {
     <span className="font-mono text-[11px] text-ink-soft">
       {market.name}{" "}
       <span className={up ? "text-up" : "text-down"}>
-        {up ? "▲" : "▼"} {Math.abs(market.changePct).toFixed(2)}%
+        <MoveArrow up={up} /> {Math.abs(market.changePct).toFixed(2)}%
       </span>
     </span>
   );
@@ -119,11 +121,11 @@ export default async function ArchivePage() {
 
   return (
     <>
-      <div className="page-scale flex-1 flex flex-col w-full">
-      <TopBar sections={[]} isArchive alwaysShowLogo />
+      <div className="page-scale with-rail flex-1 flex flex-col w-full">
+      <SiteNav />
       <main className="flex-1 page-wrap px-4 sm:px-6 pt-10 pb-28 w-full">
         <Link href="/" className="chip mb-10">
-          <span aria-hidden="true">←</span> Back to today&rsquo;s edition
+          <ArrowLeftIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" /> Back to today&rsquo;s edition
         </Link>
 
         <header data-reveal="fade">
@@ -169,7 +171,7 @@ export default async function ArchivePage() {
         href="/"
         className="fixed bottom-5 right-5 z-40 chip chip-signal h-11 px-5 shadow-[0_12px_30px_-12px_rgba(0,0,0,0.5)]"
       >
-        Today&rsquo;s paper <span aria-hidden="true">→</span>
+        Today&rsquo;s paper <ArrowRightIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" />
       </Link>
     </>
   );
@@ -184,7 +186,7 @@ function LatestIssue({ issue }: { issue: Issue }) {
     >
       <div className="grid grid-cols-1 md:grid-cols-[auto_minmax(0,1fr)] gap-x-10 gap-y-5">
         <div>
-          <div className="font-label text-[10px] text-accent">Latest edition</div>
+          <div className="font-label text-[11px] text-accent">Latest edition</div>
           <div className="font-display font-extrabold text-[6rem] leading-[0.78] mt-3">
             {fmt(issue.date, { day: "2-digit" })}
           </div>
@@ -197,7 +199,7 @@ function LatestIssue({ issue }: { issue: Issue }) {
         <div className="min-w-0 md:border-l hairline md:pl-10">
           {issue.lead && (
             <>
-              <div className="font-label text-[10px] text-ink-soft">{issue.lead.section}</div>
+              <div className="font-label text-[11px] text-ink-soft">{issue.lead.section}</div>
               <p className="font-headline text-[clamp(1.6rem,3.2vw,2.5rem)] leading-[1.08] mt-2 text-balance">
                 <span className="headline-link">{issue.lead.title}</span>
               </p>
@@ -260,7 +262,7 @@ function CalendarMonth({
       </div>
       <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
         {WEEKDAYS.map((d) => (
-          <div key={d} className="font-label text-[10px] text-ink-soft text-center pb-1">
+          <div key={d} className="font-label text-[11px] text-ink-soft text-center pb-1">
             {d}
           </div>
         ))}
@@ -309,7 +311,7 @@ function CalendarMonth({
                   {issue.lead.title}
                 </span>
               )}
-              <span className="hidden sm:block mt-auto pt-1 font-mono text-[10px] text-ink-faint group-hover:text-accent-ink">
+              <span className="hidden sm:block mt-auto pt-1 font-mono text-[11px] text-ink-faint group-hover:text-accent-ink">
                 {issue.total} STORIES
               </span>
             </Link>

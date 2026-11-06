@@ -4,7 +4,8 @@ import { SECTION_META } from "@/lib/sections";
 
 // Small, grounded editorial helpers layered on top of Gemini. Every prompt
 // here is constrained to material we already hold — the model is allowed to
-// rephrase, never to report.
+// rephrase, never to report. They run on the light models (GEMINI_LIGHT_MODEL), so
+// they don't use up the first model's few calls, which the digest needs.
 
 // A little warmth for one-liners and the desk note; facts stay grounded by
 // the prompts themselves.
@@ -53,6 +54,7 @@ ${blocks}`;
         temperature: EDITORIAL_TEMPERATURE,
         timeoutMs: EDITORIAL_TIMEOUT_MS,
         label: "pickBlurbs",
+        light: true,
       }),
     ) as Array<{ i: number; line: string }>;
     const out: Record<string, string> = {};
@@ -134,6 +136,7 @@ Return JSON: {"note": "..."}`;
         temperature: EDITORIAL_TEMPERATURE,
         timeoutMs: EDITORIAL_TIMEOUT_MS,
         label: "editorsNote",
+        light: true,
       }),
     ) as { note?: string };
     const note = parsed.note?.trim();

@@ -1,5 +1,7 @@
 "use client";
 
+import { ExportIcon, XIcon } from "@phosphor-icons/react";
+import PublisherMark from "@/components/story/PublisherMark";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Story } from "@/lib/types";
@@ -40,12 +42,12 @@ function ShareCard({ story, cardRef }: { story: Story; cardRef: React.RefObject<
       {summary && <p className="font-body text-[17px] leading-[1.55] text-ink/85 mt-6 line-clamp-[9]">{summary}</p>}
       {story.why && (
         <div className="why-line mt-5 pl-4 border-l-2" style={{ borderColor: hue }}>
-          <div className="font-label text-[10px] text-ink-soft">Why it matters</div>
+          <div className="font-label text-[11px] text-ink-soft">Why it matters</div>
           <p className="font-headline italic text-[16px] leading-snug mt-1">{story.why}</p>
         </div>
       )}
       <div className="mt-auto pt-8 flex items-center justify-between font-mono text-[11px] text-ink-soft border-t hairline">
-        <span className="pt-4">{story.sourceName ? `SOURCE · ${story.sourceName.toUpperCase()}` : ""}</span>
+        <span className="pt-4 inline-flex items-center gap-1.5 font-sans text-[13px]">{story.sourceName ? <PublisherMark source={story.sourceName} size={18} /> : ""}</span>
         <span className="pt-4 flex gap-[3px]" aria-hidden="true">
           {Array.from({ length: 5 }).map((_, i) => (
             <span key={i} className="w-[5px] h-[5px] rounded-full" style={{ background: i === 2 ? hue : "var(--ink)" }} />
@@ -63,7 +65,7 @@ const APPS: Array<{ id: string; label: string; href: (text: string, url: string)
   { id: "telegram", label: "Telegram", href: (t, u) => `https://t.me/share/url?url=${encodeURIComponent(u)}&text=${encodeURIComponent(t)}` },
 ];
 
-export default function ShareButton({ story, className = "" }: { story: Story; className?: string }) {
+export default function ShareButton({ story, className = "", iconOnly = false }: { story: Story; className?: string; iconOnly?: boolean }) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
   const [image, setImage] = useState<{ url: string; blob: Blob } | null>(null);
@@ -155,14 +157,13 @@ export default function ShareButton({ story, className = "" }: { story: Story; c
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={`inline-flex items-center gap-1.5 text-ink-soft hover:text-ink transition-colors ${className}`}
+        className={iconOnly ? `icon-btn ${className}` : `inline-flex items-center gap-1.5 text-ink-soft hover:text-ink transition-colors ${className}`}
+        aria-label={iconOnly ? "Share this story" : undefined}
+        title={iconOnly ? "Share" : undefined}
         data-clip-ignore="true"
       >
-        <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M8 10V2.5M5 5.2 8 2.3l3 2.9" />
-          <path d="M3 8.5v4.2c0 .5.4.8.8.8h8.4c.5 0 .8-.3.8-.8V8.5" />
-        </svg>
-        Share
+        <ExportIcon size={iconOnly ? 17 : 14} aria-hidden="true" />
+        {!iconOnly && "Share"}
       </button>
 
       {open &&
@@ -182,9 +183,7 @@ export default function ShareButton({ story, className = "" }: { story: Story; c
                 <div className="flex items-center justify-between">
                   <h2 className="font-display font-extrabold text-[2rem] leading-none">Share</h2>
                   <button type="button" onClick={() => setOpen(false)} className="icon-btn" aria-label="Close">
-                    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
-                      <path d="M4 4l8 8M12 4l-8 8" />
-                    </svg>
+                    <XIcon size={17} aria-hidden="true" />
                   </button>
                 </div>
               </div>
@@ -221,7 +220,7 @@ export default function ShareButton({ story, className = "" }: { story: Story; c
                     <button type="button" onClick={download} disabled={status !== "ready"} className="chip h-11 justify-center">
                       Download PNG
                     </button>
-                    <div className="font-label text-[10px] text-ink-soft mt-3 mb-1">Send the link</div>
+                    <div className="font-label text-[11px] text-ink-soft mt-3 mb-1">Send the link</div>
                     <div className="grid grid-cols-2 gap-2">
                       {APPS.map((app) => (
                         <a

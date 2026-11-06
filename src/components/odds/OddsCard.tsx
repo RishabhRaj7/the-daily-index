@@ -1,5 +1,8 @@
 "use client";
 
+import { PublisherLogo } from "@/components/story/PublisherMark";
+import MoveArrow from "@/components/chrome/MoveArrow";
+import { ArrowDownIcon, StarIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import type { OddsMarket } from "@/lib/types";
 import { compactMoney, ladderLevel, ladderLine, type OddsPick } from "@/lib/odds-pick";
@@ -17,8 +20,8 @@ import { SERIES_COLORS } from "./OddsChart";
 export function Move({ v, className = "" }: { v: number | null | undefined; className?: string }) {
   if (v == null || Math.abs(v) < 1) return null;
   return (
-    <span className={`font-mono text-[10.5px] font-semibold tabular-nums whitespace-nowrap ${v > 0 ? "text-up" : "text-down"} ${className}`}>
-      {v > 0 ? "▲" : "▼"} {Math.abs(Math.round(v))}
+    <span className={`font-mono text-[11px] font-semibold tabular-nums whitespace-nowrap ${v > 0 ? "text-up" : "text-down"} ${className}`}>
+      <MoveArrow up={v > 0} /> {Math.abs(Math.round(v))}
     </span>
   );
 }
@@ -62,7 +65,7 @@ export function HitLadder({ m, rows = 6, size = "sm" }: { m: OddsMarket; rows?: 
         return (
           <span key={`${o.name}-${i}`} className="block">
             {first && i > 0 && (
-              <span className="flex items-center gap-2 my-1 font-label text-[9px] text-ink-faint">
+              <span className="flex items-center gap-2 my-1 font-label text-[11px] text-ink-faint">
                 <span className="flex-1 border-t border-dashed hairline" /> today <span className="flex-1 border-t border-dashed hairline" />
               </span>
             )}
@@ -94,9 +97,9 @@ export default function OddsCard({ pick, compact = false }: { pick: OddsPick; co
         onClick={() => setOpen(true)}
         className="group text-left w-full h-full flex flex-col rounded-2xl border hairline bg-card-bg/40 p-3.5 transition-[transform,border-color,background-color] duration-300 hover:-translate-y-0.5 hover:border-[color:var(--section-hue)] hover:bg-card-bg"
       >
-        <span className="flex items-center justify-between gap-2 font-label text-[9.5px]">
+        <span className="flex items-center justify-between gap-2 font-label text-[11px]">
           <span className="truncate" style={{ color: "var(--section-hue)" }}>
-            {pick.watched ? "★ " : ""}
+            {pick.watched ? <><StarIcon size={13} weight="fill" className="inline align-[-2px]" aria-hidden="true" /> </> : null}
             {pick.why}
           </span>
           <Move v={pick.move || m.lead.move} />
@@ -108,7 +111,7 @@ export default function OddsCard({ pick, compact = false }: { pick: OddsPick; co
           {m.hit ? (
             <>
               <HitLadder m={m} rows={4} />
-              <span className="block font-mono text-[10px] text-ink-soft mt-1.5 leading-snug">{ladderLine(m)}</span>
+              <span className="block font-mono text-[11px] text-ink-soft mt-1.5 leading-snug">{ladderLine(m)}</span>
             </>
           ) : (
             <>
@@ -123,7 +126,7 @@ export default function OddsCard({ pick, compact = false }: { pick: OddsPick; co
                 <FieldBar m={m} />
               </span>
               {runners.length > 0 && (
-                <span className="block font-mono text-[10px] text-ink-soft mt-1.5 truncate">
+                <span className="block font-mono text-[11px] text-ink-soft mt-1.5 truncate">
                   {runners.map((o, i) => (
                     <span key={`${o.name}-${i}`}>
                       {i > 0 && " · "}
@@ -134,8 +137,8 @@ export default function OddsCard({ pick, compact = false }: { pick: OddsPick; co
               )}
             </>
           )}
-          <span className="block font-mono text-[10.5px] text-ink-faint mt-1.5 truncate">
-            {m.source} · ${compactMoney(m.vol)}
+          <span className="block font-mono text-[11px] text-ink-faint mt-1.5 truncate">
+            <PublisherLogo source={m.source} size={13} /> {m.source} · ${compactMoney(m.vol)}
             {m.also?.length ? ` · ${m.also.map((a) => `${a.source} ${Math.round(a.prob)}%`).join(" · ")}` : ""}
           </span>
         </span>
@@ -153,14 +156,14 @@ export function OddsStrip({ picks, label = "What traders expect" }: { picks: Odd
   if (picks.length === 0) return null;
   const cols = picks.length >= 4 ? "lg:grid-cols-4" : picks.length === 3 ? "lg:grid-cols-3" : "lg:grid-cols-2";
   return (
-    <div className="mt-10" data-clip-ignore="true">
-      <div className="flex items-baseline justify-between gap-3 border-t hairline pt-3 mb-3">
-        <span className="font-label text-[10.5px]">
+    <div className="mt-4" data-clip-ignore="true">
+      <div className="flex items-baseline justify-between gap-3 border-t hairline pt-2.5 mb-2.5">
+        <span className="font-label text-[11px]">
           <span style={{ color: "var(--hue-poll)" }}>Straw Poll</span>
           <span className="text-ink-soft"> · {label}</span>
         </span>
-        <a href="#straw-poll" className="font-mono text-[10px] text-ink-faint hover:text-ink">
-          more odds ↓
+        <a href="#straw-poll" className="font-mono text-[11px] text-ink-faint hover:text-ink">
+          more odds <ArrowDownIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" />
         </a>
       </div>
       <div className={`grid grid-flow-col auto-cols-[78%] sm:auto-cols-[46%] lg:grid-flow-row lg:auto-cols-auto ${cols} gap-3 overflow-x-auto lg:overflow-visible snap-x snap-mandatory pb-1 -mx-1 px-1`}>

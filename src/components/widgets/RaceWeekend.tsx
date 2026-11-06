@@ -1,5 +1,6 @@
 "use client";
 
+import { CalendarDotsIcon, ClockIcon } from "@phosphor-icons/react";
 import { useSyncExternalStore } from "react";
 import type { F1Session, F1SessionTop } from "@/lib/types";
 import { teamColor } from "@/lib/personalization";
@@ -54,15 +55,21 @@ export default function RaceWeekend({ sessions, tops = {} }: { sessions: F1Sessi
   return (
     <div className="module" data-reveal>
       <div className="flex items-baseline justify-between gap-2 mb-2">
-        <div className="font-label text-[10px] text-ink-soft">
+        <div className="font-label text-[11px] text-ink-soft inline-flex items-center gap-1.5">
+          <CalendarDotsIcon size={14} aria-hidden="true" />
           Race weekend{isSprint ? " · sprint" : ""}
         </div>
-        {tz && <div className="font-mono text-[10px] text-ink-faint">Times in {tz}</div>}
+        {tz && (
+          <div className="font-mono text-[11px] text-ink-faint inline-flex items-center gap-1">
+            <ClockIcon size={13} aria-hidden="true" />
+            {tz}
+          </div>
+        )}
       </div>
       <ol className="space-y-3">
         {days.map(({ day, items }) => (
           <li key={day}>
-            <div className="font-label text-[10px] text-ink-faint mb-1">{day}</div>
+            <div className="font-label text-[11px] text-ink-faint mb-1">{day}</div>
             <ul className="space-y-1">
               {items.map(({ s, i }) => {
                 const start = Date.parse(s.start);
@@ -82,15 +89,15 @@ export default function RaceWeekend({ sessions, tops = {} }: { sessions: F1Sessi
                   >
                     <span className={`truncate font-sans text-[13px] ${main ? "font-semibold" : ""} ${top ? "text-ink-soft" : ""}`}>
                       {SHORT[s.name] ?? s.name}
-                      {live && <span className="ml-2 font-mono text-[10px] text-down">● Live</span>}
+                      {live && <span className="ml-2 font-mono text-[11px] text-down">● Live</span>}
                       {next && at !== null && (
-                        <span className="ml-2 font-mono text-[10px] text-ink-soft">{until(start - at)}</span>
+                        <span className="ml-2 font-mono text-[11px] text-ink-soft">{until(start - at)}</span>
                       )}
                       {top && (
                         <span className="ml-2 inline-flex items-center gap-1 align-middle text-[11px] text-ink-soft" title={`${top.driver} quickest, ${top.time}`}>
                           <span className="w-[3px] h-3 rounded-full" style={{ background: teamColor(top.team) }} />
                           <span className="font-sans font-semibold text-ink">{top.code}</span>
-                          <span className="font-mono text-[10.5px]">{top.time}</span>
+                          <span className="font-mono text-[11px]">{top.time}</span>
                         </span>
                       )}
                     </span>

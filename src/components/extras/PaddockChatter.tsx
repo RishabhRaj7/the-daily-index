@@ -10,10 +10,11 @@ import type { SocialAnswer } from "@/lib/live/social";
 // by default r/formula1 and r/F1Technical's top of the day, F1, the FIA, the
 // reader's team and three reporters on X; the sliders mark changes any of it
 // (lib/feeds.ts, synced). Posts about the reader's drivers or team rank first
-// and carry their name (lib/live/social.ts, f1Chatter). On the wide layout
+// and carry their name (lib/live/social.ts, f1Chatter). On a laptop or desktop
 // the card runs down to the foot of the stories beside the Pit wall, showing
 // as many posts as fit (two at least, six at most, three lines each), so the
-// two columns end level; on a phone, two. "See all" opens the rest, with the
+// two columns end level; on an ultrawide it spans the desk's two columns; on a
+// phone, two posts. "See all" opens the rest, with the
 // X / Reddit filter. When X and Reddit have nothing
 // (or keep failing; lib/social-health.ts) the card isn't there.
 
@@ -37,7 +38,7 @@ export default function PaddockChatter() {
           {(sources.size ? [...sources] : (["x", "reddit"] as const)).map((s) => (
             <SourceLogo key={s} source={s} size={13} />
           ))}
-          <span className="font-label text-[10px] text-ink-soft truncate">Paddock chatter</span>
+          <span className="font-label text-[11px] text-ink-soft truncate">Paddock chatter</span>
         </span>
         <EditFeedsButton section="paddock" iconOnly />
       </div>

@@ -1,10 +1,15 @@
 "use client";
 
+import { ArrowRightIcon, CalendarDotsIcon, CaretDownIcon, CaretRightIcon, CaretUpIcon, ChartBarHorizontalIcon, FlagCheckeredIcon } from "@phosphor-icons/react";
+import Sheet from "@/components/extras/Sheet";
+import { PHONE, useMedia } from "@/lib/use-media";
 import { useRouter } from "next/navigation";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { F1GridResult, F1LiveResult, F1Race, F1LastRace, F1Phase, F1SessionResult, F1SessionTop } from "@/lib/types";
 import { CIRCUIT_FACTS } from "@/lib/config/circuit-facts";
 import { teamColor } from "@/lib/personalization";
+import RacePodium from "./RacePodium";
+import RaceRecapLine from "./RaceRecapLine";
 import RaceWeekend from "./RaceWeekend";
 import OddsSheet from "./OddsSheet";
 import { RaceOddsContext } from "@/components/odds/odds-context";
@@ -15,6 +20,8 @@ import type { LiveSnapshot } from "@/lib/f1-live-types";
 import LiveCard from "@/components/f1/LiveCard";
 import { TeamGlyph } from "@/components/f1/LiveTiming";
 import TrackMap, { useTrack } from "@/components/f1/TrackMap";
+
+type Row = F1GridResult | F1LiveResult | F1LastRace["results"][number];
 
 function formatCountdown(ms: number) {
   if (ms <= 0) return "Lights out";
@@ -59,7 +66,7 @@ function Countdown({ target }: { target: string }) {
               "—"
             )}
           </div>
-          <div className="font-label text-[9px] text-ink-soft mt-1">{p.label}</div>
+          <div className="font-label text-[11px] text-ink-soft mt-1">{p.label}</div>
         </div>
       ))}
     </div>
@@ -80,10 +87,13 @@ function RaceOdds({ market: m }: { market: OddsMarket }) {
   const max = Math.max(...field.map((o) => o.prob), 1);
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="module block w-full text-left group" data-reveal>
+      <button type="button" onClick={() => setOpen(true)} className="module pit-wins block w-full text-left group" data-reveal>
         <div className="flex items-baseline justify-between gap-2 mb-2.5">
-          <span className="font-label text-[10px] text-ink-soft">Who wins Sunday · traders&rsquo; odds</span>
-          <span className="font-mono text-[10px] text-ink-faint group-hover:text-ink">chart ›</span>
+          <span className="font-label text-[11px] text-ink-soft inline-flex items-center gap-1.5">
+            <ChartBarHorizontalIcon size={14} aria-hidden="true" />
+            Who wins Sunday · traders&rsquo; odds
+          </span>
+          <span className="font-mono text-[11px] text-ink-faint group-hover:text-ink">chart <CaretRightIcon size={12} weight="bold" className="inline align-[-2px]" aria-hidden="true" /></span>
         </div>
         <ul className="space-y-1.5">
           {field.map((o) => {
@@ -99,7 +109,7 @@ function RaceOdds({ market: m }: { market: OddsMarket }) {
             );
           })}
         </ul>
-        <div className="font-mono text-[10px] text-ink-faint mt-2.5">
+        <div className="font-mono text-[11px] text-ink-faint mt-2.5">
           {m.source} · ${compactMoney(m.vol)} traded{m.also?.length ? ` · ${m.also.map((a) => `${a.source} ${Math.round(a.prob)}%`).join(" · ")}` : ""}
         </div>
       </button>
@@ -139,48 +149,16 @@ function TimingRowsSkeleton({ rows = 5 }: { rows?: number }) {
 //   1. Next race  — round, name, circuit map and the countdown to lights out
 //   2. Race weekend — every session in the reader's time (RaceWeekend)
 //   3. Coming up  — the next rounds of the calendar
-//   4. Timing     — last race's podium and field (or the grid / live order)
+//   4. Timing     — last race's podium (RacePodium) and field, or the grid / live
+//                   order, under a chequered head with the weekend as timing sectors
 // During a race the first card turns into a "live now" header and the
 // timing card carries the running order.
 //
-// `part` splits the cards between the two places the F1 section has: the
-// "desk" beside the stories (next race, its weekend, the calendar — and the
-// live order during a race) and the full-width row under them (the last
-// race, beside the reader's paddock), so the column beside the stories
-// never outgrows them.
-
-type Row = F1GridResult | F1LiveResult | F1LastRace["results"][number];
-
-function Podium({ rows }: { rows: Row[] }) {
-  // P2 · P1 · P3, with P1 raised — a real podium, read left to right.
-  const byPos = (n: number) => rows.find((r) => r.position === n);
-  const order = [byPos(2), byPos(1), byPos(3)];
-  if (order.some((r) => !r)) return null;
-  const heights = ["h-14", "h-20", "h-10"];
-  return (
-    <div className="grid grid-cols-3 items-end gap-2 mt-2 mb-4">
-      {order.map((r, i) => {
-        const color = teamColor(r!.team);
-        return (
-          <div key={r!.code} className="flex flex-col items-center text-center min-w-0">
-            <span className="font-sans font-semibold text-[12px] leading-tight truncate max-w-full">{r!.driver}</span>
-            <span className="font-mono text-[10px] text-ink-soft truncate max-w-full">{r!.team}</span>
-            {/* The winner's race time; the others' gap to the winner. */}
-            <span className="font-mono text-[10px] tabular-nums truncate max-w-full mt-0.5 mb-1.5">
-              {("interval" in r! ? r!.interval : r!.time) || "—"}
-            </span>
-            <span
-              className={`w-full ${heights[i]} rounded-t-md flex items-start justify-center pt-1.5 font-display font-extrabold text-[1.3rem] leading-none bar-grow-y`}
-              style={{ background: `color-mix(in srgb, ${color} 75%, var(--paper))`, color: "var(--paper)", ["--bar-i" as string]: i }}
-            >
-              {r!.position}
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
+// `part` splits the cards between the places the F1 section has: the "desk"
+// beside the stories (next race and its weekend, and the live order during a
+// race) and the full-width row under them: "archive" (the last race, beside the
+// reader's paddock) and, at the end of that row, "calendar" (who wins Sunday,
+// coming up). So the column beside the stories never outgrows them.
 
 export default function StartingGrid({
   nextRace,
@@ -213,7 +191,7 @@ export default function StartingGrid({
   weekendName?: string | null;
   gridSetAt?: string | null;
   tops?: Record<string, F1SessionTop>;
-  part?: "desk" | "archive";
+  part?: "desk" | "archive" | "calendar";
   nextRace: F1Race;
   upcoming: F1Race[];
   lastRace?: F1LastRace | null;
@@ -238,7 +216,10 @@ export default function StartingGrid({
     return facts && facts.length > 0 ? facts[0] : null;
   }, [nextRace.circuit]);
   const router = useRouter();
-  const [showAll, setShowAll] = useState(false);
+  const [wantAll, setShowAll] = useState(false);
+  // On a phone the whole order slides up in a sheet; on anything bigger it opens in place.
+  const phone = useMedia(PHONE);
+  const showAll = wantAll && !phone;
   const raceOdds = useContext(RaceOddsContext);
   const track = useTrack(part === "desk" ? nextRace.circuitKey : null);
   const live = racePhase === "race" && currentRace !== null;
@@ -262,7 +243,10 @@ export default function StartingGrid({
     const el = listRef.current;
     if (!el || showAll) return;
     const measure = () => {
-      const rowH = el.querySelector("tr")?.getBoundingClientRect().height || ROW_H;
+      // A row's screen height carries the page's zoom (.page-scale); the box's own
+      // height doesn't, so the zoom is taken back out, as in lib/use-fit-rows.ts.
+      const zoom = el.offsetHeight > 0 ? el.getBoundingClientRect().height / el.offsetHeight || 1 : 1;
+      const rowH = (el.querySelector("tr")?.getBoundingClientRect().height ?? 0) / zoom || ROW_H;
       setFit(Math.max(baseRows, Math.floor(el.clientHeight / rowH)));
     };
     measure();
@@ -336,15 +320,15 @@ export default function StartingGrid({
       >
         <div className="flex items-center justify-between gap-2">
           <span
-            className="rounded-full px-2.5 py-0.5 font-label text-[10px]"
+            className="rounded-full px-2.5 py-0.5 font-label text-[11px]"
             style={{ background: "var(--section-hue)", color: "var(--paper)" }}
           >
             {live || liveSnap?.running ? "Live now" : "Next up"} · Round {displayedRace.round}
           </span>
-          <span className="font-label text-[10px] text-ink-soft truncate">{displayedRace.country}</span>
+          <span className="font-label text-[11px] text-ink-soft truncate">{displayedRace.country}</span>
         </div>
         <div className="font-display font-extrabold uppercase text-[1.9rem] leading-[0.9] mt-3">{displayedRace.name}</div>
-        <div className="font-mono text-[10px] text-ink-soft mt-1">{displayedRace.circuit}</div>
+        <div className="font-mono text-[11px] text-ink-soft mt-1">{displayedRace.circuit}</div>
 
         {!live && track && (
           // Just the circuit, turning slowly in 3D. Tilted back it reads about
@@ -371,7 +355,7 @@ export default function StartingGrid({
         {!live && (
           <>
             <Countdown target={nextRace.date} />
-            <div className="flex justify-between gap-2 font-mono text-[10px] text-ink-soft mt-2">
+            <div className="flex justify-between gap-2 font-mono text-[11px] text-ink-soft mt-2">
               <span>Until lights out</span>
               <span suppressHydrationWarning>
                 {lightsOut.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} ·{" "}
@@ -382,7 +366,7 @@ export default function StartingGrid({
         )}
         {!live && trackFact && (
           <p className="text-[11px] text-ink-soft italic leading-relaxed mt-4 pt-3 border-t hairline">
-            <span className="font-label not-italic text-[10px] mr-1.5">Track fact</span>
+            <span className="font-label not-italic text-[11px] mr-1.5">Track fact</span>
             {trackFact}
           </p>
         )}
@@ -390,14 +374,18 @@ export default function StartingGrid({
 
       {/* 2. The weekend, session by session. */}
       {!live && nextRace.sessions && nextRace.sessions.length > 0 && <RaceWeekend sessions={nextRace.sessions} tops={tops} />}
-      {!live && raceOdds && <RaceOdds market={raceOdds} />}
       </>
       )}
 
-      {/* 3. Coming up — the calendar after this weekend, under the weekend. */}
-      {part !== "desk" ? null : upcoming.length > 1 ? (
-        <div className="module" data-reveal>
-          <div className="font-label text-[10px] text-ink-soft mb-2">Coming up</div>
+      {part === "calendar" && !live && raceOdds && <RaceOdds market={raceOdds} />}
+
+      {/* 3. Coming up — the calendar after this weekend. */}
+      {part !== "calendar" ? null : upcoming.length > 1 ? (
+        <div className="module pit-coming" data-reveal>
+          <div className="font-label text-[11px] text-ink-soft mb-2 flex items-center gap-1.5">
+            <CalendarDotsIcon size={14} aria-hidden="true" />
+            Coming up
+          </div>
           <ol>
             {upcoming.slice(1).map((race) => (
               <li key={race.round} className="grid grid-cols-[2rem_minmax(0,1fr)_auto] items-baseline gap-2 border-t hairline first:border-t-0 py-2">
@@ -411,20 +399,20 @@ export default function StartingGrid({
           </ol>
         </div>
       ) : calendarStatus === "loading" ? (
-        <div className="module">
-          <div className="font-label text-[10px] text-ink-soft mb-1">Coming up</div>
+        <div className="module pit-coming">
+          <div className="font-label text-[11px] text-ink-soft mb-1">Coming up</div>
           <TimingRowsSkeleton rows={4} />
         </div>
       ) : calendarStatus === "failed" ? (
-        <div className="module">
-          <div className="font-label text-[10px] text-ink-soft mb-1">Coming up</div>
+        <div className="module pit-coming">
+          <div className="font-label text-[11px] text-ink-soft mb-1">Coming up</div>
           <p className="text-[11px] text-ink-soft italic">
             The race calendar didn&rsquo;t answer.{" "}
             {onRetryCalendar && (
               <button
                 type="button"
                 onClick={onRetryCalendar}
-                className="font-label text-[10px] text-accent underline not-italic ml-1"
+                className="font-label text-[11px] text-accent underline not-italic ml-1"
               >
                 Try again
               </button>
@@ -436,38 +424,41 @@ export default function StartingGrid({
       {/* 4. Timing — the slower "session" part streams in behind the rest. No
           refresh here by design: the single control lives in the pit-wall
           header, so the two can never race each other. */}
-      {timingHere && liveSnap && <LiveCard snap={liveSnap} />}
+      {timingHere && liveSnap && (
+        <div className={part === "archive" ? "pit-result min-w-0 flex" : "min-w-0 flex"}>
+          <LiveCard snap={liveSnap} />
+        </div>
+      )}
       {timingHere && !liveSnap && (resultRows.length > 0 || sessionStatus !== "ready" || gridPending) && (
-        <div className="module self-stretch flex flex-col" data-reveal>
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="font-label text-[10px] text-ink-soft">
+        <div className={`module self-stretch flex flex-col ${part === "archive" ? "pit-result" : ""}`} data-reveal>
+          {/* The card's head: a chequered band, what this is and when, the race's name,
+              and where the weekend is, as a run of timing sectors. */}
+          <div className="result-check" aria-hidden="true" />
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
+            <span className="font-label text-[11px] text-ink-soft inline-flex items-center gap-1.5">
+              <FlagCheckeredIcon size={14} aria-hidden="true" />
               {sessionStatus === "ready" ? timingTitle : "Timing screens"}
             </span>
-            {racePhase === "race" && liveResults.length > 0 && (
-              <span className="font-mono text-[10px] text-down">● live</span>
+            {racePhase === "race" && liveResults.length > 0 ? (
+              <span className="font-mono text-[11px] text-down">● live</span>
+            ) : (
+              sessionStatus === "ready" && timingNote && <span className="font-mono text-[11px] text-ink-soft">{timingNote}</span>
             )}
           </div>
           {sessionStatus === "ready" && timingRace && (
-            <div className="font-headline text-[15px] leading-tight mt-1">{timingRace}</div>
+            <div className="result-title">
+              <span>{timingRace}</span>
+            </div>
           )}
           {sessionStatus === "ready" && (
-            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mt-1.5">
-              {timingNote && <span className="font-mono text-[10.5px] text-ink-soft">{timingNote}</span>}
-              <ol className="flex flex-wrap items-center gap-x-1 gap-y-1 font-label text-[10px] min-w-0" aria-label="Weekend progress">
-                {steps.map((s, i) => (
-                  <li key={s.key} className="flex items-center gap-1">
-                    {i > 0 && <span className={`w-3 h-px ${i <= stepAt ? "bg-ink-soft" : "bg-[var(--rule)]"}`} />}
-                    <span
-                      className={`rounded-full px-1.5 py-0.5 ${i === stepAt ? "" : i < stepAt ? "text-ink-soft" : "text-ink-faint"}`}
-                      style={i === stepAt ? { background: "var(--section-hue)", color: "var(--paper)" } : undefined}
-                      aria-current={i === stepAt ? "step" : undefined}
-                    >
-                      {s.label}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            </div>
+            <ol className="result-sectors" aria-label="Weekend progress">
+              {steps.map((s, i) => (
+                <li key={s.key} data-state={i === stepAt ? "now" : i < stepAt ? "done" : undefined} aria-current={i === stepAt ? "step" : undefined}>
+                  <i aria-hidden="true" />
+                  {s.label}
+                </li>
+              ))}
+            </ol>
           )}
 
           {sessionStatus === "loading" && resultRows.length === 0 && (
@@ -484,7 +475,7 @@ export default function StartingGrid({
                 <button
                   type="button"
                   onClick={onRetrySession}
-                  className="font-label text-[10px] text-accent underline not-italic ml-1"
+                  className="font-label text-[11px] text-accent underline not-italic ml-1"
                 >
                   Try again
                 </button>
@@ -494,7 +485,8 @@ export default function StartingGrid({
 
           {resultRows.length > 0 && (
             <>
-              {showPodium && <Podium rows={resultRows} />}
+              {showPodium && <RacePodium rows={resultRows} />}
+              {showPodium && lastRace && <RaceRecapLine date={lastRace.date} />}
               {/* Folded, the table sits out of the flow so the card's height
                   comes from its neighbour; the rows then fill what it gives. */}
               <div
@@ -534,19 +526,45 @@ export default function StartingGrid({
                 <button
                   type="button"
                   onClick={() => setShowAll((value) => !value)}
-                  className="self-start font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-3"
+                  className="self-start inline-flex items-center gap-1 font-sans text-[12px] font-semibold text-ink-soft hover:text-ink mt-3"
                 >
                   {showAll ? "Show fewer" : `Show all ${resultRows.length} drivers`}
+                  {phone ? <ArrowRightIcon size={13} weight="bold" aria-hidden="true" /> : showAll ? <CaretUpIcon size={13} weight="bold" aria-hidden="true" /> : <CaretDownIcon size={13} weight="bold" aria-hidden="true" />}
                 </button>
               )}
+              {wantAll && phone && (
+                <Sheet title={timingTitle} kicker={timingRace || undefined} onClose={() => setShowAll(false)} width={560}>
+                  <table className="data-table text-xs">
+                    <colgroup>
+                      <col style={{ width: "1.75rem" }} />
+                      <col />
+                      <col style={{ width: "4.75rem" }} />
+                    </colgroup>
+                    <tbody>
+                      {resultRows.map((r) => (
+                        <tr key={`${r.position ?? "dnf"}-${r.code}`} className="border-t hairline first:border-t-0">
+                          <td className="py-2 font-mono text-ink-soft">{r.position ?? "—"}</td>
+                          <td className="py-2">
+                            <span className="flex items-center gap-2 min-w-0">
+                              <TeamGlyph team={r.team} colour={teamColor(r.team) ?? "var(--ink-faint)"} />
+                              <span className="font-semibold font-sans truncate">{r.driver}</span>
+                            </span>
+                          </td>
+                          <td className="py-2 num font-mono text-ink-soft">{"interval" in r ? r.interval : r.time}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Sheet>
+              )}
               {sessionStale && (
-                <p className="text-[10px] text-ink-soft italic mt-2">
+                <p className="text-[11px] text-ink-soft italic mt-2">
                   Showing the last timing we have.{" "}
                   {onRetrySession && (
                     <button
                       type="button"
                       onClick={onRetrySession}
-                      className="font-label text-[10px] text-accent underline not-italic"
+                      className="font-label text-[11px] text-accent underline not-italic"
                     >
                       Try again
                     </button>

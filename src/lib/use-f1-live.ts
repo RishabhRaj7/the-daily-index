@@ -13,8 +13,13 @@ import type { LiveAnswer, LiveSnapshot } from "@/lib/f1-live-types";
 // stints…: their fingerprints) and the server sends only those that changed;
 // the rest carry over from the last answer, as the same objects, so nothing
 // built from them is worked out again.
+// A first look asks for the latest copy at once and looks again moments later.
+// A read that says "retry" (the feed didn't answer) changes nothing on screen and
+// is asked again soon, up to a point; only then does it count as no session.
 
 const POLL_MS = 5_000;
+const RETRY_MS = 1_500;
+const MAX_RETRIES = 6;
 const pageStart = typeof performance !== "undefined" ? Date.now() - performance.now() : Date.now();
 const BEFORE_MS = 15 * 60_000;
 const AFTER_MS = 45 * 60_000;
@@ -37,13 +42,17 @@ export function useF1Live(opts: { sessions?: F1Session[]; full?: boolean; always
   last: LiveSnapshot | null;
   next: string | null;
   checked: boolean;
+  /** The session the latest answer was for (null: the latest), so a page can tell it's still waiting for the one picked. */
+  answeredFor: string | null | undefined;
 } {
   const { sessions, full = false, always = false, session = null } = opts;
   const [snapshot, setSnapshot] = useState<LiveSnapshot | null>(null);
   const [next, setNext] = useState<string | null>(null);
   const [last, setLast] = useState<LiveSnapshot | null>(null);
   const [checked, setChecked] = useState(false);
-  const key = JSON.stringify(sessions?.map((s) => [s.start, s.end]) ?? []);
+  const [answeredFor, setAnsweredFor] = useState<string | null | undefined>(undefined);
+  // A page that always asks only reads the timetable for how often: it needn't start over when that arrives.
+  const key = always || session ? "" : JSON.stringify(sessions?.map((s) => [s.start, s.end]) ?? []);
   const sessionsRef = useRef(sessions);
   useEffect(() => {
     sessionsRef.current = sessions;
@@ -55,7 +64,13 @@ export function useF1Live(opts: { sessions?: F1Session[]; full?: boolean; always
     let stopped = false;
     let lastLive = false;
     let held: LiveSnapshot | null = null;
+    let looked = false;
+    let retries = 0;
 
+    const answered = () => {
+      setChecked(true);
+      setAnsweredFor(session);
+    };
     const schedule = (ms: number) => {
       clearTimeout(timer);
       timer = setTimeout(tick, Math.min(ms, 2 ** 31 - 1));
@@ -69,7 +84,7 @@ export function useF1Live(opts: { sessions?: F1Session[]; full?: boolean; always
       const win = always || replay || session ? { open: true, opensAt: null } : liveWindow(sessionsRef.current);
       if (!win.open) {
         setSnapshot(null);
-        setChecked(true);
+        answered();
         if (win.opensAt) schedule(win.opensAt - Date.now() + 1000);
         return;
       }
@@ -82,11 +97,30 @@ export function useF1Live(opts: { sessions?: F1Session[]; full?: boolean; always
         const speed = Number(sp.get("f1speed")) || 1;
         const t = replay && from ? String(Math.round(from + ((Date.now() - pageStart) / 1000) * speed)) : null;
         const have = full && held?.versions ? Object.entries(held.versions).map(([k, v]) => `${k}.${v}`).join(",") : null;
-        const q = new URLSearchParams({ ...(full ? { full: "1" } : {}), ...(replay ? { replay } : {}), ...(t ? { t } : {}), ...(session ? { session } : {}), ...(have ? { have } : {}) });
+        const first = !looked && !session && !replay;
+        const q = new URLSearchParams({ ...(full ? { full: "1" } : {}), ...(replay ? { replay } : {}), ...(t ? { t } : {}), ...(session ? { session } : {}), ...(have ? { have } : {}), ...(first ? { first: "1" } : {}) });
         const res = await fetch(`/api/f1/live${q.size ? `?${q}` : ""}`, { cache: "no-store", signal: controller.signal });
         const answer = (await res.json()) as LiveAnswer;
         if (stopped) return;
+        // A session is on but this read couldn't get it: nothing changes on screen.
+        if (!answer.live && answer.retry && retries < MAX_RETRIES) {
+          retries++;
+          schedule(RETRY_MS);
+          return;
+        }
+        retries = 0;
+        looked = true;
         lastLive = answer.live;
+        if (answer.live && first) {
+          // The copy held may be moments old: the read it set off is about to land.
+          const s = answer.snapshot;
+          held = s;
+          const age = s.servedAt ? Math.max(0, Date.parse(s.servedAt) - Date.parse(s.at)) : 0;
+          setSnapshot({ ...s, localAt: Date.now() - age });
+          answered();
+          schedule(RETRY_MS);
+          return;
+        }
         if (answer.live) {
           // The read happened (servedAt − at) before the answer arrived.
           let s = answer.snapshot;
@@ -103,7 +137,7 @@ export function useF1Live(opts: { sessions?: F1Session[]; full?: boolean; always
           // An answer older than the one shown (another server's slower copy) is passed over: it
           // would swap the message list back, and the newest messages would seem to come twice.
           if (!replay && held && held.sessionKey === s.sessionKey && Date.parse(s.at) < Date.parse(held.at)) {
-            setChecked(true);
+            answered();
             if (!session) schedule(POLL_MS);
             return;
           }
@@ -118,13 +152,20 @@ export function useF1Live(opts: { sessions?: F1Session[]; full?: boolean; always
           if (answer.last) setLast(answer.last);
         }
       } catch {
-        // Keep the last snapshot through a dropped request.
+        if (stopped) return;
+        // Keep the last snapshot through a dropped request, and ask again soon if there's nothing yet.
+        if (!looked && retries < MAX_RETRIES) {
+          retries++;
+          schedule(RETRY_MS);
+          return;
+        }
       }
-      setChecked(true);
+      answered();
       // A past session is read once.
       if (session) return;
-      // Between sessions the full page only needs a look every minute.
-      schedule(full && !always ? POLL_MS : full ? (lastLive ? POLL_MS : 60_000) : POLL_MS);
+      // Between sessions the full page only needs a look every minute; when the timetable says a session is on, as often as live.
+      const onNow = liveWindow(sessionsRef.current).open;
+      schedule(full && !always ? POLL_MS : full ? (lastLive || onNow ? POLL_MS : 60_000) : POLL_MS);
     }
 
     const onVisible = () => {
@@ -140,7 +181,7 @@ export function useF1Live(opts: { sessions?: F1Session[]; full?: boolean; always
     };
   }, [key, full, always, session]);
 
-  return { snapshot, last, next, checked };
+  return { snapshot, last, next, checked, answeredFor };
 }
 
 /** Time left on the session clock, ticking between reads. */

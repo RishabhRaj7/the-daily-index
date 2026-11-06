@@ -1,5 +1,6 @@
 "use client";
 
+import { MapPinIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { locateAndLoad } from "@/lib/travel";
 
@@ -38,10 +39,7 @@ export default function TravelButton({
   return (
     <span className={`inline-flex flex-col gap-1.5 ${className}`}>
       <button type="button" onClick={go} disabled={state === "locating"} className="chip chip-signal disabled:opacity-60">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z" />
-          <circle cx="12" cy="9.5" r="2.5" />
-        </svg>
+        <MapPinIcon size={14} weight="bold" aria-hidden="true" />
         {state === "locating" ? "Finding you…" : label}
       </button>
       {error && <span className="font-sans text-[12px] text-down max-w-[36ch]">{error}</span>}

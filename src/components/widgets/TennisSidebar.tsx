@@ -12,7 +12,7 @@ export default function TennisSidebar({
 
   return (
     <div className="paper-box">
-      <div className="font-label text-[10px] text-ink-soft mb-2">ATP RANKINGS</div>
+      <div className="font-label text-[11px] text-ink-soft mb-2">ATP RANKINGS</div>
       {top8.length > 0 ? (
         <table className="data-table text-xs">
           <colgroup>
@@ -21,7 +21,7 @@ export default function TennisSidebar({
             <col style={{ width: "4.5rem" }} />
           </colgroup>
           <thead>
-            <tr className="text-left text-ink-soft font-label text-[10px]">
+            <tr className="text-left text-ink-soft font-label text-[11px]">
               <th className="font-normal pb-1">#</th>
               <th className="font-normal pb-1">Player</th>
               <th className="font-normal pb-1">Country</th>

@@ -1,5 +1,6 @@
 "use client";
 
+import { XIcon } from "@phosphor-icons/react";
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import type { LiveSnapshot, TrackModel } from "@/lib/f1-live-types";
@@ -45,16 +46,14 @@ export default function MapSheet({
       >
         <header className="flex items-center justify-between gap-3 px-5 py-4 border-b hairline">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 font-label text-[10.5px] text-ink-soft">
+            <div className="flex items-center gap-2 font-label text-[11px] text-ink-soft">
               <LiveDot running={snap.running} />
               {sessionLine(snap)}
             </div>
             <div className="font-display font-extrabold uppercase text-[1.6rem] leading-none mt-1 truncate">{snap.meeting}</div>
           </div>
           <button type="button" onClick={onClose} className="icon-btn" aria-label="Close the map">
-            <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
-              <path d="M4 4l8 8M12 4l-8 8" />
-            </svg>
+            <XIcon size={17} aria-hidden="true" />
           </button>
         </header>
         <div className="flex-1 min-h-0 grid grid-rows-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_17rem]">
@@ -65,7 +64,7 @@ export default function MapSheet({
             </div>
           </div>
           <aside className="hidden lg:block border-l hairline overflow-y-auto p-4">
-            <div className="font-label text-[10px] text-ink-faint mb-2">Running order · tap to follow</div>
+            <div className="font-label text-[11px] text-ink-faint mb-2">Running order · tap to follow</div>
             <ol>
               {snap.rows.map((r) => {
                 const on = r.code === focus;
@@ -82,16 +81,16 @@ export default function MapSheet({
                         <span className="w-[3px] h-3.5 rounded-full shrink-0" style={{ background: r.colour }} />
                         <TeamGlyph team={r.team} colour={r.colour} />
                         <span className="font-sans font-bold">{r.code}</span>
-                        {snap.running && r.inPit && <span className="font-label text-[9px]" style={{ color: "var(--f1-pit)" }}>Pit</span>}
+                        {snap.running && r.inPit && <span className="font-label text-[11px]" style={{ color: "var(--f1-pit)" }}>Pit</span>}
                       </span>
-                      <span className="font-mono text-[10.5px] tabular-nums text-ink-soft">{race ? (r.position === 1 ? "Leader" : r.interval) : r.best}</span>
+                      <span className="font-mono text-[11px] tabular-nums text-ink-soft">{race ? (r.position === 1 ? "Leader" : r.interval) : r.best}</span>
                       {r.tyre ? <TyreIcon compound={r.tyre.compound} fresh={r.tyre.fresh} size={14} /> : <span />}
                     </button>
                   </li>
                 );
               })}
             </ol>
-            <p className="font-mono text-[10.5px] text-ink-faint mt-4 leading-relaxed">Cars are placed from F1&rsquo;s timing loops and gaps — accurate to a corner or so. Exact positions are F1 TV&rsquo;s alone.</p>
+            <p className="font-mono text-[11px] text-ink-faint mt-4 leading-relaxed">Cars are placed from F1&rsquo;s timing loops and gaps — accurate to a corner or so. Exact positions are F1 TV&rsquo;s alone.</p>
           </aside>
         </div>
       </div>

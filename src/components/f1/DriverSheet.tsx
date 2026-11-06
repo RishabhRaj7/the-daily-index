@@ -1,5 +1,8 @@
 "use client";
 
+import MoveArrow from "@/components/chrome/MoveArrow";
+import { FlagCheckeredIcon, FlagIcon, LightningIcon, RankingIcon, TrophyIcon, XCircleIcon, XIcon } from "@phosphor-icons/react";
+import { type Icon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Season, SeasonCell, SeasonDriver } from "@/lib/live/f1-season";
@@ -32,12 +35,15 @@ export function useSeasonData(): Season | null {
 
 const classified = (c: SeasonCell | null) => !!c && /^\d+$/.test(c.text);
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function Stat({ icon: Glyph, label, value, sub }: { icon: Icon; label: string; value: string; sub?: string }) {
   return (
     <div className="rounded-xl border hairline px-3 py-2.5 min-w-0">
-      <div className="font-label text-[9px] text-ink-faint truncate">{label}</div>
+      <div className="font-label text-[11px] text-ink-faint flex items-center gap-1 min-w-0">
+        <Glyph size={13} className="shrink-0" aria-hidden="true" />
+        <span className="truncate">{label}</span>
+      </div>
       <div className="font-display font-extrabold text-[1.5rem] leading-none mt-1.5 tabular-nums">{value}</div>
-      {sub && <div className="font-mono text-[10.5px] text-ink-faint mt-1 truncate">{sub}</div>}
+      {sub && <div className="font-mono text-[11px] text-ink-faint mt-1 truncate">{sub}</div>}
     </div>
   );
 }
@@ -115,21 +121,21 @@ function Body({ season, d }: { season: Season; d: SeasonDriver }) {
   return (
     <>
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-        <Stat label="Championship" value={`P${rank}`} sub={`${d.points} pts${sprintPts ? ` · ${sprintPts} from sprints` : ""}`} />
-        <Stat label="Wins" value={String(wins)} sub={`${podiums} podiums`} />
-        <Stat label="Poles" value={String(poles)} sub={`avg quali P${avg(d.quali.filter((x): x is number => !!x))}`} />
-        <Stat label="Avg finish" value={avg(fin.map((c) => c.pos!))} sub={`${fin.length} of ${races.length} finished`} />
-        <Stat label="Retirements" value={String(dnfs)} sub={`${laps} laps raced`} />
-        <Stat label="Fastest laps" value={String(fastest)} sub="the race's quickest" />
+        <Stat icon={RankingIcon} label="Championship" value={`P${rank}`} sub={`${d.points} pts${sprintPts ? ` · ${sprintPts} from sprints` : ""}`} />
+        <Stat icon={TrophyIcon} label="Wins" value={String(wins)} sub={`${podiums} podiums`} />
+        <Stat icon={FlagIcon} label="Poles" value={String(poles)} sub={`avg quali P${avg(d.quali.filter((x): x is number => !!x))}`} />
+        <Stat icon={FlagCheckeredIcon} label="Avg finish" value={avg(fin.map((c) => c.pos!))} sub={`${fin.length} of ${races.length} finished`} />
+        <Stat icon={XCircleIcon} label="Retirements" value={String(dnfs)} sub={`${laps} laps raced`} />
+        <Stat icon={LightningIcon} label="Fastest laps" value={String(fastest)} sub="the race's quickest" />
       </div>
 
       <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-3 sm:p-4 mt-4">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-          <span className="font-label text-[10.5px]">Round by round</span>
-          <span className="flex gap-3 font-mono text-[10.5px] text-ink-faint">
+          <span className="font-label text-[11px]">Round by round</span>
+          <span className="flex gap-3 font-mono text-[11px] text-ink-faint">
             <span>○ qualified</span>
             <span style={{ color: d.colour }}>● finished</span>
-            <span style={{ color: "var(--down)" }}>✕ retired</span>
+            <span style={{ color: "var(--down)" }}><XIcon size={11} weight="bold" className="inline align-[-2px]" aria-hidden="true" /> retired</span>
           </span>
         </div>
         <Chart season={season} d={d} />
@@ -137,12 +143,12 @@ function Body({ season, d }: { season: Season; d: SeasonDriver }) {
 
       {mate && (
         <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-3 sm:p-4 mt-4 grid sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-4 items-center">
-          <span className="font-label text-[10.5px]">
+          <span className="font-label text-[11px]">
             Against{" "}
             <DriverName code={mate.code} className="font-label">
               {mate.name}
             </DriverName>
-            <span className="block font-mono normal-case tracking-normal text-[10px] text-ink-faint mt-1">teammate</span>
+            <span className="block font-mono normal-case tracking-normal text-[11px] text-ink-faint mt-1">teammate</span>
           </span>
           {[
             { k: "Qualifying", v: q },
@@ -175,7 +181,7 @@ function Body({ season, d }: { season: Season; d: SeasonDriver }) {
             <col style={{ width: "6rem" }} />
           </colgroup>
           <thead>
-            <tr className="font-label text-[9.5px] text-ink-faint text-left">
+            <tr className="font-label text-[11px] text-ink-faint text-left">
               <th className="font-normal py-1.5">Round</th>
               <th className="font-normal">Quali</th>
               <th className="font-normal">Grid</th>
@@ -195,12 +201,12 @@ function Body({ season, d }: { season: Season; d: SeasonDriver }) {
               return (
                 <tr key={round.round} className="border-t hairline">
                   <td className="py-[7px] pr-2">
-                    <span className="font-mono text-[10px] text-ink-faint mr-1.5">R{round.round}</span>
+                    <span className="font-mono text-[11px] text-ink-faint mr-1.5">R{round.round}</span>
                     <span className="font-sans font-semibold">{round.name}</span>
                   </td>
                   <td className="font-mono">
                     {qp ? `P${qp}` : "—"}
-                    {d.qualiTime[i] && <span className="text-ink-faint text-[10px]"> {d.qualiTime[i]}</span>}
+                    {d.qualiTime[i] && <span className="text-ink-faint text-[11px]"> {d.qualiTime[i]}</span>}
                   </td>
                   <td className="font-mono text-ink-soft">{c?.grid ? `P${c.grid}` : c ? "Pit lane" : "—"}</td>
                   <td>
@@ -209,15 +215,15 @@ function Body({ season, d }: { season: Season; d: SeasonDriver }) {
                         <span className="font-mono font-semibold" style={{ color: (c.pos ?? 99) <= 3 ? ["#c99a06", "var(--ink-soft)", "#C9792E"][(c.pos ?? 1) - 1] : undefined }}>
                           P{c.text}
                           {c.grid && c.pos && c.grid !== c.pos && (
-                            <span className="text-[10px] ml-1" style={{ color: c.grid > c.pos ? "var(--up)" : "var(--down)" }}>
-                              {c.grid > c.pos ? `▲${c.grid - c.pos}` : `▼${c.pos - c.grid}`}
+                            <span className="text-[11px] ml-1" style={{ color: c.grid > c.pos ? "var(--up)" : "var(--down)" }}>
+                              <MoveArrow up={c.grid > c.pos} size={10} />{Math.abs(c.grid - c.pos)}
                             </span>
                           )}
-                          {c.status !== "Finished" && <span className="text-ink-faint text-[10px] font-normal ml-1">{c.status}</span>}
+                          {c.status !== "Finished" && <span className="text-ink-faint text-[11px] font-normal ml-1">{c.status}</span>}
                         </span>
                       ) : (
                         <span className="font-mono" style={{ color: "var(--down)" }}>
-                          {c.text} <span className="text-[10px] text-ink-faint">{c.status}{c.laps !== null ? `, lap ${c.laps}` : ""}</span>
+                          {c.text} <span className="text-[11px] text-ink-faint">{c.status}{c.laps !== null ? `, lap ${c.laps}` : ""}</span>
                         </span>
                       )
                     ) : (
@@ -268,16 +274,14 @@ export default function DriverSheet({ code, onClose }: { code: string; onClose: 
             )}
           </span>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 font-label text-[10.5px] text-ink-soft">
+            <div className="flex items-center gap-2 font-label text-[11px] text-ink-soft">
               {d && <TeamGlyph team={d.team} colour={d.colour} size={14} />}
               {d ? `${d.team} · ${season?.year} season` : "Season"}
             </div>
             <div className="font-display font-extrabold uppercase text-[1.9rem] leading-none mt-1 truncate">{d?.name ?? code}</div>
           </div>
           <button type="button" onClick={onClose} className="icon-btn shrink-0" aria-label="Close">
-            <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
-              <path d="M4 4l8 8M12 4l-8 8" />
-            </svg>
+            <XIcon size={17} aria-hidden="true" />
           </button>
         </header>
         <div className="overflow-y-auto overscroll-contain p-4 sm:p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">

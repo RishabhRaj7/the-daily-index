@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ImageResponse } from "next/og";
 
-// The home-screen icon: app/icon.svg (the site's mark — a dot grid tracing a
-// rising index line) drawn at 180px on a full-bleed tile, since iOS rounds
+// The home-screen icon: app/icon.svg (the site's mark — DI in the masthead's type
+// over a red rule) drawn at 180px on a full-bleed tile, since iOS rounds
 // the corners itself.
 
 export const size = { width: 180, height: 180 };
