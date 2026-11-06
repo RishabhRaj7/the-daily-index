@@ -1268,7 +1268,7 @@ The reader reviewed the suggestions from the live centre's visual check and aske
 
 ### Round 20, insights pass: a session written up, and why a market moved (Nov 6 2026)
 
-The reader asked for Gemini to add insight where it fits, as part of the page and without getting in the way. These designs were approved as screenshots on the real pages. A fourth, Catch me up, is being redesigned and isn't built.
+The reader asked for Gemini to add insight where it fits, as part of the page and without getting in the way. These designs were approved as screenshots on the real pages. A fourth, Catch me up, was redesigned and built in the catch-up pass below.
 
 - **Session recap** (`lib/live/f1-insights.ts`, `/api/f1/insights`, `SessionRecapCard` in `f1/centre/Insights.tsx`, `Weekend.tsx`): under the session cards on the Weekend, about the session on show, with the result card's chequered edge. A headline, the story, and for a race the flag stretches along a lap bar and the turning points by lap, which open the Lap chart. The lap bar comes from race control itself; only the words come from Gemini, given the classification, race control and the championship order and told to use nothing else. A phone shows the first sentence with More in place. Only once a session is over.
 - **On the main page** (`widgets/RaceRecapLine.tsx`, `StartingGrid.tsx`): the headline and first sentence under the podium on the race result card, linking to the Weekend, when the latest race's recap is about the race on the card.
@@ -1311,9 +1311,9 @@ During São Paulo's FP2 the radio showed no transcripts. F1 writes that weekend'
 
 ### Round 20, FP2 pass: what a real session showed (Nov 7 2026)
 
-São Paulo's FP2 was the first real session on this branch's code. It found the address bug (Round 19, São Paulo fix, merged here from `master`) and two smaller things.
+São Paulo's FP2 was the first real session on Round 20's code, then still on its own branch. It found the address bug (Round 19, São Paulo fix, merged here from `master`) and two smaller things.
 
-- **Recaps at São Paulo** (`/api/f1/insights`): the route only on this branch now uses `SESSION_PATH` from `lib/f1-paths.ts` too.
+- **Recaps at São Paulo** (`/api/f1/insights`): the route added in Round 20 uses `SESSION_PATH` from `lib/f1-paths.ts` too.
 - **Old pit stops as alerts** (`f1/centre/Alerts.tsx`): opening live during a session raised alerts such as "RUS pits on lap 2", over the weather tiles. The quick first answer has no pit stops, so the next one brought them all as new, and their times couldn't say otherwise, because a stop no server had read yet is stamped with the moment one first does. Every stop in the first answer that carries them now counts as already seen. Race control's history, which has F1's own times, is held back when over two minutes old (`STALE_MS`). A session's first real stop still alerts, because a full answer always carries the list, even empty.
 - **The telemetry card's note** (`Telemetry.tsx`): it wraps instead of being cut off, without changing the card's size.
 - **The top three cards** (`masthead/SignalRow.tsx`): the strip on their left edge is gone. The tint, outline and coloured label already say which is which.
@@ -1327,7 +1327,7 @@ The first real recap, of São Paulo's FP2, was accurate and flat: the top of the
 - **What practice is told** (`timedNotes`, `longRunNote`, `teamMateNote` in `lib/live/f1-insight-prompts.ts`): the best long run on the tyre most cars ran them on, with its margin over the next car, and the widest gap between team-mates. A long run is a car's longest stint of at least 8 laps with at least 4 timed laps, a repeated value counted once and laps over 2% slower than the stint's middle lap left out. It needs at least three cars on that tyre, and only shows where the kept session has lap times, so not from the archive. Team-mate gaps skip Practice 1, when teams run rookies, and any gap over 1.5 s. Third place and most laps are gone from practice's notes, and the story is two or three sentences.
 - **Words that claim too much** (`writeRecap` in `f1-insights.ts`): a recap saying "crush", "dominan", "surge", "charge", "tried to", "thanks to" or "held firm" is thrown away and tried again after five minutes, as a wrong figure already was. The prompt banned most of them and one still got through.
 - **Every model gets a turn** (`f1Json` in `f1-radio.ts`): it tried three models and stopped, so three spent Flash models kept Flash-Lite from answering for five minutes. It now tries them all, within 50 s, to stay inside the route's 60 s.
-- **Store keys and versions**: none changed. Practice recaps already kept under `f1:recap:v2` stay as written; these keys are only on this branch so far.
+- **Store keys and versions**: none changed. Practice recaps already kept under `f1:recap:v2` stay as written.
 - **Tested**: the prompts on real FP1 and FP2 on Flash-Lite, and all the long-run figures pass the figure check. Through the route on a fresh server with the Flash models' quota earlier spent, FP1's recap came back on the first try in 4.3 s. FP2 through the route couldn't be tried, since that server never followed it and F1's archive doesn't serve it yet (401). The server's log wasn't captured, so which models answered wasn't seen.
 
 ### Round 20, Feed order: stops that share a time (Nov 7 2026)
@@ -1338,3 +1338,10 @@ A pit stop's time is when a server first read it, so stops made while nobody was
 - **Left as it is, by the reader's choice**: the times themselves. Working each one back from the car's lap times was more code for what would still be an estimate. So a stop first read late still shows the clock time of that read, and two cars' stops from different reads can still sit out of lap order.
 - **Store keys and versions**: none changed.
 - **Tested**: on real FP2 data from production at 3440, 1366 and 390, with none of the 31 neighbouring stops sharing a time out of lap order, then the 42 behaviour checks.
+
+### Round 20 released (Nov 7 2026)
+
+All of Round 20's passes above went to `master` together, once the reader called the redesign final.
+
+- **Settings production needs**: `GEMINI_F1_API_KEY`, because radio, session recaps and radio moments no longer fall back to `GEMINI_API_KEY`. Without it they are off. `GEMINI_MODEL`, and optionally `GEMINI_FALLBACK_MODEL` and `GEMINI_LIGHT_MODEL`, set the paper's models; a model name Google doesn't know just falls through to the next.
+- **Store keys and versions**: every key is named in its pass above. Nothing further changes in this release.
