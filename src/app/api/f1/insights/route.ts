@@ -1,3 +1,4 @@
+import { SESSION_PATH } from "@/lib/f1-paths";
 import { insightsFor, latestRaceRecap } from "@/lib/live/f1-insights";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ export async function GET(req: Request) {
       return Response.json({ recap, moments: [] }, { headers: { "Cache-Control": recap ? "public, max-age=300, s-maxage=900" : "no-store" } });
     }
     const session = params.get("session");
-    if (session && !/^\d{4}\/[\w-]+\/[\w-]+\/$/.test(session)) return Response.json({ recap: null, moments: [] }, { status: 400 });
+    if (session && !SESSION_PATH.test(session)) return Response.json({ recap: null, moments: [] }, { status: 400 });
     const out = await insightsFor(session);
     return Response.json(out, { headers: { "Cache-Control": out.recap ? "public, max-age=300, s-maxage=600" : "no-store" } });
   } catch (err) {

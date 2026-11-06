@@ -121,6 +121,7 @@ function events(snap: LiveSnapshot, mine: Set<string>): Map<string, Omit<Alert, 
   return out;
 }
 
+const STALE_MS = 120_000;
 const seenKey = (snap: LiveSnapshot) => `f1-alerts-seen:v2:${snap.sessionKey}`;
 const when = (utc: string) => Date.parse(/Z|[+-]\d{2}:?\d{2}$/.test(utc) ? utc : `${utc}Z`) || 0;
 
@@ -130,29 +131,38 @@ const when = (utc: string) => Date.parse(/Z|[+-]\d{2}:?\d{2}$/.test(utc) ? utc :
  */
 export default function LiveAlerts({ snap, mine, onOpen }: { snap: LiveSnapshot; mine: Set<string>; onOpen: () => void }) {
   const muted = useSyncExternalStore(sub, readMuted, () => false);
-  const seen = useRef<{ key: string; ids: Set<string> } | null>(null);
+  const seen = useRef<{ key: string; ids: Set<string>; stops: boolean } | null>(null);
 
   useEffect(() => {
     const key = seenKey(snap);
     const now = events(snap, mine);
     if (seen.current?.key !== key) {
-      // This session's alerts already shown (a refresh), or none yet: what is
-      // already there and more than two minutes old isn't news any more.
+      // This session's alerts already shown (a refresh), or none yet: what's
+      // already there with no time of its own isn't news any more.
       let kept: string[] = [];
       try {
         kept = JSON.parse(sessionStorage.getItem(key) ?? "[]");
       } catch {}
       const ids = new Set(kept);
       const first = !kept.length;
-      for (const [id, e] of now) if (first && (!e.utc || Date.now() - when(e.utc) > 120_000)) ids.add(id);
-      seen.current = { key, ids };
+      for (const [id, e] of now) if (first && !e.utc) ids.add(id);
+      seen.current = { key, ids, stops: false };
     }
     const ids = seen.current.ids;
+    // The quick first answer has no pit stops, and the next has them all at once. Those
+    // came before the page did. Their times can't say so: a stop no server had read yet
+    // is stamped with the moment one first does.
+    if (!seen.current.stops && snap.pitStops) {
+      seen.current.stops = true;
+      for (const id of now.keys()) if (id.startsWith("pit:")) ids.add(id);
+    }
     let fresh = false;
     for (const [id, e] of now) {
       if (ids.has(id)) continue;
       ids.add(id);
       fresh = true;
+      // The same for race control's history, which has F1's own times.
+      if (e.utc && Date.now() - when(e.utc) > STALE_MS) continue;
       if (!readMuted()) push({ id, label: e.label, text: e.text, colour: e.colour, long: e.long, at: Date.now() });
     }
     if (fresh || !sessionStorage.getItem(key)) {

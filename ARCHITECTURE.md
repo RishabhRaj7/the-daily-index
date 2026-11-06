@@ -1308,3 +1308,14 @@ During São Paulo's FP2 the radio showed no transcripts. F1 writes that weekend'
 - **The fix** (new `lib/f1-paths.ts`, `SESSION_PATH` and `RADIO_CLIP`, used by those three routes): any letter is allowed in a place's name. The shape of the address is still checked, and the host is still fixed to F1's.
 - **Store keys and versions**: none changed.
 - **Tested**: on a production build during the weekend, with real São Paulo FP1 and FP2 addresses.
+
+### Round 20, FP2 pass: what a real session showed (Nov 7 2026)
+
+São Paulo's FP2 was the first real session on this branch's code. It found the address bug (Round 19, São Paulo fix, merged here from `master`) and two smaller things.
+
+- **Recaps at São Paulo** (`/api/f1/insights`): the route only on this branch now uses `SESSION_PATH` from `lib/f1-paths.ts` too.
+- **Old pit stops as alerts** (`f1/centre/Alerts.tsx`): opening live during a session raised alerts such as "RUS pits on lap 2", over the weather tiles. The quick first answer has no pit stops, so the next one brought them all as new, and their times couldn't say otherwise, because a stop no server had read yet is stamped with the moment one first does. Every stop in the first answer that carries them now counts as already seen. Race control's history, which has F1's own times, is held back when over two minutes old (`STALE_MS`). A session's first real stop still alerts, because a full answer always carries the list, even empty.
+- **The telemetry card's note** (`Telemetry.tsx`): it wraps instead of being cut off, without changing the card's size.
+- **The top three cards** (`masthead/SignalRow.tsx`): the strip on their left edge is gone. The tint, outline and coloured label already say which is which.
+- **Store keys and versions**: none changed.
+- **Tested**: on real FP2 at 1366, no alerts in the 14 s after opening, against four before, and the chequered flag still came up when it fell. The radio order wrote a real clip with `gemini-3.6-flash` and the Catch me up F1 row read "FP2 · Antonelli", "1:10.763" from the session as kept. Opening live took about 0.45 s against production's 1.7 s, local against the network. Then the navigation checks, 42 behaviour checks, and the cards and note at 3440, 1366 and 390. The note was tested by putting its text in the card after the session, since it only shows live. Recaps for FP1 and FP2 came back from Flash-Lite after the Flash models' quota ran out on the test key. With all three Flash models spent and not yet marked so, `f1Json` stops after three tries and the recap waits five minutes for its next try.

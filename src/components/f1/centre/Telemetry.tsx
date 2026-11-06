@@ -477,7 +477,7 @@ function Dial({ now, colour, code, onOpen, source, className = "" }: { now: CarN
         <span className="group-hover:text-ink transition-colors">Detail <ArrowRightIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" /></span>
       </span>
       <span className="flex-1 min-h-0 grid place-items-center">{body}</span>
-      <span className="block text-center font-mono text-[11px] text-ink-faint truncate shrink-0">{source}</span>
+      <span className="block text-center font-mono text-[11px] leading-snug text-ink-faint [text-wrap:balance] shrink-0">{source}</span>
     </button>
   ) : (
     body

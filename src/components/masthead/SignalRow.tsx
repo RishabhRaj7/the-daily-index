@@ -53,7 +53,6 @@ function Card({
       }}
       className="group relative flex flex-col gap-0.5 md:gap-1 rounded-xl border pl-3.5 pr-2 py-2 md:pl-4 md:pr-3 md:py-2.5 min-w-0 overflow-hidden transition-transform duration-300 hover:-translate-y-0.5"
     >
-      <span className="absolute left-0 top-2.5 bottom-2.5 w-[3px] rounded-r-full" style={{ background: hue }} />
       <span className="flex items-center justify-between gap-1 font-label text-[11px]" style={{ color: hue }}>
         <span className="inline-flex items-center gap-1 min-w-0">
           <Glyph size={13} weight="fill" className="shrink-0" aria-hidden="true" />
