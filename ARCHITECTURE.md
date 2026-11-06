@@ -1299,3 +1299,12 @@ The reader's first model has few calls a day and the digest needs them, so the s
 - **Lint** (`eslint.config.mjs`): `.claude/**` is ignored, because agent worktrees there hold whole build outputs and made `npm run lint` report thousands of errors that weren't in the code.
 - **Store keys and versions**: none changed.
 - **Tested**: typecheck and full lint, with no errors. This only changes which model answers; the light path itself was already running for why a market moved and While you were away.
+
+### Round 19, São Paulo fix: addresses with the place's own letters (Nov 7 2026)
+
+During São Paulo's FP2 the radio showed no transcripts. F1 writes that weekend's archive address with its own letters (`2026-11-08_São_Paulo_Grand_Prix`), and the routes' address checks only allowed A to Z, so they turned it away without saying so.
+
+- **What it broke**: `/api/f1/radio` dropped every clip, so no transcripts for the weekend; `/api/f1/live?session=` ignored the address and answered with the current session, so a past São Paulo session opened the wrong one; `/api/f1/telemetry` answered with an error.
+- **The fix** (new `lib/f1-paths.ts`, `SESSION_PATH` and `RADIO_CLIP`, used by those three routes): any letter is allowed in a place's name. The shape of the address is still checked, and the host is still fixed to F1's.
+- **Store keys and versions**: none changed.
+- **Tested**: on a production build during the weekend, with real São Paulo FP1 and FP2 addresses.
