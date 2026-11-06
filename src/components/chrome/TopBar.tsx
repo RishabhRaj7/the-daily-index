@@ -1,12 +1,22 @@
 "use client";
 
-import { ArchiveIcon, NewspaperIcon, SlidersHorizontalIcon } from "@phosphor-icons/react";
+import { ArchiveIcon, type Icon, NewspaperIcon, SlidersHorizontalIcon } from "@phosphor-icons/react";
 import { usePathname } from "next/navigation";
 import { CHAPTER_ICONS } from "@/components/chrome/nav-icons";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import EditionToggle from "@/components/masthead/EditionToggle";
 import SettingsLink from "@/components/chrome/SettingsLink";
+
+/** A word in the top bar, for a page with its own menu (the live centre). */
+export interface TopBarItem {
+  id: string;
+  label: string;
+  href: string;
+  Glyph: Icon;
+  current: boolean;
+  onClick?: (e: React.MouseEvent) => void;
+}
 
 export interface NavChapter {
   /** The element the chapter starts at. */
@@ -62,7 +72,10 @@ export default function TopBar({
   alwaysShowLogo = false,
   date,
   linkBase = "",
+  items,
 }: {
+  /** A page's own words in place of the paper's (the live centre). */
+  items?: TopBarItem[];
   chapters?: NavChapter[];
   active?: string | null;
   /** The element "Today" jumps to, on the paper. */
@@ -76,7 +89,7 @@ export default function TopBar({
 }) {
   const [scrolledPast, setPastMasthead] = useState(false);
   const pastMasthead = alwaysShowLogo || scrolledPast;
-  const paper = chapters.length > 0 && !linkBase;
+  const paper = (chapters.length > 0 && !linkBase) || !!items;
 
   // Show the compact wordmark once the masthead is out of view.
   useEffect(() => {
@@ -89,8 +102,16 @@ export default function TopBar({
     return () => io.disconnect();
   }, []);
 
-  const links = paper && today ? [{ id: today, label: "Today" }, ...chapters] : linkBase ? [{ id: "masthead", label: "Today" }, ...chapters] : [];
-  const Anchor = linkBase ? Link : "a";
+  const words = today ? [{ id: today, label: "Today" }, ...chapters] : linkBase ? [{ id: "masthead", label: "Today" }, ...chapters] : [];
+  const links: TopBarItem[] =
+    items ??
+    words.map((c) => ({
+      id: c.id,
+      label: c.label,
+      href: linkBase ? (c.id === "masthead" ? linkBase : `${linkBase}#${c.id}`) : `#${c.id}`,
+      Glyph: CHAPTER_ICONS[c.id] ?? NewspaperIcon,
+      current: active === c.id,
+    }));
 
   return (
     <div className={`top-bar z-40 ${paper ? "top-bar-paper" : ""}`} data-site-nav>
@@ -124,20 +145,21 @@ export default function TopBar({
         {links.length > 0 && (
           <nav aria-label="Chapters" className="hidden md:flex flex-1 min-w-0 items-center gap-1">
             {links.map((c) => {
-              const Glyph = CHAPTER_ICONS[c.id] ?? NewspaperIcon;
+              const Anchor = c.href.startsWith("/") ? Link : "a";
               return (
               <Anchor
                 key={c.id}
-                href={linkBase ? (c.id === "masthead" ? linkBase : `${linkBase}#${c.id}`) : `#${c.id}`}
+                href={c.href}
+                onClick={c.onClick}
                 data-nav={c.id}
-                aria-current={active === c.id ? "true" : undefined}
+                aria-current={c.current ? "true" : undefined}
                 className={`relative inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[14px] font-sans font-semibold whitespace-nowrap transition-colors ${
-                  active === c.id ? "text-ink" : "text-ink-soft hover:text-ink"
+                  c.current ? "text-ink" : "text-ink-soft hover:text-ink"
                 }`}
               >
-                <Glyph size={16} weight={active === c.id ? "fill" : "regular"} style={active === c.id ? { color: "var(--now-hue, var(--accent))" } : undefined} aria-hidden="true" />
+                <c.Glyph size={16} weight={c.current ? "fill" : "regular"} style={c.current ? { color: "var(--now-hue, var(--accent))" } : undefined} aria-hidden="true" />
                 {c.label}
-                {active === c.id && <span aria-hidden="true" className="absolute left-2.5 right-2.5 bottom-0 h-[2px] rounded-full transition-colors duration-300" style={{ background: "var(--now-hue, var(--accent))" }} />}
+                {c.current && <span aria-hidden="true" className="absolute left-2.5 right-2.5 bottom-0 h-[2px] rounded-full transition-colors duration-300" style={{ background: "var(--now-hue, var(--accent))" }} />}
               </Anchor>
               );
             })}

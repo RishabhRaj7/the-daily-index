@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRightIcon } from "@phosphor-icons/react";
+import { ArrowRightIcon, CarProfileIcon, FlagCheckeredIcon, FlagIcon, GavelIcon, type Icon, InfoIcon, MicrophoneIcon, RoadHorizonIcon, WrenchIcon } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 import type { LivePitStop, LiveRadio, LiveSnapshot } from "@/lib/f1-live-types";
 import { readRaceControl, type RcItem, type RcTone } from "@/lib/f1-race-control";
@@ -97,83 +97,57 @@ const matches = (it: Item, f: Filter) =>
 
 const about = (it: Item): string[] => (it.kind === "rc" ? it.rc.drivers : it.kind === "radio" ? [it.radio.code] : [it.pit.code]);
 
-/** A message's mark: a soft tile in its topic's colour with a simple glyph. */
+/** A message's mark: a soft tile in its topic's colour with its icon. */
 function Glyph({ tone, kind, pit = false }: { tone: RcTone | null; kind?: RcItem["kind"]; pit?: boolean }) {
   const c = pit ? "var(--f1-pit)" : tone === "info" || !tone ? "var(--ink-soft)" : TONE_COLOUR[tone];
-  const stroke = { fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
-  const icon = pit ? (
-    <text x="8" y="8" dy="0.36em" textAnchor="middle" fontSize="9" fontWeight="800" fontFamily="var(--font-sans)" fill="currentColor">
-      PIT
-    </text>
-  ) : tone === "sc" ? (
-    <text x="8" y="8" dy="0.36em" textAnchor="middle" fontSize="8.5" fontWeight="800" fontFamily="var(--font-sans)" fill="currentColor">
-      SC
-    </text>
-  ) : tone === "chequered" ? (
-    <g>
-      <rect x="3" y="3" width="10" height="10" rx="1.5" {...stroke} strokeWidth={1.2} />
-      <path d="M3 3h3.3v3.3H3zM9.7 3H13v3.3H9.7zM6.3 6.3h3.4v3.4H6.3zM3 9.7h3.3V13H3zM9.7 9.7H13V13H9.7z" fill="currentColor" />
-    </g>
-  ) : kind === "stewards" ? (
-    // A gavel.
-    <g {...stroke}>
-      <path d="M7.5 3.5l4 4M5.5 5.5l4 4M6.5 4.5l-2 2M10.5 8.5l-2 2M8.5 7.5L13 12" />
-      <path d="M3 13h5" />
-    </g>
-  ) : kind === "limits" ? (
-    // The track's edge, crossed.
-    <g {...stroke}>
-      <path d="M4 2.5v11M12 2.5v11" strokeDasharray="2 2" />
-      <path d="M6 10.5l5-5M9 5.5h2v2" />
-    </g>
-  ) : kind === "flags" ? (
-    <g {...stroke}>
-      <path d="M4.5 14V2.5" />
-      <path d="M4.5 3h7.5l-1.8 2.8L12 8.5H4.5" fill="currentColor" fillOpacity="0.85" />
-    </g>
-  ) : (
-    <g {...stroke}>
-      <circle cx="8" cy="8" r="5.5" />
-      <path d="M8 7.3v3.5M8 5.2v.1" />
-    </g>
-  );
+  const props = { size: 16, "aria-hidden": true } as const;
   return (
-    <span className="w-7 h-7 rounded-lg grid place-items-center shrink-0" style={{ color: c, background: `color-mix(in srgb, ${c} 14%, transparent)` }} aria-hidden="true">
-      <svg viewBox="0 0 16 16" className="w-4 h-4">
-        {icon}
-      </svg>
+    <span className="w-7 h-7 rounded-lg grid place-items-center shrink-0" style={{ color: c, background: `color-mix(in srgb, ${c} 14%, transparent)` }}>
+      {pit ? (
+        <WrenchIcon {...props} />
+      ) : tone === "sc" ? (
+        <CarProfileIcon {...props} weight="fill" />
+      ) : tone === "chequered" ? (
+        <FlagCheckeredIcon {...props} weight="fill" />
+      ) : kind === "stewards" ? (
+        <GavelIcon {...props} />
+      ) : kind === "limits" ? (
+        <RoadHorizonIcon {...props} />
+      ) : kind === "flags" ? (
+        <FlagIcon {...props} weight="fill" />
+      ) : (
+        <InfoIcon {...props} />
+      )}
     </span>
   );
 }
 
-/** The caption under a message: when, and what kind. */
-function Caption({ t, label, colour }: { t: number; label: string; colour?: string }) {
+/** The caption under a message: when. Its icon says what kind, and a reader of the screen hears it. */
+function Caption({ t, label }: { t: number; label: string }) {
   return (
-    <span className="flex items-center gap-1.5 font-mono text-[10px] text-ink-faint mt-0.5 tabular-nums">
+    <span className="relative flex items-center gap-1.5 font-mono text-[11px] text-ink-faint mt-0.5 tabular-nums">
       {clock(new Date(t).toISOString())}
-      <span aria-hidden="true">·</span>
-      <span style={colour ? { color: colour } : undefined}>{label}</span>
+      <span className="sr-only">{label}</span>
     </span>
   );
 }
 
 function RcRow({ it, t }: { it: RcItem; t: number }) {
-  const c = TONE_COLOUR[it.tone];
   return (
     <div className="flex items-start gap-3 min-w-0">
       <Glyph tone={it.tone} kind={it.kind} />
       <span className="min-w-0 pt-[3px]">
         <span className="block font-sans text-[13px] leading-snug">
           {it.text}
-          {it.cleared && <span className="font-mono text-[10.5px] text-ink-faint"> · cleared {clock(it.cleared)}</span>}
+          {it.cleared && <span className="font-mono text-[11px] text-ink-faint"> · cleared {clock(it.cleared)}</span>}
         </span>
         {/* An incident's earlier stages, under its latest word. */}
         {it.history?.length ? (
-          <span className="block font-mono text-[10px] text-ink-faint mt-0.5 tabular-nums">
+          <span className="block font-mono text-[11px] text-ink-faint mt-0.5 tabular-nums">
             {it.history.map((h) => `${h.text.split(": ").at(-1)} ${clock(h.utc)}`).join(" → ")}
           </span>
         ) : null}
-        <Caption t={t} label={it.tone === "penalty" ? "Penalty" : it.tone === "sc" ? "Safety car" : KIND_LABEL[it.kind]} colour={it.tone === "info" ? undefined : c} />
+        <Caption t={t} label={it.tone === "penalty" ? "Penalty" : it.tone === "sc" ? "Safety car" : KIND_LABEL[it.kind]} />
       </span>
     </div>
   );
@@ -188,10 +162,10 @@ function PitRow({ p, tyre, t }: { p: LivePitStop; tyre: { compound: keyof typeof
           <span>
             <b className="font-semibold">{p.code}</b> {p.redFlag ? `changes tyres under the red flag (lap ${p.lap})` : p.sameTyres ? `stops on lap ${p.lap}, same tyres` : `stops on lap ${p.lap}`}
           </span>
-          {p.stationary !== null && <span className="rounded-md px-1.5 font-mono text-[10.5px] tabular-nums bg-[color:var(--rule)]">{p.stationary.toFixed(1)} s</span>}
-          {p.lane !== null && <span className="font-mono text-[10.5px] text-ink-soft tabular-nums">{p.lane.toFixed(1)} s in the lane</span>}
+          {p.stationary !== null && <span className="rounded-md px-1.5 font-mono text-[11px] tabular-nums bg-[color:var(--rule)]">{p.stationary.toFixed(1)} s</span>}
+          {p.lane !== null && <span className="font-mono text-[11px] text-ink-soft tabular-nums">{p.lane.toFixed(1)} s in the lane</span>}
           {tyre && (
-            <span className="flex items-center gap-1.5 font-mono text-[10.5px] text-ink-soft" title={`Out on ${tyre.fresh ? "new" : "used"} ${TYRE[tyre.compound].name.toLowerCase()}s`}>
+            <span className="flex items-center gap-1.5 font-mono text-[11px] text-ink-soft" title={`Out on ${tyre.fresh ? "new" : "used"} ${TYRE[tyre.compound].name.toLowerCase()}s`}>
               <ArrowRightIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" />
               <span
                 className="rounded-[4px] px-1.5 h-[16px] leading-[16px] font-bold"
@@ -206,7 +180,7 @@ function PitRow({ p, tyre, t }: { p: LivePitStop; tyre: { compound: keyof typeof
             </span>
           )}
         </span>
-        <Caption t={t} label="Pit stop" colour="var(--f1-pit)" />
+        <Caption t={t} label="Pit stop" />
       </span>
     </div>
   );
@@ -240,14 +214,14 @@ export default function Feed({
   const { text, pending, paused } = useTranscripts(clips);
 
   const n = (f: Filter) => (f === "all" ? all : items).filter((it) => matches(it, f) && (!onlyMine || about(it).some((c) => mine.has(c)))).length;
-  const options: { value: Filter; label: string; count?: number }[] = [
+  const options: { value: Filter; label: string; count?: number; icon?: Icon }[] = [
     { value: "all", label: "All", count: n("all") },
-    { value: "flags", label: "Flags", count: n("flags") },
-    { value: "stewards", label: "Stewards", count: n("stewards") },
-    { value: "limits", label: "Track limits", count: n("limits") },
-    { value: "pits", label: "Pits", count: n("pits") },
-    { value: "radio", label: "Radio", count: n("radio") },
-    { value: "info", label: "Info", count: n("info") },
+    { value: "flags", label: "Flags", count: n("flags"), icon: FlagIcon },
+    { value: "stewards", label: "Stewards", count: n("stewards"), icon: GavelIcon },
+    { value: "limits", label: "Track limits", count: n("limits"), icon: RoadHorizonIcon },
+    { value: "pits", label: "Pits", count: n("pits"), icon: WrenchIcon },
+    { value: "radio", label: "Radio", count: n("radio"), icon: MicrophoneIcon },
+    { value: "info", label: "Info", count: n("info"), icon: InfoIcon },
   ];
   const visible = options.filter((o) => o.value === "all" || o.value === filter || (o.count ?? 0) > 0);
 
@@ -273,8 +247,9 @@ export default function Feed({
         const on = filter === o.value;
         return (
           <button key={o.value} type="button" role="tab" aria-selected={on} onClick={() => setFilter(o.value)} className={chip(on)} style={on ? { background: "var(--ink)" } : undefined}>
+            {o.icon && <o.icon size={13} weight={on ? "fill" : "regular"} aria-hidden="true" />}
             {o.label}
-            {o.count !== undefined && <span className={`font-mono text-[10.5px] tabular-nums ${on ? "opacity-70" : "text-ink-faint"}`}>{o.count}</span>}
+            {o.count !== undefined && <span className={`font-mono text-[11px] tabular-nums ${on ? "opacity-70" : "text-ink-faint"}`}>{o.count}</span>}
           </button>
         );
       })}
@@ -325,7 +300,7 @@ export default function Feed({
                     // the panel's see-through tint over the page: solid, and the panel's own colour
                     style={{ background: "linear-gradient(var(--card-bg), var(--card-bg)), var(--paper)" }}
                   >
-                    <span className="font-label text-[9.5px] text-ink-soft">Lap {lap}</span>
+                    <span className="font-label text-[11px] text-ink-soft">Lap {lap}</span>
                     <span className="flex-1 border-t hairline" />
                   </div>
                 )}

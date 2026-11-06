@@ -65,7 +65,7 @@ function stintOf(snap: LiveSnapshot, r: LiveRow): Stint | null {
 function StintCell({ title, row, s }: { title: string; row: LiveRow | null; s: Stint | null }) {
   return (
     <div className="px-3 py-2 min-w-0 overflow-hidden">
-      <div className="font-label text-[9px] text-ink-faint flex items-center gap-1.5 whitespace-nowrap overflow-hidden">
+      <div className="font-label text-[11px] text-ink-faint flex items-center gap-1.5 whitespace-nowrap overflow-hidden">
         <span className="shrink-0">{title}</span>
         {row && (
           <>
@@ -76,7 +76,7 @@ function StintCell({ title, row, s }: { title: string; row: LiveRow | null; s: S
       </div>
       <div className="font-mono text-[13px] font-semibold tabular-nums mt-1 truncate">{s ? fmt(s.avg) : "—"}</div>
       <div
-        className="font-mono text-[10px] tabular-nums mt-0.5 truncate"
+        className="font-mono text-[11px] tabular-nums mt-0.5 truncate"
         style={{ color: !s || s.trend === null || Math.abs(s.trend) < 0.02 ? "var(--ink-soft)" : s.trend > 0 ? "var(--down)" : "var(--up)" }}
         title={s ? `Average of ${s.laps.length} clean laps on this set${s.trend !== null ? `; ${s.trend > 0 ? "slower" : "quicker"} by ${Math.abs(s.trend).toFixed(2)} s a lap` : ""}` : "Not enough clean laps on this set yet"}
       >
@@ -136,15 +136,15 @@ export default function Pace({ snap, row, className = "" }: { snap: LiveSnapshot
         <StintCell title="Behind" row={behind} s={behind ? stintOf(snap, behind) : null} />
       </div>
       <div className="border-t hairline px-3 py-2 shrink-0">
-        <div className="font-label text-[9px] text-ink-faint truncate">Last laps against {ahead?.code ?? "the car ahead"}</div>
+        <div className="font-label text-[11px] text-ink-faint truncate">Last laps against {ahead?.code ?? "the car ahead"}</div>
         <div className="grid grid-cols-5 gap-1.5 mt-1">
           {last.map((l, i) => {
             const d = l.me !== null && l.them !== null && !l.pit ? l.me - l.them : null;
             return (
               <div key={i} className="min-w-0 text-center" title={l.me !== null && l.them !== null && ahead ? `Lap ${l.lap}: ${row.code} ${fmt(l.me)}, ${ahead.code} ${fmt(l.them)}` : l.lap ? `Lap ${l.lap}` : ""}>
-                <div className="font-mono text-[9px] text-ink-faint truncate">{l.lap ? `L${l.lap}${l.sc ? " SC" : ""}` : "—"}</div>
-                <div className="font-mono text-[10.5px] tabular-nums truncate">{l.me !== null ? fmt(l.me).replace(/^1:/, "") : "—"}</div>
-                <div className="font-mono text-[10px] font-semibold tabular-nums truncate" style={{ color: d === null || Math.abs(d) < 0.05 ? "var(--ink-soft)" : d < 0 ? "var(--up)" : "var(--down)" }}>
+                <div className="font-mono text-[11px] text-ink-faint truncate">{l.lap ? `L${l.lap}${l.sc ? " SC" : ""}` : "—"}</div>
+                <div className="font-mono text-[11px] tabular-nums truncate">{l.me !== null ? fmt(l.me).replace(/^1:/, "") : "—"}</div>
+                <div className="font-mono text-[11px] font-semibold tabular-nums truncate" style={{ color: d === null || Math.abs(d) < 0.05 ? "var(--ink-soft)" : d < 0 ? "var(--up)" : "var(--down)" }}>
                   {l.pit ? "pit" : d === null ? "—" : `${d < 0 ? "−" : "+"}${Math.abs(d).toFixed(2)}`}
                 </div>
               </div>

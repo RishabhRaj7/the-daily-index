@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftIcon, ArrowRightIcon } from "@phosphor-icons/react";
+import { ArrowLeftIcon, ArrowRightIcon, CalendarDotsIcon, ClockCounterClockwiseIcon, CloudRainIcon, FlagCheckeredIcon, FlagIcon, LightningIcon, PathIcon, TableIcon, ThermometerHotIcon, ThermometerSimpleIcon, TrophyIcon, WatchIcon, WrenchIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import type { F1Race } from "@/lib/types";
 import type { LiveSnapshot } from "@/lib/f1-live-types";
@@ -77,23 +77,23 @@ function SessionCard({ s, on, onOpen }: { s: WeekendSession; on: boolean; onOpen
     >
       <div className="flex items-baseline justify-between gap-2">
         <span className="font-sans font-bold text-[14px]">{s.name}</span>
-        <span className="font-mono text-[10px] text-ink-faint">{day(s.end)}</span>
+        <span className="font-mono text-[11px] text-ink-faint">{day(s.end)}</span>
       </div>
       <ol className="space-y-1.5">
         {s.rows.slice(0, 3).map((r) => (
           <li key={r.code} className="grid grid-cols-[1.1rem_minmax(0,1fr)_auto] items-center gap-2 text-[12px]">
-            <span className="font-mono text-[10.5px]" style={{ color: ["#c99a06", "var(--ink-soft)", "#C9792E"][r.pos - 1] }}>
+            <span className="font-mono text-[11px]" style={{ color: ["#c99a06", "var(--ink-soft)", "#C9792E"][r.pos - 1] }}>
               {r.pos}
             </span>
             <span className="flex items-center gap-1.5 min-w-0">
               <TeamGlyph team={r.team} colour={r.colour} size={13} />
               <span className="font-sans font-semibold truncate">{r.name}</span>
             </span>
-            <span className="font-mono text-[10.5px] text-ink-soft tabular-nums">{r.time}</span>
+            <span className="font-mono text-[11px] text-ink-soft tabular-nums">{r.time}</span>
           </li>
         ))}
       </ol>
-      <div className="mt-auto pt-2 border-t hairline flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10.5px] text-ink-faint">
+      <div className="mt-auto pt-2 border-t hairline flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-ink-faint">
         {s.fastest && (
           <span>
             <span style={{ color: "var(--f1-fastest)" }}>■</span> {s.fastest.code} {s.fastest.time}
@@ -101,11 +101,11 @@ function SessionCard({ s, on, onOpen }: { s: WeekendSession; on: boolean; onOpen
         )}
         {s.air !== null && (
           <span>
-            {s.rain ? "Wet · " : ""}
-            {s.air.toFixed(0)}° air · {s.track?.toFixed(0)}° track
+            {s.rain && <><CloudRainIcon size={13} className="inline align-[-2px]" role="img" aria-label="Wet" />{" "}</>}
+            <ThermometerSimpleIcon size={13} className="inline align-[-2px]" role="img" aria-label="Air" /> {s.air.toFixed(0)}° <ThermometerHotIcon size={13} className="inline align-[-2px] ml-1" role="img" aria-label="Track" /> {s.track?.toFixed(0)}°
           </span>
         )}
-        <span className="ml-auto font-label text-[9px]" style={{ color: on ? "var(--hue-f1)" : undefined }}>
+        <span className="ml-auto font-label text-[11px]" style={{ color: on ? "var(--hue-f1)" : undefined }}>
           {on ? "On show" : <>Open <ArrowRightIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" /></>}
         </span>
       </div>
@@ -130,7 +130,7 @@ function Form({ sessions, onDriver }: { sessions: WeekendSession[]; onDriver: (c
           ))}
         </colgroup>
         <thead>
-          <tr className="font-label text-[9.5px] text-ink-faint">
+          <tr className="font-label text-[11px] text-ink-faint">
             <th className="text-left font-normal px-1">Driver</th>
             {sessions.map((s) => (
               <th key={s.path} className="font-normal mid">
@@ -195,7 +195,7 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
       {/* the round */}
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] gap-6">
         <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 sm:p-6 flex flex-col">
-          <div className="font-label text-[10.5px] text-ink-soft">
+          <div className="font-label text-[11px] text-ink-soft">
             {data?.round ? `Round ${data.round} · ` : ""}
             {first && last ? `${new Date(first).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} – ${new Date(last).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}
             {sprint ? " · sprint weekend" : ""}
@@ -204,15 +204,18 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
           <div className="font-sans text-[13px] text-ink-soft mt-1">{h ? `${h.locality}, ${h.country}` : snap.location}</div>
           <dl className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-auto pt-5">
             {[
-              { k: "Corners", v: track?.corners.length ? String(track.corners.length) : "—" },
-              { k: "A pit stop costs", v: track?.pitLoss ? `~${Math.round(track.pitLoss)} s` : "—" },
-              { k: "Grands Prix here", v: h ? String(h.races) : "—", sub: h?.firstYear ? `Since ${h.firstYear}` : undefined },
-              { k: "Most wins here", v: h?.mostWins ? String(h.mostWins.wins) : "—", sub: h?.mostWins?.name },
+              { Glyph: PathIcon, k: "Corners", v: track?.corners.length ? String(track.corners.length) : "—" },
+              { Glyph: WrenchIcon, k: "A pit stop costs", v: track?.pitLoss ? `~${Math.round(track.pitLoss)} s` : "—" },
+              { Glyph: FlagCheckeredIcon, k: "Grands Prix here", v: h ? String(h.races) : "—", sub: h?.firstYear ? `Since ${h.firstYear}` : undefined },
+              { Glyph: TrophyIcon, k: "Most wins here", v: h?.mostWins ? String(h.mostWins.wins) : "—", sub: h?.mostWins?.name },
             ].map((x) => (
               <div key={x.k} className="rounded-xl border hairline px-3 py-2.5 min-w-0">
-                <dt className="font-label text-[9px] text-ink-faint truncate">{x.k}</dt>
+                <dt className="font-label text-[11px] leading-tight text-ink-faint flex items-start gap-1 min-w-0">
+                  <x.Glyph size={13} className="shrink-0" aria-hidden="true" />
+                  <span>{x.k}</span>
+                </dt>
                 <dd className="font-display font-extrabold text-[1.45rem] leading-none mt-1.5">{x.v}</dd>
-                {x.sub && <dd className="font-mono text-[10.5px] text-ink-faint mt-1 truncate">{x.sub}</dd>}
+                {x.sub && <dd className="font-mono text-[11px] text-ink-faint mt-1 truncate">{x.sub}</dd>}
               </div>
             ))}
           </dl>
@@ -225,7 +228,7 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
       {/* the sessions */}
       <div>
         <div className="flex items-baseline justify-between gap-3 mb-3">
-          <h3 className="font-label text-[10.5px] tracking-[0.12em]">Sessions</h3>
+          <h3 className="font-label text-[11px] tracking-[0.12em] flex items-center gap-1.5"><FlagIcon size={15} style={{ color: "var(--hue-f1)" }} aria-hidden="true" />Sessions</h3>
           {current && (
             <button type="button" onClick={() => onPick(null)} className="font-sans text-[12px] font-semibold text-ink-soft hover:text-ink">
               <ArrowLeftIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" /> Back to the latest
@@ -247,10 +250,10 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
               <div key={s.name} className="rounded-2xl border border-dashed hairline p-4 flex flex-col gap-2 min-w-0">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="font-sans font-bold text-[14px] text-ink-soft">{s.name}</span>
-                  <span className="font-mono text-[10px] text-ink-faint">{day(s.start)}</span>
+                  <span className="font-mono text-[11px] text-ink-faint">{day(s.start)}</span>
                 </div>
                 <div className="font-display font-extrabold text-[1.6rem] leading-none mt-1">{hm(s.start)}</div>
-                <div className="font-mono text-[10.5px] text-ink-soft mt-auto">
+                <div className="font-mono text-[11px] text-ink-soft mt-auto">
                   <Countdown at={s.start} />
                 </div>
               </div>
@@ -265,12 +268,12 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
       {/* Both columns end level: the shorter one's last panel stretches to the other's foot. */}
       <div className={`grid grid-cols-1 gap-6 items-stretch ${done.length > 1 ? "lg:grid-cols-[auto_minmax(0,1fr)]" : ""}`}>
         {done.length > 1 && (
-          <Panel label="Across the weekend" meta="Tap a name for their season" className="lg:w-max">
+          <Panel icon={TableIcon} label="Across the weekend" meta="Tap a name for their season" className="lg:w-max">
             <Form sessions={done} onDriver={openDriver} />
           </Panel>
         )}
         <div className="flex flex-col gap-6 min-w-0 [&>*:last-child]:flex-1">
-          <Panel label="Recent years here" meta={h ? `${h.races} Grands Prix since ${h.firstYear}` : undefined}>
+          <Panel icon={ClockCounterClockwiseIcon} label="Recent years here" meta={h ? `${h.races} Grands Prix since ${h.firstYear}` : undefined}>
             {!h ? (
               <p className="font-mono text-[11px] text-ink-faint">{data === undefined ? "Reading…" : "No history: a new venue."}</p>
             ) : (
@@ -283,11 +286,11 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
                     <col />
                   </colgroup>
                   <thead>
-                    <tr className="font-label text-[9.5px] text-ink-faint text-left">
+                    <tr className="font-label text-[11px] text-ink-faint text-left">
                       <th className="font-normal py-1.5">Year</th>
-                      <th className="font-normal">Winner</th>
-                      <th className="font-normal">Pole</th>
-                      <th className="font-normal">Fastest lap</th>
+                      <th className="font-normal"><TrophyIcon size={13} className="inline align-[-2px] mr-1" aria-hidden="true" />Winner</th>
+                      <th className="font-normal"><FlagIcon size={13} className="inline align-[-2px] mr-1" aria-hidden="true" />Pole</th>
+                      <th className="font-normal"><LightningIcon size={13} className="inline align-[-2px] mr-1" aria-hidden="true" />Fastest lap</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -299,15 +302,15 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
                             <span className="flex items-center gap-1.5">
                               <TeamGlyph team={r.winner.team} colour="var(--ink-faint)" size={13} />
                               <b className="font-sans">{r.winner.name}</b>
-                              {r.winner.grid && r.winner.grid > 1 && <span className="font-mono text-[10px] text-ink-faint">from P{r.winner.grid}</span>}
+                              {r.winner.grid && r.winner.grid > 1 && <span className="font-mono text-[11px] text-ink-faint">from P{r.winner.grid}</span>}
                             </span>
                           )}
                         </td>
                         <td className="font-sans">
-                          {r.pole?.name} <span className="font-mono text-[10px] text-ink-faint">{r.pole?.time}</span>
+                          {r.pole?.name} <span className="font-mono text-[11px] text-ink-faint">{r.pole?.time}</span>
                         </td>
                         <td className="font-sans">
-                          {r.fastest?.name} <span className="font-mono text-[10px] text-ink-faint">{r.fastest?.time}</span>
+                          {r.fastest?.name} <span className="font-mono text-[11px] text-ink-faint">{r.fastest?.time}</span>
                         </td>
                       </tr>
                     ))}
@@ -316,17 +319,17 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
               </div>
             )}
           </Panel>
-          <Panel label="Lap benchmarks">
+          <Panel icon={WatchIcon} label="Lap benchmarks">
             <Benchmarks snap={snap} />
           </Panel>
         {after.length > 0 && (
-          <Panel label="After this">
+          <Panel icon={CalendarDotsIcon} label="After this">
             <ol className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {after.map((r) => (
                 <li key={r.round} className="rounded-xl border hairline px-3.5 py-3">
-                  <div className="font-label text-[9.5px] text-ink-faint">Round {r.round}</div>
+                  <div className="font-label text-[11px] text-ink-faint">Round {r.round}</div>
                   <div className="font-display font-extrabold uppercase text-[1.25rem] leading-none mt-1.5">{r.name}</div>
-                  <div className="font-mono text-[10.5px] text-ink-soft mt-1.5">
+                  <div className="font-mono text-[11px] text-ink-soft mt-1.5">
                     {new Date(r.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
                     {r.sprint ? " · sprint" : ""}
                   </div>

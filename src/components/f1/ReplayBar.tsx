@@ -1,5 +1,6 @@
 "use client";
 
+import { PauseIcon, PlayIcon, XIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { LiveSnapshot } from "@/lib/f1-live-types";
 import type { FlagTone, ReplayTimeline } from "@/lib/live/f1-replay";
@@ -195,11 +196,11 @@ export default function ReplayBar({ replay, onClose }: { replay: Replay; onClose
 
   if (!timeline) {
     return (
-      <div className="fixed inset-x-3 bottom-[calc(4.6rem+env(safe-area-inset-bottom))] lg:bottom-3 z-40 mx-auto max-w-[min(1200px,calc(100%-1.5rem))] glass border hairline rounded-2xl px-4 py-3 font-mono text-[11px] shimmer-text">
+      <div className="fixed inset-x-3 bottom-[calc(4.6rem+env(safe-area-inset-bottom))] md:bottom-3 z-40 mx-auto max-w-[min(1200px,calc(100%-1.5rem))] glass border hairline rounded-2xl px-4 py-3 font-mono text-[11px] shimmer-text">
         {replay.unavailable ? (
           <div className="flex items-center justify-between gap-3 text-ink-soft">
             <span>Replay history isn&rsquo;t available for this session.</span>
-            <button type="button" onClick={onClose} className="shrink-0 rounded-full border hairline px-3 py-1 text-[10px] text-ink hover:border-[color:var(--ink-soft)]">
+            <button type="button" onClick={onClose} className="shrink-0 rounded-full border hairline px-3 py-1 text-[11px] text-ink hover:border-[color:var(--ink-soft)]">
               Close
             </button>
           </div>
@@ -229,7 +230,7 @@ export default function ReplayBar({ replay, onClose }: { replay: Replay; onClose
 
   return (
     <div
-      className="fixed inset-x-3 bottom-[calc(4.6rem+env(safe-area-inset-bottom))] lg:bottom-3 z-40 mx-auto max-w-[min(1200px,calc(100%-1.5rem))] glass border hairline rounded-2xl shadow-[0_24px_60px_-24px_rgba(0,0,0,0.7)] px-3 sm:px-4 py-2.5 animate-[sheet-up_0.35s_var(--ease-out)]"
+      className="fixed inset-x-3 bottom-[calc(4.6rem+env(safe-area-inset-bottom))] md:bottom-3 z-40 mx-auto max-w-[min(1200px,calc(100%-1.5rem))] glass border hairline rounded-2xl shadow-[0_24px_60px_-24px_rgba(0,0,0,0.7)] px-3 sm:px-4 py-2.5 animate-[sheet-up_0.35s_var(--ease-out)]"
       role="region"
       aria-label="Replay"
     >
@@ -242,20 +243,15 @@ export default function ReplayBar({ replay, onClose }: { replay: Replay; onClose
           aria-label={playing ? "Pause the replay" : "Play the replay"}
         >
           {playing ? (
-            <svg viewBox="0 0 12 12" className="w-3 h-3" fill="currentColor" aria-hidden="true">
-              <rect x="2.5" y="2" width="2.6" height="8" rx="0.6" />
-              <rect x="6.9" y="2" width="2.6" height="8" rx="0.6" />
-            </svg>
+            <PauseIcon size={14} weight="fill" aria-hidden="true" />
           ) : (
-            <svg viewBox="0 0 12 12" className="w-3 h-3 ml-[2px]" fill="currentColor" aria-hidden="true">
-              <path d="M3 1.8v8.4c0 .5.5.8.9.5l6.4-4.2c.4-.3.4-.8 0-1.1L3.9 1.3c-.4-.3-.9 0-.9.5z" />
-            </svg>
+            <PlayIcon size={14} weight="fill" aria-hidden="true" />
           )}
         </button>
         <div className="min-w-0 flex-1">
-          <div className="flex items-baseline justify-between gap-3 font-mono text-[10.5px] tabular-nums">
+          <div className="flex items-baseline justify-between gap-3 font-mono text-[11px] tabular-nums">
             <span className="flex items-center gap-2 min-w-0">
-              <span className="font-label text-[9.5px]" style={{ color: "var(--hue-f1)" }}>
+              <span className="font-label text-[11px]" style={{ color: "var(--hue-f1)" }}>
                 Replay
               </span>
               <span className="text-ink">{hms(shown - timeline.start)}</span>
@@ -268,7 +264,7 @@ export default function ReplayBar({ replay, onClose }: { replay: Replay; onClose
                   key={s}
                   type="button"
                   onClick={() => replay.setSpeed(s)}
-                  className={`rounded-md px-1.5 h-6 font-mono text-[10.5px] font-semibold transition-colors ${speed === s ? "text-[color:var(--paper)]" : "text-ink-soft hover:text-ink"} ${s === 2 || s === 10 ? "hidden sm:block" : ""}`}
+                  className={`rounded-md px-1.5 h-6 font-mono text-[11px] font-semibold transition-colors ${speed === s ? "text-[color:var(--paper)]" : "text-ink-soft hover:text-ink"} ${s === 2 || s === 10 ? "hidden sm:block" : ""}`}
                   style={speed === s ? { background: "var(--ink)" } : undefined}
                   aria-pressed={speed === s}
                 >
@@ -276,9 +272,7 @@ export default function ReplayBar({ replay, onClose }: { replay: Replay; onClose
                 </button>
               ))}
               <button type="button" onClick={onClose} className="ml-1 w-6 h-6 grid place-items-center rounded-md text-ink-soft hover:text-ink" aria-label="Leave the replay">
-                <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
-                  <path d="M4 4l8 8M12 4l-8 8" />
-                </svg>
+                <XIcon size={15} aria-hidden="true" />
               </button>
             </span>
           </div>

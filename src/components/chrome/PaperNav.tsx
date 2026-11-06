@@ -226,27 +226,25 @@ function RowNote({ note }: { note: NonNullable<NavChapter["sections"][number]["n
   );
 }
 
-/** The side menu, from 1500px. `base` is "/" off the paper, so its links go back to it. */
-export function Rail({
-  chapters,
-  active,
-  section,
+/** The side menu's frame, from 1500px: the paper's name and date above, its tools below. */
+export function RailFrame({
+  home,
   date,
   issue,
-  base = "",
+  label,
+  children,
 }: {
-  chapters: NavChapter[];
-  active: string;
-  section: string | null;
+  /** Where the name goes: "/" off the paper. */
+  home: string;
   date?: string;
   issue?: string;
-  base?: string;
+  label: string;
+  children: React.ReactNode;
 }) {
-  const Anchor = base ? Link : "a";
-  const to = (id: string) => (base ? (id === TODAY ? base : `${base}#${id}`) : `#${id}`);
+  const Anchor = home.startsWith("/") ? Link : "a";
   return (
     <aside className="paper-rail hidden wide:flex" data-site-nav>
-      <Anchor href={to(TODAY)} className="block">
+      <Anchor href={home} className="block">
         <span className="rail-mark" aria-hidden="true">
           {Array.from({ length: 9 }).map((_, i) => (
             <span key={i} />
@@ -267,7 +265,36 @@ export function Rail({
           </>
         )}
       </p>
-      <nav aria-label="Chapters" className="mt-2 flex-1 min-h-0 overflow-y-auto [scrollbar-width:none]">
+      <nav aria-label={label} className="mt-2 flex-1 min-h-0 overflow-y-auto [scrollbar-width:none]">
+        {children}
+      </nav>
+      <div className="pt-2.5 border-t hairline mt-2.5">
+        <TopBarTools />
+      </div>
+    </aside>
+  );
+}
+
+/** The paper's rows in the side menu. `base` is "/" off the paper, so its links go back to it. */
+export function Rail({
+  chapters,
+  active,
+  section,
+  date,
+  issue,
+  base = "",
+}: {
+  chapters: NavChapter[];
+  active: string;
+  section: string | null;
+  date?: string;
+  issue?: string;
+  base?: string;
+}) {
+  const Anchor = base ? Link : "a";
+  const to = (id: string) => (base ? (id === TODAY ? base : `${base}#${id}`) : `#${id}`);
+  return (
+    <RailFrame home={to(TODAY)} date={date} issue={issue} label="Chapters">
         <Anchor href={to(TODAY)} data-nav={TODAY} className="rail-row" style={{ ["--row-hue" as string]: "var(--accent)" }} aria-current={active === TODAY ? "true" : undefined}>
           <span className="rail-row-name">
             <RowIcon id={TODAY} current={active === TODAY} />
@@ -290,11 +317,7 @@ export function Rail({
             ))}
           </div>
         ))}
-      </nav>
-      <div className="pt-2.5 border-t hairline mt-2.5">
-        <TopBarTools />
-      </div>
-    </aside>
+    </RailFrame>
   );
 }
 

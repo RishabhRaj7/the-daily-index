@@ -131,7 +131,7 @@ function StewardMarks({ s, code, compact = false }: { s: Stewards | undefined; c
         }}
       >
         {s.penalties.map((p, i) => (
-          <span key={i} className="whitespace-nowrap rounded px-1 font-mono text-[9.5px] font-semibold leading-[15px]" style={{ color: "var(--down)", background: "color-mix(in srgb, var(--down) 15%, transparent)" }}>
+          <span key={i} className="whitespace-nowrap rounded px-1 font-mono text-[11px] font-semibold leading-[15px]" style={{ color: "var(--down)", background: "color-mix(in srgb, var(--down) 15%, transparent)" }}>
             {compact ? p.label.replace(/s$/, "") : p.label}
           </span>
         ))}
@@ -161,7 +161,7 @@ function StewardMarks({ s, code, compact = false }: { s: Stewards | undefined; c
             role="dialog"
             aria-label={`${code} and the stewards`}
           >
-            <div className="font-label text-[9.5px] text-ink-faint">{code} · stewards</div>
+            <div className="font-label text-[11px] text-ink-faint">{code} · stewards</div>
             {lines.map((l, i) => (
               <p key={i} className="font-sans text-[12.5px] leading-snug">
                 {l}
@@ -194,9 +194,9 @@ function Chequered({ r, race, running, status }: { r: LiveRow; race: boolean; ru
 function Status({ r, race, running }: { r: LiveRow; race: boolean; running: boolean }) {
   // Once the flag has fallen everyone is in the pits; only the out and the
   // knocked out are worth a word.
-  if (!running) return r.out ? <span className="font-label text-[9.5px] text-ink-faint">{race ? "DNF" : "Out"}</span> : !race && r.knockedOut ? <span className="font-label text-[9.5px] text-ink-faint">KO</span> : null;
-  if (r.out) return <span className="font-label text-[9.5px] text-ink-faint">Out</span>;
-  if (!race && r.knockedOut) return <span className="font-label text-[9.5px] text-ink-faint">KO</span>;
+  if (!running) return r.out ? <span className="font-label text-[11px] text-ink-faint">{race ? "DNF" : "Out"}</span> : !race && r.knockedOut ? <span className="font-label text-[11px] text-ink-faint">KO</span> : null;
+  if (r.out) return <span className="font-label text-[11px] text-ink-faint">Out</span>;
+  if (!race && r.knockedOut) return <span className="font-label text-[11px] text-ink-faint">KO</span>;
   return null;
 }
 
@@ -206,7 +206,7 @@ function Moved({ r }: { r: LiveRow }) {
   const d = r.grid - r.position;
   if (!d) return null;
   return (
-    <span className="font-mono text-[9px] font-semibold tabular-nums whitespace-nowrap" style={{ color: d > 0 ? "var(--up)" : "var(--down)" }} title={`Started P${r.grid}: ${Math.abs(d)} place${Math.abs(d) === 1 ? "" : "s"} ${d > 0 ? "gained" : "lost"}`}>
+    <span className="font-mono text-[11px] font-semibold tabular-nums whitespace-nowrap" style={{ color: d > 0 ? "var(--up)" : "var(--down)" }} title={`Started P${r.grid}: ${Math.abs(d)} place${Math.abs(d) === 1 ? "" : "s"} ${d > 0 ? "gained" : "lost"}`}>
       <MoveArrow up={d > 0} size={9} />
       {Math.abs(d)}
     </span>
@@ -217,13 +217,13 @@ function Moved({ r }: { r: LiveRow }) {
 function PitCell({ r, running, short }: { r: LiveRow; running: boolean; short: boolean }) {
   if (running && !r.out && r.inPit)
     return (
-      <span className="whitespace-nowrap rounded px-1 font-label text-[9.5px] leading-[15px] text-white" style={{ background: "var(--f1-pit)" }} title="In the pit lane">
+      <span className="whitespace-nowrap rounded px-1 font-label text-[11px] leading-[15px] text-white" style={{ background: "var(--f1-pit)" }} title="In the pit lane">
         {short ? "Pit" : "In pit"}
       </span>
     );
   if (running && !r.out && r.pitOut)
     return (
-      <span className="whitespace-nowrap rounded px-1 font-label text-[9.5px] leading-[13px] border" style={{ color: "var(--f1-pit)", borderColor: "color-mix(in srgb, var(--f1-pit) 50%, transparent)" }} title="On an out-lap">
+      <span className="whitespace-nowrap rounded px-1 font-label text-[11px] leading-[13px] border" style={{ color: "var(--f1-pit)", borderColor: "color-mix(in srgb, var(--f1-pit) 50%, transparent)" }} title="On an out-lap">
         Out lap
       </span>
     );
@@ -318,7 +318,7 @@ export default function LiveTiming({
   // last and best laps stay in both.
   const [picked, setPicked] = useState<"gaps" | "sectors">("gaps");
   const view = layout === "wide" ? "both" : picked;
-  const t = layout === "narrow" ? "minmax(3.6rem,1fr)" : layout === "medium" ? "minmax(4rem,1fr)" : "minmax(4.2rem,1fr)";
+  const t = layout === "narrow" ? "3.35rem" : layout === "medium" ? "minmax(4rem,1fr)" : "minmax(4.2rem,1fr)";
   const sec = layout === "narrow" ? "minmax(2.9rem,1fr)" : "minmax(3.9rem,1fr)";
   const showName = layout === "roomy" || layout === "wide";
   const gaps = view !== "sectors";
@@ -353,7 +353,7 @@ export default function LiveTiming({
       middle.push(
         {
           key: "int",
-          head: "Interval",
+          head: layout === "narrow" ? "Int" : "Interval",
           w: t,
           cell: (r) => <span className="font-mono text-[11.5px] tabular-nums text-right">{r.position === 1 ? "Leader" : r.interval || "—"}</span>,
         },
@@ -381,7 +381,7 @@ export default function LiveTiming({
           {r.tyre ? (
             <>
               <TyreIcon compound={r.tyre.compound} fresh={r.tyre.fresh} size={16} />
-              {layout !== "narrow" && <span className="font-mono text-[10px] tabular-nums text-ink-soft w-[1.3rem] text-left">{r.tyre.laps}</span>}
+              {layout !== "narrow" && <span className="font-mono text-[11px] tabular-nums text-ink-soft w-[1.3rem] text-left">{r.tyre.laps}</span>}
             </>
           ) : (
             <span className="text-ink-faint">—</span>
@@ -390,7 +390,7 @@ export default function LiveTiming({
       ),
     },
     // In the pit lane, on an out-lap, or the stops made (runs, off a race).
-    { key: "pit", head: "Pit", w: layout === "narrow" ? "2.9rem" : "minmax(3.2rem,0.5fr)", cell: (r: LiveRow) => <PitCell r={r} running={snap.running} short={layout === "narrow"} /> },
+    { key: "pit", head: "Pit", w: layout === "narrow" ? "2.1rem" : "minmax(3.2rem,0.5fr)", cell: (r: LiveRow) => <PitCell r={r} running={snap.running} short={layout === "narrow"} /> },
   ];
   const driverW = layout === "wide" ? "minmax(10rem,1.5fr)" : layout === "roomy" ? (sectors ? "minmax(4.5rem,0.8fr)" : "minmax(8rem,1.4fr)") : "minmax(0,1fr)";
   const cols = `${moved ? "2.7rem" : layout === "narrow" || layout === "medium" ? "1.5rem" : "1.6rem"} ${driverW} ${columns.map((c) => c.w).join(" ")}`;
@@ -422,7 +422,7 @@ export default function LiveTiming({
           </div>
         </div>
       )}
-      <div className={`grid ${gapX} items-center font-label text-[9.5px] text-ink-faint pb-1.5 px-2.5`} style={{ gridTemplateColumns: cols }}>
+      <div className={`grid ${gapX} items-center font-label text-[11px] text-ink-faint pb-1.5 px-2.5`} style={{ gridTemplateColumns: cols }}>
         <span>P</span>
         <span>Driver</span>
         {columns.map((c) => (
@@ -461,7 +461,8 @@ export default function LiveTiming({
                     <span className="font-sans font-bold tracking-[0.02em] shrink-0">{r.code}</span>
                     {showName && !(layout === "roomy" && sectors) && <span className="font-sans text-ink-soft truncate min-w-0">{r.name}</span>}
                   </DriverName>
-                  <Chequered r={r} race={race} running={snap.running} status={snap.status} />
+                  {/* Once it's over everyone has the flag: on a phone that room goes to the name and DNF. */}
+                  {(layout !== "narrow" || snap.running) && <Chequered r={r} race={race} running={snap.running} status={snap.status} />}
                   <Status r={r} race={race} running={snap.running} />
                   <StewardMarks s={stewards.get(r.code)} code={r.code} compact={layout === "narrow" || layout === "medium"} />
                 </span>
@@ -473,7 +474,7 @@ export default function LiveTiming({
               </div>
               {snap.cutoff !== null && r.position === snap.cutoff && (
                 <div className="relative h-0 border-t border-dashed" style={{ borderColor: "var(--down)" }}>
-                  <span className="absolute right-0 -top-[7px] font-label text-[9px] px-1 bg-[var(--paper)]" style={{ color: "var(--down)" }}>
+                  <span className="absolute right-0 -top-[7px] font-label text-[11px] px-1 bg-[var(--paper)]" style={{ color: "var(--down)" }}>
                     Drop zone
                   </span>
                 </div>

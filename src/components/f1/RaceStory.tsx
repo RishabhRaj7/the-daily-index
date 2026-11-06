@@ -162,7 +162,7 @@ export default function RaceStory({ data, highlight, names }: { data: Story; hig
             {card.lap === 0 ? "Grid" : `Lap ${card.lap}`} · <span className="text-ink font-semibold">P{card.pos}</span>
           </div>
           {card.lap > 0 && (
-            <div className="font-mono text-[10.5px] tabular-nums" style={{ color: card.delta > 0 ? "var(--up)" : card.delta < 0 ? "var(--down)" : "var(--ink-faint)" }}>
+            <div className="font-mono text-[11px] tabular-nums" style={{ color: card.delta > 0 ? "var(--up)" : card.delta < 0 ? "var(--down)" : "var(--ink-faint)" }}>
               {card.delta === 0 ? `Held P${card.startPos}` : <><MoveArrow up={card.delta > 0} size={10} /> {Math.abs(card.delta)} from P{card.startPos}</>}
             </div>
           )}

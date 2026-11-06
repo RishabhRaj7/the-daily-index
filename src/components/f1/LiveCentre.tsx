@@ -1,7 +1,7 @@
 "use client";
 
 import MoveArrow from "@/components/chrome/MoveArrow";
-import { ArrowLeftIcon, ArrowRightIcon } from "@phosphor-icons/react";
+import { ArrowLeftIcon, ArrowRightIcon, ArrowsClockwiseIcon, ChatCenteredTextIcon, CloudRainIcon, DropIcon, FlagCheckeredIcon, LightningIcon, ListNumbersIcon, MapTrifoldIcon, PlayIcon, RoadHorizonIcon, SteeringWheelIcon, ThermometerHotIcon, ThermometerSimpleIcon, TimerIcon, TireIcon, TrophyIcon, WindIcon, WrenchIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { F1Race } from "@/lib/types";
@@ -19,7 +19,8 @@ import { DriverName, openDriver } from "./DriverLink";
 import ReplayBar, { useReplay } from "./ReplayBar";
 import { LiveDot, SessionClock, TONE, sessionLine } from "./LiveCard";
 import Feed from "./centre/Feed";
-import Analysis, { type Sub } from "./centre/Analysis";
+import Analysis from "./centre/Analysis";
+import { goToView, useLiveView } from "./live-views";
 import StewardsView from "./centre/StewardsView";
 import Weekend from "./centre/Weekend";
 import { ClipNote, Speedometer, TelemetrySheet, useTelemetry } from "./centre/Telemetry";
@@ -47,77 +48,6 @@ import { stewardsByCode } from "@/lib/f1-stewards";
 // screen, like an app's; on a wider screen they head the page.
 // Between sessions the same page carries the last session, final; any
 // finished session can be opened (Past sessions, Weekend) or replayed.
-
-type View = "live" | "analysis" | "feed" | "weekend" | "season";
-
-const VIEWS: { id: View; label: string; icon: React.ReactNode }[] = [
-  {
-    id: "live",
-    label: "Live",
-    icon: (
-      <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
-        <path d="M3 5h14M3 10h14M3 15h9" />
-      </svg>
-    ),
-  },
-  {
-    id: "analysis",
-    label: "Analysis",
-    icon: (
-      <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M3 16V4M3 16h14M6.5 12l3-3.5 2.5 2 4-5" />
-      </svg>
-    ),
-  },
-  {
-    id: "feed",
-    label: "Feed",
-    icon: (
-      <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M4 4h12v9H8l-4 3z" />
-        <path d="M7 7.5h6M7 10h4" />
-      </svg>
-    ),
-  },
-  {
-    id: "weekend",
-    label: "Weekend",
-    icon: (
-      <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M5 17V3M5 4h9l-2 3 2 3H5" />
-      </svg>
-    ),
-  },
-  {
-    id: "season",
-    label: "Season",
-    icon: (
-      <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M6 3h8v4a4 4 0 0 1-8 0zM10 11v3M7 17h6M6 5H3.5a2.5 2.5 0 0 0 2.5 3M14 5h2.5A2.5 2.5 0 0 1 14 8" />
-      </svg>
-    ),
-  },
-];
-
-// Links into the page from before the views (the Pit wall card links #race-control).
-const LEGACY: Record<string, string> = {
-  timing: "live",
-  track: "live",
-  "race-control": "feed",
-  radio: "feed",
-  strategy: "analysis/tyres",
-  story: "analysis/laps",
-  title: "season",
-  benchmarks: "analysis/pace",
-};
-
-function readHash(): { view: View; sub: Sub } {
-  const raw = location.hash.replace(/^#/, "");
-  const [v, s] = (LEGACY[raw] ?? raw).split("/");
-  const view = (VIEWS.some((x) => x.id === v) ? v : "live") as View;
-  const sub = (["tyres", "laps", "pace", "stewards"].includes(s) ? s : "tyres") as Sub;
-  return { view, sub };
-}
 
 // ---- the followed driver ------------------------------------------------------------
 
@@ -192,21 +122,21 @@ function PitNow({ stop, row, snap, className = "" }: { stop: PitStopNow | null; 
         <>
           <span className="w-[3px] h-3 rounded-full shrink-0" style={{ background: c.colour }} />
           <span className="font-sans font-semibold text-[11.5px] shrink-0">{c.code}</span>
-          <span className="font-mono text-[10.5px] text-ink-soft tabular-nums truncate">
+          <span className="font-mono text-[11px] text-ink-soft tabular-nums truncate">
             {c.d <= 0 ? "−" : "+"}
             {Math.abs(c.d).toFixed(1)}
           </span>
         </>
       ) : (
-        <span className="font-mono text-[10.5px] text-ink-faint px-1">—</span>
+        <span className="font-mono text-[11px] text-ink-faint px-1">—</span>
       )}
     </span>
   );
   return (
     <div className={`rounded-xl border hairline px-3 py-2.5 flex flex-col overflow-hidden ${className}`}>
       <div className="flex items-baseline justify-between gap-2 shrink-0">
-        <span className="font-label text-[9.5px] text-ink-faint truncate">If {row.code} pits now</span>
-        <span className="font-mono text-[10.5px] text-ink-faint whitespace-nowrap">Pit loss {stop ? `~${stop.loss.toFixed(0)} s` : "—"}</span>
+        <span className="font-label text-[11px] text-ink-faint truncate">If {row.code} pits now</span>
+        <span className="font-mono text-[11px] text-ink-faint whitespace-nowrap">Pit loss {stop ? `~${stop.loss.toFixed(0)} s` : "—"}</span>
       </div>
       <div className="mt-2 grid grid-cols-1 sm:grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-2 items-center flex-1 min-h-0">
         <div className="flex items-baseline gap-2 min-w-0 whitespace-nowrap">
@@ -215,7 +145,7 @@ function PitNow({ stop, row, snap, className = "" }: { stop: PitStopNow | null; 
           <span className="font-display font-extrabold text-[1.8rem] leading-none" style={{ color: !stop ? "var(--ink-faint)" : lost > 0 ? "var(--down)" : "var(--up)" }}>
             {stop ? `P${stop.pos}` : "—"}
           </span>
-          <span className="font-mono text-[10.5px] text-ink-soft ml-1 truncate">{!stop ? "" : lost > 0 ? `${lost} place${lost === 1 ? "" : "s"} lost` : "No places lost"}</span>
+          <span className="font-mono text-[11px] text-ink-soft ml-1 truncate">{!stop ? "" : lost > 0 ? `${lost} place${lost === 1 ? "" : "s"} lost` : "No places lost"}</span>
         </div>
         <div className="min-w-0">
           <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5" aria-label="Where they'd rejoin">
@@ -225,7 +155,7 @@ function PitNow({ stop, row, snap, className = "" }: { stop: PitStopNow | null; 
             </span>
             {chip(behind, "b")}
           </div>
-          <div className="font-mono text-[10.5px] mt-1.5 truncate" style={{ color: !stop ? "var(--ink-faint)" : traffic.startsWith("In clear") ? "var(--up)" : "var(--f1-slower)" }}>
+          <div className="font-mono text-[11px] mt-1.5 truncate" style={{ color: !stop ? "var(--ink-faint)" : traffic.startsWith("In clear") ? "var(--up)" : "var(--f1-slower)" }}>
             {traffic}
           </div>
         </div>
@@ -275,11 +205,11 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
             </DriverName>
             <span className="font-mono text-[11px] text-ink-soft">P{row.position}</span>
           </span>
-          <span className="block font-mono text-[10.5px] text-ink-soft mt-1 truncate">
+          <span className="block font-mono text-[11px] text-ink-soft mt-1 truncate">
             {race ? (row.position === 1 ? "Leading" : `${row.gap || "—"} to the leader · ${row.interval || "—"} to the car ahead`) : `${row.gap || "—"} to the fastest`}
           </span>
           {stewardLine.length > 0 && (
-            <span className="block font-mono text-[10.5px] mt-1 truncate" style={{ color: stewards?.penalties.length ? "var(--down)" : "var(--f1-slower)" }} title={stewardLine.join(" · ")}>
+            <span className="block font-mono text-[11px] mt-1 truncate" style={{ color: stewards?.penalties.length ? "var(--down)" : "var(--f1-slower)" }} title={stewardLine.join(" · ")}>
               {stewardLine.join(" · ")}
             </span>
           )}
@@ -305,17 +235,17 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
         {/* last and best, against the session's fastest */}
         <div className="[grid-area:laps] rounded-xl border hairline grid grid-cols-2 divide-x divide-[var(--rule)] overflow-hidden">
           <div className="px-3 py-2 min-w-0">
-            <div className="font-label text-[9px] text-ink-faint">Last lap</div>
+            <div className="font-label text-[11px] text-ink-faint flex items-center gap-1"><TimerIcon size={13} aria-hidden="true" />Last lap</div>
             <div className="font-mono text-[15px] font-semibold tabular-nums mt-1 truncate" style={{ color: MARK_COLOUR[row.lastMark] }}>
               {row.last || "—"}
             </div>
           </div>
           <div className="px-3 py-2 min-w-0">
-            <div className="font-label text-[9px] text-ink-faint truncate">{row.bestFastest ? "Best · fastest" : "Best lap"}</div>
+            <div className="font-label text-[11px] text-ink-faint truncate">{row.bestFastest ? "Best · fastest" : "Best lap"}</div>
             <div className="font-mono text-[15px] font-semibold tabular-nums mt-1 truncate" style={{ color: row.bestFastest ? "var(--f1-fastest)" : undefined }}>
               {row.best || "—"}
             </div>
-            <div className="font-mono text-[10px] text-ink-faint tabular-nums truncate">{row.bestFastest ? "Session best" : off !== null && off > 0 ? `+${off.toFixed(3)} to fastest` : "—"}</div>
+            <div className="font-mono text-[11px] text-ink-faint tabular-nums truncate">{row.bestFastest ? "Session best" : off !== null && off > 0 ? <><LightningIcon size={12} weight="fill" className="inline align-[-2px] mr-0.5" style={{ color: "var(--f1-fastest)" }} role="img" aria-label="To the fastest" />+{off.toFixed(3)}</> : "—"}</div>
           </div>
         </div>
 
@@ -326,7 +256,7 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
               const s = row.sectors[i];
               return (
                 <div key={i} className="min-w-0">
-                  <div className="font-label text-[9px] text-ink-faint">S{i + 1}</div>
+                  <div className="font-label text-[11px] text-ink-faint">S{i + 1}</div>
                   <div className="font-mono text-[13px] font-semibold tabular-nums mt-0.5 truncate" style={{ color: s ? MARK_COLOUR[s.mark] : undefined }}>
                     {s?.value || "—"}
                   </div>
@@ -335,7 +265,7 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
                       <span key={k} className="h-[4px] flex-1 max-w-[9px] rounded-[1px]" style={{ background: SEGMENT_COLOUR[g] }} />
                     ))}
                   </div>
-                  <div className="font-mono text-[10px] text-ink-faint mt-1 tabular-nums truncate">Best {stats?.bestSectors[i] ?? "—"}</div>
+                  <div className="font-mono text-[11px] text-ink-faint mt-1 tabular-nums truncate"><LightningIcon size={12} weight="fill" className="inline align-[-2px] mr-0.5" role="img" aria-label="Best" />{stats?.bestSectors[i] ?? "—"}</div>
                 </div>
               );
             })}
@@ -346,18 +276,17 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
 
         {/* the race in tyres */}
         <div className="[grid-area:tyre] rounded-xl border hairline px-3 pt-2 pb-1 overflow-hidden">
-          <div className="flex items-baseline justify-between gap-2 font-label text-[9px] text-ink-faint whitespace-nowrap">
+          <div className="flex items-baseline justify-between gap-2 font-label text-[11px] text-ink-faint whitespace-nowrap">
             <span className="flex items-center gap-1.5 min-w-0">
+              <TireIcon size={13} className="shrink-0" aria-hidden="true" />
               Tyres
               {stints.some((x) => !x.fresh) && (
-                <span className="flex items-center gap-1" title="A striped stint ran on a used set; a solid one on new tyres">
-                  <span className="inline-block w-3.5 h-2 rounded-[2px]" style={{ background: "repeating-linear-gradient(135deg, currentColor 0 2px, transparent 2px 4px)" }} /> used
-                </span>
+                <span className="inline-block w-3.5 h-2 rounded-[2px] shrink-0" style={{ background: "repeating-linear-gradient(135deg, currentColor 0 2px, transparent 2px 4px)" }} title="A striped stint ran on a used set; a solid one on new tyres" role="img" aria-label="Striped: a used set" />
               )}
             </span>
             <span className="truncate">
               {row.stops} stop{row.stops === 1 ? "" : "s"}
-              {total ? ` · ${total} laps` : ""}
+              {total ? ` · ${total}` : ""}
             </span>
           </div>
           {stints.length > 0 ? (
@@ -365,7 +294,7 @@ function FocusCard({ row, photo, snap, track, live, replayT }: { row: LiveRow; p
               <StintLine stints={stints} total={total} running={snap.running} size="sm" />
             </div>
           ) : (
-            <div className="font-mono text-[10.5px] text-ink-faint mt-2">—</div>
+            <div className="font-mono text-[11px] text-ink-faint mt-2">—</div>
           )}
         </div>
 
@@ -398,11 +327,11 @@ function TitleRow({ label, team, colour, position, predicted, points, predictedP
           {label}
         </DriverName>
       </span>
-      <span className="font-mono text-[10px] text-center" style={{ color: moved > 0 ? "var(--f1-personal)" : moved < 0 ? "var(--down)" : "var(--ink-faint)" }}>
+      <span className="font-mono text-[11px] text-center" style={{ color: moved > 0 ? "var(--f1-personal)" : moved < 0 ? "var(--down)" : "var(--ink-faint)" }}>
         {moved === 0 ? "–" : <><MoveArrow up={moved > 0} size={10} />{Math.abs(moved)}</>}
       </span>
       <span className="font-mono text-[12px] tabular-nums text-right">{Math.round(predictedPoints)}</span>
-      <span className="font-mono text-[10.5px] tabular-nums text-right" style={{ color: predictedPoints > points ? "var(--f1-personal)" : "var(--ink-faint)" }}>
+      <span className="font-mono text-[11px] tabular-nums text-right" style={{ color: predictedPoints > points ? "var(--f1-personal)" : "var(--ink-faint)" }}>
         {predictedPoints > points ? `+${Math.round(predictedPoints - points)}` : "—"}
       </span>
     </li>
@@ -413,7 +342,7 @@ function Title({ p, fav }: { p: LivePrediction; fav: Set<string> }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
       <div>
-        <div className="font-label text-[10px] text-ink-faint mb-2">Drivers</div>
+        <div className="font-label text-[11px] text-ink-faint mb-2 flex items-center gap-1.5"><SteeringWheelIcon size={14} aria-hidden="true" />Drivers</div>
         <ol>
           {p.drivers.slice(0, 10).map((d) => (
             <TitleRow key={d.code} label={d.code} {...d} mine={fav.has(d.code)} />
@@ -421,7 +350,7 @@ function Title({ p, fav }: { p: LivePrediction; fav: Set<string> }) {
         </ol>
       </div>
       <div>
-        <div className="font-label text-[10px] text-ink-faint mb-2">Constructors</div>
+        <div className="font-label text-[11px] text-ink-faint mb-2 flex items-center gap-1.5"><WrenchIcon size={14} aria-hidden="true" />Constructors</div>
         <ol>
           {p.teams.slice(0, 10).map((t) => (
             <TitleRow key={t.name} label={t.name} team={t.name} {...t} />
@@ -439,7 +368,7 @@ function NextUp({ race, next }: { race: F1Race | null; next: string | null }) {
   const at = first ? new Date(first.start) : next ? new Date(next) : null;
   return (
     <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-3.5 sm:px-5 flex flex-wrap items-center gap-x-4 gap-y-1">
-      <span className="flex items-center gap-2 font-label text-[10.5px] text-ink-soft">
+      <span className="flex items-center gap-2 font-label text-[11px] text-ink-soft">
         <LiveDot running={false} /> Nothing on track
       </span>
       <span className="font-headline text-[15px] leading-snug">
@@ -472,12 +401,12 @@ function LiveView({ snap, live, replay, replayT }: { snap: LiveSnapshot; live: b
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:grid-rows-[auto_minmax(0,1fr)] gap-5 lg:gap-6 items-stretch">
       {track ? (
-        <Panel id="track" label={track.name || "Track"} meta={live || replay ? "Cars placed from the timing loops" : track.corners.length ? `${track.corners.length} corners` : undefined} className="order-1 lg:col-start-2 lg:row-start-1 lg:row-span-2">
+        <Panel id="track" icon={MapTrifoldIcon} label={track.name || "Track"} meta={live || replay ? "Cars placed from the timing loops" : track.corners.length ? `${track.corners.length} corners` : undefined} className="order-1 lg:col-start-2 lg:row-start-1 lg:row-span-2">
           <TrackMap model={track} snap={snap} focus={focus} onFocus={setPicked} onExpand={() => setEnlarged(true)} fit controls className="h-[40vh] max-h-[24rem] lg:h-[24rem] lg:max-h-none" />
           {enlarged && <MapSheet model={track} snap={snap} focus={focus} onFocus={setPicked} onClose={() => setEnlarged(false)} />}
           {focusRow && <FocusCard row={focusRow} photo={photos[focusRow.code] ?? driverPhotoByCode(focusRow.code, focusRow.team)} snap={snap} track={track} live={live && !replay} replayT={replay ? replayT : null} />}
           {focusRow && snap.running && (
-            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 font-mono text-[10.5px] text-ink-faint">
+            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 font-mono text-[11px] text-ink-faint">
               <span>{focusRow.code}&rsquo;s mini-sectors:</span>
               <span style={{ color: "var(--f1-fastest)" }}>■ session best</span>
               <span style={{ color: "var(--f1-personal)" }}>■ personal best</span>
@@ -488,17 +417,18 @@ function LiveView({ snap, live, replay, replayT }: { snap: LiveSnapshot; live: b
       ) : (
         <div className="order-1 lg:col-start-2 lg:row-start-1 lg:row-span-2 rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] aspect-[4/3] animate-pulse" />
       )}
-      <Panel id="feed" label="Feed" meta="Race control · radio · pits" className="order-3 lg:col-start-1 lg:row-start-2 h-[78vh] max-h-[40rem] lg:h-auto lg:max-h-none lg:min-h-[26rem] lg:[contain:size]">
+      <Panel id="feed" icon={ChatCenteredTextIcon} label="Feed" meta="Race control · radio · pits" className="order-3 lg:col-start-1 lg:row-start-2 h-[78vh] max-h-[40rem] lg:h-auto lg:max-h-none lg:min-h-[26rem] lg:[contain:size]">
         <Feed snap={snap} mine={fav.codes} photos={photos} page={20} pinned />
       </Panel>
       <Panel
         id="timing"
+        icon={ListNumbersIcon}
         label={live || replay ? "Timing" : "Final classification"}
         meta={replay ? "As it stood · tap a row to follow, a name for the season" : live ? `Read ${new Date(snap.at).toLocaleTimeString("en-GB")} · every 5 s` : "Tap a row to follow · a name for the season"}
         className="order-2 lg:col-start-1 lg:row-start-1"
       >
         <LiveTiming snap={snap} wide focus={focus} onFocus={setPicked} />
-        <div className="mt-auto pt-5 flex flex-wrap items-center gap-x-4 gap-y-1.5 font-mono text-[10.5px] text-ink-faint">
+        <div className="mt-auto pt-5 flex flex-wrap items-center gap-x-4 gap-y-1.5 font-mono text-[11px] text-ink-faint">
           <span style={{ color: "var(--f1-fastest)" }}>■ fastest in the session</span>
           <span style={{ color: "var(--f1-personal)" }}>■ personal best</span>
           <span style={{ color: "var(--f1-slower)" }}>■ slower</span>
@@ -521,17 +451,17 @@ function Tiles({ snap, live }: { snap: LiveSnapshot; live: boolean }) {
   return (
     <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
       {race && snap.lap ? (
-        <Tile label="Lap" value={`${snap.lap.current}`} unit={`/ ${snap.lap.total}`} />
+        <Tile icon={ArrowsClockwiseIcon} label="Lap" value={`${snap.lap.current}`} unit={`/ ${snap.lap.total}`} />
       ) : (
-        <Tile label={live ? (snap.partLabel ? `${snap.partLabel} · left` : "Time left") : "Fastest lap"} value={live && snap.running ? <SessionClock snap={snap} /> : (fastest?.best ?? "—")} unit={live ? undefined : fastest?.code} />
+        <Tile icon={TimerIcon} label={live ? (snap.partLabel ? `${snap.partLabel} · left` : "Time left") : "Fastest lap"} value={live && snap.running ? <SessionClock snap={snap} /> : (fastest?.best ?? "—")} unit={live ? undefined : fastest?.code} />
       )}
-      {live ? <Tile label="Track" value={snap.track.tone === "green" ? "Green" : snap.track.label} tone={snap.track.tone === "green" ? undefined : tone.bg} /> : <Tile label="Session" value="Final" />}
+      {live ? <Tile icon={RoadHorizonIcon} label="Track" value={snap.track.tone === "green" ? "Green" : snap.track.label} tone={snap.track.tone === "green" ? undefined : tone.bg} /> : <Tile icon={FlagCheckeredIcon} label="Session" value="Final" />}
       {snap.weather && (
         <>
-          <Tile label="Air" value={snap.weather.air.toFixed(1)} unit="°C" />
-          <Tile label="Track temp" value={snap.weather.track.toFixed(1)} unit="°C" />
-          <Tile label="Humidity" value={Math.round(snap.weather.humidity)} unit="%" />
-          <Tile label={snap.weather.rain ? "Rain" : "Wind"} value={snap.weather.rain ? "Wet" : snap.weather.wind.toFixed(1)} unit={snap.weather.rain ? undefined : "m/s"} tone={snap.weather.rain ? "var(--f1-pit)" : undefined} />
+          <Tile icon={ThermometerSimpleIcon} label="Air" value={snap.weather.air.toFixed(1)} unit="°C" />
+          <Tile icon={ThermometerHotIcon} label="Tarmac" value={snap.weather.track.toFixed(1)} unit="°C" />
+          <Tile icon={DropIcon} label="Humidity" value={Math.round(snap.weather.humidity)} unit="%" />
+          <Tile icon={snap.weather.rain ? CloudRainIcon : WindIcon} label={snap.weather.rain ? "Rain" : "Wind"} value={snap.weather.rain ? "Wet" : snap.weather.wind.toFixed(1)} unit={snap.weather.rain ? undefined : "m/s"} tone={snap.weather.rain ? "var(--f1-pit)" : undefined} />
         </>
       )}
     </div>
@@ -543,27 +473,16 @@ function Tiles({ snap, live }: { snap: LiveSnapshot; live: boolean }) {
 export default function LiveCentre({ race }: { race: F1Race | null }) {
   // ?session=<archive path>: a past session, kept in the address so it can be shared or reloaded.
   const [past, setPast] = useState<string | null>(null);
-  const [nav, setNav] = useState<{ view: View; sub: Sub }>({ view: "live", sub: "tyres" });
+  const nav = useLiveView();
   useEffect(() => {
     const read = () => {
       setPast(new URLSearchParams(location.search).get("session"));
-      setNav(readHash());
     };
     read();
     window.addEventListener("popstate", read);
-    window.addEventListener("hashchange", read);
-    return () => {
-      window.removeEventListener("popstate", read);
-      window.removeEventListener("hashchange", read);
-    };
+    return () => window.removeEventListener("popstate", read);
   }, []);
-  const go = (view: View, sub: Sub = nav.sub) => {
-    setNav({ view, sub });
-    history.replaceState(null, "", `${location.pathname}${location.search}#${view === "analysis" ? `analysis/${sub}` : view}`);
-    // Back to the top of the views when the new one starts above the screen.
-    const top = document.getElementById("views-top");
-    if (top && top.getBoundingClientRect().top < 0) window.scrollTo({ top: top.getBoundingClientRect().top + window.scrollY - 72, behavior: "instant" });
-  };
+  const go = goToView;
   // From the header's picker the page goes back to the top; from a session
   // card on the Weekend view it stays where the reader is looking — even as
   // what's above the views changes (the next-session note comes and goes), the
@@ -643,14 +562,12 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
               className="chip h-8 text-[12px] gap-1.5 shrink-0"
               title="Play the session back as it happened"
             >
-              <svg viewBox="0 0 12 12" className="w-3 h-3" fill="currentColor" aria-hidden="true">
-                <path d="M3 1.8v8.4c0 .5.5.8.9.5l6.4-4.2c.4-.3.4-.8 0-1.1L3.9 1.3c-.4-.3-.9 0-.9.5z" />
-              </svg>
+              <PlayIcon size={13} weight="fill" aria-hidden="true" />
               Replay
             </button>
           )}
           {snap && (
-            <span className="hidden sm:flex items-center gap-2 rounded-full border hairline h-8 px-3 font-label text-[10.5px] shrink-0">
+            <span className="hidden sm:flex items-center gap-2 rounded-full border hairline h-8 px-3 font-label text-[11px] shrink-0">
               <LiveDot running={(live || replaying) && snap.running} />
               <span style={{ color: (live || replaying) && snap.running ? "var(--hue-f1)" : undefined }}>
                 {replaying ? "Replay" : live ? (snap.running ? "Live" : snap.status === "Inactive" ? "Starting soon" : "Chequered flag") : past ? "Archive" : "Final"}
@@ -660,12 +577,12 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
         </span>
       </div>
 
-      <header className="mt-6 sm:mt-8">
-        <div className="flex items-center gap-2 font-label text-[10px] text-ink-soft">
+      <header id="live-head" className="mt-6 sm:mt-8">
+        <div className="flex items-center gap-2 font-label text-[11px] text-ink-soft">
           {snap && <LiveDot running={(live || replaying) && snap.running} />}
           <span className="truncate">{snap ? `${snap.location} · ${sessionLine(snap)}` : "Live centre"}</span>
         </div>
-        <h1 className="font-display font-extrabold uppercase text-[clamp(2.2rem,8vw,5.5rem)] leading-[0.86] mt-2.5">{snap?.meeting ?? race?.name ?? "Live centre"}</h1>
+        <h1 className="font-display font-extrabold uppercase text-[clamp(2.2rem,8vw,5.5rem)] leading-[0.86] mt-2.5 lean-title">{snap?.meeting ?? race?.name ?? "Live centre"}</h1>
       </header>
 
       {!checked && <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] mt-6 h-72 animate-pulse" />}
@@ -684,30 +601,11 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
       )}
 
       <div id="views-top" aria-hidden="true" />
-      {/* the views: a bar at the top on a wide screen */}
-      <nav id="views" aria-label="Views" className="hidden lg:flex sticky top-[3.6rem] z-30 mt-6 scroll-mt-20">
-        <div className="glass border hairline rounded-full p-1 flex gap-0.5">
-          {VIEWS.map((v) => (
-            <button
-              key={v.id}
-              type="button"
-              onClick={() => go(v.id)}
-              aria-current={view === v.id ? "page" : undefined}
-              className={`rounded-full px-4 h-9 flex items-center gap-2 text-[13px] font-sans font-semibold whitespace-nowrap transition-colors ${view === v.id ? "text-[color:var(--paper)]" : "text-ink-soft hover:text-ink"}`}
-              style={view === v.id ? { background: "var(--ink)" } : undefined}
-            >
-              <span className="[&_svg]:w-4 [&_svg]:h-4">{v.icon}</span>
-              {v.label}
-            </button>
-          ))}
-        </div>
-      </nav>
-
       <div key={view} className="mt-5 lg:mt-6 animate-[fade-in_0.25s_ease]">
         {snap && view === "live" && <LiveView snap={snap} live={live} replay={inReplay} replayT={inReplay ? replay.t : null} />}
         {snap && view === "analysis" && <Analysis snap={snap} sub={nav.sub} onSub={(s) => go("analysis", s)} highlight={highlight} mine={fav.codes} />}
         {snap && view === "feed" && (
-          <Panel label="The feed" meta={`${snap.session} · newest first`}>
+          <Panel icon={ChatCenteredTextIcon} label="The feed" meta={`${snap.session} · newest first`}>
             <Feed snap={snap} mine={fav.codes} photos={snap.photos ?? {}} />
           </Panel>
         )}
@@ -715,7 +613,7 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
         {view === "season" && (
           <div className="space-y-6">
             {snap?.prediction && (
-              <Panel label="The title, live" meta="F1's projection if the race ended now">
+              <Panel icon={TrophyIcon} label="The title, live" meta="F1's projection if the race ended now">
                 <Title p={snap.prediction} fav={fav.codes} />
               </Panel>
             )}
@@ -724,28 +622,8 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
         )}
       </div>
 
-      {/* the views on a phone: a bar along the foot, like an app's */}
-      <div className="lg:hidden h-20" aria-hidden="true" />
-      <nav aria-label="Views" className="lg:hidden fixed inset-x-0 bottom-0 z-40 glass border-t hairline pb-[env(safe-area-inset-bottom)]">
-        <div className="grid grid-cols-5 max-w-lg mx-auto">
-          {VIEWS.map((v) => {
-            const on = view === v.id;
-            return (
-              <button
-                key={v.id}
-                type="button"
-                onClick={() => go(v.id)}
-                aria-current={on ? "page" : undefined}
-                className={`relative flex flex-col items-center gap-1 pt-2.5 pb-2 font-sans text-[10.5px] font-semibold transition-colors ${on ? "text-ink" : "text-ink-faint"}`}
-              >
-                {on && <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[3px] rounded-b-full" style={{ background: "var(--hue-f1)" }} />}
-                {v.icon}
-                {v.label}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
+      {/* room for the phone's menu (LiveNav) */}
+      <div className="md:hidden h-20" aria-hidden="true" />
 
       {replaying && (
         <>

@@ -280,8 +280,8 @@ html.theme-transition *::after {
   .with-rail { padding-left: 204px; }
   .with-rail .top-bar { display: none; }
   .with-rail .settings-save { left: 196px; }
-  /* No top bar for the live centre's own bar to sit under. */
-  .with-rail #views { top: 0.75rem; }
+  /* The side menu carries Analysis's parts (f1/LiveNav.tsx). */
+  .analysis-subs { display: none; }
 }
 .settings-save[data-held] { box-shadow: 0 -2px 0 var(--accent); }
 
@@ -980,6 +980,10 @@ html[data-edition="evening"] .pub-on-light { display: none; }
   min-width: 0;
 }
 .rail-icon { flex: none; color: var(--row-hue); }
+/* A view's parts, under it (the live centre's Analysis). */
+.rail-row-sub { margin-left: 0.85rem; padding-block: 0.16rem; font-size: 0.88rem; }
+/* A big heading leaning forward, like the race card's name. */
+.lean-title { transform: skewX(-7deg); transform-origin: left bottom; }
 .rail-row b {
   font: 500 11px var(--font-mono);
   letter-spacing: 0;

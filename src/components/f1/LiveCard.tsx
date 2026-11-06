@@ -74,7 +74,7 @@ export default function LiveCard({ snap }: { snap: LiveSnapshot }) {
   return (
     <div className={`module self-stretch flex flex-col ${snap.running ? "on-air" : ""}`} data-reveal>
       <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-2 font-label text-[10px] min-w-0">
+        <span className="flex items-center gap-2 font-label text-[11px] min-w-0">
           <LiveDot running={snap.running} />
           <span style={{ color: snap.running ? "var(--hue-f1)" : undefined }} className={snap.running ? "" : "text-ink-soft"}>
             {snap.running ? "Live" : snap.status === "Inactive" ? "Starting soon" : "Chequered flag"}
@@ -83,7 +83,7 @@ export default function LiveCard({ snap }: { snap: LiveSnapshot }) {
         </span>
         <span className="flex items-center gap-2 shrink-0">
           {snap.track.tone !== "green" && snap.running && (
-            <span className="rounded-full px-2 py-0.5 font-label text-[9.5px]" style={{ background: tone.bg, color: tone.fg }}>
+            <span className="rounded-full px-2 py-0.5 font-label text-[11px]" style={{ background: tone.bg, color: tone.fg }}>
               {snap.track.label}
             </span>
           )}
@@ -92,7 +92,7 @@ export default function LiveCard({ snap }: { snap: LiveSnapshot }) {
       </div>
       <div className="flex items-baseline justify-between gap-2 mt-1">
         <span className="font-headline text-[15px] leading-tight truncate">{snap.meeting}</span>
-        <Link href="/f1/live" className="font-label text-[10.5px] text-ink-soft hover:text-ink shrink-0 group">
+        <Link href="/f1/live" className="font-label text-[11px] text-ink-soft hover:text-ink shrink-0 group">
           Live centre <CaretRightIcon size={12} weight="bold" className="inline-block align-[-1px] transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
         </Link>
       </div>
@@ -112,8 +112,8 @@ export default function LiveCard({ snap }: { snap: LiveSnapshot }) {
           <span />
         )}
         {fresh && latest && (
-          <Link href="/f1/live#race-control" className="font-mono text-[10px] text-ink-soft hover:text-ink truncate min-w-0" title={latest.message}>
-            <span className="font-label text-[9.5px] mr-1.5" style={{ color: latest.flag ? "var(--f1-slower)" : undefined }}>
+          <Link href="/f1/live#race-control" className="font-mono text-[11px] text-ink-soft hover:text-ink truncate min-w-0" title={latest.message}>
+            <span className="font-label text-[11px] mr-1.5" style={{ color: latest.flag ? "var(--f1-slower)" : undefined }}>
               Race control
             </span>
             {latest.message.charAt(0) + latest.message.slice(1).toLowerCase()}

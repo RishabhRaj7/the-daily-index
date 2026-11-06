@@ -1,5 +1,6 @@
 "use client";
 
+import { MicrophoneIcon, PauseIcon, PlayIcon } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import type { LiveRadio } from "@/lib/f1-live-types";
 import { readTurns } from "@/lib/f1-radio-speaker";
@@ -100,7 +101,7 @@ export function Confidence({ value, model, checkedBy }: { value: number | null; 
   const how = checkedBy ? `two listens agree on ${Math.round(value * 100)}%` : "one listen";
   return (
     <span
-      className="inline-flex items-center gap-1.5 font-mono text-[10.5px] text-ink-faint"
+      className="inline-flex items-center gap-1.5 font-mono text-[11px] text-ink-faint"
       title={checkedBy ? `Written by ${model}, checked by ${checkedBy}: ${Math.round(value * 100)}% of words heard the same. Underlined words were heard differently.` : `Written by ${model}; no second listen was free, so this is its own rating.`}
     >
       <span className="flex gap-[2px]" aria-hidden="true">
@@ -124,7 +125,7 @@ function Said({ text }: { text: string }) {
             {part.slice(2, -2)}
           </span>
         ) : /^\[(unclear|bleep)\]$/i.test(part) ? (
-          <span key={i} className="font-mono text-[10.5px] text-ink-faint italic px-0.5">
+          <span key={i} className="font-mono text-[11px] text-ink-faint italic px-0.5">
             {part.toLowerCase() === "[bleep]" ? "[bleep]" : "[?]"}
           </span>
         ) : (
@@ -146,13 +147,13 @@ export function Transcript({ text, code, colour }: { text: string; code: string;
           {/* The driver as a tag in the team's colour: a bare "OCO" in small capitals reads as a word ("oco"). */}
           {t.who === "driver" ? (
             <span
-              className="inline-block align-[1px] rounded px-1 mr-1.5 font-sans font-bold text-[10.5px] leading-[16px] tracking-[0.04em]"
+              className="inline-block align-[1px] rounded px-1 mr-1.5 font-sans font-bold text-[11px] leading-[16px] tracking-[0.04em]"
               style={{ color: colour ?? "var(--ink)", background: `color-mix(in srgb, ${colour ?? "var(--ink)"} 16%, transparent)` }}
             >
               {code.toUpperCase()}
             </span>
           ) : (
-            <span className="font-label text-[9.5px] mr-1.5 text-ink-faint" title={t.who === "unsure" ? "Couldn't tell whether the driver or the engineer said this" : undefined}>
+            <span className="font-label text-[11px] mr-1.5 text-ink-faint" title={t.who === "unsure" ? "Couldn't tell whether the driver or the engineer said this" : undefined}>
               {t.who === "engineer" ? "Engineer" : "Driver or engineer?"}
             </span>
           )}
@@ -197,8 +198,8 @@ export function RadioRow({
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
           <span className="font-sans font-bold text-[13px]">{clip.code}</span>
-          <span className="font-label text-[9px] text-ink-faint">Radio</span>
-          <span className="font-mono text-[10.5px] text-ink-faint tabular-nums">{clock(clip.utc)}</span>
+          <MicrophoneIcon size={14} className="text-ink-faint shrink-0" role="img" aria-label="Radio" />
+          <span className="font-mono text-[11px] text-ink-faint tabular-nums">{clock(clip.utc)}</span>
           <button
             type="button"
             onClick={() => player.toggle(clip.url)}
@@ -207,14 +208,9 @@ export function RadioRow({
           >
             <span className="w-4 h-4 rounded-full grid place-items-center" style={{ background: clip.colour }}>
               {on ? (
-                <svg viewBox="0 0 12 12" className="w-2 h-2" fill="#fff" aria-hidden="true">
-                  <rect x="2.5" y="2" width="2.6" height="8" rx="0.6" />
-                  <rect x="6.9" y="2" width="2.6" height="8" rx="0.6" />
-                </svg>
+                <PauseIcon size={10} weight="fill" color="#fff" aria-hidden="true" />
               ) : (
-                <svg viewBox="0 0 12 12" className="w-2 h-2 ml-[1px]" fill="#fff" aria-hidden="true">
-                  <path d="M3 1.8v8.4c0 .5.5.8.9.5l6.4-4.2c.4-.3.4-.8 0-1.1L3.9 1.3c-.4-.3-.9 0-.9.5z" />
-                </svg>
+                <PlayIcon size={10} weight="fill" color="#fff" aria-hidden="true" />
               )}
             </span>
             {on ? "Pause" : "Listen"}
@@ -227,7 +223,7 @@ export function RadioRow({
         )}
         {written ? (
           rough && !open ? (
-            <button type="button" onClick={() => setOpen(true)} className="mt-2 font-mono text-[10.5px] text-ink-faint hover:text-ink underline decoration-dotted underline-offset-2">
+            <button type="button" onClick={() => setOpen(true)} className="mt-2 font-mono text-[11px] text-ink-faint hover:text-ink underline decoration-dotted underline-offset-2">
               Hard to hear — show the rough reading
             </button>
           ) : (
@@ -239,7 +235,7 @@ export function RadioRow({
             </>
           )
         ) : (
-          <p className={`mt-2 font-mono text-[10.5px] ${pending ? "shimmer-text" : "text-ink-faint"}`}>{pending ? "Transcribing…" : paused ? "Transcripts resume when today’s free allowance resets" : "No transcript"}</p>
+          <p className={`mt-2 font-mono text-[11px] ${pending ? "shimmer-text" : "text-ink-faint"}`}>{pending ? "Transcribing…" : paused ? "Transcripts resume when today’s free allowance resets" : "No transcript"}</p>
         )}
       </span>
     </div>

@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowRightIcon } from "@phosphor-icons/react";
+import { ArrowFatLineUpIcon, ArrowRightIcon, EngineIcon, GaugeIcon, GearSixIcon, OctagonIcon, XIcon } from "@phosphor-icons/react";
+import { type Icon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import type { CarNow, LapTrace, LiveSnapshot, TrackModel } from "@/lib/f1-live-types";
@@ -68,13 +69,16 @@ function useLiveHistory(snap: LiveSnapshot, code: string | null): Sample[] {
   return list.map((x) => [(x.at - start) / 1000, x.r.speed, x.r.throttle, x.r.brake ? 1 : 0, x.r.gear, x.r.rpm, x.r.drs === "open" ? 1 : 0]);
 }
 
-function Gauge({ label, value, unit, children }: { label: string; value: React.ReactNode; unit?: string; children?: React.ReactNode }) {
+function Gauge({ icon: Glyph, label, value, unit, children }: { icon: Icon; label: string; value: React.ReactNode; unit?: string; children?: React.ReactNode }) {
   return (
     <div className="rounded-xl border hairline px-3 py-2 min-w-0">
-      <div className="font-label text-[9px] text-ink-faint">{label}</div>
+      <div className="font-label text-[11px] text-ink-faint flex items-center gap-1">
+        <Glyph size={13} className="shrink-0" aria-hidden="true" />
+        {label}
+      </div>
       <div className="font-display font-extrabold text-[1.45rem] leading-none mt-1 tabular-nums">
         {value}
-        {unit && <span className="font-mono font-normal text-[10.5px] text-ink-soft ml-1">{unit}</span>}
+        {unit && <span className="font-mono font-normal text-[11px] text-ink-soft ml-1">{unit}</span>}
       </div>
       {children}
     </div>
@@ -93,15 +97,15 @@ function Readout({ now, colour }: { now: CarNow; colour: string }) {
   return (
     <div className="grid grid-cols-3 sm:grid-cols-2 gap-2">
       {/* (no DRS: gone in 2026, and its channel never opens) */}
-      <Gauge label="Speed" value={now.speed} unit="km/h" />
-      <Gauge label="Gear" value={now.gear || "N"} />
-      <Gauge label="Revs" value={(now.rpm / 1000).toFixed(1)} unit="k rpm">
+      <Gauge icon={GaugeIcon} label="Speed" value={now.speed} unit="km/h" />
+      <Gauge icon={GearSixIcon} label="Gear" value={now.gear || "N"} />
+      <Gauge icon={EngineIcon} label="Revs" value={(now.rpm / 1000).toFixed(1)} unit="k rpm">
         <Bar value={(now.rpm / 13000) * 100} colour={colour} />
       </Gauge>
-      <Gauge label="Throttle" value={now.throttle} unit="%">
+      <Gauge icon={ArrowFatLineUpIcon} label="Throttle" value={now.throttle} unit="%">
         <Bar value={now.throttle} colour="var(--f1-personal)" />
       </Gauge>
-      <Gauge label="Brake" value={<span style={{ color: now.brake ? "var(--down)" : "var(--ink-faint)" }}>{now.brake ? "On" : "Off"}</span>} />
+      <Gauge icon={OctagonIcon} label="Brake" value={<span style={{ color: now.brake ? "var(--down)" : "var(--ink-faint)" }}>{now.brake ? "On" : "Off"}</span>} />
     </div>
   );
 }
@@ -385,7 +389,7 @@ function arc(cx: number, cy: number, r: number, from: number, to: number) {
 /** The card's speedometer: the dial, played smoothly (a tap opens the detail); at rest once the session is over. */
 export function Speedometer({ t, colour, code, onOpen, ended = false, className = "" }: { t: Telemetry; colour: string; code: string; onOpen?: () => void; ended?: boolean; className?: string }) {
   const now = useSmooth(ended ? { ...t, now: null, play: null } : t);
-  return <Dial now={ended ? null : now} colour={colour} code={code} onOpen={onOpen} source={ended ? (t.play ? "Session ended · tap for the fastest lap" : "Session ended") : t.source} className={className} />;
+  return <Dial now={ended ? null : now} colour={colour} code={code} onOpen={onOpen} source={ended ? (t.play ? "Tap for the fastest lap" : "Session ended") : t.source} className={className} />;
 }
 
 /**
@@ -468,12 +472,12 @@ function Dial({ now, colour, code, onOpen, source, className = "" }: { now: CarN
   );
   return onOpen ? (
     <button type="button" onClick={onOpen} className={`group flex flex-col w-full rounded-xl border hairline px-3 pt-2.5 pb-2 text-left hover:border-[color:var(--ink-faint)] transition-colors overflow-hidden ${className}`} title={`${code}'s telemetry in detail`}>
-      <span className="flex items-baseline justify-between gap-2 font-label text-[9.5px] text-ink-faint shrink-0">
+      <span className="flex items-baseline justify-between gap-2 font-label text-[11px] text-ink-faint shrink-0">
         <span>Telemetry</span>
         <span className="group-hover:text-ink transition-colors">Detail <ArrowRightIcon size={13} weight="bold" className="inline align-[-2px]" aria-hidden="true" /></span>
       </span>
       <span className="flex-1 min-h-0 grid place-items-center">{body}</span>
-      <span className="block text-center font-mono text-[10px] text-ink-faint truncate shrink-0">{source}</span>
+      <span className="block text-center font-mono text-[11px] text-ink-faint truncate shrink-0">{source}</span>
     </button>
   ) : (
     body
@@ -490,13 +494,13 @@ export function ClipNote({ t, track, className = "" }: { t: Telemetry; track: Tr
   const none = !on ? "Switched off" : live ? "Replays and past sessions only" : t.samples.length < 2 ? "—" : "None on this lap";
   return (
     <div className={`rounded-xl border hairline px-3 py-2 overflow-hidden ${className}`} title="Flat out but losing speed: the battery running dry before the braking point">
-      <div className="font-label text-[9px] text-ink-faint">Clipping</div>
-      {!clips.length && <div className="font-mono text-[10.5px] text-ink-faint mt-1.5 truncate">{none}</div>}
+      <div className="font-label text-[11px] text-ink-faint">Clipping</div>
+      {!clips.length && <div className="font-mono text-[11px] text-ink-faint mt-1.5 truncate">{none}</div>}
       <div className="flex flex-wrap gap-1.5 mt-1 max-h-[2.6rem] overflow-hidden">
         {clips.map((c, i) => {
           const corner = cornerAfter(track, (c.until / lap) % 1);
           return (
-            <span key={i} className="whitespace-nowrap rounded px-1.5 font-mono text-[10.5px] font-semibold leading-[17px]" style={{ color: "var(--f1-investigation)", background: "color-mix(in srgb, var(--f1-investigation) 15%, transparent)" }}>
+            <span key={i} className="whitespace-nowrap rounded px-1.5 font-mono text-[11px] font-semibold leading-[17px]" style={{ color: "var(--f1-investigation)", background: "color-mix(in srgb, var(--f1-investigation) 15%, transparent)" }}>
               {corner ? `into T${corner} ` : ""}−{c.drop} km/h
             </span>
           );
@@ -546,13 +550,11 @@ export function TelemetrySheet({ t, code, name, colour, onClose }: { t: Telemetr
       >
         <header className="flex items-center gap-4 px-5 py-4 border-b hairline" style={{ background: `linear-gradient(90deg, color-mix(in srgb, ${colour} 22%, transparent), transparent 70%)` }}>
           <div className="min-w-0 flex-1">
-            <div className="font-label text-[10.5px] text-ink-soft">Telemetry · {t.source}</div>
+            <div className="font-label text-[11px] text-ink-soft">Telemetry · {t.source}</div>
             <div className="font-display font-extrabold uppercase text-[1.6rem] leading-none mt-1 truncate">{name || code}</div>
           </div>
           <button type="button" onClick={onClose} className="icon-btn" aria-label="Close">
-            <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
-              <path d="M4 4l8 8M12 4l-8 8" />
-            </svg>
+            <XIcon size={17} aria-hidden="true" />
           </button>
         </header>
         <div className="overflow-y-auto overscroll-contain p-4 sm:p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
@@ -565,7 +567,7 @@ export function TelemetrySheet({ t, code, name, colour, onClose }: { t: Telemetr
               </div>
               <div>
                 {t.samples.length >= 2 ? <Chart samples={t.samples} colour={colour} axis={t.axis} hover={hover} setHover={setHover} seekRef={t.play ? seekRef : undefined} clips={clips} /> : <Empty>The lap draws as readings come in.</Empty>}
-                <p className="font-mono text-[10.5px] text-ink-faint mt-2 leading-relaxed">
+                <p className="font-mono text-[11px] text-ink-faint mt-2 leading-relaxed">
                   Speed is the line; the green band is the throttle, the red marks braking. Point at the lap to see that moment in the gauges. From F1&rsquo;s car data, about four readings a second
                   {t.source.startsWith("live") ? " (live: one every 5 s)" : ""}. Amber bands: clipping, flat out but losing speed as the battery runs dry (the km/h lost
                   {t.source.startsWith("live") ? "; it needs a full lap's readings, so a replay or a past session" : ""}).{" "}

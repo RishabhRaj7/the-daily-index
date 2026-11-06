@@ -481,7 +481,7 @@ function Profile({ profile, spots, follow }: { profile: { f: number[]; h: number
   }, [profile, spots, follow]);
   return (
     <div className="absolute left-10 bottom-8 w-[min(15rem,52%)] rounded-lg bg-[rgba(11,14,23,0.78)] border border-white/10 px-2 pt-1 pb-0.5 pointer-events-none" aria-label={`Height round the lap: ${Math.round(span)} m from lowest to highest`}>
-      <div className="flex justify-between font-mono text-[9px] text-white/60">
+      <div className="flex justify-between font-mono text-[11px] text-white/60">
         <span>Height</span>
         <span>{Math.round(span)} m rise and fall</span>
       </div>

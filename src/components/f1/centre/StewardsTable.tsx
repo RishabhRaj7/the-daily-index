@@ -112,7 +112,7 @@ export function StewardDetails({ t }: { t: DriverTally }) {
       {t.penalties.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-2.5">
           {t.penalties.map((p, i) => (
-            <span key={i} className="font-mono text-[10.5px] rounded-full border px-2 py-[2px]" style={{ borderColor: "var(--down)", color: p.served ? "var(--ink-soft)" : "var(--down)" }}>
+            <span key={i} className="font-mono text-[11px] rounded-full border px-2 py-[2px]" style={{ borderColor: "var(--down)", color: p.served ? "var(--ink-soft)" : "var(--down)" }}>
               {p.what}
               {p.served ? " · served" : ""}
             </span>
@@ -125,7 +125,7 @@ export function StewardDetails({ t }: { t: DriverTally }) {
             <span className="pt-[1px]" style={{ color: COLOUR[e.key] }} title={LABEL[e.key]}>
               <StewardIcon k={e.key} size={13} />
             </span>
-            <span className="font-mono text-[10.5px] text-ink-faint pt-[2px]">
+            <span className="font-mono text-[11px] text-ink-faint pt-[2px]">
               {clock(e.utc)}
               {e.lap ? ` L${e.lap}` : ""}
             </span>

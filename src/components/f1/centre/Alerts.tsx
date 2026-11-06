@@ -1,5 +1,6 @@
 "use client";
 
+import { BellIcon, BellSlashIcon } from "@phosphor-icons/react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import type { LivePitStop, LiveRaceControl, LiveSnapshot } from "@/lib/f1-live-types";
@@ -179,11 +180,7 @@ export default function LiveAlerts({ snap, mine, onOpen }: { snap: LiveSnapshot;
         aria-label={muted ? "Turn live alerts on" : "Turn live alerts off"}
         aria-pressed={!muted}
       >
-        <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M4 11.5V7a4 4 0 0 1 8 0v4.5l1 1H3z" />
-          <path d="M6.5 14a1.6 1.6 0 0 0 3 0" />
-          {muted && <path d="M2.5 2.5l11 11" />}
-        </svg>
+        {muted ? <BellSlashIcon size={14} className="shrink-0" aria-hidden="true" /> : <BellIcon size={14} className="shrink-0" aria-hidden="true" />}
       </button>
       <Toasts onOpen={onOpen} />
     </>
@@ -228,7 +225,7 @@ function Toast({ a, onOpen }: { a: Alert; onOpen: () => void }) {
         }}
         title="Open the feed"
       >
-        <span className="flex items-center gap-1.5 font-label text-[10px]" style={{ color: a.colour }}>
+        <span className="flex items-center gap-1.5 font-label text-[11px]" style={{ color: a.colour }}>
           <span className="w-1.5 h-1.5 rounded-full" style={{ background: a.colour }} />
           {a.label}
         </span>
