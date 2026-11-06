@@ -1,3 +1,4 @@
+import { SESSION_PATH } from "@/lib/f1-paths";
 import { compact, getLive, pastSession, replay, replayTimeline, withArchiveStops, without } from "@/lib/live/f1-live";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ export async function GET(req: Request) {
     const full = params.get("full") === "1";
     // ?session=<archive path>: one past session in full.
     const past = params.get("session");
-    if (past && /^\d{4}\/[\w-]+\/[\w-]+\/$/.test(past)) {
+    if (past && SESSION_PATH.test(past)) {
       const at = t === null ? NaN : Number(t);
       if (Number.isFinite(at) && at >= 0 && at < 6 * 3600) {
         const [answer, line] = await Promise.all([replay(past, at), params.get("timeline") === "1" ? replayTimeline(past) : null]);

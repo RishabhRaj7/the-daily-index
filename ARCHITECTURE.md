@@ -1088,3 +1088,12 @@ The reader kept seeing a publisher's raw text in place of Gemini's, sometimes on
 - **Diagnostics** (`lib/live/build-report.ts`): `BuildReport.writing` names each unwritten story and why, with calls, failures, `crossed` and `rejected`; repairs update it. `/api/health?report=1&hash=…` reads any edition's report. A report describes the last build attempt, so after a thrown-away rebuild it shows that failure while the stored paper is fine.
 - **Store keys and versions**: `BUILD_VERSION` 6 to 7, so an edition from older code is served as it is and rebuilt in the background. Its stories have no `written` flag, so they carry no label and count as written until then. The `edition:*`, `w:*` and localStorage digest keys don't change; saved copies stop being final, nothing is discarded. No new environment variables.
 - **Tested** with real feeds and real Gemini on the in-memory store, failures injected at the fetch layer, and in the browser on the real page. Worth knowing: real Gemini also produced a 45 s timeout and an unreadable reply during those runs, both healed by the retry pass, and a rejected paragraph was rescued in an otherwise healthy build.
+
+### Round 19, São Paulo fix: addresses with the place's own letters (Nov 7 2026)
+
+During São Paulo's FP2 the radio showed no transcripts. F1 writes that weekend's archive address with its own letters (`2026-11-08_São_Paulo_Grand_Prix`), and the routes' address checks only allowed A to Z, so they turned it away without saying so.
+
+- **What it broke**: `/api/f1/radio` dropped every clip, so no transcripts for the weekend; `/api/f1/live?session=` ignored the address and answered with the current session, so a past São Paulo session opened the wrong one; `/api/f1/telemetry` answered with an error.
+- **The fix** (new `lib/f1-paths.ts`, `SESSION_PATH` and `RADIO_CLIP`, used by those three routes): any letter is allowed in a place's name. The shape of the address is still checked, and the host is still fixed to F1's.
+- **Store keys and versions**: none changed.
+- **Tested**: on a production build during the weekend, with real São Paulo FP1 and FP2 addresses.

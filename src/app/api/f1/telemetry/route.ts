@@ -1,3 +1,4 @@
+import { SESSION_PATH } from "@/lib/f1-paths";
 import { lapTrace } from "@/lib/live/f1-telemetry";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ export async function GET(req: Request) {
   const session = p.get("session") ?? "";
   const code = (p.get("code") ?? "").toUpperCase();
   const t = p.get("t");
-  if (!/^\d{4}\/[\w-]+\/[\w-]+\/$/.test(session) || !/^[A-Z]{3}$/.test(code)) return Response.json({ error: "session, code" }, { status: 400 });
+  if (!SESSION_PATH.test(session) || !/^[A-Z]{3}$/.test(code)) return Response.json({ error: "session, code" }, { status: 400 });
   const at = t === null ? undefined : Number(t);
   if (at !== undefined && !(Number.isFinite(at) && at >= 0 && at < 6 * 3600)) return Response.json({ error: "t" }, { status: 400 });
   const trace = await lapTrace(session, code, at).catch(() => null);
