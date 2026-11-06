@@ -127,6 +127,12 @@ async function writeRecap(snap: LiveSnapshot): Promise<SessionRecap | null> {
     console.warn("[f1/insights] recap dropped, a figure wasn't in the facts:", figures.join(", "));
     return null;
   }
+  // Words that claim more than a result shows: the prompt bans them, and sometimes they get through.
+  const claim = /\b(crush|dominan|surge|charge|tried to|thanks to|held firm)/i.exec(`${headline} ${story}`);
+  if (claim) {
+    console.warn("[f1/insights] recap dropped, it said:", claim[0]);
+    return null;
+  }
   const total = snap.lap?.total ?? 0;
   const turns = race
     ? (out.turns ?? [])

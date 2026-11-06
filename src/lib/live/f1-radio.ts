@@ -134,7 +134,12 @@ export async function f1Json(prompt: string, schema: object): Promise<string | n
   if (!apiKey || process.env.AI_SUMMARIZE === "false") return null;
   client ??= new GoogleGenAI({ apiKey });
   const tried: string[] = [];
-  for (let attempt = 0; attempt < 3; attempt++) {
+  // Every writer gets a turn, so three spent Flash models can't keep Flash-Lite from
+  // answering, all within the route's 60 s.
+  const stop = Date.now() + 50_000;
+  for (let attempt = 0; attempt < writers().length; attempt++) {
+    const left = stop - Date.now();
+    if (left < 5_000) return null;
     const model = await pick(writers().filter((w) => !tried.includes(w.model)));
     if (!model) return null;
     tried.push(model);
@@ -142,7 +147,7 @@ export async function f1Json(prompt: string, schema: object): Promise<string | n
       const res = await client.models.generateContent({
         model,
         contents: prompt,
-        config: { responseMimeType: "application/json", responseSchema: schema, temperature: 0.4, abortSignal: AbortSignal.timeout(30_000) },
+        config: { responseMimeType: "application/json", responseSchema: schema, temperature: 0.4, abortSignal: AbortSignal.timeout(Math.min(30_000, left)) },
       });
       if (res.text) return res.text;
     } catch (err) {
