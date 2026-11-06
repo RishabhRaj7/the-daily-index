@@ -30,7 +30,7 @@ slides up in a sheet. Each story's source is its publisher's logo and name.
 | **Sports** | Football and tennis, when you follow them |
 | **Clutch** | Valorant: your teams (next match with the market's odds, last result, where they stand), the running VCT major and the scene's headlines; a tap opens the bracket and groups, a team's results since 2024, or a match's scoreboard (per map, live while it's on) with the two teams' head-to-head; small, and smaller still in the off-season |
 | **The Ledger** | Markets and economy news — mostly India, some global |
-| **Market Pulse** | 16 live indices across India, US, Europe and Asia with a mood gauge per region (India: Tickertape's Market Mood Index, US: CNN Fear & Greed), gold and silver at IBJA's rate, other commodities in rupees, BTC/ETH in USDT, a tap-to-open chart for each (with its 52-week range and 50/200-day averages), a rates row (RBI repo, Fed funds, US 10-year, what FIIs and DIIs bought and sold, and the odds on the next decision), Nifty 50 breadth, when each market reopens, and IPO watch (mainboard IPOs with dates, size, GMP, the bidding's mood, and what people on X and Reddit say about each, from the accounts and subreddits you choose once for every IPO) |
+| **Market Pulse** | 16 live indices across India, US, Europe and Asia with a mood gauge per region (India: Tickertape's Market Mood Index, US: CNN Fear & Greed), gold and silver at IBJA's rate, other commodities in rupees, BTC/ETH in USDT, each card with today's line against the previous close, a tap-to-open chart for each (read any point with a finger; its day and 52-week range, 50/200-day averages), a rates row (RBI repo, Fed funds, US 10-year, what FIIs and DIIs bought and sold, and the odds on the next decision), Nifty 50 breadth, when each market reopens, and IPO watch (mainboard IPOs with dates, size, GMP, the bidding's mood, and what people on X and Reddit say about each, from the accounts and subreddits you choose once for every IPO) |
 | **The Circuit Board** | Technology |
 | **The Week Ahead** | Under Next: RBI and Fed decisions, market holidays, public holidays, IPO dates, the F1 weekend and your Valorant teams' matches, in IST |
 | **Straw Poll** | Prediction-market odds from Polymarket and Kalshi, chosen for you: the day's biggest moves with the news that lines up with them, where the money is, your watchlist, a track record; plus three or four questions at the foot of each section and a line under a story when a market is about it. Every market opens with every contender's chart (1D to all time) and why it moved |
@@ -149,7 +149,7 @@ src/
     api/cron           daily builds
   components/
     sections/          one component per paper section
-    widgets/           pit wall, gauges, sparklines, weather blocks…
+    widgets/           pit wall, gauges, market charts, weather blocks…
     masthead/ chrome/  masthead, the menu (PaperNav, TopBar, nav-icons), motion runtime
     settings/ onboarding/
   lib/

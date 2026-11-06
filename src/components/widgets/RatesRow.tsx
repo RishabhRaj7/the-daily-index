@@ -62,7 +62,8 @@ function Cell({ label, source, value, children }: { label: string; source: React
           <BankIcon size={14} className="shrink-0" aria-hidden="true" />
           <span className="truncate">{label}</span>
         </span>
-        <span className="font-mono text-[11px] text-ink-faint shrink-0">{source}</span>
+        {/* A publisher's name gives way to the label on a phone; a logo has room. */}
+        <span className={`font-mono text-[11px] text-ink-faint shrink-0 ${typeof source === "string" ? "hidden sm:inline" : ""}`}>{source}</span>
       </div>
       <div className="font-display font-bold text-[1.35rem] leading-none tabular-nums mt-1">{value}</div>
       <div className="font-mono text-[11px] text-ink-soft mt-1 leading-snug">{children}</div>
@@ -231,7 +232,7 @@ function FlowCell({ flows }: { flows: NonNullable<RatesPanel["flows"]> }) {
         <span className="flex items-center justify-between gap-2">
           <span className="font-label text-[11px] text-ink-soft min-w-0 inline-flex items-center gap-1">
             <HandshakeIcon size={14} className="shrink-0" aria-hidden="true" />
-            <span className="truncate">Who&rsquo;s buying · {day(flows.date)}</span>
+            <span className="truncate">Who&rsquo;s buying</span>
           </span>
           <span className="font-mono text-[11px] text-ink-faint group-hover:text-ink shrink-0 inline-flex items-center gap-0.5">
             <span className="hidden sm:inline">NSE</span>
@@ -242,7 +243,8 @@ function FlowCell({ flows }: { flows: NonNullable<RatesPanel["flows"]> }) {
           <FlowLine who="FII" d={flows.fii} max={max} />
           <FlowLine who="DII" d={flows.dii} max={max} />
         </span>
-        <span className="flex gap-3 font-mono text-[11px] text-ink-faint mt-1.5">
+        <span className="flex flex-wrap gap-x-3 font-mono text-[11px] text-ink-faint mt-1.5">
+          <span>{day(flows.date)}</span>
           <span>
             <span className="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle" style={{ background: "var(--up)" }} />
             bought

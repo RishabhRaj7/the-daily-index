@@ -75,7 +75,7 @@ export interface MarketIndex {
   changePct: number;  // 1-day % change
   change7d: number | null;
   change1m: number | null;
-  sparkline: number[];
+  today?: DayLine;
   narrative: string;
   /** The average size of a day's move over the past month, in %: today's
    *  move against it says whether today was unusual. */
@@ -88,6 +88,19 @@ export interface MarketIndex {
 
 export type MarketRegion = "India" | "US" | "Europe" | "Asia";
 
+/** The small line on a market card: the price through its latest session,
+ *  against the level the day's move is measured from. */
+export interface DayLine {
+  /** Prices, oldest first, thinned to about 48; the last is the card's price. */
+  points: number[];
+  /** Where the day's move starts: the previous close, or 24 hours ago for crypto. */
+  base: number;
+  /** Set when the market isn't trading: the session shown, "Fri 6 Nov". */
+  closed?: string;
+  /** Set when the line isn't the card's own price: "COMEX" for gold and silver. */
+  source?: string;
+}
+
 /** A coin priced in USDT (Binance spot). */
 export interface CryptoQuote {
   id: string;
@@ -99,7 +112,7 @@ export interface CryptoQuote {
   changePct: number;
   high24h: number;
   low24h: number;
-  sparkline: number[];
+  today?: DayLine;
   stale?: boolean;
   asOf?: string;
 }
@@ -179,7 +192,7 @@ export interface Commodity {
   priceUsd?: number;
   /** Day change in rupee terms (the benchmark's move and the rupee's). */
   changePct: number;
-  sparkline: number[];
+  today?: DayLine;
   /** How the rupee figure is derived. */
   note: string;
   /** Where the price comes from when it isn't the converted benchmark

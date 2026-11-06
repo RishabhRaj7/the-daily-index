@@ -3,12 +3,12 @@
 import { ArrowRightIcon, CaretDownIcon, CaretUpIcon, CoinsIcon } from "@phosphor-icons/react";
 import Sheet from "@/components/extras/Sheet";
 import { useState, useSyncExternalStore } from "react";
-import type { Commodity, CryptoQuote, MarketIndex, MarketMood, MarketRegion, OddsMarket, Story } from "@/lib/types";
+import type { Commodity, CryptoQuote, DayLine, MarketIndex, MarketMood, MarketRegion, OddsMarket, Story } from "@/lib/types";
 import SectionHeader from "@/components/story/SectionHeader";
 import StoryArticle from "@/components/story/StoryArticle";
 import MarketIndexCard from "@/components/widgets/MarketIndexCard";
 import MoodGauge from "@/components/widgets/MoodGauge";
-import SparklineChart from "@/components/widgets/SparklineChart";
+import DayLineChart from "@/components/widgets/DayLineChart";
 import MarketChartSheet, { type ChartTarget } from "@/components/widgets/MarketChartSheet";
 import IpoWatch from "@/components/widgets/IpoWatch";
 import SocialPausedNote from "@/components/extras/SocialPausedNote";
@@ -102,7 +102,7 @@ function PriceTile({
   unit,
   price,
   changePct,
-  sparkline,
+  today,
   note,
   source,
   stale,
@@ -114,7 +114,7 @@ function PriceTile({
   unit: string;
   price: string;
   changePct: number;
-  sparkline: number[];
+  today?: DayLine;
   note?: string;
   /** Publisher of the price, when it isn't the converted benchmark. */
   source?: string;
@@ -146,7 +146,7 @@ function PriceTile({
           </span>
         </span>
         <span className="font-display font-bold text-[1.7rem] leading-none tracking-tight tabular-nums">{price}</span>
-        <SparklineChart values={sparkline} positive={up} className="w-full h-8" />
+        <DayLineChart line={today} className="h-9" />
         {stale && <StaleTag asOf={asOf} />}
       </button>
     </li>
@@ -305,7 +305,7 @@ export default function MarketPulseSection({
                     unit={c.id === "usdinr" ? "₹ per USD" : `₹ per ${c.unit}`}
                     price={inr(c.priceInr)}
                     changePct={c.changePct}
-                    sparkline={c.sparkline}
+                    today={c.today}
                     note={c.note}
                     source={c.source}
                     stale={c.stale}
@@ -321,7 +321,7 @@ export default function MarketPulseSection({
                     unit={`${c.pair.replace("USDT", "")} / USDT · 24h`}
                     price={usdt(c.price)}
                     changePct={c.changePct}
-                    sparkline={c.sparkline}
+                    today={c.today}
                     stale={c.stale}
                     asOf={c.asOf}
                     i={commodities.length + i}

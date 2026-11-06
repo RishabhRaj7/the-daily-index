@@ -378,7 +378,7 @@ html.js .mask-rise > span {
 }
 html.js .is-in .mask-rise > span { transform: none; }
 
-/* SVG strokes that draw on reveal (sparklines, gauges). */
+/* SVG strokes that draw on reveal (market lines, gauges). */
 /* The dash pattern lives only while the line draws: left on, a stretched
    line (preserveAspectRatio="none" with a non-scaling stroke) measures its
    dashes wrong and shows gaps along it. */

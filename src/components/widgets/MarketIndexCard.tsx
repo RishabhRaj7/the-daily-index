@@ -1,6 +1,6 @@
 import MoveArrow from "@/components/chrome/MoveArrow";
 import type { MarketIndex } from "@/lib/types";
-import SparklineChart from "./SparklineChart";
+import DayLineChart from "./DayLineChart";
 import StaleTag from "./StaleTag";
 
 function Pct({ label, value }: { label: string; value: number | null }) {
@@ -19,8 +19,8 @@ function Pct({ label, value }: { label: string; value: number | null }) {
   );
 }
 
-// One index as a tile: the level large, today's move as a pill, the month
-// as a line that draws itself in.
+// One index as a tile: the level large, today's move as a pill, and the same day
+// as a line against yesterday's close (DayLineChart).
 export default function MarketIndexCard({
   index,
   i = 0,
@@ -72,7 +72,7 @@ export default function MarketIndexCard({
       >
         {index.level.toLocaleString("en-US", { maximumFractionDigits: 1 })}
       </div>
-      <SparklineChart values={index.sparkline} positive={positive} className="w-full h-12" />
+      <DayLineChart line={index.today} className="h-12" />
       <div className="flex gap-5">
         <Pct label="7D" value={index.change7d} />
         <Pct label="1M" value={index.change1m} />

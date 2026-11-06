@@ -1,7 +1,8 @@
 // Price history for the market detail charts: any index or commodity tile
 // (Yahoo Finance) or crypto tile (Binance), over six ranges. Commodities are
 // converted to rupees bar by bar with the USD/INR rate of the same moment,
-// so the chart matches the rupee price on the tile.
+// so the chart matches the rupee price on the tile. Every range ends near the live
+// price (a few minutes at most), so changing range doesn't change the number.
 
 import type { PriceBar } from "@/lib/types";
 import { BINANCE, BROWSER_UA, COMMODITIES, CRYPTO_PAIRS, SYMBOLS, USD_INR } from "./indices";
@@ -14,19 +15,19 @@ export type ChartKind = "index" | "commodity" | "crypto";
 const YAHOO: Record<ChartRange, { range: string; interval: string; revalidate: number }> = {
   "1D": { range: "1d", interval: "5m", revalidate: 60 },
   "5D": { range: "5d", interval: "15m", revalidate: 300 },
-  "1M": { range: "1mo", interval: "60m", revalidate: 900 },
-  "6M": { range: "6mo", interval: "1d", revalidate: 3600 },
-  "1Y": { range: "1y", interval: "1d", revalidate: 3600 },
-  "5Y": { range: "5y", interval: "1wk", revalidate: 21600 },
+  "1M": { range: "1mo", interval: "60m", revalidate: 300 },
+  "6M": { range: "6mo", interval: "1d", revalidate: 300 },
+  "1Y": { range: "1y", interval: "1d", revalidate: 300 },
+  "5Y": { range: "5y", interval: "1wk", revalidate: 900 },
 };
 
 const BINANCE_RANGE: Record<ChartRange, { interval: string; limit: number; revalidate: number }> = {
   "1D": { interval: "5m", limit: 288, revalidate: 60 },
   "5D": { interval: "30m", limit: 240, revalidate: 300 },
-  "1M": { interval: "4h", limit: 180, revalidate: 900 },
-  "6M": { interval: "1d", limit: 183, revalidate: 3600 },
-  "1Y": { interval: "1d", limit: 365, revalidate: 3600 },
-  "5Y": { interval: "1w", limit: 261, revalidate: 21600 },
+  "1M": { interval: "4h", limit: 180, revalidate: 300 },
+  "6M": { interval: "1d", limit: 183, revalidate: 300 },
+  "1Y": { interval: "1d", limit: 365, revalidate: 300 },
+  "5Y": { interval: "1w", limit: 261, revalidate: 900 },
 };
 
 export interface ChartData {
@@ -34,7 +35,7 @@ export interface ChartData {
   /** What a price is quoted in: "₹ per 10 g", "USDT", "points". */
   unit: string;
   bars: PriceBar[];
-  /** The close before the range's first bar (intraday: yesterday's close). */
+  /** What the range's move is measured from (a day: yesterday's close). */
   previousClose: number | null;
   hasVolume: boolean;
   note?: string;
@@ -96,6 +97,33 @@ async function yahoo(symbol: string, range: ChartRange): Promise<YahooResult | n
   };
 }
 
+/**
+ * What a range's move is measured from: the same level as the card's, so card and
+ * chart agree. Yahoo's chartPreviousClose can't be used for a day: it's one session
+ * too old for some markets on "1d" (the NSE and Hong Kong, in November 2026). A day
+ * starts from what Yahoo's own day figures imply, as the card's does, and a month from the
+ * first daily close in the window, as the card's 1M does. Longer ranges have no
+ * figure on the card to match, so they use Yahoo's as given.
+ */
+async function startOf(symbol: string, range: ChartRange, result: YahooResult): Promise<number | null> {
+  const given = result.meta?.chartPreviousClose ?? result.meta?.previousClose ?? null;
+  if (range === "1D") {
+    const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/spark?symbols=${encodeURIComponent(symbol)}&range=1d&interval=5m`, {
+      headers: { "User-Agent": BROWSER_UA },
+      next: { revalidate: 60 },
+    }).catch(() => null);
+    const series = res?.ok ? ((await res.json()) as Record<string, { fulldayPrice?: number; fulldayChangePercent?: number }>)[symbol] : undefined;
+    return typeof series?.fulldayPrice === "number" && typeof series.fulldayChangePercent === "number"
+      ? series.fulldayPrice / (1 + series.fulldayChangePercent / 100)
+      : given;
+  }
+  if (range === "1M") {
+    const daily = await yahooRaw(symbol, "1mo", "1d", 300).catch(() => null);
+    return daily?.indicators?.quote?.[0]?.close?.find((c): c is number => typeof c === "number") ?? given;
+  }
+  return given;
+}
+
 function toBars(result: YahooResult): PriceBar[] {
   const q = result.indicators?.quote?.[0];
   const ts = result.timestamp ?? [];
@@ -124,7 +152,7 @@ export async function getChart(kind: ChartKind, id: string, range: ChartRange): 
       name: spec.name,
       unit: "points",
       bars,
-      previousClose: result.meta?.chartPreviousClose ?? result.meta?.previousClose ?? null,
+      previousClose: await startOf(spec.symbol, range, result),
       hasVolume: bars.some((b) => (b.v ?? 0) > 0),
     };
   }
@@ -134,11 +162,12 @@ export async function getChart(kind: ChartKind, id: string, range: ChartRange): 
     if (id === "usdinr") {
       const result = await yahoo(USD_INR, range);
       if (!result) return null;
+      const bars = toBars(result);
       return {
         name: "US dollar",
         unit: "₹ per USD",
-        bars: toBars(result),
-        previousClose: result.meta?.chartPreviousClose ?? null,
+        bars,
+        previousClose: await startOf(USD_INR, range, result),
         hasVolume: false,
         note: "Up means a weaker rupee.",
       };
@@ -164,8 +193,12 @@ export async function getChart(kind: ChartKind, id: string, range: ChartRange): 
       const r = rateAt(b.t);
       return { t: b.t, o: spec.toInr(b.o, r), h: spec.toInr(b.h, r), l: spec.toInr(b.l, r), c: spec.toInr(b.c, r) };
     });
-    const prev = asset.meta?.chartPreviousClose;
-    let previousClose = typeof prev === "number" ? spec.toInr(prev, fxBars[0]?.c ?? lastFx) : null;
+    // The day's start in rupees uses the rupee of that close, as the card's move does.
+    const [prev, fxPrev] = await Promise.all([
+      startOf(spec.symbol, range, asset),
+      fx ? startOf(USD_INR, range, fx) : Promise.resolve(null),
+    ]);
+    let previousClose = typeof prev === "number" ? spec.toInr(prev, (range === "1D" ? fxPrev : null) ?? fxBars[0]?.c ?? lastFx) : null;
 
     // Gold and silver: the tile prints IBJA's rate, which sits above COMEX in
     // rupees (duty, GST-free bar premium, the local market). IBJA has no
