@@ -1,24 +1,21 @@
 import type { SectionKey } from "./types";
 
-// The paper's storyboard: after the front page, six sections' worth of news and
-// numbers read in five chapters, the way a morning goes. The news from far away
-// to the reader's own street, the sport they follow, their money, what's coming,
-// then a back page to finish on. A section always belongs to its chapter; the
-// reader's own order (Personalization.sectionOrder) still decides the rest: a
-// chapter sits where its first section sits, and sections keep their order
-// within it. So no saved order needs migrating, and moving Tech up in Settings
-// brings What's next up with it.
+// The paper's running order: after the front page, the sections fall into five
+// groups, the way a morning goes. The news from far away to the reader's own
+// street, their sport, their money, what's coming, then a back page to finish on.
+// The groups order the page and name the menu; no title for them prints on the
+// page, where each section's own header is enough. A section always belongs to
+// its group; the reader's own order (Personalization.sectionOrder) still decides
+// the rest: a group sits where its first section sits, and sections keep their
+// order within it. So no saved order needs migrating, and moving Tech up in
+// Settings brings Next up with it.
 
 export type ChapterId = "news" | "sport" | "money" | "next" | "back";
 
 export interface Chapter {
   id: ChapterId;
-  /** One word: the phone's bar and the top bar. */
+  /** One word: every form of the menu, and Settings' headings. */
   label: string;
-  /** As it prints at the head of the chapter. */
-  name: string;
-  /** The line beside the name. */
-  line: string;
   sections: SectionKey[];
 }
 
@@ -26,36 +23,26 @@ export const CHAPTERS: Chapter[] = [
   {
     id: "news",
     label: "News",
-    name: "The news",
-    line: "From far away to your own street",
     sections: ["dateline", "the-nation", "two-cities", "sky-report"],
   },
   {
     id: "sport",
     label: "Sport",
-    name: "Your sport",
-    line: "The races and matches you follow",
     sections: ["paddock-notes", "clutch", "sports"],
   },
   {
     id: "money",
     label: "Money",
-    name: "Your money",
-    line: "What moved, then the numbers",
     sections: ["ledger", "market-pulse"],
   },
   {
     id: "next",
     label: "Next",
-    name: "What's next",
-    line: "What's being built, what traders expect, what's dated",
     sections: ["circuit-board", "straw-poll"],
   },
   {
     id: "back",
     label: "Back",
-    name: "The back page",
-    line: "Lighter reading to finish on",
     sections: ["grapevine"],
   },
 ];
@@ -67,8 +54,8 @@ export interface PrintedChapter extends Chapter {
 
 /**
  * The chapters for a reader's order. One with nothing of its own in `order`
- * (its sections hidden, say) keeps its usual place, since What's next and the
- * back page also carry things that aren't sections: the caller decides whether
+ * (its sections hidden, say) keeps its usual place, since Next and Back also
+ * carry things that aren't sections: the caller decides whether
  * it prints at all.
  */
 export function chaptersFor(order: SectionKey[]): PrintedChapter[] {

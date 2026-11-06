@@ -103,7 +103,7 @@ export const SECTION_META: Record<SectionKey, SectionMeta> = {
   grapevine: {
     key: "grapevine",
     label: "The Grapevine — X and Reddit",
-    kicker: "X, Reddit and searches",
+    kicker: "Forwarded to You",
     slug: "grapevine",
     name: "The Grapevine",
     short: "Grapevine",

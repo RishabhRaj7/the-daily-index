@@ -79,7 +79,7 @@ function Rail({ chapters, active, section, isArchive }: { chapters: NavChapter[]
         {chapters.map((c) => (
           <div key={c.id} className="mt-3.5">
             <a href={`#${c.id}`} data-nav={c.id} className="rail-chapter" aria-current={active === c.id ? "true" : undefined}>
-              {c.name}
+              {c.label}
             </a>
             {c.sections.map((s) => (
               <a key={s.id} href={`#${s.id}`} className="rail-section" aria-current={section === s.id ? "true" : undefined}>

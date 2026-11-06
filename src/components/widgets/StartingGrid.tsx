@@ -143,11 +143,11 @@ function TimingRowsSkeleton({ rows = 5 }: { rows?: number }) {
 // During a race the first card turns into a "live now" header and the
 // timing card carries the running order.
 //
-// `part` splits the cards between the two places the F1 section has: the
-// "desk" beside the stories (next race, its weekend, the calendar — and the
-// live order during a race) and the full-width row under them (the last
-// race, beside the reader's paddock), so the column beside the stories
-// never outgrows them.
+// `part` splits the cards between the places the F1 section has: the "desk"
+// beside the stories (next race and its weekend, and the live order during a
+// race) and the full-width row under them: "archive" (the last race, beside the
+// reader's paddock) and, at the end of that row, "calendar" (who wins Sunday,
+// coming up). So the column beside the stories never outgrows them.
 
 type Row = F1GridResult | F1LiveResult | F1LastRace["results"][number];
 
@@ -213,7 +213,7 @@ export default function StartingGrid({
   weekendName?: string | null;
   gridSetAt?: string | null;
   tops?: Record<string, F1SessionTop>;
-  part?: "desk" | "archive";
+  part?: "desk" | "archive" | "calendar";
   nextRace: F1Race;
   upcoming: F1Race[];
   lastRace?: F1LastRace | null;
@@ -390,12 +390,13 @@ export default function StartingGrid({
 
       {/* 2. The weekend, session by session. */}
       {!live && nextRace.sessions && nextRace.sessions.length > 0 && <RaceWeekend sessions={nextRace.sessions} tops={tops} />}
-      {!live && raceOdds && <RaceOdds market={raceOdds} />}
       </>
       )}
 
-      {/* 3. Coming up — the calendar after this weekend, under the weekend. */}
-      {part !== "desk" ? null : upcoming.length > 1 ? (
+      {part === "calendar" && !live && raceOdds && <RaceOdds market={raceOdds} />}
+
+      {/* 3. Coming up — the calendar after this weekend. */}
+      {part !== "calendar" ? null : upcoming.length > 1 ? (
         <div className="module" data-reveal>
           <div className="font-label text-[11px] text-ink-soft mb-2">Coming up</div>
           <ol>

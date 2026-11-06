@@ -79,8 +79,10 @@ function Breadth({ b }: { b: NonNullable<MarketMood["breadth"]> }) {
 // reading when the gauge scrolls in. The arc is split at the publisher's own
 // zone cut-offs, and the zone the reading sits in is lit in its colour (red
 // for fear through green for greed), so the arc always agrees with the word.
-// The dial and the reading always show; breadth, the day's moves and past
-// readings open in place under it, so the tiles beside it aren't left half empty.
+// Breadth, the day's moves and past readings print under the dial where the card
+// runs two rows of tiles tall (a laptop or desktop), so it's never half empty. On
+// a phone or an ultrawide, where the card is only as tall as it needs, they open
+// in place (globals.css, .pulse-tiles .fold).
 export default function MoodGauge({
   mood,
   indices = [],

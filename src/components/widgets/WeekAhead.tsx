@@ -78,7 +78,7 @@ export default function WeekAhead() {
   return (
     <section id="week-ahead" aria-label="The week ahead" className="mt-6 border-y hairline py-4" style={{ ["--section-hue" as string]: "var(--hue-money)" }} data-reveal>
       <div className="flex items-baseline justify-between gap-4 mb-3">
-        <h2 className="font-display font-extrabold text-[clamp(1.7rem,3vw,2.6rem)] leading-[0.9]">The Week Ahead</h2>
+        <h2 className="font-display font-bold text-[1.6rem] leading-none">The Week Ahead</h2>
         <span className="font-mono text-[11px] text-ink-soft">All times IST</span>
       </div>
       <ol className="divide-y hairline lg:divide-y-0 lg:grid lg:grid-cols-7">

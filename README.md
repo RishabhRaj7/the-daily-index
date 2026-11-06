@@ -10,12 +10,12 @@ Vercel.
 
 ## What's in the paper
 
-The page reads in chapters, with one subject on each row at every screen size:
-**Today**, **The news** (Dateline, The Nation, Two Cities, Sky Report), **Your
-sport** (Paddock Notes, Clutch, Sports), **Your money** (The Ledger, Market Pulse),
-**What's next** (The Circuit Board, Straw Poll, your own sections, The Week Ahead)
-and **The back page** (The Grapevine and the day's extras). A wider screen shows
-more of a section at once. Stories print in full from laptop width; on a phone or
+The page runs in one order, with one subject on each row at every screen size,
+and the menu jumps between its parts: **Today**, **News** (Dateline, The Nation,
+Two Cities, Sky Report), **Sport** (Paddock Notes, Clutch, Sports), **Money** (The
+Ledger, Market Pulse), **Next** (The Circuit Board, Straw Poll, your own sections,
+The Week Ahead) and **Back** (The Grapevine and the day's extras). A wider screen
+shows more of a section at once. Stories print in full from laptop width; on a phone or
 tablet they open in place.
 
 | Section | What it carries |
@@ -31,16 +31,16 @@ tablet they open in place.
 | **The Ledger** | Markets and economy news — mostly India, some global |
 | **Market Pulse** | 16 live indices across India, US, Europe and Asia with a mood gauge per region (India: Tickertape's Market Mood Index, US: CNN Fear & Greed), gold and silver at IBJA's rate, other commodities in rupees, BTC/ETH in USDT, a tap-to-open chart for each (with its 52-week range and 50/200-day averages), a rates row (RBI repo, Fed funds, US 10-year, what FIIs and DIIs bought and sold, and the odds on the next decision), Nifty 50 breadth, when each market reopens, and IPO watch (mainboard IPOs with dates, size, GMP, the bidding's mood, and what people on X and Reddit say about each, from the accounts and subreddits you choose once for every IPO) |
 | **The Circuit Board** | Technology |
-| **The Week Ahead** | In What's next: RBI and Fed decisions, market holidays, public holidays, IPO dates, the F1 weekend and your Valorant teams' matches, in IST |
+| **The Week Ahead** | Under Next: RBI and Fed decisions, market holidays, public holidays, IPO dates, the F1 weekend and your Valorant teams' matches, in IST |
 | **Straw Poll** | Prediction-market odds from Polymarket and Kalshi, chosen for you: the day's biggest moves with the news that lines up with them, where the money is, your watchlist, a track record; plus three or four questions at the foot of each section and a line under a story when a market is about it. Every market opens with every contender's chart (1D to all time) and why it moved |
 | **Sky Report** | Severe-weather alerts near you (NDMA), weather that follows the clock (moon and stars after sunset), rain chances through the day, air quality, and your other cities |
 | **The Grapevine** | The Search Bar (what India, the US and the world are searching right now, from Google Trends) beside what's trending on X and Reddit, then posts from the X accounts and subreddits you follow, a puzzle desk, and the film odds. If X or Reddit keeps failing it is paused for an hour and quietly left out, with a "Try again" line |
-| **The day's extras** | Closing the back page: the editor's note, On This Day and Word of the Day |
+| **The day's extras** | At the end of the page: the editor's note, On This Day and Word of the Day |
 
 Also: an archive of past editions as a calendar, a share sheet that turns any
 story into an image, light/dark editions, a particle-animated masthead, and a
-settings page to choose sections, their order within each chapter and what fills
-each one (one list, under chapter headings), summary length (Standard by default) and voice.
+settings page to choose sections, their order within each group and what fills
+each one (one list, under the menu's headings), summary length (Standard by default) and voice.
 
 ## How it works
 
@@ -154,7 +154,7 @@ src/
   lib/
     live/              feed list (feeds.ts), fetchers, digest pipeline (digest.ts)
     preferences/       preference schema, defaults, prompts, projection onto sections
-    chapters.ts        which chapter each section belongs to
+    chapters.ts        which group each section belongs to
     server/            edition store, snapshots, Gemini client
 ```
 

@@ -18,13 +18,11 @@ export function RisingWords({ text }: { text: string }) {
   );
 }
 
-// Every section opens the same way: its printed name in the display face,
-// rising out of a mask as it scrolls in, beside what it's about in plain words
-// (so "The Ledger" and "Finance" are never a puzzle), and one rule in the
-// section's colour drawing itself across. The chapter above carries the big
-// type; a section name is sized to leave the room for the news. The colour comes
-// from --section-hue on the section wrapper, so the rest of the section (hover
-// lines, links, bars) wears it too.
+// Every section opens the same way: its name set huge in the display face,
+// rising out of a mask as it scrolls in, and one rule in the section's colour
+// drawing itself across. That's the whole header — one name, one line. The
+// colour comes from --section-hue on the section wrapper, so the rest of the
+// section (hover lines, links, bars) wears it too.
 export default function SectionHeader({
   label,
   sectionKey,
@@ -40,18 +38,17 @@ export default function SectionHeader({
 
   return (
     <header className="section-head" data-reveal="fade">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="font-display font-extrabold text-[clamp(1.7rem,3vw,2.6rem)] leading-[0.9] -ml-[0.02em]">
+      <div className="flex items-end justify-between gap-4">
+        <h2 className="font-display font-extrabold text-[clamp(2.9rem,10vw,7.25rem)] leading-[0.84] -ml-[0.04em]">
           <RisingWords text={name} />
         </h2>
-        {meta && <span className="section-subject font-sans font-semibold text-[13px] text-ink-soft">{meta.kicker}</span>}
         {folio && (
-          <span className="ml-auto min-w-0 inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-ink-soft text-right">
+          <span className="min-w-0 sm:shrink-0 inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-ink-soft pb-2 text-right">
             {folio}
           </span>
         )}
       </div>
-      <div className="mt-2 h-[2px] rule-draw" style={{ background: "var(--section-hue, var(--accent))" }} />
+      <div className="mt-5 h-[3px] rule-draw" style={{ background: "var(--section-hue, var(--accent))" }} />
     </header>
   );
 }

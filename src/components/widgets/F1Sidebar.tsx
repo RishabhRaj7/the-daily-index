@@ -472,7 +472,7 @@ export default function F1Sidebar({
     // display: contents): the race desk sits beside the stories, the two
     // championship tables run full width underneath, so the stories column
     // is never outgrown by a tall sidebar. Everything stays printed at every
-    // width; with the room the desk runs two across and the tables four
+    // width; with the room the desk runs two across and the tables three
     // (globals.css, .pit-desk and .pit-archive).
     <div className="contents">
       {/* A column: the paddock card at its foot grows to the stories' height (PaddockChatter). */}
@@ -557,8 +557,8 @@ export default function F1Sidebar({
       </div>
 
       <div className="pit-archive grid grid-cols-1 md:grid-cols-2 gap-4 items-start lg:col-span-2">
-      {/* Last race and the calendar run full width, beside each other, so the
-          desk column stays shorter than the stories. */}
+      {/* Last race, the tables and the calendar run full width, so the desk
+          column stays about as tall as the stories. */}
       {map.status === "ready" && map.data && (
         <StartingGrid
           part="archive"
@@ -687,6 +687,17 @@ export default function F1Sidebar({
           </>
         )}
       </div>
+      {map.status === "ready" && map.data && (
+        <StartingGrid
+          part="calendar"
+          nextRace={map.data.nextRace}
+          upcoming={calendar.data?.upcoming ?? []}
+          calendarStatus={calendar.status}
+          onRetryCalendar={() => retry("calendar")}
+          currentRace={results.data?.currentRace ?? null}
+          racePhase={results.data?.racePhase ?? "last-race"}
+        />
+      )}
       </div>
     </div>
   );

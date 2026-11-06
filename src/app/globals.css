@@ -517,7 +517,8 @@ section[id],
 article[id] { scroll-margin-top: 0.5rem; }
 
 /* ---- Page rhythm ---------------------------------------------------------
-   The paper is chapters of sections, one subject on each row at every width.
+   The paper is sections in groups (lib/chapters.ts), one subject on each row at
+   every width.
    Each .paper-section owns its colour (--section-hue). Everything below reads
    the width of .edition-body (a container named `ed`), so a section lays itself
    out by the room it has rather than by which screen it's on:
@@ -527,29 +528,16 @@ article[id] { scroll-margin-top: 0.5rem; }
      1700+        four: the lead with its plate across two, two rows beside it
      2200+        In Brief moves to a column of its own beside the stories */
 .edition-body { container: ed / inline-size; }
-.chapter { padding-top: 2.75rem; }
-.chapter-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.25rem 0.75rem;
-}
-.chapter-head > :first-child {
-  text-transform: uppercase;
-  line-height: 0.9;
-  font-size: clamp(2.2rem, 5vw, 3.6rem);
-}
-.chapter-head > :last-child { font-size: 1.05rem; }
+/* A jump to a group lands on its first section's name, past the air above it. */
+.chapter { scroll-margin-top: -2.75rem; }
 .paper-section {
   position: relative;
-  padding: 2.25rem 0 0.5rem;
+  padding: 3.5rem 0 0.5rem;
   /* Inside a section, the accent is the section's own colour: drop caps,
      "for you" tags and links match its header, not the masthead's. */
   --accent: var(--section-hue);
 }
-.chapter-head + .paper-section { padding-top: 1.25rem; }
-.section-head { margin-bottom: 0.9rem; }
-.section-subject { white-space: nowrap; }
+.section-head { margin-bottom: 2rem; }
 
 /* Tablet-style column rules: hairline verticals between grid columns. */
 @media (min-width: 768px) {
@@ -630,17 +618,25 @@ article[id] { scroll-margin-top: 0.5rem; }
   .story-lead .story-plate > * { position: absolute; inset: 0; height: 100%; }
 }
 
-/* Paddock Notes: stories beside the pit wall; every table stays printed. */
+/* Paddock Notes: stories beside the pit wall; every table stays printed. The
+   stories flow down two balanced columns, so they end level with each other
+   whatever their lengths, with the paddock card filling the desk beside them. */
 @container ed (min-width: 1080px) {
-  .paddock-stories { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 2rem; }
-  .paddock-stories > *:nth-child(-n + 2) { border-top: 0; padding-top: 0; }
+  .paddock-stories { display: block; columns: 2; column-gap: 2rem; }
+  .paddock-stories > * {
+    break-inside: avoid;
+    border-top: 0;
+    border-bottom: 1px solid var(--rule);
+    padding: 0 0 0.9rem;
+    margin-bottom: 0.9rem;
+  }
 }
 @container ed (min-width: 1700px) {
   .paddock-grid { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
   .pit-desk { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
   .pit-desk > :first-child,
   .pit-desk > :last-child { grid-column: 1 / -1; }
-  .pit-archive { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .pit-archive { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 /* Two Cities: side by side from a tablet up; each city's stories run across
@@ -709,6 +705,11 @@ article[id] { scroll-margin-top: 0.5rem; }
 @media (min-width: 768px) {
   .fold-phone > .fold-toggle { display: none; }
   .fold-phone:not([data-open]) > .fold-body { display: block; }
+}
+/* The mood card runs two rows of tiles tall here: its details fill it. */
+@container ed (min-width: 960px) and (max-width: 1699.98px) {
+  .pulse-tiles .fold > .fold-toggle { display: none; }
+  .pulse-tiles .fold:not([data-open]) > .fold-body { display: block; }
 }
 
 /* The phone's chapter bar, along the foot of the screen. */

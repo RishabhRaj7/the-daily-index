@@ -1067,8 +1067,8 @@ export default function EditionView({
       );
   const visibleStandalone = isArchive ? [] : standaloneDigest;
 
-  // The storyboard (lib/chapters.ts). What's next and the back page also carry
-  // things that aren't sections, so they can print with no section of their own:
+  // The running order (lib/chapters.ts). Next and Back also carry things that
+  // aren't sections, so they can print with no section of their own:
   // the week ahead and the reader's own sections; the day's extras.
   const extras = {
     note: !isArchive && editorsNote ? editorsNote.text : null,
@@ -1086,7 +1086,6 @@ export default function EditionView({
   const navChapters: NavChapter[] = chapters.map((c) => ({
     id: `ch-${c.id}`,
     label: c.label,
-    name: c.name,
     sections: [
       ...c.printed.map((key) => ({ id: SECTION_META[key].slug, name: SECTION_META[key].name })),
       ...(c.id === "next" ? visibleStandalone.map(({ section }) => ({ id: `digest-${section.id}`, name: section.label })) : []),
@@ -1211,14 +1210,10 @@ export default function EditionView({
               <PostcardSection travel={travel} weather={travelWeather} />
             </div>
           )}
-          {/* The storyboard: one subject on each row at every width (lib/chapters.ts).
-              A wider screen shows more of a section at once, never a second one. */}
+          {/* One subject on each row at every width (lib/chapters.ts). A wider
+              screen shows more of a section at once, never a second one. */}
           {chapters.map((c) => (
             <div key={c.id} id={`ch-${c.id}`} className="chapter">
-              <header className="chapter-head" data-reveal="fade">
-                <p role="heading" aria-level={2} className="font-display font-extrabold">{c.name}</p>
-                <p className="font-headline italic text-ink-soft">{c.line}</p>
-              </header>
               {c.printed.map((key) => (
                 <div key={key} className="paper-section" style={{ ["--section-hue" as string]: SECTION_META[key].hue }}>
                   {sectionRenderers[key]()}
@@ -1234,6 +1229,7 @@ export default function EditionView({
                   </div>
                 ))}
               {c.id === "next" && !isArchive && <WeekAhead />}
+              {/* The day's extras finish the paper. */}
               {c.id === "back" && <FrontStrip note={extras.note} then={personalOtd} history={extras.history} word={extras.word} />}
             </div>
           ))}

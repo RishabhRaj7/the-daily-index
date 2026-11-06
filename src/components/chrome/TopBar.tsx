@@ -9,7 +9,6 @@ export interface NavChapter {
   /** The element the chapter starts at. */
   id: string;
   label: string;
-  name: string;
   sections: Array<{ id: string; name: string }>;
 }
 

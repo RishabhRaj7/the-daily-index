@@ -7,10 +7,10 @@ import { SECTION_META } from "@/lib/sections";
 import { chaptersFor, type ChapterId } from "@/lib/chapters";
 import { SectionSettings, sectionSummary } from "@/components/settings/DigestPreferencesEditor";
 
-// Page order: the paper's chapters (lib/chapters.ts), and under each its sections
-// by the name the paper prints them with ("The Ledger"), the subject beneath
-// ("Finance"), in the order they print. A section moves within its chapter; the
-// chapter itself moves with the arrows on its heading.
+// Page order: the menu's groups (lib/chapters.ts), and under each its sections by
+// the name the paper prints them with ("The Ledger"), the subject beneath
+// ("Finance"), in the order they print. A section moves within its group; the
+// group itself moves with the arrows on its heading.
 // The one place for what prints and in what order. In Settings it also holds
 // what fills each section (`news`): a row the AI editor fills says so under
 // its name and opens to its settings (stories, what it puts first, a note to
@@ -157,12 +157,12 @@ export default function PageOrderList({
       <ol className="divide-y hairline border-y hairline">
         {chapters.flatMap((chapter, chapterAt) => [
           <li key={`chapter-${chapter.id}`} className="flex items-center justify-between gap-3 pt-4 pb-1.5">
-            <span className="font-display font-extrabold uppercase text-[1.15rem] leading-none">{chapter.name}</span>
+            <span className="font-display font-extrabold uppercase text-[1.15rem] leading-none">{chapter.label}</span>
             <span className="flex gap-1">
-              <button type="button" aria-label={`Move ${chapter.name} up`} disabled={chapterAt === 0} onClick={() => onMoveChapter(chapter.id, -1)} className={roundBtn}>
+              <button type="button" aria-label={`Move ${chapter.label} up`} disabled={chapterAt === 0} onClick={() => onMoveChapter(chapter.id, -1)} className={roundBtn}>
                 ↑
               </button>
-              <button type="button" aria-label={`Move ${chapter.name} down`} disabled={chapterAt === chapters.length - 1} onClick={() => onMoveChapter(chapter.id, 1)} className={roundBtn}>
+              <button type="button" aria-label={`Move ${chapter.label} down`} disabled={chapterAt === chapters.length - 1} onClick={() => onMoveChapter(chapter.id, 1)} className={roundBtn}>
                 ↓
               </button>
             </span>
@@ -211,7 +211,7 @@ export default function PageOrderList({
           );
           }),
         ])}
-        {/* The reader's own sections print at the end of What's next. */}
+        {/* The reader's own sections print at the end of Next. */}
         {own.map((sec, i) => {
           const key = `own:${sec.id}`;
           const open = openKey === key;
