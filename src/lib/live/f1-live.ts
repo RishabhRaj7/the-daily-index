@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { getStore } from "@/lib/server/store";
 import { currentSession, f1Fetch, radioUrl, readLiveState, sessionTime, type CurrentSessionInfo, type LiveState } from "./f1-signalr";
 import type { ReplayTimeline } from "./f1-replay";
@@ -30,13 +31,18 @@ import type {
 //            red flags overrun), matching the timing card's own settle time
 //   sharing  the parsed snapshot sits in the store for 5 s; one reader at a
 //            time refreshes it (a short lock), the rest take what's there
-//   keeping  a practice or sprint-qualifying classification is kept when the
+//   opening  a page's first look takes the latest copy at once while the read goes
+//            on behind it; a read that can't get the session says "retry", never
+//            "no session"
+//   keeping a practice or sprint-qualifying classification is kept when the
 //            flag falls, so the Pit wall has those times even while OpenF1
 //            locks its API for the next session (lib/live/f1.ts reads it)
 
 const BEFORE_MS = 15 * 60_000;
 const AFTER_MS = 30 * 60_000;
 const FRESH_MS = 5_000;
+// How old a copy of the running session can be and still open a page at once.
+const HELD_MS = 10 * 60_000;
 const INFO_MS = 30_000;
 const KEY = "f1:live:v1";
 const LOCK = "f1:live:lock";
@@ -932,7 +938,7 @@ export async function lastSession(): Promise<LiveSnapshot | null> {
   return pointer ? await store.get<LiveSnapshot>(`f1:session:v3:${pointer}`).catch(() => null) : null;
 }
 
-export async function getLive(opts: { fresh?: boolean; withLast?: boolean } = {}): Promise<LiveAnswer> {
+export async function getLive(opts: { fresh?: boolean; withLast?: boolean; first?: boolean } = {}): Promise<LiveAnswer> {
   const info = await sessionInfo();
   // A session still running past its window (a red flag) stays live while the last read says so.
   const held = info ? await getStore().get<LiveSnapshot>(KEY).catch(() => null) : null;
@@ -946,32 +952,47 @@ export async function getLive(opts: { fresh?: boolean; withLast?: boolean } = {}
   const store = getStore();
   const cached = await store.get<LiveSnapshot>(KEY).catch(() => null);
   const age = cached ? Date.now() - Date.parse(cached.at) : Infinity;
-  if (cached && cached.sessionKey === info.Key && age < FRESH_MS && !opts.fresh) return { live: true, snapshot: cached };
+  const mine = cached?.sessionKey === info.Key ? cached : null;
+  if (mine && age < FRESH_MS && !opts.fresh) return { live: true, snapshot: mine };
+  // Couldn't get the session on this read: "ask again", which a page must not take for "no session".
+  const notYet = async (): Promise<LiveAnswer> => ({ live: false, next: null, retry: true, ...(opts.withLast ? { last: await withArchiveStops(await lastSession().catch(() => null), true) } : {}) });
 
   // One reader refreshes; the others take the last snapshot (or wait a beat).
   if (!(await store.setIfAbsent(LOCK, 1, 8).catch(() => true))) {
-    if (cached && cached.sessionKey === info.Key && age < 30_000) return { live: true, snapshot: cached };
+    if (mine && age < (opts.first ? HELD_MS : 30_000)) return { live: true, snapshot: mine };
     await new Promise((r) => setTimeout(r, 1200));
     const again = await store.get<LiveSnapshot>(KEY).catch(() => null);
-    return again && again.sessionKey === info.Key ? { live: true, snapshot: again } : { live: false, next: null };
+    return again && again.sessionKey === info.Key ? { live: true, snapshot: again } : notYet();
   }
+  // A page's first look: what's held opens it at once, and the read goes on behind the
+  // answer, so the page's next look (moments later) has it.
+  if (opts.first && mine && age < HELD_MS && !opts.fresh) {
+    after(() => readSession(info, mine, true, notYet).catch((err) => console.error("[f1/live] refresh failed:", err)));
+    return { live: true, snapshot: mine };
+  }
+  // With nothing to show yet, the timing alone: the car data joins on the next read.
+  return readSession(info, mine, !!mine, notYet);
+}
+
+/** One read of F1's feed: kept, and returned. Holds the lock, and lets it go. */
+async function readSession(info: CurrentSessionInfo, cached: LiveSnapshot | null, withCars: boolean, notYet: () => Promise<LiveAnswer>): Promise<LiveAnswer> {
+  const store = getStore();
   try {
     // Car data on its own connection: if F1 holds it back (or it's slow), the timing still comes.
     // F1 sends it only to a signed-in F1 TV account: F1TV_TOKEN is that account's
     // subscription token (see .env.example). Without it, or once it expires, the
     // car read comes back empty and nothing else changes.
     const f1tv = process.env.F1TV_TOKEN?.trim() || undefined;
-    const [state, cars] = await Promise.all([readLiveState(), f1tv ? readLiveState(["CarData.z"], 4000, f1tv).catch(() => null) : null]);
-    if (!state) return cached && cached.sessionKey === info.Key ? { live: true, snapshot: cached } : { live: false, next: null };
+    const [state, cars] = await Promise.all([readLiveState(), f1tv && withCars ? readLiveState(["CarData.z"], 4000, f1tv).catch(() => null) : null]);
+    if (!state) return cached ? { live: true, snapshot: cached } : notYet();
     // The lap history: kept from the last read of this session, with this read's laps added.
     const parsed = parse(state, info);
-    const same = cached?.sessionKey === info.Key;
     const snap = withVersions(
-      withFlags(same ? cached : undefined, {
+      withFlags(cached ?? undefined, {
         ...parsed,
         versions: undefined,
-        lapTimes: addLaps(same ? cached.lapTimes : undefined, parsed),
-        pitStops: mergeStops(same ? cached.pitStops : undefined, parsed.pitStops, parsed.at, parsed.raceControl),
+        lapTimes: addLaps(cached?.lapTimes, parsed),
+        pitStops: mergeStops(cached?.pitStops, parsed.pitStops, parsed.at, parsed.raceControl),
       }),
     );
     const readings = latestReadings(cars?.["CarData.z" as keyof LiveState]);
@@ -1031,21 +1052,27 @@ export async function seasonSessions(year = new Date().getUTCFullYear()): Promis
           .map((x) => ({ name: x.Name, path: x.Path!, end: new Date(sessionTime(x.EndDate, x.GmtOffset)).toISOString() })),
       }))
       .filter((m) => m.sessions.length > 0)
+      // F1's index still numbers some rounds as they stood before cancellations.
+      .map((m, i) => ({ ...m, round: i + 1 }))
       .reverse();
   } catch {
     return keptSeason(year);
   }
 }
 
-/** One past session in full: what was kept, else F1's archive (then kept). */
+/**
+ * One past session in full. The copy kept when the flag fell comes first: it's
+ * the feed's final word, while F1's archive can stop short (its Mexico 2026 race
+ * ends at lap 57 of 71). Then an earlier read of the archive, then the archive.
+ */
 export async function pastSession(path: string): Promise<LiveSnapshot | null> {
   const store = getStore();
-  const key = `f1:past:v3:${path}`;
-  const kept = await store.get<LiveSnapshot>(key).catch(() => null);
-  if (kept) return kept;
   const entry = (await keptEntries()).find((e) => e.path === path);
   const session = entry ? await store.get<LiveSnapshot>(`f1:session:v3:${entry.key}`).catch(() => null) : null;
   if (session) return session;
+  const key = `f1:past:v3:${path}`;
+  const kept = await store.get<LiveSnapshot>(key).catch(() => null);
+  if (kept) return kept;
   const built = await archivedSession(path);
   if (built) {
     await store.set(key, built, { ttlSeconds: 45 * 86_400 }).catch(() => {});

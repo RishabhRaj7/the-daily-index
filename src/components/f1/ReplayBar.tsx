@@ -12,7 +12,8 @@ import type { FlagTone, ReplayTimeline } from "@/lib/live/f1-replay";
 // — timing, the cars on the map, race control, radio, the race story — moves
 // as it did on the day. The bar along the foot of the screen: play/pause,
 // the clock, a track coloured by the flags (with qualifying's parts and every
-// tenth lap marked) to drag along, and speeds from 1× to 30×.
+// tenth lap marked) to drag along, and speeds from 1× to 30×. A recording that
+// stops before the race did says so on the bar.
 
 const FETCH_MS = 1500;
 const SPEEDS = [1, 2, 5, 10, 30];
@@ -216,6 +217,9 @@ export default function ReplayBar({ replay, onClose }: { replay: Replay; onClose
   const lap = [...timeline.laps].reverse().find((l) => l.t <= shown)?.lap;
   const total = timeline.laps.length ? Math.max(...timeline.laps.map((l) => l.lap)) : null;
   const part = [...timeline.parts].reverse().find((p) => p.t <= shown)?.label;
+  // F1's recording can stop before the race did (its Mexico 2026 ends at lap 57 of 71).
+  const official = replay.snap?.lap?.total ?? null;
+  const cutShort = !!total && !!official && total < official;
 
   const at = (clientX: number) => {
     const box = track.current!.getBoundingClientRect();
@@ -256,7 +260,8 @@ export default function ReplayBar({ replay, onClose }: { replay: Replay; onClose
               </span>
               <span className="text-ink">{hms(shown - timeline.start)}</span>
               <span className="text-ink-faint hidden sm:inline">/ {hms(span)}</span>
-              {lap && total ? <span className="text-ink-soft truncate">· Lap {lap}/{total}</span> : part ? <span className="text-ink-soft">· {part}</span> : null}
+              {lap && total ? <span className="text-ink-soft truncate">· Lap {lap}/{cutShort ? official : total}</span> : part ? <span className="text-ink-soft">· {part}</span> : null}
+              {cutShort && <span className="text-ink-faint truncate hidden sm:inline" title="The race's result is complete; only F1's recording of it stops early.">· F1&rsquo;s recording stops at lap {total}</span>}
             </span>
             <span className="flex items-center gap-1">
               {SPEEDS.map((s) => (

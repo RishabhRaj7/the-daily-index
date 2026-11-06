@@ -7,10 +7,11 @@ import { RailFrame } from "@/components/chrome/PaperNav";
 import TopBar, { type TopBarItem } from "@/components/chrome/TopBar";
 import Sheet from "@/components/extras/Sheet";
 import { useSavedMenu } from "@/lib/nav-menu";
-import { goToView, SUBS, useLiveView, viewHash, VIEWS, type Sub, type View } from "./live-views";
+import { goToView, SUBS, useLiveView, useViews, viewHash, type Sub, type View } from "./live-views";
 
 // The live centre's menu: the paper's menu in the same three forms and the same
 // places, listing the centre's own views, with the current one filled in F1 red.
+// The first view reads "Live" while a session is on and "Timing" otherwise (useViews).
 //   A phone: five icons with words along the foot of the screen, with the line along
 //     their top as the reading progress bar (views before this one full, this one
 //     filling as you scroll), and a slim row naming the view once the page's heading
@@ -33,6 +34,7 @@ function useMenuLinks() {
 
 function Dock() {
   const { view, go } = useMenuLinks();
+  const VIEWS = useViews();
   const at = VIEWS.findIndex((v) => v.id === view);
   const fill = useRef<HTMLSpanElement | null>(null);
 
@@ -82,6 +84,7 @@ function Dock() {
 /** The side menu's rows, and the phone's list of them in a sheet. */
 function Rows({ onPick }: { onPick?: () => void }) {
   const { view, sub, go } = useMenuLinks();
+  const VIEWS = useViews();
   const pick = (v: View, s?: Sub) => (e: React.MouseEvent) => {
     go(v, s)(e);
     onPick?.();
@@ -130,6 +133,7 @@ function Rows({ onPick }: { onPick?: () => void }) {
 /** The phone's slim row: which view you're in, and the way to any of them. */
 function PhoneNow() {
   const { view, sub } = useMenuLinks();
+  const VIEWS = useViews();
   const [shown, setShown] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -178,6 +182,7 @@ export default function LiveNav() {
     };
   }, []);
 
+  const VIEWS = useViews();
   const items: TopBarItem[] = [
     { id: "today", label: "Today", href: "/", Glyph: NewspaperIcon, current: false },
     ...VIEWS.map((v) => ({ id: v.id, label: v.label, href: viewHash(v.id), Glyph: v.Glyph, current: view === v.id, onClick: go(v.id) })),

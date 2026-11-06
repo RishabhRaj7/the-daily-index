@@ -18,7 +18,8 @@ import { stewardsByCode, type Stewards } from "@/lib/f1-stewards";
 //                 its mini-sector lights
 // Laps and sectors are purple for the session's best and green for a
 // personal best; the reader's drivers (and team) are tinted in their team
-// colour. When the order changes, rows glide to their new places and flash
+// colour. In a small table DNF, Out and KO sit in the first time column, since
+// the driver column has no room. When the order changes, rows glide to their new places and flash
 // green or red; a new session-best lap flashes purple. In a qualifying part
 // a dashed line marks the cut-off.
 
@@ -191,13 +192,15 @@ function Chequered({ r, race, running, status }: { r: LiveRow; race: boolean; ru
   );
 }
 
+/** Once the flag has fallen everyone is in the pits; only the out and the knocked out are worth a word. */
+function statusWord(r: LiveRow, race: boolean, running: boolean): string | null {
+  if (r.out) return !running && race ? "DNF" : "Out";
+  return !race && r.knockedOut ? "KO" : null;
+}
+
 function Status({ r, race, running }: { r: LiveRow; race: boolean; running: boolean }) {
-  // Once the flag has fallen everyone is in the pits; only the out and the
-  // knocked out are worth a word.
-  if (!running) return r.out ? <span className="font-label text-[11px] text-ink-faint">{race ? "DNF" : "Out"}</span> : !race && r.knockedOut ? <span className="font-label text-[11px] text-ink-faint">KO</span> : null;
-  if (r.out) return <span className="font-label text-[11px] text-ink-faint">Out</span>;
-  if (!race && r.knockedOut) return <span className="font-label text-[11px] text-ink-faint">KO</span>;
-  return null;
+  const word = statusWord(r, race, running);
+  return word ? <span className="font-label text-[11px] text-ink-faint">{word}</span> : null;
 }
 
 /** Places made or lost since the start (a race, where there's room). */
@@ -326,6 +329,10 @@ export default function LiveTiming({
   const moved = race && layout !== "narrow";
   const sectors = view !== "gaps";
 
+  // A small table's driver column holds the code and marks; DNF, Out and KO move to the first time column.
+  const small = layout === "narrow" || layout === "medium";
+  const movedWord = (r: LiveRow) => (small ? statusWord(r, race, snap.running) : null);
+
   type Col = { key: string; head: string; w: string; cell: (r: LiveRow) => React.ReactNode };
   const lastCol: Col = {
     key: "last",
@@ -355,7 +362,8 @@ export default function LiveTiming({
           key: "int",
           head: layout === "narrow" ? "Int" : "Interval",
           w: t,
-          cell: (r) => <span className="font-mono text-[11.5px] tabular-nums text-right">{r.position === 1 ? "Leader" : r.interval || "—"}</span>,
+          // In a small table a car that's out says so here, where there's room for the word.
+          cell: (r) => (movedWord(r) ? <Status r={r} race={race} running={snap.running} /> : <span className="font-mono text-[11.5px] tabular-nums text-right">{r.position === 1 ? "Leader" : r.interval || "—"}</span>),
         },
         {
           key: "gap",
@@ -364,12 +372,12 @@ export default function LiveTiming({
           cell: (r) => <span className="font-mono text-[11px] tabular-nums text-right text-ink-soft">{r.position === 1 ? (snap.lap ? `L${snap.lap.current}` : "—") : r.gap || "—"}</span>,
         },
       );
-    else middle.push({ key: "gap", head: "Gap", w: t, cell: (r) => <span className="font-mono text-[11px] tabular-nums text-right text-ink-soft">{r.position === 1 ? "—" : r.gap || "—"}</span> });
+    else middle.push({ key: "gap", head: "Gap", w: t, cell: (r) => (movedWord(r) ? <Status r={r} race={race} running={snap.running} /> : <span className="font-mono text-[11px] tabular-nums text-right text-ink-soft">{r.position === 1 ? "—" : r.gap || "—"}</span>) });
   }
   // Last and best: everywhere but a phone's gaps (there the gaps come first).
   if (layout !== "narrow" || !gaps) middle.push(lastCol);
   if (layout !== "narrow" || (!race && gaps)) middle.push(bestCol);
-  if (sectors) for (const i of [0, 1, 2]) middle.push({ key: `s${i}`, head: `S${i + 1}`, w: sec, cell: (r) => <Sector s={r.sectors[i]} /> });
+  if (sectors) for (const i of [0, 1, 2]) middle.push({ key: `s${i}`, head: `S${i + 1}`, w: sec, cell: (r) => (i === 0 && movedWord(r) ? <Status r={r} race={race} running={snap.running} /> : <Sector s={r.sectors[i]} />) });
   const columns: Col[] = [
     ...middle,
     {
@@ -394,7 +402,7 @@ export default function LiveTiming({
   ];
   const driverW = layout === "wide" ? "minmax(10rem,2.4fr)" : layout === "roomy" ? (sectors ? "minmax(4.5rem,0.8fr)" : "minmax(8rem,2.4fr)") : "minmax(0,1fr)";
   const cols = `${moved ? "2.7rem" : layout === "narrow" || layout === "medium" ? "1.5rem" : "1.6rem"} ${driverW} ${columns.map((c) => c.w).join(" ")}`;
-  const gapX = layout === "narrow" ? "gap-x-2" : "gap-x-2.5";
+  const gapX = layout === "narrow" ? "gap-x-1.5" : "gap-x-2.5";
 
   return (
     <div ref={box} className="timing-box">
@@ -463,7 +471,7 @@ export default function LiveTiming({
                   </DriverName>
                   {/* Once it's over everyone has the flag: that room goes to the name and DNF. */}
                   {snap.running && <Chequered r={r} race={race} running={snap.running} status={snap.status} />}
-                  <Status r={r} race={race} running={snap.running} />
+                  {!small && <Status r={r} race={race} running={snap.running} />}
                   <StewardMarks s={stewards.get(r.code)} code={r.code} compact={layout === "narrow" || layout === "medium"} />
                 </span>
                 {columns.map((c) => (

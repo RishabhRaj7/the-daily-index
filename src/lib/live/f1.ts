@@ -439,6 +439,21 @@ async function jolpicaRace(race: OpenF1Session): Promise<JolpicaRace | undefined
   return races.find((r) => Math.abs(Date.parse(`${r.date}T12:00:00Z`) - t) < 3 * 86_400_000);
 }
 
+/**
+ * Round numbers from Jolpica, matched on the race's date. OpenF1's season still
+ * lists rounds that were cancelled, so counting its races runs ahead (São Paulo
+ * read Round 22 when it was Round 20). With no answer, the count stands.
+ */
+async function withOfficialRounds<T extends { round: number; date: string }>(races: T[]): Promise<T[]> {
+  if (races.length === 0) return races;
+  const season = await getJolpicaSeason(new Date(races[0].date).getUTCFullYear()).catch(() => [] as JolpicaRace[]);
+  return races.map((race) => {
+    const t = Date.parse(race.date);
+    const found = season.find((r) => Math.abs(Date.parse(`${r.date}T12:00:00Z`) - t) < 3 * 86_400_000);
+    return found ? { ...race, round: Number(found.round) } : race;
+  });
+}
+
 /** "1:31.234" or "+5.123" → seconds. */
 function seconds(text: string | undefined): number | null {
   if (!text) return null;
@@ -872,7 +887,8 @@ export async function getF1Map(): Promise<F1MapData | null> {
     getMeetingImage(nextSession).catch(() => undefined),
     getMeetingSessions(nextSession).catch(() => []),
   ]);
-  return { nextRace: { ...raceFromSession(nextSession, nextRound, circuitImageUrl), sessions: weekend } };
+  const [race] = await withOfficialRounds([raceFromSession(nextSession, nextRound, circuitImageUrl)]);
+  return { nextRace: { ...race, sessions: weekend } };
 }
 
 /** 2. Driver details — served from static season data, so this resolves
@@ -893,7 +909,7 @@ export async function getF1Drivers(): Promise<F1DriversData> {
 export async function getF1Calendar(): Promise<F1CalendarData | null> {
   const sessions = await getSeasonSessions();
   if (!sessions?.length) return null;
-  return { upcoming: analyzeSeason(sessions).upcoming };
+  return { upcoming: await withOfficialRounds(analyzeSeason(sessions).upcoming) };
 }
 
 /** 4. Constructors' championship — one Jolpica call (points and wins). */
@@ -1037,9 +1053,10 @@ export async function getF1Schedule(): Promise<F1ScheduleData | null> {
     getMeetingImage(nextSession).catch(() => undefined),
     getMeetingSessions(nextSession).catch(() => []),
   ]);
+  const [race, calendar] = await Promise.all([withOfficialRounds([raceFromSession(nextSession, nextRound, circuitImageUrl)]), withOfficialRounds(upcoming)]);
   return {
-    nextRace: { ...raceFromSession(nextSession, nextRound, circuitImageUrl), sessions: weekend },
-    upcoming,
+    nextRace: { ...race[0], sessions: weekend },
+    upcoming: calendar,
   };
 }
 

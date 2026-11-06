@@ -1,7 +1,7 @@
 "use client";
 
 import MoveArrow from "@/components/chrome/MoveArrow";
-import { ArrowLeftIcon, ArrowRightIcon, ArrowsClockwiseIcon, ChatCenteredTextIcon, CloudRainIcon, DropIcon, FlagCheckeredIcon, LightningIcon, ListNumbersIcon, MapTrifoldIcon, PlayIcon, RoadHorizonIcon, SteeringWheelIcon, ThermometerHotIcon, ThermometerSimpleIcon, TimerIcon, TireIcon, TrophyIcon, WindIcon, WrenchIcon } from "@phosphor-icons/react";
+import { ArrowLeftIcon, ArrowRightIcon, ArrowsClockwiseIcon, ChatCenteredTextIcon, ClockCounterClockwiseIcon, CloudRainIcon, DropIcon, FlagCheckeredIcon, LightningIcon, ListNumbersIcon, MapTrifoldIcon, PlayIcon, RoadHorizonIcon, SteeringWheelIcon, ThermometerHotIcon, ThermometerSimpleIcon, TimerIcon, TireIcon, TrophyIcon, WindIcon, WrenchIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { F1Race } from "@/lib/types";
@@ -20,7 +20,7 @@ import ReplayBar, { useReplay } from "./ReplayBar";
 import { LiveDot, SessionClock, TONE, sessionLine } from "./LiveCard";
 import Feed from "./centre/Feed";
 import Analysis from "./centre/Analysis";
-import { goToView, useLiveView } from "./live-views";
+import { goToView, setOnAir, useLiveView } from "./live-views";
 import StewardsView from "./centre/StewardsView";
 import Weekend from "./centre/Weekend";
 import { ClipNote, Speedometer, TelemetrySheet, useTelemetry } from "./centre/Telemetry";
@@ -33,7 +33,8 @@ import { DelayControl, useDelayed, useDelaySeconds } from "./centre/Delay";
 import { stewardsByCode } from "@/lib/f1-stewards";
 
 // /f1/live — a session, spread over five views rather than one long page:
-//   Live      the running order beside the map (the field on it, the
+//   Live      (named "Timing" in the menu when no session is on)
+//             the running order beside the map (the field on it, the
 //             followed driver's card with what a pit stop would cost now)
 //             and the feed with its filters, scrolling in its own panel
 //   Analysis  tyres and pit stops · the lap chart · pace (speed traps, best
@@ -48,6 +49,9 @@ import { stewardsByCode } from "@/lib/f1-stewards";
 // screen, like an app's; on a wider screen they head the page.
 // Between sessions the same page carries the last session, final; any
 // finished session can be opened (Past sessions, Weekend) or replayed.
+// Viewing one, a strip under the heading says so, with one tap back to the latest,
+// and turns red when a session is on ("Live now"). While a picked session loads,
+// the page stays and dims.
 
 // ---- the followed driver ------------------------------------------------------------
 
@@ -361,7 +365,7 @@ function Title({ p, fav }: { p: LivePrediction; fav: Set<string> }) {
   );
 }
 
-function NextUp({ race, next }: { race: F1Race | null; next: string | null }) {
+function NextUp({ race, next, known }: { race: F1Race | null; next: string | null; known: boolean }) {
   const [now] = useState(() => Date.now());
   const upcoming = (race?.sessions ?? []).filter((s) => Date.parse(s.end || s.start) > now);
   const first = upcoming[0];
@@ -374,7 +378,9 @@ function NextUp({ race, next }: { race: F1Race | null; next: string | null }) {
       <span className="font-headline text-[15px] leading-snug">
         {first && at
           ? `Next: ${first.name}, ${at.toLocaleDateString("en-GB", { weekday: "long" })} at ${at.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. This page goes live by itself.`
-          : "The next session isn’t on the calendar yet."}
+          : known
+            ? "The next session isn’t on the calendar yet."
+            : " "}
       </span>
     </div>
   );
@@ -471,10 +477,82 @@ function Tiles({ snap, live }: { snap: LiveSnapshot; live: boolean }) {
 
 // ---- the page --------------------------------------------------------------------------
 
-export default function LiveCentre({ race }: { race: F1Race | null }) {
+/** "Mexico City · Qualifying", from a session's archive path. */
+function pathLabel(path: string): string {
+  const [, meeting = "", session = ""] = path.split("/");
+  const clean = (s: string) => s.replace(/^\d{4}-\d{2}-\d{2}_/, "").replace(/_Grand_Prix$/, "").replace(/_/g, " ");
+  return `${clean(meeting)} · ${clean(session).replace("Practice ", "FP")}`;
+}
+
+const SOON_MS = 15 * 60_000;
+const AFTER_MS = 30 * 60_000;
+
+/** The session the timetable says is on (or about to be), looked at every half minute. */
+function useOnTrack(race: F1Race | null): { name: string; soon: boolean } | null {
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    const tick = () => setNow(Date.now());
+    tick();
+    const id = setInterval(tick, 30_000);
+    return () => clearInterval(id);
+  }, []);
+  if (!now) return null;
+  const s = (race?.sessions ?? []).find((x) => now >= Date.parse(x.start) - SOON_MS && now <= Date.parse(x.end || x.start) + AFTER_MS);
+  return s ? { name: s.name.replace("Practice ", "FP"), soon: now < Date.parse(s.start) } : null;
+}
+
+/** Viewing a past session: what it is, and the way back, red when a session is on. */
+function ArchiveStrip({ label, onTrack, onLatest }: { label: string; onTrack: { name: string; soon: boolean } | null; onLatest: () => void }) {
+  return (
+    <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2.5 sm:px-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <span className="flex items-center gap-x-4 gap-y-1 flex-wrap min-w-0">
+        <span className="flex items-center gap-2 font-label text-[11px] text-ink-soft">
+          <ClockCounterClockwiseIcon size={14} aria-hidden="true" /> Archive
+        </span>
+        <span className="font-headline text-[15px] leading-snug">{label}</span>
+      </span>
+      <button
+        type="button"
+        onClick={onLatest}
+        className="chip h-8 text-[12px] gap-1.5 shrink-0"
+        style={onTrack && !onTrack.soon ? { background: "var(--hue-f1)", borderColor: "var(--hue-f1)", color: "#fff" } : undefined}
+      >
+        {onTrack ? (
+          <>
+            {!onTrack.soon && <span className="w-2 h-2 rounded-full bg-white animate-pulse" aria-hidden="true" />}
+            {onTrack.soon ? "Starting soon" : "Live now"} · {onTrack.name}
+          </>
+        ) : (
+          <>
+            <ArrowLeftIcon size={13} weight="bold" aria-hidden="true" /> Back to latest
+          </>
+        )}
+      </button>
+    </div>
+  );
+}
+
+export default function LiveCentre() {
   // ?session=<archive path>: a past session, kept in the address so it can be shared or reloaded.
   const [past, setPast] = useState<string | null>(null);
   const nav = useLiveView();
+  // The weekend's timetable, beside the session rather than before it: the page never waits for it.
+  const [race, setRace] = useState<F1Race | null>(null);
+  const [raceKnown, setRaceKnown] = useState(false);
+  useEffect(() => {
+    let on = true;
+    fetch("/api/f1?part=map")
+      .then((r) => (r.ok ? (r.json() as Promise<{ data?: { nextRace?: F1Race } | null }>) : null))
+      .then((d) => {
+        if (!on) return;
+        setRace(d?.data?.nextRace ?? null);
+        setRaceKnown(true);
+      })
+      .catch(() => on && setRaceKnown(true));
+    return () => {
+      on = false;
+    };
+  }, []);
   useEffect(() => {
     const read = () => {
       setPast(new URLSearchParams(location.search).get("session"));
@@ -489,7 +567,10 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
   // what's above the views changes (the next-session note comes and goes), the
   // views stay put on the screen until the new session is drawn.
   const anchor = useRef<{ path: string | null; top: number } | null>(null);
-  const pick = (path: string | null, opts: { keepScroll?: boolean } = {}) => {
+  // The session the page shows with nothing picked: picking it again is simply going back.
+  const [latest, setLatest] = useState<string | null>(null);
+  const pick = (picked: string | null, opts: { keepScroll?: boolean } = {}) => {
+    const path = picked === latest ? null : picked;
     const top = document.getElementById("views-top");
     anchor.current = opts.keepScroll && top ? { path, top: top.getBoundingClientRect().top } : null;
     const url = new URL(location.href);
@@ -500,7 +581,10 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
     if (!opts.keepScroll) window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const { snapshot: fresh, last, next, checked } = useF1Live({ full: true, always: !past, session: past });
+  const { snapshot: fresh, last, next, checked, answeredFor } = useF1Live({ full: true, always: !past, session: past, sessions: race?.sessions });
+  const onTrack = useOnTrack(race);
+  // Waiting for the session just picked: what's on screen stays, dimmed.
+  const loading = checked && answeredFor !== past;
   // Live, the timing can be held back to match the commentary or TV (centre/Delay.tsx).
   const delay = useDelaySeconds();
   const snapshot = useDelayed(fresh, !past ? delay : 0);
@@ -511,6 +595,11 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
   const [held, setHeld] = useState<LiveSnapshot | null>(null);
   if (loaded && loaded !== held) setHeld(loaded);
   const base = loaded ?? held;
+  if (!past && !loading && base?.path && base.path !== latest) setLatest(base.path);
+  // The menu calls the first view "Live" only while a session is on.
+  useEffect(() => {
+    setOnAir(live);
+  }, [live]);
   useLayoutEffect(() => {
     const a = anchor.current;
     const top = document.getElementById("views-top");
@@ -539,6 +628,7 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
   const alertFor = useMemo(() => new Set([...fav.codes, ...(teamCodes ? teamCodes.split(",") : [])]), [fav.codes, teamCodes]);
   const view = nav.view;
   const tone = snap ? TONE[snap.track.tone] : null;
+  const status = snap ? (replaying ? "Replay" : live ? (snap.running ? "Live" : snap.status === "Inactive" ? "Starting soon" : "Chequered flag") : past ? "Archive" : "Final") : null;
 
   return (
     <>
@@ -552,7 +642,7 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
           {live && !replaying && <DelayControl />}
           {/* alerts for a live session only (with the bell that mutes them) */}
           {live && !replaying && snapshot && <LiveAlerts snap={snapshot} mine={alertFor} onOpen={() => go("feed")} />}
-          <PastSessions current={past} label={past && snap ? `${snap.meeting.replace(/ Grand Prix$/, "")} · ${snap.session.replace("Practice ", "FP")}` : null} onPick={pick} />
+          <PastSessions current={past} shown={past ?? latest} label={past ? pathLabel(past) : null} onTrack={onTrack} onPick={pick} />
           {!live && base?.path && !replaying && (
             <button
               type="button"
@@ -571,7 +661,7 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
             <span className="hidden sm:flex items-center gap-2 rounded-full border hairline h-8 px-3 font-label text-[11px] shrink-0">
               <LiveDot running={(live || replaying) && snap.running} />
               <span style={{ color: (live || replaying) && snap.running ? "var(--hue-f1)" : undefined }}>
-                {replaying ? "Replay" : live ? (snap.running ? "Live" : snap.status === "Inactive" ? "Starting soon" : "Chequered flag") : past ? "Archive" : "Final"}
+                {status}
               </span>
             </span>
           )}
@@ -581,6 +671,12 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
       <header id="live-head" className="mt-6 sm:mt-8">
         <div className="flex items-center gap-2 font-label text-[11px] text-ink-soft">
           {snap && <LiveDot running={(live || replaying) && snap.running} />}
+          {/* A phone has no room for the status pill at the top. Past sessions say so in the strip, and a final one in its tile. */}
+          {status && (live || replaying) && (
+            <span className="sm:hidden shrink-0" style={{ color: (live || replaying) && snap?.running ? "var(--hue-f1)" : undefined }}>
+              {status} ·
+            </span>
+          )}
           <span className="truncate">{snap ? `${snap.location} · ${sessionLine(snap)}` : "Live centre"}</span>
         </div>
         <h1 className="font-display font-extrabold uppercase text-[clamp(2.2rem,8vw,5.5rem)] leading-[0.86] mt-2.5 lean-title">{snap?.meeting ?? race?.name ?? "Live centre"}</h1>
@@ -589,11 +685,17 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
       {!checked && <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] mt-6 h-72 animate-pulse" />}
       {checked && !live && !past && (
         <div className="mt-5">
-          <NextUp race={race} next={next} />
+          <NextUp race={race} next={next} known={raceKnown} />
         </div>
       )}
-      {past && checked && !snap && <p className="mt-6 font-mono text-[11px] text-ink-faint">F1&rsquo;s archive hasn&rsquo;t published that session yet.</p>}
+      {past && (
+        <div className="mt-5">
+          <ArchiveStrip label={pathLabel(past)} onTrack={onTrack} onLatest={() => pick(null)} />
+        </div>
+      )}
+      {past && checked && !loading && !snap && <p className="mt-6 font-mono text-[11px] text-ink-faint">F1&rsquo;s archive hasn&rsquo;t published that session yet.</p>}
 
+      <div aria-busy={loading || undefined} className="transition-opacity duration-200" style={{ opacity: loading ? 0.45 : 1 }}>
       {snap && (
         <div className="mt-5">
           <Tiles snap={snap} live={live || inReplay} />
@@ -621,6 +723,7 @@ export default function LiveCentre({ race }: { race: F1Race | null }) {
             {checked && <Season />}
           </div>
         )}
+      </div>
       </div>
 
       {/* room for the phone's menu (LiveNav) */}

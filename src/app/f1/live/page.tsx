@@ -1,25 +1,24 @@
 import LiveNav from "@/components/f1/LiveNav";
 import LiveCentre from "@/components/f1/LiveCentre";
-import { getF1Schedule } from "@/lib/live/f1";
 
-export const dynamic = "force-dynamic";
 export const metadata = { title: "Live centre — The Daily Index" };
 
 // The Pit wall's live centre: everything live that the F1 section keeps off
 // the page — full timing with sectors, strategy, race control, team radio,
 // the projected title fight and the weather. Reached from the live timing
 // card; between sessions it says when the next one starts.
+// The page waits for nothing on the server, so it opens at once and asks for
+// the session itself (the timetable arrives beside it, from /api/f1?part=map).
 // The top bar and the page are zoomed together on big screens (one
 // .page-scale wrapper, as on the front page), so their edges line up.
 
-export default async function LivePage() {
-  const schedule = await getF1Schedule().catch(() => null);
+export default function LivePage() {
   return (
     <>
       <div className="page-scale with-rail live-page flex-1 flex flex-col w-full">
       <LiveNav />
       <main className="flex-1 page-wrap px-4 sm:px-6 pt-8 pb-28 w-full" style={{ ["--section-hue" as string]: "var(--hue-f1)" }}>
-        <LiveCentre race={schedule?.nextRace ?? null} />
+        <LiveCentre />
       </main>
       </div>
     </>

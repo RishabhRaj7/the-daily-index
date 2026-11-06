@@ -1,30 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#0d0d0f"/>
-  <circle cx="12" cy="12" r="3" fill="#2a2a31"/>
-  <circle cx="12" cy="22" r="3" fill="#2a2a31"/>
-  <circle cx="12" cy="32" r="3" fill="#2a2a31"/>
-  <circle cx="12" cy="52" r="3.8" fill="#5200ff"/>
-  <circle cx="22" cy="12" r="3" fill="#2a2a31"/>
-  <circle cx="22" cy="22" r="3" fill="#2a2a31"/>
-  <circle cx="22" cy="42" r="3.8" fill="#5200ff"/>
-  <circle cx="22" cy="52" r="3.8" fill="#5200ff"/>
-  <circle cx="32" cy="12" r="3" fill="#2a2a31"/>
-  <circle cx="32" cy="22" r="3" fill="#2a2a31"/>
-  <circle cx="32" cy="32" r="3" fill="#2a2a31"/>
-  <circle cx="32" cy="52" r="3.8" fill="#5200ff"/>
-  <circle cx="42" cy="12" r="3" fill="#2a2a31"/>
-  <circle cx="42" cy="32" r="3.8" fill="#5200ff"/>
-  <circle cx="42" cy="42" r="3.8" fill="#5200ff"/>
-  <circle cx="42" cy="52" r="3.8" fill="#5200ff"/>
-  <circle cx="52" cy="22" r="3.8" fill="#5200ff"/>
-  <circle cx="52" cy="32" r="3.8" fill="#5200ff"/>
-  <circle cx="52" cy="42" r="3.8" fill="#5200ff"/>
-  <circle cx="52" cy="52" r="3.8" fill="#5200ff"/>
-  <polyline points="12,42 22,32 32,42 42,22 52,12" fill="none" stroke="#3cffd0" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity="0.6"/>
-  <circle cx="52" cy="12" r="7.5" fill="#3cffd0" opacity="0.22"/>
-  <circle cx="12" cy="42" r="4.6" fill="#3cffd0"/>
-  <circle cx="22" cy="32" r="4.6" fill="#3cffd0"/>
-  <circle cx="32" cy="42" r="4.6" fill="#3cffd0"/>
-  <circle cx="42" cy="22" r="4.6" fill="#3cffd0"/>
-  <circle cx="52" cy="12" r="4.6" fill="#3cffd0"/>
+  <style>
+    .tile { fill: #0d0d0f; }
+    .type { fill: #f2f2ef; }
+    @media (prefers-color-scheme: light) {
+      .tile { fill: #f4f3ef; }
+      .type { fill: #111113; }
+    }
+  </style>
+  <!-- DI in the masthead's type (Big Shoulders 800), leaning like the page's big headings, over a section's red rule. -->
+  <rect class="tile" width="64" height="64" rx="14" fill="#0d0d0f"/>
+  <path class="type" fill="#f2f2ef" d="M13.18 44 18.48 0.8H29.45Q35.25 0.8 37.53 3.24Q39.81 5.69 39.23 11.28Q38.82 15.25 38.41 18.82Q38 22.4 37.54 25.95Q37.07 29.5 36.5 33.47Q35.71 39.09 32.83 41.54Q29.95 44 24.17 44ZM21.5 37.36H24.98Q26.74 37.36 27.71 36.59Q28.68 35.82 28.89 34.33Q29.35 31.26 29.76 28.29Q30.16 25.32 30.52 22.37Q30.88 19.43 31.21 16.45Q31.54 13.46 31.83 10.41Q31.98 8.95 31.18 8.2Q30.39 7.44 28.63 7.44H25.17Z M40.31 44 45.62 0.8H53.13L47.82 44Z"/>
+  <rect x="11" y="49" width="42" height="6" fill="#ff1e3c"/>
 </svg>

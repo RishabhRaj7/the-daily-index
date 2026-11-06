@@ -424,7 +424,7 @@ export default function StartingGrid({
           refresh here by design: the single control lives in the pit-wall
           header, so the two can never race each other. */}
       {timingHere && liveSnap && (
-        <div className={part === "archive" ? "pit-result min-w-0" : "min-w-0"}>
+        <div className={part === "archive" ? "pit-result min-w-0 flex" : "min-w-0 flex"}>
           <LiveCard snap={liveSnap} />
         </div>
       )}

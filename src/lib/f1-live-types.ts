@@ -216,7 +216,8 @@ export interface LiveLapHistory {
 
 /** What /api/f1/live answers. */
 export type LiveAnswer =
-  | { live: false; next: string | null; last?: LiveSnapshot | null }
+  /** retry: a session is on but this read couldn't get it. Ask again soon; it isn't "no session". */
+  | { live: false; next: string | null; last?: LiveSnapshot | null; retry?: boolean }
   | { live: true; snapshot: LiveSnapshot };
 
 /** A circuit as a vector, in a box of `width` × `height` (lib/live/f1-track.ts). */

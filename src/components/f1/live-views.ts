@@ -1,6 +1,6 @@
 "use client";
 
-import { BroadcastIcon, ChartLineIcon, ChartLineUpIcon, ChatCenteredTextIcon, FlagIcon, GavelIcon, type Icon, TimerIcon, TireIcon, TrophyIcon } from "@phosphor-icons/react";
+import { BroadcastIcon, ChartLineIcon, ChartLineUpIcon, ChatCenteredTextIcon, FlagIcon, GavelIcon, type Icon, ListNumbersIcon, TimerIcon, TireIcon, TrophyIcon } from "@phosphor-icons/react";
 import { useMemo, useSyncExternalStore } from "react";
 
 // The live centre's views and where the reader is among them. The address holds it
@@ -17,6 +17,28 @@ export const VIEWS: { id: View; label: string; Glyph: Icon }[] = [
   { id: "weekend", label: "Weekend", Glyph: FlagIcon },
   { id: "season", label: "Season", Glyph: TrophyIcon },
 ];
+
+// The first view is "Live" only while a session is on; otherwise it's "Timing", since it
+// shows a finished session's order. LiveCentre says which, and the menu around it follows.
+let onAir = false;
+const onAirListeners = new Set<() => void>();
+export function setOnAir(next: boolean) {
+  if (next === onAir) return;
+  onAir = next;
+  onAirListeners.forEach((l) => l());
+}
+const onAirSubscribe = (l: () => void) => {
+  onAirListeners.add(l);
+  return () => {
+    onAirListeners.delete(l);
+  };
+};
+const TIMING = { id: "live" as View, label: "Timing", Glyph: ListNumbersIcon };
+const NOT_ON_AIR = VIEWS.map((v) => (v.id === "live" ? TIMING : v));
+/** The views, the first named for whether a session is on. */
+export function useViews() {
+  return useSyncExternalStore(onAirSubscribe, () => (onAir ? VIEWS : NOT_ON_AIR), () => VIEWS);
+}
 
 export const SUBS: { id: Sub; label: string; Glyph: Icon }[] = [
   { id: "tyres", label: "Tyres", Glyph: TireIcon },
