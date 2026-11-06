@@ -1329,3 +1329,12 @@ The first real recap, of São Paulo's FP2, was accurate and flat: the top of the
 - **Every model gets a turn** (`f1Json` in `f1-radio.ts`): it tried three models and stopped, so three spent Flash models kept Flash-Lite from answering for five minutes. It now tries them all, within 50 s, to stay inside the route's 60 s.
 - **Store keys and versions**: none changed. Practice recaps already kept under `f1:recap:v2` stay as written; these keys are only on this branch so far.
 - **Tested**: the prompts on real FP1 and FP2 on Flash-Lite, and all the long-run figures pass the figure check. Through the route on a fresh server with the Flash models' quota earlier spent, FP1's recap came back on the first try in 4.3 s. FP2 through the route couldn't be tried, since that server never followed it and F1's archive doesn't serve it yet (401). The server's log wasn't captured, so which models answered wasn't seen.
+
+### Round 20, Feed order: stops that share a time (Nov 7 2026)
+
+A pit stop's time is when a server first read it, so stops made while nobody was reading share one: 16 at once in São Paulo's FP2. The Feed sorted by time alone, so those came in no particular lap order.
+
+- **The fix** (`useItems` in `f1/centre/Feed.tsx`): stops sharing a time now read newest lap first.
+- **Left as it is, by the reader's choice**: the times themselves. Working each one back from the car's lap times was more code for what would still be an estimate. So a stop first read late still shows the clock time of that read, and two cars' stops from different reads can still sit out of lap order.
+- **Store keys and versions**: none changed.
+- **Tested**: on real FP2 data from production at 3440, 1366 and 390, with none of the 31 neighbouring stops sharing a time out of lap order, then the 42 behaviour checks.

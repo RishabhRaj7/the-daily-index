@@ -17,7 +17,7 @@ import { RadioMoments, useInsights } from "./Insights";
 // All · Flags · Stewards · Track limits · Pits · Radio · Info, with a switch
 // for just the reader's drivers. A stewards' incident is one line that moves
 // up as it goes from "noted" to the decision, its earlier stages under it, and
-// a message F1 sends twice shows once. Blue flags come one line a lap in All (a
+// a message F1 sends twice shows once. Newest first by time, and by lap among stops read together. Blue flags come one line a lap in All (a
 // race has dozens), each on its own in Flags. The Live view carries it too, filters and all, beside the map (it
 // scrolls in its own panel there), so it can be read without leaving the order,
 // with a finished session's moments heading its list (the Feed view has them above the panel).
@@ -64,7 +64,9 @@ function useItems(snap: LiveSnapshot): Item[] {
           pits.push({ t: when(p.utc), kind: "pit", pit: p, tyre: s ? { compound: s.compound, fresh: s.fresh } : null });
         });
     }
-    return [...rc, ...radio, ...pits].sort((a, b) => b.t - a.t);
+    // Stops a server first read together share a time, so their laps keep them in order.
+    const lapOf = (it: Item) => (it.kind === "pit" ? it.pit.lap : 0);
+    return [...rc, ...radio, ...pits].sort((a, b) => b.t - a.t || lapOf(b) - lapOf(a));
   }, [snap.raceControl, snap.radio, snap.pitStops, snap.stints, drivers]);
 }
 
