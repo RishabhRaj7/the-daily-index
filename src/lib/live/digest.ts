@@ -542,18 +542,8 @@ const SELECTION_SCHEMA: Schema = {
       },
     },
     atAGlance: { type: Type.ARRAY, items: { type: Type.INTEGER } },
-    rivals: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: { i: { type: Type.INTEGER }, rival: { type: Type.STRING } },
-        required: ["i", "rival"],
-      },
-    },
   },
-  // "rivals" is required so the editor always answers it (an empty list is
-  // fine); left optional, the model quietly skipped the task.
-  required: ["sections", "atAGlance", "rivals"],
+  required: ["sections", "atAGlance"],
 };
 
 const WRITING_SCHEMA: Schema = {
@@ -581,7 +571,6 @@ const WRITING_SCHEMA: Schema = {
 interface Selection {
   sections: Record<string, RawPick[]>;
   atAGlance: unknown[];
-  rivals: Array<{ i?: unknown; rival?: unknown }>;
 }
 
 async function runSelection(prefs: DigestPreferences, corpus: CorpusArticle[]): Promise<Selection> {
@@ -596,7 +585,6 @@ async function runSelection(prefs: DigestPreferences, corpus: CorpusArticle[]): 
   const parsed = JSON.parse(text) as {
     sections?: Array<{ id?: unknown; picks?: unknown }>;
     atAGlance?: unknown;
-    rivals?: unknown;
   };
   if (!Array.isArray(parsed?.sections)) throw new Error("selection missing sections");
   const sections: Record<string, RawPick[]> = {};
@@ -608,50 +596,7 @@ async function runSelection(prefs: DigestPreferences, corpus: CorpusArticle[]): 
   return {
     sections,
     atAGlance: Array.isArray(parsed.atAGlance) ? parsed.atAGlance : [],
-    rivals: Array.isArray(parsed.rivals) ? (parsed.rivals as Selection["rivals"]) : [],
   };
-}
-
-// Schadenfreude rides through the writing pass as a section of its own,
-// so its stories get the same summaries (and cache) as everything else.
-const RIVALS_SECTION: DigestSection = {
-  id: "__rivals",
-  type: "topic",
-  label: "Schadenfreude",
-  order: 999,
-  articleCount: 3,
-  prompt: "The reader follows this rival and enjoys their bad day: lead with what went wrong for them, plainly.",
-};
-
-/** One real, on-topic story per named rival. */
-function rehydrateRivals(
-  raw: Selection["rivals"],
-  corpus: CorpusArticle[],
-  rivals: string[],
-): DigestArticle[] {
-  const out: DigestArticle[] = [];
-  const done = new Set<string>();
-  for (const entry of raw) {
-    const article = corpus[toIndex(entry.i)];
-    const rival = rivals.find((r) => typeof entry.rival === "string" && r.toLowerCase() === entry.rival.toLowerCase());
-    if (!article || !rival || done.has(rival)) continue;
-    // The rival has to be in the story, not just in the model's reply.
-    const hay = `${article.title} ${article.text}`.toLowerCase();
-    const last = rival.toLowerCase().split(/\s+/).pop() ?? "";
-    if (!hay.includes(rival.toLowerCase()) && !(last.length > 3 && hay.includes(last))) continue;
-    done.add(rival);
-    out.push({
-      title: article.title,
-      summary: "",
-      source: article.source,
-      url: article.url,
-      publishedAt: article.postedAgo,
-      ...(article.postedAt ? { postedAt: article.postedAt } : {}),
-      priority: out.length + 1,
-      group: rival,
-    });
-  }
-  return out;
 }
 
 interface ArticlePage {
@@ -1026,7 +971,7 @@ function gistKey(prefs: DigestPreferences, article: CorpusArticle): string {
   );
 }
 
-type WrittenPaper = Pick<DigestResult, "sections" | "atAGlance" | "rivals" | "briefs"> & { writing: WritingStatus };
+type WrittenPaper = Pick<DigestResult, "sections" | "atAGlance" | "briefs"> & { writing: WritingStatus };
 
 async function aiDigest(
   prefs: DigestPreferences,
@@ -1086,11 +1031,6 @@ async function aiDigest(
     }
   }
   const atAGlance = rehydrateAtAGlance(selection.atAGlance, corpus);
-  const rivals = rehydrateRivals(selection.rivals, corpus, prefs.global.rivals);
-  if (rivals.length > 0) {
-    sections[RIVALS_SECTION.id] = rivals;
-    for (const a of rivals) if (!sectionByUrl.has(a.url)) sectionByUrl.set(a.url, RIVALS_SECTION);
-  }
   return writePaper(prefs, corpus, sections, atAGlance, sectionByUrl, cache);
 }
 
@@ -1245,8 +1185,7 @@ async function writePaper(
     }),
   });
 
-  const { [RIVALS_SECTION.id]: rivalStories = [], ...paperSections } = sections;
-  return { sections: paperSections, atAGlance, rivals: rivalStories, briefs, writing };
+  return { sections, atAGlance, briefs, writing };
 }
 
 function writingReport(log: WriteLog, counts: Pick<WritingReport, "stories" | "cached" | "unwritten">): WritingReport {
@@ -1286,13 +1225,11 @@ export async function writeMissing(
   cache?: WritingCache,
 ): Promise<{ digest: DigestResult; report: WritingReport }> {
   const sections = Object.fromEntries(Object.entries(digest.sections).map(([id, list]) => [id, list.map((a) => ({ ...a }))]));
-  const rivals = (digest.rivals ?? []).map((a) => ({ ...a }));
   const sectionOf = new Map<DigestArticle, DigestSection | undefined>();
   for (const [id, list] of Object.entries(sections)) {
     const section = prefs.sections.find((sec) => sec.id === id);
     for (const a of list) sectionOf.set(a, section);
   }
-  for (const a of rivals) sectionOf.set(a, RIVALS_SECTION);
   const stories = [...sectionOf.keys()];
   const open = stories.filter((a) => a.written === false);
 
@@ -1353,7 +1290,6 @@ export async function writeMissing(
     digest: {
       ...digest,
       sections,
-      rivals,
       writing: { ...status, unwritten: missing.length, ...(missing.length > 0 ? { reason: reasonFor(missing[0]) } : {}) },
     },
     report: writingReport(log, {
@@ -1590,8 +1526,8 @@ function heuristicAtAGlance(
 // ---- public entry point --------------------------------------------------------
 
 /** What a printed paper is made of: stories, publishers, Google wrappers left. */
-function printedStats(result: Pick<DigestResult, "sections" | "atAGlance" | "rivals">): NonNullable<BuildReport["printed"]> {
-  const all = [...Object.values(result.sections).flat(), ...(result.rivals ?? []), ...(result.atAGlance ?? [])];
+function printedStats(result: Pick<DigestResult, "sections" | "atAGlance">): NonNullable<BuildReport["printed"]> {
+  const all = [...Object.values(result.sections).flat(), ...(result.atAGlance ?? [])];
   const unique = new Map(all.map((a) => [a.url, a]));
   const domains = new Set([...unique.values()].map((a) => a.source));
   const viaGoogle = [...unique.keys()].filter(isGoogleNewsUrl).length;

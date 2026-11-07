@@ -1,5 +1,6 @@
 "use client";
 
+import { istClock, istDay, localTime, type EventPlace } from "@/lib/event-time";
 import { CalendarDotsIcon, ClockIcon } from "@phosphor-icons/react";
 import { useSyncExternalStore } from "react";
 import type { F1Session, F1SessionTop } from "@/lib/types";
@@ -33,20 +34,17 @@ function until(ms: number): string {
   return `in ${m}m`;
 }
 
-export default function RaceWeekend({ sessions, tops = {} }: { sessions: F1Session[]; tops?: Record<string, F1SessionTop> }) {
+export default function RaceWeekend({ sessions, tops = {}, where = null }: { sessions: F1Session[]; tops?: Record<string, F1SessionTop>; where?: EventPlace | null }) {
   const at = useSyncExternalStore(subscribe, now, () => null);
   if (sessions.length === 0) return null;
 
-  const tz = new Intl.DateTimeFormat("en-IN", { timeZoneName: "short" })
-    .formatToParts(new Date())
-    .find((p) => p.type === "timeZoneName")?.value;
   const nextIdx = at === null ? -1 : sessions.findIndex((s) => Date.parse(s.end) > at);
   const isSprint = sessions.some((s) => /sprint/i.test(s.name));
 
-  // Group by day, in the reader's calendar.
+  // Group by day, in IST like the times.
   const days: Array<{ day: string; items: Array<{ s: F1Session; i: number }> }> = [];
   sessions.forEach((s, i) => {
-    const day = new Date(s.start).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+    const day = istDay(s.start);
     const last = days.at(-1);
     if (last && last.day === day) last.items.push({ s, i });
     else days.push({ day, items: [{ s, i }] });
@@ -59,12 +57,6 @@ export default function RaceWeekend({ sessions, tops = {} }: { sessions: F1Sessi
           <CalendarDotsIcon size={14} aria-hidden="true" />
           Race weekend{isSprint ? " · sprint" : ""}
         </div>
-        {tz && (
-          <div className="font-mono text-[11px] text-ink-faint inline-flex items-center gap-1">
-            <ClockIcon size={13} aria-hidden="true" />
-            {tz}
-          </div>
-        )}
       </div>
       <ol className="space-y-3">
         {days.map(({ day, items }) => (
@@ -101,8 +93,9 @@ export default function RaceWeekend({ sessions, tops = {} }: { sessions: F1Sessi
                         </span>
                       )}
                     </span>
-                    <span className={`font-mono text-[12px] tabular-nums ${top ? "text-ink-faint" : ""}`}>
-                      {new Date(s.start).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                    <span className={`font-mono text-[12px] leading-tight tabular-nums text-right ${top ? "text-ink-faint" : ""}`}>
+                      {istClock(s.start)} IST
+                      {localTime(s.start, where) && <span className="block text-[11px] text-ink-soft">({localTime(s.start, where)})</span>}
                     </span>
                   </li>
                 );

@@ -1,5 +1,6 @@
 "use client";
 
+import { eventDateTime, localTime, valorantPlace } from "@/lib/event-time";
 import { ArrowsLeftRightIcon, CaretRightIcon, HourglassMediumIcon, NewspaperIcon, PencilSimpleIcon, TreeStructureIcon, UsersThreeIcon } from "@phosphor-icons/react";
 import { PublisherLogo } from "@/components/story/PublisherMark";
 import { useEffect, useState, useSyncExternalStore } from "react";
@@ -29,8 +30,7 @@ const MAX_TEAMS = 3;
 const REFRESH_MS = 2 * 60_000;
 
 const TZ = "Asia/Kolkata";
-const when = (iso: string) =>
-  new Date(iso).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: TZ });
+const when = (iso: string, event?: string | null) => eventDateTime(iso, valorantPlace(event));
 const time = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: TZ });
 const weekday = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { weekday: "short", timeZone: TZ });
 const date = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: TZ });
@@ -197,7 +197,7 @@ function TeamCard({ team, data, open }: { team: ValTeam; data: ValorantData; ope
       {pending && (
         <div className="mt-2 pl-[36px] font-sans text-[12.5px]">
           <span className="text-ink-soft">Next </span>
-          {pending.stage}, from {when(pending.start)}
+          {pending.stage}, from {when(pending.start, pending.event)}
           <span className="block font-mono text-[11px] text-ink-soft">Opponent set when the draw is made</span>
         </div>
       )}
@@ -216,7 +216,7 @@ function TeamCard({ team, data, open }: { team: ValTeam; data: ValorantData; ope
             </span>
           </div>
           <div className="font-mono text-[11px] text-ink-soft">
-            {next.state === "inProgress" ? `Live · ${us(next).wins ?? 0}–${them(next).wins ?? 0}` : when(next.start)} · Bo{next.bestOf}
+            {next.state === "inProgress" ? `Live · ${us(next).wins ?? 0}–${them(next).wins ?? 0}` : when(next.start, next.event)} · Bo{next.bestOf}
           </div>
           <OddsBar m={next} focus={team.code} />
         </button>
@@ -284,17 +284,18 @@ function EventPanel({ event, data, follows, now, open }: { event: ValEvent; data
               <button
                 type="button"
                 onClick={() => open({ kind: "match", a: a.code, b: b.code, id: m.id })}
-                className={`w-full text-left py-2 grid grid-cols-[4.4rem_minmax(0,1fr)_auto] items-center gap-2 text-[12px] hover:bg-card-bg rounded-md ${done ? "opacity-80" : ""}`}
+                className={`w-full text-left py-2 grid grid-cols-[6.4rem_minmax(0,1fr)_auto] items-center gap-2 text-[12px] hover:bg-card-bg rounded-md ${done ? "opacity-80" : ""}`}
               >
               <span className="font-mono text-[11px] text-ink-soft whitespace-nowrap">
                 {m.state === "inProgress" ? (
                   <span className="text-[color:var(--section-hue)] font-semibold">LIVE</span>
                 ) : done ? (
                   `${weekday(m.start)} · FT`
-                ) : dayOf(m.start) === dayOf(now) ? (
-                  time(m.start)
                 ) : (
-                  `${weekday(m.start)} ${time(m.start)}`
+                  <>
+                    {dayOf(m.start) === dayOf(now) ? `${time(m.start)} IST` : `${weekday(m.start)} ${time(m.start)} IST`}
+                    {localTime(m.start, valorantPlace(m.event)) && <span className="block">({localTime(m.start, valorantPlace(m.event))})</span>}
+                  </>
                 )}
               </span>
               <span className="flex items-center gap-1.5 min-w-0 font-sans">
@@ -479,7 +480,7 @@ export default function ClutchSection({ initial, follows }: { initial: ValorantD
                   </>
                 ) : null}
                 {data.nextEvent
-                  ? `Next: ${data.nextEvent.name}, from ${when(data.nextEvent.start)}.`
+                  ? `Next: ${data.nextEvent.name}, from ${when(data.nextEvent.start, data.nextEvent.name)}.`
                   : "The next VCT season's dates aren't out yet (Kickoff usually starts in January)."}
               </p>
               {teams.length > 0 && (

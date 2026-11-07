@@ -44,6 +44,7 @@ const lift = (hue: string) => ({
 export default function PageOrderList({
   order,
   hidden,
+  sportRows = {},
   onMove,
   onMoveChapter,
   onToggle,
@@ -52,6 +53,8 @@ export default function PageOrderList({
 }: {
   order: SectionKey[];
   hidden: SectionKey[];
+  /** Sections a sport prints, and whether it's followed: the sports choice switches them, not their row. */
+  sportRows?: Partial<Record<SectionKey, boolean>>;
   onMove: (key: SectionKey, dir: -1 | 1) => void;
   onMoveChapter: (id: ChapterId, dir: -1 | 1) => void;
   onToggle: (key: SectionKey) => void;
@@ -197,6 +200,9 @@ export default function PageOrderList({
                   </button>
                 </span>
               )}
+              {key in sportRows ? (
+                <span className="font-label text-[11px] text-ink-soft px-2.5 py-1 whitespace-nowrap">{active ? "Followed" : "Not followed"}</span>
+              ) : (
               <button
                 type="button"
                 onClick={() => onToggle(key)}
@@ -205,6 +211,7 @@ export default function PageOrderList({
               >
                 {active ? "Shown" : "Hidden"}
               </button>
+              )}
               {settings(key, filled)}
             </li>
           );

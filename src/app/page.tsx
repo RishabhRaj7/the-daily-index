@@ -80,7 +80,9 @@ export default async function Home() {
     if (!sportsCookie?.value) return ["f1"];
     try {
       const parsed = JSON.parse(decodeURIComponent(sportsCookie.value));
-      return Array.isArray(parsed) && parsed.length > 0 ? parsed : ["f1"];
+      // Valorant is a sport to choose too, but it has no news feed here: Clutch reads its own.
+      const read = Array.isArray(parsed) ? parsed.filter((s) => s === "f1" || s === "football" || s === "tennis") : [];
+      return read.length > 0 ? read : ["f1"];
     } catch { return ["f1"]; }
   })();
 
@@ -119,7 +121,7 @@ export default async function Home() {
     "technology",
   ];
 
-  // Fetch per-sport feeds independently so we can filter hate-watch from the
+  // Fetch per-sport feeds independently so we can filter from the
   // full set (before the perSport cap applied to the main section).
   //
   // F1 note: the sidebar used to be served by one `getLiveF1()` waterfall

@@ -1,5 +1,6 @@
 "use client";
 
+import { eventDateTime, f1Place, istDay } from "@/lib/event-time";
 import { ArrowRightIcon, CalendarDotsIcon, CaretDownIcon, CaretRightIcon, CaretUpIcon, ChartBarHorizontalIcon, FlagCheckeredIcon } from "@phosphor-icons/react";
 import Sheet from "@/components/extras/Sheet";
 import { PHONE, useMedia } from "@/lib/use-media";
@@ -272,7 +273,7 @@ export default function StartingGrid({
         ? (session?.race ?? displayedRace.name)
         : (weekendName ?? displayedRace.name);
   // One line under the title on what the table is.
-  const day = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  const day = (iso: string) => istDay(iso);
   const timingNote =
     racePhase === "practice" && session
       ? session.name === "Sprint"
@@ -355,12 +356,9 @@ export default function StartingGrid({
         {!live && (
           <>
             <Countdown target={nextRace.date} />
-            <div className="flex justify-between gap-2 font-mono text-[11px] text-ink-soft mt-2">
+            <div className="flex flex-wrap justify-between gap-x-2 gap-y-0.5 font-mono text-[11px] text-ink-soft mt-2">
               <span>Until lights out</span>
-              <span suppressHydrationWarning>
-                {lightsOut.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} ·{" "}
-                {lightsOut.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
-              </span>
+              <span suppressHydrationWarning>{eventDateTime(lightsOut, f1Place(nextRace.circuit, nextRace.name, nextRace.country))}</span>
             </div>
           </>
         )}
@@ -373,7 +371,7 @@ export default function StartingGrid({
       </div>
 
       {/* 2. The weekend, session by session. */}
-      {!live && nextRace.sessions && nextRace.sessions.length > 0 && <RaceWeekend sessions={nextRace.sessions} tops={tops} />}
+      {!live && nextRace.sessions && nextRace.sessions.length > 0 && <RaceWeekend where={f1Place(nextRace.circuit, nextRace.name, nextRace.country)} sessions={nextRace.sessions} tops={tops} />}
       </>
       )}
 

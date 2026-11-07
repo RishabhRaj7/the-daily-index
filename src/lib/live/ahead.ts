@@ -1,3 +1,4 @@
+import { f1Place, localTime, valorantPlace, WASHINGTON } from "@/lib/event-time";
 import { getValorant } from "./valorant";
 import type { AheadEvent, WeekAhead } from "@/lib/types";
 import { getIpoBoard } from "./ipos";
@@ -84,7 +85,7 @@ export function parseFomc(html: string, year: number): AheadEvent[] {
     if (month < 0 || !lastDay) continue;
     const date = `${year}-${String(month + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
     const at = zoned(date, "14:00", "America/New_York");
-    out.push({ date: istDate(at), time: istTime(at), label: "US Fed rate decision", kind: "policy", url: "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm" });
+    out.push({ date: istDate(at), time: istTime(at), local: localTime(at, WASHINGTON) ?? undefined, label: "US Fed rate decision", kind: "policy", url: "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm" });
   }
   return out;
 }
@@ -146,11 +147,12 @@ async function f1(): Promise<AheadEvent[]> {
   const race = schedule?.nextRace;
   if (!race) return [];
   const gp = race.name.replace(/\s*Grand Prix$/i, " GP");
+  const place = f1Place(race.circuit, race.name, race.country);
   return (race.sessions ?? [])
     .filter((s) => /^(Sprint|Qualifying|Race)$/i.test(s.name))
     .map((s) => {
       const at = new Date(s.start);
-      return { date: istDate(at), time: istTime(at), label: `${gp}: ${s.name.toLowerCase() === "race" ? "race" : s.name}`, kind: "f1" as const };
+      return { date: istDate(at), time: istTime(at), local: localTime(at, place) ?? undefined, label: `${gp}: ${s.name.toLowerCase() === "race" ? "race" : s.name}`, kind: "f1" as const };
     });
 }
 
@@ -213,6 +215,7 @@ async function valorant(teams: string[]): Promise<AheadEvent[]> {
     out.push({
       date: istDate(d),
       time: istTime(d),
+      local: localTime(d, valorantPlace(m.event)) ?? undefined,
       label: final && !mine
         ? `${m.event} final${vs}`
         : `${m.event.replace(/ · /g, " ")}:${vs}${m.odds ? (follow.has(b.code) && !follow.has(a.code) ? ` (${b.code} ${m.odds.b}%)` : ` (${a.code} ${m.odds.a}%)`) : ""}`,

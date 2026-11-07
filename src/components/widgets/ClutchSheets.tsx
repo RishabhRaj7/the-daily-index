@@ -1,5 +1,6 @@
 "use client";
 
+import { eventDateTime, valorantPlace } from "@/lib/event-time";
 import { ArrowSquareOutIcon, CaretDownIcon, CaretLeftIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { ValEvent, ValMatch, ValorantData, ValTeam } from "@/lib/types";
@@ -20,11 +21,8 @@ import MatchStats from "./MatchStats";
 export type ClutchView = { kind: "event"; key: string } | { kind: "team"; code: string } | { kind: "match"; a: string; b: string; id?: string };
 
 const TZ = "Asia/Kolkata";
-const when = (iso: string) =>
-  new Date(iso).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: TZ });
+const when = (iso: string, event?: string | null) => eventDateTime(iso, valorantPlace(event));
 const date = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit", timeZone: TZ });
-const shortWhen = (iso: string) =>
-  new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: TZ });
 
 export function Logo({ src, name, size = 22 }: { src: string | null; name: string; size?: number }) {
   if (!src) {
@@ -279,7 +277,7 @@ function Tree({ b, follows, onOpen, avail }: { b: Bracket; follows: string[]; on
                   ) : s.match.state === "completed" ? (
                     `${date(s.match.start)} · Bo${s.match.bestOf}`
                   ) : (
-                    `${shortWhen(s.match.start)} IST · Bo${s.match.bestOf}`
+                    `${when(s.match.start, s.match.event)} · Bo${s.match.bestOf}`
                   )}
                 </div>
               )}
@@ -349,7 +347,7 @@ function GroupCard({ g, follows, onOpen, onTeam }: { g: GroupTable; follows: str
                 <span>
                   {m.teams[0].code} v {m.teams[1].code}
                 </span>
-                <span>{m.state === "inProgress" ? "LIVE" : `${shortWhen(m.start)} IST`}</span>
+                <span>{m.state === "inProgress" ? "LIVE" : when(m.start, m.event)}</span>
               </button>
             </li>
           ))}
@@ -441,7 +439,7 @@ function MatchRow({ m, code, onOpen }: { m: ValMatch; code: string; onOpen: (m: 
   return (
     <li>
       <button type="button" onClick={() => onOpen(m)} disabled={o.code === "TBD"} className="w-full grid grid-cols-[4.6rem_minmax(0,1fr)_auto] items-center gap-2 py-2 text-left text-[13px] group enabled:hover:bg-card-bg rounded-md px-1 -mx-1">
-        <span className="font-mono text-[11px] text-ink-soft">{done ? date(m.start) : shortWhen(m.start)}</span>
+        <span className="font-mono text-[11px] text-ink-soft">{done ? date(m.start) : when(m.start, m.event)}</span>
         <span className="flex items-center gap-1.5 min-w-0">
           <span className="text-ink-faint text-[11px]">v</span>
           {o.code !== "TBD" && <Logo src={o.image} name={o.code} size={16} />}
@@ -521,7 +519,7 @@ function TeamView({ team, data, go }: { team: ValTeam; data: ValorantData; go: (
           </ul>
         ) : nextStage ? (
           <p className="font-sans text-[13px] py-2">
-            {nextStage.stage} of {featured!.name} from {when(nextStage.start)} IST; the opponent is set when the draw is made.
+            {nextStage.stage} of {featured!.name} from {when(nextStage.start, featured!.name)}; the opponent is set when the draw is made.
           </p>
         ) : (
           <p className="font-sans text-[13px] text-ink-soft py-2">Nothing scheduled yet.</p>
@@ -604,9 +602,9 @@ function MatchView({ a, b, id, data, follows, go }: { a: string; b: string; id?:
             <div className="font-display font-extrabold text-[2rem] leading-none text-ink-faint">vs</div>
           )}
           {match && (
-            <div className="font-mono text-[11px] text-ink-soft mt-1 whitespace-nowrap">
+            <div className="font-mono text-[11px] text-ink-soft mt-1">
               {match.state === "inProgress" ? <span className="text-[color:var(--section-hue)] font-semibold">LIVE · </span> : null}
-              {done ? date(match.start) : `${when(match.start)} IST`} · {match.stage} · Bo{match.bestOf}
+              {done ? date(match.start) : when(match.start, match.event)} · {match.stage} · Bo{match.bestOf}
             </div>
           )}
         </div>

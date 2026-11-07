@@ -31,6 +31,7 @@ import Pace from "./centre/Pace";
 import Commentary from "./centre/Commentary";
 import LiveAlerts from "./centre/Alerts";
 import { followDriver, useFollowedDriver } from "./followed-driver";
+import { eventTime, f1Place, istDay } from "@/lib/event-time";
 import { DelayControl, useDelayed, useDelaySeconds } from "./centre/Delay";
 import { stewardsByCode } from "@/lib/f1-stewards";
 
@@ -450,7 +451,7 @@ function NextUp({ race, next, known }: { race: F1Race | null; next: string | nul
       </span>
       <span className="font-headline text-[15px] leading-snug">
         {first && at
-          ? `Next: ${first.name}, ${at.toLocaleDateString("en-GB", { weekday: "long" })} at ${at.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. This page goes live by itself.`
+          ? `Next: ${first.name}, ${istDay(at, { weekday: "long" })} at ${eventTime(at, f1Place(race?.circuit, race?.name, race?.country))}. This page goes live by itself.`
           : known
             ? "The next session isn’t on the calendar yet."
             : " "}
