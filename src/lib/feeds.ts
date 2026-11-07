@@ -58,7 +58,7 @@ export const FEED_META: Record<FeedSection, { title: string; kicker: string; sea
 export function defaultFeed(section: FeedSection, p: Personalization): FeedConfig {
   switch (section) {
     case "grapevine": {
-      const fromSports = p.sports.map((s) => (s === "f1" ? "formula1" : s === "football" ? "soccer" : "tennis"));
+      const fromSports = p.sports.flatMap((s) => (s === "valorant" ? [] : [s === "f1" ? "formula1" : s === "football" ? "soccer" : "tennis"]));
       return {
         x: p.xAccounts?.length ? p.xAccounts : DEFAULT_X_ACCOUNTS,
         searches: p.xSearches ?? [],

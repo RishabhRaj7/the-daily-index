@@ -13,8 +13,6 @@ import { decodeEntities } from "./rss";
 //   fitsAnotherBetter  does this paragraph fit a different headline clearly
 //                   better than its own (a crossed reply)?
 //   groundedIn      are this paragraph's words drawn from this source text?
-//
-// batchSummarize is the older per-article pass, kept for /api/summarize.
 
 function extractText(html: string): string {
   return decodeEntities(stripTags(html));
@@ -134,19 +132,6 @@ export async function fetchArticleText(url: string, maxChars?: number): Promise<
   return (await fetchArticle(url, { maxChars }))?.text ?? null;
 }
 
-// Summarises all articles in a single Gemini call.
-// Input: array of { id, url, snippet } — id is used to key the output map.
-// Output: Map<id, summary> — falls back to the raw snippet for any article
-// that couldn't be summarised (parse failure, API error, etc.).
-export interface SummarizeInput {
-  id: string;
-  url: string;
-  snippet: string;
-  /** The headline as printed. Anchors the model to the right story and lets
-   *  us reject summaries that drifted onto a different article. */
-  title?: string;
-}
-
 // Phrases that make a summary read like a template rather than a paragraph a
 // person wrote. If the model slips one in we strip the sentence.
 const ROBOTIC_OPENERS =
@@ -247,69 +232,3 @@ export function groundedIn(source: string, summary: string): number {
 // Summarises all articles in a single Gemini call.
 // Output: Map<id, summary> — falls back to the raw snippet for any article
 // that couldn't be summarised (parse failure, off-topic result, API error).
-export async function batchSummarize(
-  articles: SummarizeInput[],
-): Promise<Map<string, string>> {
-  const fallback = new Map(articles.map((a) => [a.id, a.snippet]));
-  if (!aiEnabled() || articles.length === 0) return fallback;
-
-  // Fetch full article text in parallel — plain HTTP, no AI quota used here.
-  const texts = await Promise.all(articles.map((a) => fetchArticleText(a.url)));
-
-  const articleBlocks = articles
-    .map((a, i) => {
-      const fetched = texts[i];
-      const content =
-        fetched && fetchedTextMatches(a.title, fetched) ? fetched : a.snippet || "(no body available)";
-      const source = a.url.replace(/^https?:\/\/(www\.)?/, "").split("/")[0];
-      return `<article index="${i}" source="${source}">
-HEADLINE: ${a.title ?? "(untitled)"}
-TEXT: ${content}
-</article>`;
-    })
-    .join("\n\n");
-
-  const prompt = `You write the short news items for "The Daily Index", a one-reader morning paper. Your reader is a smart adult who wants to know what happened, quickly, in the voice of a good newspaper — not a press release and not an AI.
-
-For each <article> below, write ONE paragraph of three to five sentences that stands in for the story. Each summary will be printed directly beneath its HEADLINE, so it must be about that headline's story and nothing else.
-
-How to write it:
-- Lead with the news itself: what actually happened, who did it, and the concrete detail (numbers, names, places, dates) that makes it real.
-- Then give the context a reader needs — what led here, what's at stake, what happens next — folded naturally into the prose. Vary how you do this from item to item.
-- Sound like a person. Use plain, specific verbs. Sentences can vary in length. Contractions are fine.
-- Stay strictly within the facts in TEXT (or the HEADLINE if TEXT is thin). Never invent quotes, figures or outcomes. If the text is only a headline, write one or two honest sentences rather than padding.
-- If TEXT clearly describes a different story than the HEADLINE (wrong page, homepage, paywall), write from the HEADLINE alone.
-
-Never do these:
-- Do not use the phrases "It matters because", "This matters because", "This is significant", "In summary", "Overall", "In conclusion", "The article", "The piece", "The author", "This development", "underscores", "highlights", "showcases", "delve", "landscape", "pivotal", "crucial", "game-changer", "testament".
-- Do not begin every paragraph the same way. Do not end every paragraph with a why-it-matters sentence.
-- No bullet points, markdown, headers, hashtags or emoji. No first person.
-
-Return ONLY a JSON array with exactly one object per article, in the same order, using this schema:
-[{"i": 0, "summary": "..."}, {"i": 1, "summary": "..."}]
-
-${articleBlocks}`;
-
-  try {
-    const parsed: Array<{ i: number; summary: string }> = JSON.parse(
-      await generateJson(prompt, { timeoutMs: 60_000, label: "batchSummarize" }),
-    );
-
-    const out = new Map(articles.map((a) => [a.id, a.snippet]));
-    for (const item of parsed) {
-      const article = articles[item.i];
-      if (!article || typeof item.summary !== "string") continue;
-      const summary = humanise(item.summary);
-      if (summary.length < 40) continue;
-      if (!looksOnTopic(article.title, summary)) {
-        console.warn("[batchSummarize] off-topic summary rejected for:", article.title);
-        continue;
-      }
-      out.set(article.id, summary);
-    }
-    return out;
-  } catch (err) {
-    console.error("[batchSummarize] Gemini error:", err);
-    return fallback;
-  }
-}

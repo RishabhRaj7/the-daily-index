@@ -1,39 +1,29 @@
 "use client";
 
 import { useState } from "react";
-import type { F1RosterEntry, Personalization } from "@/lib/types";
-import { F1_TEAM_COLORS } from "@/lib/personalization";
+import type { Personalization, SectionKey } from "@/lib/types";
 import { SECTION_ORDER } from "@/lib/sections";
 import PageOrderList from "./PageOrderList";
 import { moveChapter, moveWithinChapter, type ChapterId } from "@/lib/chapters";
 import type { DigestPreferences } from "@/lib/preferences/types";
 
-type Sport = "f1" | "football" | "tennis";
+type Sport = Personalization["sports"][number];
 export type FormPart = "basics" | "sports" | "order";
 
 const SPORT_LABELS: Record<Sport, string> = {
   f1: "Formula 1",
   football: "Football",
   tennis: "Tennis",
+  valorant: "Valorant",
 };
 
-// Top-10 suggestion lists — quick picks shown as chips above each free-fill input.
-const FOOTBALL_CLUBS = [
-  "Real Madrid", "Barcelona", "Man United", "Arsenal",
-  "Liverpool", "Man City", "Chelsea", "PSG", "Bayern Munich", "Juventus",
-];
-const FOOTBALL_NATIONAL_TEAMS = [
-  "Brazil", "France", "England", "Argentina",
-  "Spain", "Germany", "Italy", "Portugal", "Netherlands", "Japan",
-];
-const FOOTBALL_PLAYERS = [
-  "Mbappé", "Haaland", "Vinícius Jr", "Bellingham",
-  "Salah", "De Bruyne", "Pedri", "Lamine Yamal", "Lewandowski", "Alisson",
-];
-const TENNIS_PLAYERS = [
-  "Sinner", "Alcaraz", "Djokovic", "Zverev",
-  "Swiatek", "Sabalenka", "Gauff", "Rybakina", "Medvedev", "Fritz",
-];
+// The sections a sport prints, so its row in Page order follows the choice.
+const SPORT_SECTIONS: Partial<Record<SectionKey, Sport[]>> = {
+  "paddock-notes": ["f1"],
+  sports: ["football", "tennis"],
+  clutch: ["valorant"],
+};
+
 // A numbered chapter: one decision per chapter, with a plain-language line
 // explaining what it changes in tomorrow's paper.
 function Chapter({
@@ -107,74 +97,9 @@ function Chip({
 }
 
 /** One followed sport: its name, then its few fields in a compact grid. */
-function SportCard({ name, accent, children }: { name: string; accent?: string; children: React.ReactNode }) {
-  return (
-    <div className="module">
-      <div className="flex items-center gap-2 mb-4">
-        <span className="w-2 h-2 rounded-full" style={{ background: accent ?? "var(--accent)" }} />
-        <span className="font-display font-bold text-[1.35rem] leading-none">{name}</span>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">{children}</div>
-    </div>
-  );
-}
-
-/** A text field with the usual answers offered as the reader types. */
-function ListInput({
-  label,
-  value,
-  onChange,
-  suggestions,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  suggestions: string[];
-  placeholder?: string;
-}) {
-  const id = `list-${label.toLowerCase().replace(/\W+/g, "-")}`;
-  return (
-    <label className="block">
-      <FieldLabel>{label}</FieldLabel>
-      <input
-        type="text"
-        list={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={inputCls}
-        placeholder={placeholder}
-      />
-      <datalist id={id}>
-        {suggestions.map((s) => (
-          <option key={s} value={s} />
-        ))}
-      </datalist>
-    </label>
-  );
-}
-
-function RivalInput({
-  value,
-  onChange,
-  placeholder,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
-}) {
-  return (
-    <label className="block">
-      <FieldLabel>Rival</FieldLabel>
-      <input type="text" value={value} onChange={(e) => onChange(e.target.value)} className={inputCls} placeholder={placeholder} />
-    </label>
-  );
-}
-
 export default function PersonalizationForm({
   value,
   onChange,
-  f1Roster,
   parts,
   bare = false,
   news,
@@ -182,7 +107,6 @@ export default function PersonalizationForm({
 }: {
   value: Personalization;
   onChange: (next: Personalization) => void;
-  f1Roster: F1RosterEntry[];
   /** Render only these chapters (Settings splits them across tabs); all
    *  chapters, numbered, when omitted (onboarding). */
   parts?: FormPart[];
@@ -200,6 +124,11 @@ export default function PersonalizationForm({
       : [...value.sports, sport];
     onChange({ ...value, sports: next });
   };
+
+  // A sport's section prints when the sport is followed; the choice above decides, not its row.
+  const sportRows = Object.fromEntries(
+    (Object.entries(SPORT_SECTIONS) as Array<[SectionKey, Sport[]]>).map(([key, sports]) => [key, sports.some((s) => value.sports.includes(s))]),
+  ) as Partial<Record<SectionKey, boolean>>;
 
   const toggleSection = (key: (typeof SECTION_ORDER)[number]) => {
     // Hiding keeps the section's place in the order, so showing it again
@@ -247,133 +176,19 @@ export default function PersonalizationForm({
       <Chapter
         bare={bare}
         numeral={num("II.")}
-        title="Sports Desk"
-        effect="Pick your sports, then who you follow in each."
+        title="Sports you follow"
+        effect="Each one you pick gets its pages. Your F1 team and drivers are set on Your Paddock, your Valorant teams on Clutch."
       >
-        <div>
-          <FieldLabel>Sports you follow</FieldLabel>
-          <div className="flex flex-wrap gap-2">
-            {(["f1", "football", "tennis"] as Sport[]).map((s) => (
-              <Chip
-                key={s}
-                active={value.sports.includes(s)}
-                onClick={() => toggleSport(s)}
-              >
-                {SPORT_LABELS[s]}
-              </Chip>
-            ))}
-          </div>
-          {value.sports.length === 0 && (
-            <Hint>
-              <span className="text-accent">
-                No sports selected — the sports section won&rsquo;t print.
-              </span>
-            </Hint>
-          )}
+        <div className="flex flex-wrap gap-2">
+          {(["f1", "football", "tennis", "valorant"] as Sport[]).map((s) => (
+            <Chip key={s} active={value.sports.includes(s)} onClick={() => toggleSport(s)}>
+              {SPORT_LABELS[s]}
+            </Chip>
+          ))}
         </div>
-
-        {value.sports.includes("f1") && (
-          <SportCard name="Formula 1" accent={value.favoriteF1Team ? F1_TEAM_COLORS[value.favoriteF1Team] : undefined}>
-            <label className="block">
-              <FieldLabel>Team</FieldLabel>
-              <select
-                value={value.favoriteF1Team}
-                onChange={(e) => onChange({ ...value, favoriteF1Team: e.target.value })}
-                className={inputCls}
-              >
-                <option value="">No team</option>
-                {Object.keys(F1_TEAM_COLORS).map((team) => (
-                  <option key={team} value={team}>
-                    {team}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {[0, 1].map((slot) => (
-              <label key={slot} className="block">
-                <FieldLabel>{slot === 0 ? "Driver" : "Second driver"}</FieldLabel>
-                <select
-                  value={value.favoriteF1Drivers[slot] ?? ""}
-                  disabled={f1Roster.length === 0 || (slot === 1 && !value.favoriteF1Drivers[0])}
-                  onChange={(e) => {
-                    const next = [...value.favoriteF1Drivers];
-                    if (e.target.value) next[slot] = e.target.value;
-                    else next.splice(slot, 1);
-                    onChange({ ...value, favoriteF1Drivers: next.filter(Boolean).slice(0, 2) });
-                  }}
-                  className={`${inputCls} disabled:opacity-50`}
-                >
-                  <option value="">{f1Roster.length === 0 ? "Driver list unavailable" : "None"}</option>
-                  {f1Roster
-                    .filter((d) => d.id !== value.favoriteF1Drivers[slot === 0 ? 1 : 0])
-                    .map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name} · {d.team}
-                      </option>
-                    ))}
-                </select>
-              </label>
-            ))}
-            <RivalInput
-              value={value.hateWatchF1}
-              onChange={(v) => onChange({ ...value, hateWatchF1: v })}
-              placeholder="e.g. Red Bull or Verstappen"
-            />
-          </SportCard>
-        )}
-
-        {value.sports.includes("football") && (
-          <SportCard name="Football">
-            <ListInput
-              label="Club"
-              value={value.favoriteFootballClub}
-              onChange={(v) => onChange({ ...value, favoriteFootballClub: v })}
-              suggestions={FOOTBALL_CLUBS}
-              placeholder="e.g. Arsenal"
-            />
-            <ListInput
-              label="Player"
-              value={value.favoriteFootballPlayer}
-              onChange={(v) => onChange({ ...value, favoriteFootballPlayer: v })}
-              suggestions={FOOTBALL_PLAYERS}
-              placeholder="e.g. Saka"
-            />
-            <ListInput
-              label="National team"
-              value={value.favoriteFootballNationalTeam}
-              onChange={(v) => onChange({ ...value, favoriteFootballNationalTeam: v })}
-              suggestions={FOOTBALL_NATIONAL_TEAMS}
-              placeholder="e.g. India"
-            />
-            <RivalInput
-              value={value.hateWatchFootball}
-              onChange={(v) => onChange({ ...value, hateWatchFootball: v })}
-              placeholder="e.g. Man City"
-            />
-          </SportCard>
-        )}
-
-        {value.sports.includes("tennis") && (
-          <SportCard name="Tennis">
-            <ListInput
-              label="Player"
-              value={value.favoriteTennisPlayer}
-              onChange={(v) => onChange({ ...value, favoriteTennisPlayer: v })}
-              suggestions={TENNIS_PLAYERS}
-              placeholder="e.g. Alcaraz"
-            />
-            <RivalInput
-              value={value.hateWatchTennis}
-              onChange={(v) => onChange({ ...value, hateWatchTennis: v })}
-              placeholder="e.g. Djokovic"
-            />
-          </SportCard>
-        )}
-
-        {value.sports.length > 0 && (
+        {value.sports.length === 0 && (
           <Hint>
-            Your team, drivers and players lead the sports pages. A rival&rsquo;s genuinely bad day runs under
-            Schadenfreude; leave it empty to skip that.
+            <span className="text-accent">No sports selected: their pages won&rsquo;t print.</span>
           </Hint>
         )}
       </Chapter>
@@ -389,7 +204,8 @@ export default function PersonalizationForm({
       >
         <PageOrderList
           order={value.sectionOrder}
-          hidden={value.hiddenSections}
+          hidden={[...value.hiddenSections, ...(Object.keys(sportRows) as SectionKey[]).filter((k) => !sportRows[k])]}
+          sportRows={sportRows}
           onMove={moveSection}
           onMoveChapter={moveWholeChapter}
           onToggle={toggleSection}

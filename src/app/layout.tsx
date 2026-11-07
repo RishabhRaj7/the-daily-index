@@ -9,7 +9,6 @@ import MotionRuntime from "@/components/chrome/MotionRuntime";
 import OnboardingGate from "@/components/onboarding/OnboardingGate";
 import { DriverSheetHost } from "@/components/f1/DriverLink";
 import SyncRuntime from "@/components/chrome/SyncRuntime";
-import { getF1Roster } from "@/lib/live/f1";
 
 // Four voices, one job each:
 //   Newsreader        — headlines and reading text (serif, optical sizes)
@@ -53,9 +52,7 @@ export const viewport: Viewport = {
 // wrong theme while React hydrates. Mirrors lib/edition-context.tsx.
 const THEME_BOOT = `(function(){try{var s=localStorage.getItem("daily-index:edition-override");var h=new Date().getHours();var m=s==="morning"||s==="evening"?s:(h>=18||h<5?"evening":"morning");document.documentElement.setAttribute("data-edition",m);}catch(e){}document.documentElement.classList.add("js");})();`;
 
-export default async function RootLayout({ children }: { children: ReactNode }) {
-  const f1Roster = await getF1Roster();
-
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"
@@ -73,7 +70,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <ReadingProgressBar />
           <MotionRuntime />
           {children}
-          <OnboardingGate f1Roster={f1Roster} />
+          <OnboardingGate />
           <DriverSheetHost />
           <SyncRuntime />
         </EditionProvider>

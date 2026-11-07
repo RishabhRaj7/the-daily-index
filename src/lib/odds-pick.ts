@@ -34,7 +34,6 @@ export interface OddsFollow {
   /** Name as the markets would print it ("Max Verstappen", "Real Madrid"). */
   name: string;
   subject: OddsSubject;
-  rival?: boolean;
 }
 
 export interface OddsProfile {
@@ -262,7 +261,7 @@ export function scoreOdds(markets: OddsMarket[], profile: OddsProfile, now = Dat
 
     let score = Math.log10(Math.max(m.vol24, 1)) * 4 + Math.log10(Math.max(m.vol, 1)) * 2;
     if (watched) score += 60;
-    if (follow) score += follow.rival ? 25 : 45;
+    if (follow) score += 45;
     if (headline) score += 30;
     if (Math.abs(move) >= 4) score += Math.min(Math.abs(move), 25) * 2;
     if (m.lead.week != null && Math.abs(m.lead.week) >= 10) score += 6;
@@ -272,9 +271,7 @@ export function scoreOdds(markets: OddsMarket[], profile: OddsProfile, now = Dat
     const why = watched
       ? "On your watchlist"
       : follow
-        ? follow.rival
-          ? `Your rival: ${follow.name}`
-          : `You follow ${follow.name}`
+        ? `You follow ${follow.name}`
         : headline
           ? "In today's news"
           : Math.abs(move) >= 5

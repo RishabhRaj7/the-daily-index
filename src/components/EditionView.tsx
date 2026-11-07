@@ -151,7 +151,6 @@ export default function EditionView({
   edition: initialEdition,
   isArchive = false,
   f1Live = false,
-  hateWatchStories: initialHateWatchStories = [],
   initialDigest = null,
   f1Stories: initialF1Stories = [],
   footballStories: initialFootballStories = [],
@@ -163,7 +162,6 @@ export default function EditionView({
   isArchive?: boolean;
   f1Live?: boolean;
   redditLive?: boolean;
-  hateWatchStories?: Story[];
   /** Today's edition, when the server already had it — rendered into the
    *  first HTML so the reader never sees raw wires or the overlay. */
   initialDigest?: { result: DigestResult; prefs: DigestPreferences } | null;
@@ -180,7 +178,6 @@ export default function EditionView({
   const [edition, setEdition] = useState(() =>
     seed ? { ...initialEdition, sections: withProjection(initialEdition.sections, seed) } : initialEdition,
   );
-  const [hateWatchStories, setHateWatchStories] = useState(() => seed?.rivals ?? initialHateWatchStories);
   const [f1Stories, setF1Stories] = useState(() => (seed?.paddock.f1.length ? seed.paddock.f1 : initialF1Stories));
   const [footballStories, setFootballStories] = useState(() =>
     seed?.paddock.football.length ? seed.paddock.football : initialFootballStories,
@@ -397,35 +394,6 @@ export default function EditionView({
   const travelling = travel !== null && !isArchive;
 
   // --- summaries / picks / editor's note -----------------------------------
-  // Summaries are keyed by the article URL, never by the positional story id
-  // ("wire-dateline-0"). Positional ids are reused across reloads while the
-  // feed order changes, so an id-keyed cache would print yesterday's third
-  // summary under today's third headline. URL-keying makes that impossible.
-  const applyMap = useCallback((byUrl: Record<string, string>) => {
-    const enrich = (stories: Story[]) =>
-      stories.map((s) =>
-        s.sourceUrl && byUrl[s.sourceUrl] ? { ...s, body: [byUrl[s.sourceUrl]] } : s,
-      );
-    setEdition((prev) => ({
-      ...prev,
-      sections: {
-        dateline: enrich(prev.sections.dateline),
-        nation: enrich(prev.sections.nation ?? []),
-        twoCities: enrich(prev.sections.twoCities ?? []),
-        paddockNotes: enrich(prev.sections.paddockNotes),
-        skyReport: prev.sections.skyReport,
-        circuitBoard: enrich(prev.sections.circuitBoard),
-        ledger: enrich(prev.sections.ledger),
-        marketPulse: prev.sections.marketPulse,
-        grapevine: prev.sections.grapevine,
-      },
-    }));
-    setHateWatchStories((prev) => enrich(prev));
-    setF1Stories((prev) => enrich(prev));
-    setFootballStories((prev) => enrich(prev));
-    setTennisStories((prev) => enrich(prev));
-  }, []);
-
   const applyPickBlurbs = useCallback((blurbs: Record<string, string>) => {
     if (!blurbs || Object.keys(blurbs).length === 0) return;
     setGrapevine((prev) => ({
@@ -434,23 +402,6 @@ export default function EditionView({
     }));
   }, []);
 
-
-  // The preference-driven digest (via /api/digest) now selects and summarises
-  // every news section in one pass, so the legacy /api/summarize article pass
-  // only covers the hate-watch stories, which stay outside the digest by
-  // design. Everything else (picks blurbs, Editor's Desk note) is unchanged.
-  const hateWatchInputs = useMemo(
-    () =>
-      initialHateWatchStories
-        .filter((s) => s.sourceUrl)
-        .map((s) => ({
-          id: s.id,
-          url: s.sourceUrl!,
-          snippet: s.body[0] ?? "",
-          title: s.headline,
-        })),
-    [initialHateWatchStories],
-  );
 
   // Runs the AI pass for this edition.
   //
@@ -475,9 +426,6 @@ export default function EditionView({
       );
 
       const cached = force ? null : readSummaryRecord(today);
-      const cachedUrls = new Set(cached ? Object.keys(cached.byUrl) : []);
-      const askedUrls = new Set(cached ? cached.asked : []);
-      const currentUrls = new Set(hateWatchInputs.map((a) => a.url));
 
       // If we already asked for the blurbs / note once today, don't ask
       // again on every reload just because the model returned nothing.
@@ -486,11 +434,6 @@ export default function EditionView({
       let haveNote = extrasDone;
 
       if (cached) {
-        // Silently re-apply what the reader already accepted for these URLs.
-        const hit: Record<string, string> = {};
-        for (const url of currentUrls) if (cached.byUrl[url]) hit[url] = cached.byUrl[url];
-        if (Object.keys(hit).length > 0) applyMap(hit);
-
         const cachedPicks = readPickBlurbs(today);
         if (cachedPicks) {
           applyPickBlurbs(cachedPicks);
@@ -503,18 +446,10 @@ export default function EditionView({
         }
       }
 
-      const toAsk = force
-        ? hateWatchInputs
-        : hateWatchInputs.filter((a) => !cachedUrls.has(a.url) && !askedUrls.has(a.url));
       const picksToAsk = force || !havePicks ? grapevine.picks : [];
       const wantNote = force || !haveNote;
 
-      if (toAsk.length === 0 && picksToAsk.length === 0 && !wantNote) {
-        setSummaryState("idle");
-        return;
-      }
-      // Nothing new to summarise and the note is already on the page.
-      if (toAsk.length === 0 && picksToAsk.length === 0 && hateWatchInputs.length === 0) {
+      if (picksToAsk.length === 0 && !wantNote) {
         setSummaryState("idle");
         return;
       }
@@ -525,9 +460,6 @@ export default function EditionView({
       const timer = setTimeout(() => controller.abort(), SUMMARIZE_TIMEOUT_MS);
 
       setSummaryState("loading");
-      // Snapshot the snippet each article is currently printed with, so we can
-      // tell a real summary from the model handing the RSS text straight back.
-      const currentBody = new Map(hateWatchInputs.map((a) => [a.url, (a.snippet ?? "").trim()]));
 
       fetch("/api/summarize", {
         method: "POST",
@@ -535,9 +467,6 @@ export default function EditionView({
         cache: "no-store",
         signal: controller.signal,
         body: JSON.stringify({
-          // Digest handles every news section; only hate-watch stories still
-          // go through the per-article summariser.
-          articles: toAsk,
           picks: picksToAsk.map((p) => ({
             id: p.id,
             title: p.title,
@@ -559,30 +488,14 @@ export default function EditionView({
         .then(async (r) => {
           if (!r.ok) throw new Error(`summarize ${r.status}`);
           return (await r.json()) as {
-            summaries?: Record<string, string>;
             pickBlurbs?: Record<string, string>;
             editorsNote?: string | null;
           };
         })
-        .then(({ summaries, pickBlurbs, editorsNote: apiNote }) => {
+        .then(({ pickBlurbs, editorsNote: apiNote }) => {
           if (controller.signal.aborted) return;
-          const idToUrl = new Map(hateWatchInputs.map((a) => [a.id, a.url]));
-          const askedNow = new Set((force ? hateWatchInputs : toAsk).map((a) => a.url));
-
-          const byUrl: Record<string, string> = {};
-          const changed: Record<string, string> = {};
-          for (const [id, text] of Object.entries(summaries ?? {})) {
-            const url = idToUrl.get(id);
-            if (!url || typeof text !== "string" || !text.trim()) continue;
-            if (!askedNow.has(url)) continue;
-            byUrl[url] = text;
-            if (text.trim() !== currentBody.get(url)) changed[url] = text;
-          }
-
-          // Persist everything we learned (including "asked, got snippet back")
-          // so the next load doesn't re-request it; keep only the entries that
-          // would visibly change the page for the reader to apply.
-          mergeSummaryRecord(today, byUrl, Array.from(askedNow), {
+          // Noted so the next load doesn't ask again just because the model returned nothing.
+          mergeSummaryRecord(today, {}, [], {
             extrasAsked: force || picksToAsk.length > 0 || wantNote,
           });
           if (pickBlurbs && Object.keys(pickBlurbs).length > 0) writePickBlurbs(today, pickBlurbs);
@@ -591,7 +504,6 @@ export default function EditionView({
           if (pickBlurbs) applyPickBlurbs(pickBlurbs);
           if (apiNote) setEditorsNote({ text: apiNote, source: "ai" });
 
-          if (Object.keys(changed).length > 0) applyMap(changed);
           setSummaryState("idle");
         })
         .catch((err) => {
@@ -605,7 +517,7 @@ export default function EditionView({
           if (inFlightRef.current === controller) inFlightRef.current = null;
         });
     },
-    [isArchive, memory, edition.isoDate, edition.date, hero?.headline, hateWatchInputs, grapevine.picks, applyMap, applyPickBlurbs],
+    [isArchive, memory, edition.isoDate, edition.date, hero?.headline, grapevine.picks, applyPickBlurbs],
   );
 
   const runSummarizeRef = useRef(runSummarize);
@@ -627,7 +539,6 @@ export default function EditionView({
     if (paddock.football.length > 0) setFootballStories(paddock.football);
     if (paddock.tennis.length > 0) setTennisStories(paddock.tennis);
     setStandaloneDigest(standalone);
-    setHateWatchStories(projection.rivals);
     setAppliedDigest(result);
   }, []);
 
@@ -887,10 +798,7 @@ export default function EditionView({
       { name: personalization.favoriteFootballPlayer, subject: "football" },
       { name: personalization.favoriteFootballNationalTeam, subject: "football" },
       { name: personalization.favoriteTennisPlayer, subject: "tennis" },
-      ...personalization.valorantTeams.map((code) => ({ name: valTeams.find((t) => t.code === code)?.name ?? "", subject: "valorant" as const })),
-      { name: personalization.hateWatchF1, subject: "f1", rival: true },
-      { name: personalization.hateWatchFootball, subject: "football", rival: true },
-      { name: personalization.hateWatchTennis, subject: "tennis", rival: true },
+      ...(personalization.sports.includes("valorant") ? personalization.valorantTeams : []).map((code) => ({ name: valTeams.find((t) => t.code === code)?.name ?? "", subject: "valorant" as const })),
     ];
     return list.filter((f) => f.name.trim().length >= 3);
   }, [personalization, edition.f1?.standings, edition.valorant?.teams]);
@@ -898,7 +806,7 @@ export default function EditionView({
   const oddsWatch = (personalization.oddsWatch ?? []).slice(0, 12);
   const oddsPins = (personalization.oddsPins ?? []).map((p) => p.id).slice(0, 12);
   const oddsQuery = [
-    oddsFollows.filter((f) => !f.rival).map((f) => f.name).slice(0, 8).join("|"),
+    oddsFollows.map((f) => f.name).slice(0, 8).join("|"),
     oddsWatch.join("|"),
     oddsPins.join(","),
   ];
@@ -939,7 +847,7 @@ export default function EditionView({
       ...footballStories.map((s) => s.headline),
       ...tennisStories.map((s) => s.headline),
     ];
-    const sports = [...personalization.sports, ...(personalization.valorantTeams.length ? (["valorant"] as const) : [])];
+    const sports = personalization.sports;
     const watched = new Set([...Object.values(odds.watched ?? {}).flat(), ...(personalization.oddsPins ?? []).map((p) => p.id)]);
     const picks = scoreOdds(odds.markets, { follows: oddsFollows, sports, subjects: ["money", "world", "india", "tech", "culture"], headlines, watched });
     // Markets about a story print under it; the rest go to Straw Poll and the section feet.
@@ -979,7 +887,7 @@ export default function EditionView({
     sports:
       (personalization.sports.includes("football") && footballStories.length > 0) ||
       (personalization.sports.includes("tennis") && tennisStories.length > 0),
-    clutch: !isArchive,
+    clutch: !isArchive && personalization.sports.includes("valorant"),
     "straw-poll": !isArchive && !!(oddsLayout.poll.money || oddsLayout.poll.mover),
     "sky-report": true,
     "market-pulse": true,
@@ -1018,7 +926,6 @@ export default function EditionView({
         favoriteFootballClub={personalization.favoriteFootballClub}
         tennisRankings={tennisData?.rankings ?? []}
         favoriteTennisPlayer={personalization.favoriteTennisPlayer}
-        hateWatchStories={hateWatchStories}
       />
     ),
     sports: () => (
@@ -1173,7 +1080,7 @@ export default function EditionView({
 
   // What changed since the reader last looked (widgets/CatchUp.tsx).
   const catchUpStories = [...printedById.values()].filter((s) => (!s.reserve || s.id === hero?.id) && !personalization.hiddenSections.includes(s.section));
-  const followedNames = new Set(oddsFollows.filter((f) => !f.rival).map((f) => f.name));
+  const followedNames = new Set(oddsFollows.map((f) => f.name));
   const watchedOdds = new Set([...Object.values(odds?.watched ?? {}).flat(), ...(personalization.oddsPins ?? []).map((p) => p.id)]);
   const catchUpNumbers: CatchUpNumber[] = [
     ...edition.markets.indices.map((i) => ({

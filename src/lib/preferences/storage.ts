@@ -146,7 +146,6 @@ export function normalizePreferences(raw: unknown): DigestPreferences {
     ),
     avoidPolitics:
       typeof rawGlobal.avoidPolitics === "boolean" ? rawGlobal.avoidPolitics : d.global.avoidPolitics,
-    rivals: asStringArray(rawGlobal.rivals ?? []).slice(0, 6),
   };
 
   const rawSections = Array.isArray(obj.sections) ? obj.sections : d.sections;

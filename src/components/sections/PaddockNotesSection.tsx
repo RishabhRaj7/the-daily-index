@@ -61,7 +61,6 @@ export default function PaddockNotesSection({
   favoriteFootballClub,
   tennisRankings = [],
   favoriteTennisPlayer,
-  hateWatchStories = [],
 }: {
   selectedSports: ("f1" | "football" | "tennis")[];
   f1Stories: Story[];
@@ -85,7 +84,6 @@ export default function PaddockNotesSection({
   favoriteFootballClub?: string;
   tennisRankings?: TennisRanking[];
   favoriteTennisPlayer?: string;
-  hateWatchStories?: Story[];
 }) {
   const multiSport = selectedSports.length > 1;
 
@@ -166,20 +164,8 @@ export default function PaddockNotesSection({
                     </div>
                   )}
 
-                  {hateWatchStories.length > 0 && (
-                    <div className="mt-6 pt-4 border-t hairline">
-                      <div className="font-label text-[11px] tracking-widest text-ink-soft uppercase mb-3">
-                        Schadenfreude
-                      </div>
-                      <div className="story-grid">
-                        {hateWatchStories.map((s) => (
-                          <StoryArticle key={s.id} story={s} />
-                        ))}
-                      </div>
-                    </div>
-                  )}
 
-                  {stories.length === 0 && hateWatchStories.length === 0 && (
+                  {stories.length === 0 && (
                     <p className="text-sm text-ink-soft italic">
                       No sports news found in the last day.
                     </p>
@@ -233,18 +219,6 @@ export default function PaddockNotesSection({
             );
           })}
 
-          {hateWatchStories.length > 0 && (
-            <div className="mt-6 pt-4 border-t hairline">
-              <div className="font-label text-[11px] tracking-widest text-ink-soft uppercase mb-3">
-                Schadenfreude
-              </div>
-              <div className="story-grid">
-                {hateWatchStories.map((s) => (
-                  <StoryArticle key={s.id} story={s} />
-                ))}
-              </div>
-            </div>
-          )}
         </>
       )}
       <SocialPausedNote place="paddock-notes" className="mt-6" />

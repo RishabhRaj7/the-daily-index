@@ -1,5 +1,6 @@
 "use client";
 
+import { f1Place, istClock, istDay, localTime } from "@/lib/event-time";
 import { ArrowLeftIcon, ArrowRightIcon, CalendarDotsIcon, ClockCounterClockwiseIcon, CloudRainIcon, FlagCheckeredIcon, FlagIcon, LightningIcon, PathIcon, TableIcon, ThermometerHotIcon, ThermometerSimpleIcon, TrophyIcon, WatchIcon, WrenchIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import type { F1Race } from "@/lib/types";
@@ -38,8 +39,7 @@ const SHORT: Record<string, string> = {
   Qualifying: "Quali",
   Race: "Race",
 };
-const day = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { weekday: "short" });
-const hm = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+const day = (iso: string) => istDay(iso, { weekday: "short" });
 
 function useWeekend(meeting: string, year: number): WeekendData | null | undefined {
   const [w, setW] = useState<{ k: string; d: WeekendData | null } | null>(null);
@@ -234,6 +234,7 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
   const done = data?.sessions ?? [];
   const sameWeekend = race && (race.name === snap.meeting || race.circuitKey === snap.circuitKey);
   const upcoming = sameWeekend ? (race.sessions ?? []).filter((s) => !done.some((d) => d.name === s.name) && Date.parse(s.end || s.start) > now - 3 * 3_600_000) : [];
+  const place = f1Place(race?.circuit, race?.name, race?.country);
   const names = [...done.map((d) => d.name), ...upcoming.map((u) => u.name)];
   const sprint = names.includes("Sprint");
   const shown = current ?? snap.path;
@@ -309,7 +310,12 @@ export default function Weekend({ snap, race, current, onPick }: { snap: LiveSna
                   <span className="font-sans font-bold text-[14px] text-ink-soft">{s.name}</span>
                   <span className="font-mono text-[11px] text-ink-faint">{day(s.start)}</span>
                 </div>
-                <div className="font-display font-extrabold text-[1.6rem] leading-none mt-1">{hm(s.start)}</div>
+                <div className="mt-1">
+                  <div className="font-display font-extrabold text-[1.6rem] leading-none">
+                    {istClock(s.start)} <span className="font-mono font-normal text-[11px] text-ink-soft">IST</span>
+                  </div>
+                  {localTime(s.start, place) && <div className="font-mono text-[11px] text-ink-soft mt-1">({localTime(s.start, place)})</div>}
+                </div>
                 <div className="font-mono text-[11px] text-ink-soft mt-auto">
                   <Countdown at={s.start} />
                 </div>

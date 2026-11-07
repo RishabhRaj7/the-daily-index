@@ -2,7 +2,7 @@
 
 import { ArrowLeftIcon, ArrowRightIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
-import type { F1RosterEntry, Personalization } from "@/lib/types";
+import type { Personalization } from "@/lib/types";
 import {
   DEFAULT_PERSONALIZATION,
   loadPersonalization,
@@ -15,7 +15,8 @@ import ParticleWordmark from "@/components/masthead/ParticleWordmark";
 import { RisingWords } from "@/components/story/SectionHeader";
 
 // First visit: a full-screen welcome in the paper's own voice, then three
-// short steps — where you are, what you follow, how the page is ordered.
+// short steps — where you are, which sports you follow, how the page is ordered.
+// Who you follow in each is set on its card on the page.
 // Everything can be skipped; everything can be changed later in Settings.
 
 const STEPS: Array<{ part: FormPart; title: string; blurb: string }> = [
@@ -27,7 +28,7 @@ const STEPS: Array<{ part: FormPart; title: string; blurb: string }> = [
   {
     part: "sports",
     title: "What do you follow?",
-    blurb: "Pick your sports, your team and your drivers. Their stories lead the sports pages.",
+    blurb: "Pick your sports. Who you follow in each is set on its card, right on the page.",
   },
   {
     part: "order",
@@ -43,7 +44,7 @@ function greeting(): string {
   return "Good afternoon.";
 }
 
-export default function OnboardingGate({ f1Roster }: { f1Roster: F1RosterEntry[] }) {
+export default function OnboardingGate() {
   const [visible, setVisible] = useState(false);
   const [draft, setDraft] = useState<Personalization>(DEFAULT_PERSONALIZATION);
   // 0 = welcome, 1..STEPS.length = the steps.
@@ -164,7 +165,6 @@ export default function OnboardingGate({ f1Roster }: { f1Roster: F1RosterEntry[]
                   bare
                   value={draft}
                   onChange={setDraft}
-                  f1Roster={f1Roster}
                 />
               </div>
             </div>

@@ -7,7 +7,8 @@ const STORAGE_KEY = "daily-index:personalization";
 export const DEFAULT_PERSONALIZATION: Personalization = {
   onboarded: false,
   homeCity: "Bengaluru",
-  sports: ["f1"],
+  sports: ["f1", "valorant"],
+  valorantSeeded: true,
   // The reader's paddock: Mercedes, Russell and Verstappen.
   favoriteF1Team: "Mercedes",
   favoriteF1Drivers: ["rus", "ver"],
@@ -16,9 +17,6 @@ export const DEFAULT_PERSONALIZATION: Personalization = {
   favoriteFootballClub: "",
   favoriteFootballNationalTeam: "",
   favoriteTennisPlayer: "",
-  hateWatchF1: "",
-  hateWatchFootball: "",
-  hateWatchTennis: "",
   valorantTeams: ["PRX"],
   // The questions the reader picked out on Polymarket and Kalshi.
   oddsWatch: [
@@ -84,6 +82,21 @@ export function loadPersonalization(): Personalization {
       merged.favoriteF1Drivers = DEFAULT_PERSONALIZATION.favoriteF1Drivers;
     }
     merged.valorantTeams = (Array.isArray(merged.valorantTeams) ? merged.valorantTeams : []).filter((c) => typeof c === "string");
+    // Valorant became a sport to choose: a paper saved before then keeps Clutch if it
+    // had teams. After that, whatever the reader chooses stands.
+    if (!parsed.valorantSeeded) {
+      if (parsed.sports && merged.valorantTeams.length > 0 && !merged.sports.includes("valorant")) merged.sports = [...merged.sports, "valorant"];
+      // A sport's section no longer has a switch of its own, so one hidden before means the sport is off.
+      const off = (key: string, sports: Personalization["sports"]) => {
+        if (!(merged.hiddenSections ?? []).includes(key as Personalization["hiddenSections"][number])) return;
+        merged.sports = merged.sports.filter((s) => !sports.includes(s));
+        merged.hiddenSections = merged.hiddenSections.filter((k) => k !== key);
+      };
+      off("paddock-notes", ["f1"]);
+      off("sports", ["football", "tennis"]);
+      off("clutch", ["valorant"]);
+      merged.valorantSeeded = true;
+    }
     merged.oddsWatch = (Array.isArray(merged.oddsWatch) ? merged.oddsWatch : DEFAULT_PERSONALIZATION.oddsWatch!).filter((q) => typeof q === "string");
     // Questions added to the watchlist after a paper was saved (7 Oct 2026:
     // the constructors' title beside the drivers') join it once, next to
@@ -137,13 +150,8 @@ export function savePersonalization(data: Personalization) {
   // Sports cookie — read server-side to fetch the right sports news feeds.
   const sportsVal = encodeURIComponent(JSON.stringify(data.sports ?? ["f1"]));
   document.cookie = `daily-index:sports=${sportsVal};path=/;${maxAge};SameSite=Lax`;
-  // Hate-watch cookie — read server-side to filter negative sports news.
-  const hwVal = encodeURIComponent(JSON.stringify({
-    f1: data.hateWatchF1 ?? "",
-    football: data.hateWatchFootball ?? "",
-    tennis: data.hateWatchTennis ?? "",
-  }));
-  document.cookie = `daily-index:hate-watch=${hwVal};path=/;${maxAge};SameSite=Lax`;
+  // Rivals are gone: a cookie left from before goes too.
+  document.cookie = "daily-index:hate-watch=;path=/;max-age=0;SameSite=Lax";
   // Interests cookie — read server-side so Editor's Picks can be weighted
   // toward what the reader actually follows. Names only; nothing sensitive.
   const interests: ReaderInterests = {

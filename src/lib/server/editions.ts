@@ -106,7 +106,7 @@ export interface EditionRecord {
  * 6: In Brief headlines that stand on their own, no gist. 7: every story says
  * whether Gemini wrote it, and the edition how the writing went.)
  */
-const BUILD_VERSION = 7;
+const BUILD_VERSION = 8;
 
 export type EditionState =
   | { state: "ready"; date: string; hash: string; edition: EditionRecord; refreshing: boolean; note?: string }

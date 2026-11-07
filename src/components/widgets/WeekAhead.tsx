@@ -41,10 +41,10 @@ function Event({ e }: { e: AheadEvent }) {
   const kind = KIND[e.kind];
   const body = (
     <>
-      <span className="flex items-center gap-1.5 font-label text-[11px]" style={{ color: kind.hue }}>
+      <span className="flex flex-wrap items-center gap-x-1.5 font-label text-[11px]" style={{ color: kind.hue }}>
         <kind.icon size={13} weight="fill" className="shrink-0" aria-hidden="true" />
         {kind.label}
-        {e.time && <span className="font-mono text-ink-soft normal-case tracking-normal">{e.time}</span>}
+        {e.time && <span className="font-mono text-ink-soft normal-case tracking-normal">{e.time} IST{e.local ? ` (${e.local})` : ""}</span>}
       </span>
       <span className="font-sans text-[13px] leading-snug mt-0.5 line-clamp-4" title={e.label}>{e.label}</span>
     </>
@@ -69,10 +69,12 @@ export default function WeekAhead() {
 
   useEffect(() => {
     const controller = new AbortController();
-    const teams = loadPersonalization().valorantTeams.join(",");
+    const paper = loadPersonalization();
+    const followsValorant = paper.sports.includes("valorant");
+    const teams = followsValorant ? paper.valorantTeams.join(",") : "";
     fetch(`/api/ahead${teams ? `?vt=${encodeURIComponent(teams)}` : ""}`, { signal: controller.signal })
       .then((r) => (r.ok ? (r.json() as Promise<WeekAheadData>) : null))
-      .then((w) => w && setWeek(w))
+      .then((w) => w && setWeek(followsValorant ? w : { ...w, events: w.events.filter((e) => e.kind !== "esports") }))
       .catch(() => {});
     return () => controller.abort();
   }, []);
@@ -141,7 +143,7 @@ export default function WeekAhead() {
         <p className="font-mono text-[11px] text-ink-soft mt-5">
           Later:{" "}
           {week.later
-            .map((e) => `${e.label}, ${DAY(e.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })}${e.time ? ` ${e.time}` : ""}`)
+            .map((e) => `${e.label}, ${DAY(e.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })}${e.time ? ` ${e.time} IST${e.local ? ` (${e.local})` : ""}` : ""}`)
             .join(" · ")}
         </p>
       )}

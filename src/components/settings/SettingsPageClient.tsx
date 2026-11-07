@@ -28,20 +28,18 @@ import { leaveSettings } from "@/components/chrome/SettingsLink";
 // section that feeds the sports page, so the reader sets them once.
 // Four short tabs, one question each; one Save covers all of them:
 //   News      where you are and what the editor reads for you, and how it writes
-//   Sections  what prints, in what order, and what fills each section
-//   Sports    the sports pages
+//   Sections  the sports you follow, what prints, in what order, and what fills each section
 //   Devices   sync, and what this browser remembers
 const TABS = [
   { key: "news", label: "News", blurb: "Where you are, what the AI editor prioritises everywhere, and how it writes." },
-  { key: "sections", label: "Sections", blurb: "What prints, in what order, and what fills each section. Edit opens a section's settings." },
-  { key: "sports", label: "Sports", blurb: "Which sports get a page, whose stories lead it, and your rivals." },
+  { key: "sections", label: "Sections", blurb: "The sports you follow, what prints, in what order, and what fills each section. Edit opens a section's settings." },
   { key: "devices", label: "Devices", blurb: "The same paper on every device you read on, and what this one remembers." },
 ] as const;
 /** Tabs that were merged into others still open from old links. */
-const MOVED: Record<string, TabKey> = { page: "sections" };
+const MOVED: Record<string, TabKey> = { page: "sections", sports: "sections" };
 type TabKey = (typeof TABS)[number]["key"];
 
-export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEntry[] }) {
+export default function SettingsPageClient() {
   const router = useRouter();
   const [draft, setDraft] = useState<Personalization>(DEFAULT_PERSONALIZATION);
   const [news, setNews] = useState<DigestPreferences | null>(null);
@@ -191,13 +189,12 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
       {(tab === "news" || tab === "sections") && (
         <div className="mb-8">
           <PersonalizationForm
-            parts={tab === "news" ? ["basics"] : ["order"]}
+            parts={tab === "news" ? ["basics"] : ["sports", "order"]}
             value={draft}
             onChange={(next) => {
               setDraft(next);
               setSaved(false);
             }}
-            f1Roster={f1Roster}
             news={tab === "sections" ? news : undefined}
             onNewsChange={(next) => {
               setNews(next);
@@ -239,18 +236,6 @@ export default function SettingsPageClient({ f1Roster }: { f1Roster: F1RosterEnt
             </span>
           </span>
         </label>
-      )}
-
-      {tab === "sports" && (
-        <PersonalizationForm
-          parts={["sports"]}
-          value={draft}
-          onChange={(next) => {
-            setDraft(next);
-            setSaved(false);
-          }}
-          f1Roster={f1Roster}
-        />
       )}
 
       {tab === "devices" && <SyncCard />}

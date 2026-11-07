@@ -109,7 +109,9 @@ Plus `personalfinanceindia` and `technology` as baseline interests.
 
 ---
 
-## Schadenfreude (Hate Watch)
+## Schadenfreude (Hate Watch), removed in Round 24
+
+Removed with the rival settings: see Round 24. What follows is how it worked.
 
 The "Schadenfreude" sub-section within Paddock Notes shows one negative article about a rival entity. Rules:
 
@@ -343,7 +345,7 @@ mount (EditionView)
   (`src/lib/digest-cache.ts`). Since Round 19 it is only a first paint: the page
   always asks the server too, and the newest revision wins. Editing preferences
   invalidates it automatically. "Refresh edition" purges it.
-- `/api/summarize` still runs, but only for hate-watch stories, Editor's Picks
+- `/api/summarize` still runs, but only for Editor's Picks (hate-watch stories went in Round 24)
   blurbs, and the Editor's Desk note. The "at a glance" brief is derived from
   the digest itself (no extra model call).
 
@@ -811,15 +813,16 @@ SyncRuntime.tsx`, controls in `components/settings/SyncCard.tsx`).
   caller's timeout. `geminiFailure(err)` puts what went wrong into words the
   page can print.
 - Callers: the digest (selection + writing, with response schemas),
-  `batchSummarize` (hate-watch), pick blurbs and the Editor's Desk note.
+  pick blurbs and the Editor's Desk note.
 - Small one-liners ask for `light: true`: `GEMINI_LIGHT_MODEL`, then Flash-Lite
   (`lightModels`), so they don't use up the first model's few calls: why a market
   moved (`lib/live/market-why.ts`), While you were away (`lib/live/catch-up.ts`),
   the editor's note and pick blurbs (`lib/live/editorial-ai.ts`) and why the odds
   moved (`/api/odds/why`). The digest and its copy repair stay on `GEMINI_MODEL`.
-- Radio is separate: its own key (`GEMINI_F1_API_KEY`) and its order in code
-  (`lib/live/f1-radio.ts`). `f1Json` there answers written questions on the same key
-  and order, for a session's recap and moments (`lib/live/f1-insights.ts`).
+- Radio is separate: its own key (`GEMINI_F1_API_KEY`) and its orders in code
+  (`lib/live/f1-radio.ts`). Transcripts ask Flash-Lite first (`TRANSCRIBERS`), for speed.
+  `f1Json` there answers written questions on the same key with the Flash models first
+  (`WRITERS`), for a session's recap and moments (`lib/live/f1-insights.ts`).
 - `/api/summarize` no longer writes an "at a glance" brief — the page always
   used the one derived from the edition, so it was a wasted call per visit.
 
@@ -888,7 +891,7 @@ numbered rails); colour from The Verge (near-black, mint signal, ultraviolet).
 
 ### Round 4
 
-- **Schadenfreude** is picked by the AI editor: `global.rivals` (from the sports settings via `lib/preferences/paper.ts` → `withSportsSettings`) asks the selection for at most one genuinely-bad-day story per rival (`rivals` in the selection schema, required). The stories are summarised as a synthetic `__rivals` section and returned as `DigestResult.rivals`; the old keyword matcher in `app/page.tsx` is gone.
+- **Schadenfreude** is gone (Round 24): no rivals reach the editor.
 - **Markets** default is "Markets & Economy": mostly Indian, some global. CNBC, MarketWatch and FT feeds joined the Markets pool; readers still on the old India-only default are upgraded in `storage.ts`.
 - **Live markets**: `/api/markets` (60s Yahoo cache) polled every minute by `useLiveMarkets` while the tab is visible; tiles, mood and the signal card update in place.
 - **Archive** is a calendar (`CalendarMonth` in `app/archive/page.tsx`) with a back link and a floating "Today’s paper" button.
@@ -1369,3 +1372,16 @@ The reader's own phone, after Round 20 went out.
 
 - **The change** (`odds/OddsChart.tsx`): the chart took every touch (`touch-none`) so a finger could read it, so on a phone a drag starting there moved nothing, and the chart fills much of a Straw Poll card. A vertical drag now scrolls the page or the sheet (`touch-pan-y`), and the crosshair clears when it does. A sideways drag still reads the chart, so in Straw Poll's row a swipe to the next card starts from the card's text.
 - **Store keys and versions**: none changed.
+
+### Round 24: sports to choose, IST with local time, radio on Flash-Lite, no rivals (Nov 7 2026)
+
+- **The Sports tab is gone** (`SettingsPageClient.tsx`, `PersonalizationForm.tsx`): who you follow is set on a sport's own card, as Your Paddock and Clutch already did, so Settings only asks which sports. "Sports you follow" opens the Sections tab, and old `/settings#sports` links open it too. Onboarding asks the same.
+- **Valorant is a sport to choose** (`Personalization.sports`): off, it takes Clutch, its Week Ahead matches and its odds with it. `feeds.ts` and `page.tsx` keep it out of the news feeds, which have no Valorant pool.
+- **One switch per sport section** (`SPORT_SECTIONS`, `PageOrderList.tsx`): Paddock Notes, Sports and Clutch used to have both a sport chip and Shown/Hidden. Their rows now say Followed or Not followed, and only the choice switches them.
+- **Football and tennis wait for their rebuild**: their club and player fields went with the tab and have no card yet. What's saved keeps working (`withSportsSettings`, the interests cookie), but it can't be changed for now.
+- **Saved papers** (`valorantSeeded` in `personalization.ts`, once): one with Valorant teams follows Valorant, and a sport section hidden before means that sport is off. After that the reader's choice stands.
+- **Rivals are gone**: the settings, Schadenfreude in Paddock Notes, the instruction and `rivals` field in Gemini's selection (`prompt.ts`, `digest.ts`), `DigestResult.rivals`, the rival weighting in odds picks (`odds-pick.ts`), and `batchSummarize`, which only ever served rival stories (`/api/summarize` now does pick blurbs and the editor's note). The reader found them inaccurate.
+- **Event times read "20:00 IST (11:30 São Paulo)"** (new `lib/event-time.ts`): the local part names its day when that isn't IST's, as in "01:30 IST (Sun 15:00 Austin)". Time zones rather than offsets, so daylight saving looks after itself. On the race card, race weekend list, Weekend's session cards, the live centre's next session, the Week Ahead (`AheadEvent.local`) and Clutch. F1 times used to follow the device's clock with no label; they're IST now, and so are the days they're grouped by. RBI stays IST alone, and "read at" stamps and Feed clocks aren't scheduled events, so they're unchanged.
+- **Where an event is**: `f1Place` knows each circuit, trying the circuit or city first (F1's "Bahrain Grand Prix" of 2026 was in Kuala Lumpur, and the USA has three races). Valorant's data doesn't say where a match is played, so `valorantPlace` takes a league's home city (Los Angeles, Berlin, Seoul, Shanghai) and an international's from its name. A league match played away shows the wrong local time, and an unknown event shows IST alone.
+- **Radio transcribes on Flash-Lite first** (`TRANSCRIBERS` in `f1-radio.ts`): `gemini-3.1-flash-lite` writes, `gemini-3.5-flash-lite` checks, and the Flash models are the last resort. On 12 Mexico clips 3.1 took a median 2.8 s (slowest 4.7 s), 3.5 a median 4.5 s (slowest 17.8 s). Agreement with `gemini-3.6-flash`'s text was 88% and 83%. Recaps and moments stay Flash-first (`WRITERS`). A writer that fails can take the checker's model and print without a check, because `gemini-3.1-flash-lite` answered "high demand" in testing and a clip was lost when the writer was kept off the checker's model. A model gets 20 s to write (`WRITE_MS`), and a written clip waits 6 s for its second listen (`CHECK_WAIT_MS`), where it used to wait up to 40 s.
+- **Store keys and versions**: `BUILD_VERSION` 7 to 8, because Gemini's selection changed: an edition from older code is served as it is and rebuilt in the background. The preferences hash changes too, since `global.rivals` left it. A digest saved with `rivals` just has it ignored, and `daily-index:hate-watch` is cleared from the browser on the next save. New in saved settings: `valorantSeeded`, and `"valorant"` in `sports`. The transcript key `f1:radio:v4` doesn't change: clips already written stay as they are.

@@ -53,9 +53,6 @@ export interface DigestGlobal {
    * Geopolitics and policy with real-world consequences stay eligible.
    */
   avoidPolitics: boolean;
-  /** Rival teams / drivers / players whose genuinely bad days the reader
-   *  wants to read about ("Schadenfreude"). Filled from the sports settings. */
-  rivals: string[];
 }
 
 interface SectionBase {
@@ -162,7 +159,7 @@ export interface DigestArticle {
  * Round 19.
  */
 export interface WritingStatus {
-  /** Stories that need a paragraph (the sections and Schadenfreude). */
+  /** Stories that need a paragraph. */
   stories: number;
   /** Of those, how many still carry the publisher's text. */
   unwritten: number;
@@ -259,8 +256,6 @@ export interface DigestResult {
    * display layer falls back to deriving the brief from the sections then.
    */
   atAGlance?: AtAGlanceItem[];
-  /** One story per rival who had a genuinely bad day; `group` is the rival. */
-  rivals?: DigestArticle[];
   /**
    * In Brief: stories leading the country's news (Google's top page, or 3+
    * outlets) that no section printed, filed under the section they belong

@@ -555,7 +555,9 @@ export interface Edition {
 export interface Personalization {
   onboarded: boolean;
   homeCity: string;
-  sports: ("f1" | "football" | "tennis")[];
+  sports: ("f1" | "football" | "tennis" | "valorant")[];
+  /** Valorant became a sport to choose on 7 Nov 2026: a paper with teams picked before then follows it, once. */
+  valorantSeeded?: boolean;
   favoriteF1Team: string;
   favoriteF1Drivers: string[];        // up to 2 driverIds
   /** Set once the paddock defaults have been applied to a saved paper. */
@@ -566,9 +568,6 @@ export interface Personalization {
   favoriteFootballClub: string;
   favoriteFootballNationalTeam: string;
   favoriteTennisPlayer: string;
-  hateWatchF1: string;                // rival team/driver to track negative news for
-  hateWatchFootball: string;          // rival club/country/player
-  hateWatchTennis: string;            // rival player
   /** Valorant teams followed in Clutch, by Riot team code ("PRX"). */
   valorantTeams: string[];
   /** Questions the reader keeps an eye on in Straw Poll, as searches
@@ -613,6 +612,8 @@ export interface AheadEvent {
   date: string;
   /** IST time, HH:MM, when the event has one. */
   time?: string;
+  /** Its local time where that isn't IST: "11:30 São Paulo". */
+  local?: string;
   label: string;
   kind: "policy" | "markets" | "holiday" | "ipo" | "f1" | "esports";
   url?: string;

@@ -11,12 +11,13 @@ import { joinTurns, writeTurns, type Speaker } from "@/lib/f1-radio-speaker";
 // paper's GEMINI_API_KEY, so neither can spend the other's free allowance. With no
 // such key, radio is off (the page stops asking); it never borrows the paper's.
 //
-// Which models: the best (gemini-3.8-flash) is left to the paper, which chooses
-// its own with GEMINI_MODEL, so radio writes from the next best down: the 20-a-day Flash models while they
-// last, then Flash-Lite, at 500 a day each, which a race can't run out of. The
-// second listen goes straight to Flash-Lite, which leaves the Flash models' few
-// calls for writing. A model that answers "quota spent" is set aside until Google's
-// midnight (Pacific) reset, one that's busy for a minute, one that's overloaded for 30 s.
+// Which models: a clip should read while the moment is still on, so transcripts go to
+// Flash-Lite first: gemini-3.1-flash-lite (about 3 s a clip), checked by
+// gemini-3.5-flash-lite, with far more calls a day than a race needs. The Flash models
+// are the last resort. A session's recap and moments are writing, not speed, so f1Json
+// asks the Flash models first and leaves gemini-3.8-flash to the paper. A model that
+// answers "quota spent" is set aside until Google's midnight (Pacific) reset, one that's
+// busy for a minute, one that's overloaded for 30 s.
 //
 // How near the text is to what was said: models are confident even when
 // they are guessing (every one of them rated a muffled line it got wrong at
@@ -50,6 +51,18 @@ const WRITERS: Slot[] = [
   { model: "gemini-3.5-flash-lite", rpm: 15 },
   { model: "gemini-3.1-flash-lite", rpm: 15 },
 ];
+/** How long one model gets to write a clip, before the next has a turn. */
+const WRITE_MS = 20_000;
+/** How long a written clip waits for its second listen. Late, it prints without the check: a reader is waiting. */
+const CHECK_WAIT_MS = 6_000;
+/** Who writes a clip: the quickest first, then whatever has room. */
+const TRANSCRIBERS: Slot[] = [
+  { model: "gemini-3.1-flash-lite", rpm: 15 },
+  { model: "gemini-3.5-flash-lite", rpm: 15 },
+  { model: "gemini-3.6-flash", rpm: 5 },
+  { model: "gemini-3.7-flash", rpm: 5 },
+  { model: "gemini-3.5-flash", rpm: 5 },
+];
 /**
  * Google's speech-to-text model: plain words, fast, but it drops whole lines
  * of a noisy clip, so it only checks when neither Flash-Lite has room.
@@ -76,7 +89,7 @@ let client: GoogleGenAI | null = null;
 /** The models radio uses, for the page and the docs. */
 export function radioModels(): string[] {
   const own = process.env.GEMINI_RADIO_MODEL;
-  return [...(own ? [own] : []), ...WRITERS.map((w) => w.model).filter((m) => m !== own)];
+  return [...(own ? [own] : []), ...TRANSCRIBERS.map((w) => w.model).filter((m) => m !== own)];
 }
 
 export async function cachedTranscripts(urls: string[]): Promise<Record<string, Transcript>> {
@@ -172,6 +185,11 @@ function writers(): Slot[] {
   return own ? [{ model: own, rpm: 5 }, ...WRITERS.filter((w) => w.model !== own)] : WRITERS;
 }
 
+function transcribers(): Slot[] {
+  const own = process.env.GEMINI_RADIO_MODEL;
+  return own ? [{ model: own, rpm: 5 }, ...TRANSCRIBERS.filter((w) => w.model !== own)] : TRANSCRIBERS;
+}
+
 // Who is speaking is the model's call: it hears the voices and the whole
 // exchange, which no rule over the written words can. These are its
 // instructions for telling the two apart — sound first, then words, then
@@ -260,7 +278,7 @@ async function write(model: string, data: string, who: string, first: string | n
         required: ["turns", "confidence"],
       },
       temperature: 0.1,
-      abortSignal: AbortSignal.timeout(40_000),
+      abortSignal: AbortSignal.timeout(WRITE_MS),
     },
   });
   const parsed = JSON.parse(res.text ?? "{}") as { turns?: { speaker?: string; text?: string }[]; confidence?: number };
@@ -355,7 +373,7 @@ export async function transcribe(url: string, who: string, first: string | null 
   // One writer per clip at a time.
   if (!(await store.setIfAbsent(`${key(url)}:lock`, 1, 90).catch(() => true))) return null;
   try {
-    let model = await pick(writers());
+    let model = await pick(transcribers());
     if (!model) return null;
     const audio = await fetch(url, { signal: AbortSignal.timeout(10_000) });
     if (!audio.ok) return null;
@@ -363,7 +381,8 @@ export async function transcribe(url: string, who: string, first: string | null 
     client ??= new GoogleGenAI({ apiKey });
 
     // Both listens at once, the second from a different model. A writer that
-    // is busy or spent hands the clip to the next one (twice at most).
+    // is busy or spent hands the clip to the next one (twice at most), which may be
+    // the checker's own model: a transcript without a check beats none.
     const second = await pick(CHECKERS, model);
     const heard = second
       ? listen(second, data).catch(async (err) => {
@@ -379,15 +398,15 @@ export async function transcribe(url: string, who: string, first: string | null 
       } catch (err) {
         console.error(`[f1/radio] ${model} refused:`, err instanceof Error ? err.message.slice(0, 160) : err);
         await setAside(model, err);
-        model = await pick(writers().filter((x) => x.model !== second), model);
+        model = await pick(transcribers(), model);
       }
     }
-    const h = await heard;
+    const h = await Promise.race([heard, new Promise<null>((done) => setTimeout(() => done(null), CHECK_WAIT_MS))]);
     if (!w?.text || !model) return null;
 
     let out: Transcript;
     // A second listen that heard nothing isn't a disagreement, just no check.
-    if (h && second && h.split(/\s+/).length >= 2) {
+    if (h && second && second !== model && h.split(/\s+/).length >= 2) {
       const { share, marked } = agree(w.text, h);
       out = { text: marked, confidence: share, model, checkedBy: second };
     } else {
