@@ -81,7 +81,8 @@ function longRunNote(snap: LiveSnapshot): string | null {
   if (!tyre || tyre[1] < 3) return null;
   const best = runs.filter((r) => r.compound === tyre[0]).sort((a, b) => a.average - b.average).slice(0, 2);
   const [a, b] = best;
-  const margin = b ? ` That is ${(b.average - a.average).toFixed(2)} s a lap quicker than ${b.name}, on ${clock(b.average)}.` : "";
+  // Only the best run's own figures: given the next car's as well, the model mixed the two up.
+  const margin = b ? ` That is ${(b.average - a.average).toFixed(2)} s a lap quicker than the next best, ${b.name}.` : "";
   return `Best long run on the ${tyre[0].toLowerCase()} tyre, of ${tyre[1]} cars: ${a.name}, averaging ${clock(a.average)} over ${a.count} timed laps.${margin}`;
 }
 
