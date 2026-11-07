@@ -151,7 +151,7 @@ const cutShort = (snap: LiveSnapshot) => snap.type === "Race" && !!snap.lap && s
 
 async function recapFor(snap: LiveSnapshot): Promise<SessionRecap | null> {
   const store = getStore();
-  const key = `f1:recap:v2:${snap.sessionKey}`;
+  const key = `f1:recap:v3:${snap.sessionKey}`;
   const kept = await store.get<SessionRecap>(key).catch(() => null);
   if (kept) return kept;
   if (cutShort(snap)) return null;

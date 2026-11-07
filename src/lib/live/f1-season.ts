@@ -351,13 +351,17 @@ export interface Benchmark {
 /** The season's Jolpica race for an F1 meeting name. */
 async function raceOf(meeting: string, year: number): Promise<JRace | null> {
   const schedule = await pages(`${year}/races/`);
-  const want = meeting.toLowerCase();
+  // Without accents: F1 writes "São Paulo", and a name can come either way.
+  const plain = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  const want = plain(meeting);
   // F1 and Jolpica don't always name a meeting alike ("Bahrain Grand Prix" was
-  // held at Sepang in 2026 and Jolpica calls it "… in Malaysia").
+  // held at Sepang in 2026 and Jolpica calls it "… in Malaysia"; F1's "São Paulo
+  // Grand Prix" is Jolpica's "Brazilian Grand Prix", found by its city).
   return (
-    schedule.find((r) => r.raceName.toLowerCase() === want) ??
-    schedule.find((r) => r.raceName.toLowerCase().startsWith(want)) ??
-    schedule.find((r) => want.includes(r.Circuit.Location.country.toLowerCase())) ??
+    schedule.find((r) => plain(r.raceName) === want) ??
+    schedule.find((r) => plain(r.raceName).startsWith(want)) ??
+    schedule.find((r) => want.includes(plain(r.Circuit.Location.country))) ??
+    schedule.find((r) => want.includes(plain(r.Circuit.Location.locality))) ??
     null
   );
 }

@@ -1345,3 +1345,11 @@ All of Round 20's passes above went to `master` together, once the reader called
 
 - **Settings production needs**: `GEMINI_F1_API_KEY`, because radio, session recaps and radio moments no longer fall back to `GEMINI_API_KEY`. Without it they are off. `GEMINI_MODEL`, and optionally `GEMINI_FALLBACK_MODEL` and `GEMINI_LIGHT_MODEL`, set the paper's models; a model name Google doesn't know just falls through to the next.
 - **Store keys and versions**: every key is named in its pass above. Nothing further changes in this release.
+
+### Round 21: a recap's mix-up, and Interlagos's history (Nov 7 2026)
+
+Two things found on production straight after Round 20 went out.
+
+- **A recap gave one driver's long run to another** (`longRunNote` in `lib/live/f1-insight-prompts.ts`): told Antonelli's run and Hadjar's time, Gemini wrote that Hadjar averaged 1:15.80 over Antonelli's six laps, and left Antonelli out. The figure check only compares times and gaps, so a lap count got through. The facts now give the best run's time and laps and its margin over the next car, not that car's own time, so there is nothing of Hadjar's to borrow.
+- **"No history: a new venue" at Interlagos** (`raceOf` in `lib/live/f1-season.ts`): F1 says "São Paulo Grand Prix", Jolpica says "Brazilian Grand Prix" in São Paulo, Brazil, and neither the name nor the country matched. It now also tries the city, with accents ignored throughout. The circuit's history and lap benchmarks use the same lookup.
+- **Store keys and versions**: `f1:recap:v2:<session>` to `f1:recap:v3:<session>`, so sessions are written again with the new facts, including the wrong FP2. Copies under `v2` are no longer read and expire within 400 days. `f1:moments:v2` doesn't change.
