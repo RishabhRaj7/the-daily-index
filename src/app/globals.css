@@ -735,7 +735,7 @@ html[data-edition="evening"] .pub-on-light { display: none; }
 /* Market Pulse. */
 @container ed (max-width: 699.98px) {
   .pulse-tiles > li:nth-child(n + 4) { display: none; }
-  .pulse-prices { display: flex; overflow-x: auto; gap: 0.5rem; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .pulse-prices { display: flex; overflow-x: auto; overflow-y: hidden; gap: 0.5rem; scroll-snap-type: x mandatory; scrollbar-width: none; }
   .pulse-prices > * { flex: 0 0 44%; scroll-snap-align: start; display: flex; height: auto; }
   .pulse-prices > * > * { height: auto; }
 }
@@ -749,7 +749,7 @@ html[data-edition="evening"] .pub-on-light { display: none; }
 /* Straw Poll: swipe between the two leads on a phone; both blocks abreast when
    there's the room. */
 @container ed (max-width: 699.98px) {
-  .poll-leads { display: flex; overflow-x: auto; gap: 0.6rem; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .poll-leads { display: flex; overflow-x: auto; overflow-y: hidden; gap: 0.6rem; scroll-snap-type: x mandatory; scrollbar-width: none; }
   .poll-leads > * { flex: 0 0 88%; scroll-snap-align: start; height: auto; }
   .poll-movers > li:nth-child(n + 4) { display: none; }
 }
@@ -1091,6 +1091,10 @@ html[data-edition="evening"] .pub-on-light { display: none; }
 @media (min-width: 768px) { .since-card { padding: 1.1rem 1.25rem; } }
 @media (min-width: 1024px) { .since-card { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.35fr) minmax(0, 0.9fr); gap: clamp(1rem, 2.5vw, 2.25rem); } }
 .story-new { flex-shrink: 0; font-size: 10.5px; letter-spacing: 0.06em; line-height: 1; padding: 0.2rem 0.4rem; border-radius: 999px; color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); }
+
+/* A table's frozen columns: solid, so what scrolls under them is hidden, in exactly the
+   card's colour, which is see-through over the paper. */
+.matrix-frozen { background: linear-gradient(var(--card-bg), var(--card-bg)), var(--paper); }
 
 /* A view's parts, under it (the live centre's Analysis). */
 .rail-row-sub { margin-left: 0.85rem; padding-block: 0.16rem; font-size: 0.88rem; }

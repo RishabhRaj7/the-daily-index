@@ -30,6 +30,7 @@ import Battle, { useGapHistory } from "./centre/Battle";
 import Pace from "./centre/Pace";
 import Commentary from "./centre/Commentary";
 import LiveAlerts from "./centre/Alerts";
+import { followDriver, useFollowedDriver } from "./followed-driver";
 import { DelayControl, useDelayed, useDelaySeconds } from "./centre/Delay";
 import { stewardsByCode } from "@/lib/f1-stewards";
 
@@ -463,8 +464,8 @@ function NextUp({ race, next, known }: { race: F1Race | null; next: string | nul
 function LiveView({ snap, live, replay, replayT }: { snap: LiveSnapshot; live: boolean; replay: boolean; replayT: number | null }) {
   const [enlarged, setEnlarged] = useState(false);
   const fav = useF1Favourites();
-  const [picked, setPicked] = useState<string | null>(null);
-  // Followed at first: the paddock's first driver (as picked) while running, then the second, then the leader.
+  const picked = useFollowedDriver();
+  // Followed: the driver last tapped here, then the paddock's first driver (as picked) while running, then the second, then the leader.
   const defaultFocus = [...fav.codes].map((c) => snap.rows.find((r) => r.code === c && !r.out)).find(Boolean)?.code ?? snap.rows[0]?.code ?? null;
   const focus = picked && snap.rows.some((r) => r.code === picked) ? picked : defaultFocus;
   const focusRow = snap.rows.find((r) => r.code === focus);
@@ -481,8 +482,8 @@ function LiveView({ snap, live, replay, replayT }: { snap: LiveSnapshot; live: b
     <div className="live-grid grid grid-cols-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:grid-rows-[auto_minmax(0,1fr)] gap-5 lg:gap-6 items-stretch">
       {track ? (
         <Panel id="track" icon={MapTrifoldIcon} label={track.name || "Track"} meta={live || replay ? "Cars placed from the timing loops" : track.corners.length ? `${track.corners.length} corners` : undefined} className="order-1 lg:col-start-2 lg:row-start-1 lg:row-span-2">
-          <TrackMap model={track} snap={snap} focus={focus} onFocus={setPicked} onExpand={() => setEnlarged(true)} fit controls className="live-map h-[40vh] max-h-[24rem] lg:h-[24rem] lg:max-h-none" />
-          {enlarged && <MapSheet model={track} snap={snap} focus={focus} onFocus={setPicked} onClose={() => setEnlarged(false)} />}
+          <TrackMap model={track} snap={snap} focus={focus} onFocus={followDriver} onExpand={() => setEnlarged(true)} fit controls className="live-map h-[40vh] max-h-[24rem] lg:h-[24rem] lg:max-h-none" />
+          {enlarged && <MapSheet model={track} snap={snap} focus={focus} onFocus={followDriver} onClose={() => setEnlarged(false)} />}
           {focusRow && <FocusCard row={focusRow} photo={photos[focusRow.code] ?? driverPhotoByCode(focusRow.code, focusRow.team)} snap={snap} track={track} live={live && !replay} replayT={replay ? replayT : null} />}
           {focusRow && snap.running && (
             <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 font-mono text-[11px] text-ink-faint">
@@ -506,7 +507,7 @@ function LiveView({ snap, live, replay, replayT }: { snap: LiveSnapshot; live: b
         meta={replay ? "As it stood · tap a row to follow, a name for the season" : live ? `Read ${new Date(snap.at).toLocaleTimeString("en-GB")} · every 5 s` : "Tap a row to follow · a name for the season"}
         className="order-2 lg:col-start-1 lg:row-start-1"
       >
-        <LiveTiming snap={snap} wide focus={focus} onFocus={setPicked} />
+        <LiveTiming snap={snap} wide focus={focus} onFocus={followDriver} />
         <div className="mt-auto pt-5 flex flex-wrap items-center gap-x-4 gap-y-1.5 font-mono text-[11px] text-ink-faint">
           <span style={{ color: "var(--f1-fastest)" }}>■ fastest in the session</span>
           <span style={{ color: "var(--f1-personal)" }}>■ personal best</span>
