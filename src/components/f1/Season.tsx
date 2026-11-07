@@ -185,11 +185,12 @@ function Grid({ data, onDriver }: { data: SeasonData; onDriver: (code: string) =
           <Seg label="Show" value={show} onChange={setShow} options={[["points", "Points"], ["position", "Place"]]} />
         </div>
       </div>
-      <div className="overflow-x-auto -mx-4 sm:-mx-5 px-4 sm:px-5 [scrollbar-width:thin]">
+      <div className="overflow-x-auto -mx-4 sm:-mx-5 pr-4 sm:pr-5 [scrollbar-width:thin]">
         <table className="data-table matrix border-separate border-spacing-[3px] text-[11.5px] tabular-nums">
           {/* Fixed widths: every round the same, so the grid reads in straight columns. */}
           <colgroup>
-            <col style={{ width: "1.75rem" }} />
+            {/* The first holds the card's padding: frozen against a padded scroller, it would stop short of the edge. */}
+            <col className="w-11 sm:w-12" />
             <col style={{ width: "9rem" }} />
             <col style={{ width: "3rem" }} />
             {cols.map(({ r }) => (
@@ -198,8 +199,8 @@ function Grid({ data, onDriver }: { data: SeasonData; onDriver: (code: string) =
           </colgroup>
           <thead>
             <tr className="font-label text-[11px] text-ink-faint">
-              <th className="sticky left-0 z-10 bg-[var(--surface)] text-left font-normal px-1 w-7">Pos</th>
-              <th className="sticky left-7 z-10 bg-[var(--surface)] text-left font-normal px-1">Driver</th>
+              <th className="sticky left-0 z-10 matrix-frozen text-left font-normal pl-4 sm:pl-5 pr-1">Pos</th>
+              <th className="sticky left-11 sm:left-12 z-10 matrix-frozen text-left font-normal px-1">Driver</th>
               <th className="num font-normal px-2">Pts</th>
               {cols.map(({ r }) => (
                 <th key={r.round} className="font-normal px-0 mid" title={`${r.name} · ${new Date(r.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`}>
@@ -214,8 +215,8 @@ function Grid({ data, onDriver }: { data: SeasonData; onDriver: (code: string) =
               const mine = fav.has(d.code);
               return (
                 <tr key={d.code} className="group">
-                  <td className="sticky left-0 z-10 bg-[var(--surface)] font-mono text-[11px] text-ink-soft px-1">{k + 1}</td>
-                  <td className="sticky left-7 z-10 bg-[var(--surface)] px-1">
+                  <td className="sticky left-0 z-10 matrix-frozen font-mono text-[11px] text-ink-soft pl-4 sm:pl-5 pr-1">{k + 1}</td>
+                  <td className="sticky left-11 sm:left-12 z-10 matrix-frozen px-1">
                     <button type="button" onClick={() => onDriver(d.code)} className="flex items-center gap-1.5 whitespace-nowrap text-left" title={`${d.name}'s season, round by round`}>
                       <span className="w-[3px] h-3.5 rounded-full" style={{ background: d.colour }} />
                       <TeamGlyph team={d.team} colour={d.colour} size={13} />

@@ -104,9 +104,9 @@ function Versus({ options }: { options: { id: string; label: string; query: stri
   return (
     <div className="rounded-xl border hairline p-3">
       <div className="flex items-center justify-between gap-2 mb-3">
-        <span className="font-label text-[11px] text-ink-faint">Head to head{h ? ` · ${h.rounds} rounds` : ""}</span>
+        <span className="font-label text-[11px] text-ink-faint min-w-0">Head to head{h ? ` · ${h.rounds} rounds` : ""}</span>
         {options.length > 1 && (
-          <span className="flex rounded-full border hairline p-0.5" role="tablist" aria-label="Who to compare">
+          <span className="flex shrink-0 rounded-full border hairline p-0.5" role="tablist" aria-label="Who to compare">
             {options.map((o) => (
               <button
                 key={o.id}
@@ -114,7 +114,7 @@ function Versus({ options }: { options: { id: string; label: string; query: stri
                 role="tab"
                 aria-selected={o.id === chosen.id}
                 onClick={() => setPick(o.id)}
-                className={`rounded-full px-2.5 h-6 font-sans text-[11px] font-semibold transition-colors ${o.id === chosen.id ? "text-[color:var(--paper)]" : "text-ink-soft hover:text-ink"}`}
+                className={`rounded-full px-2.5 h-6 whitespace-nowrap font-sans text-[11px] font-semibold transition-colors ${o.id === chosen.id ? "text-[color:var(--paper)]" : "text-ink-soft hover:text-ink"}`}
                 style={o.id === chosen.id ? { background: "var(--ink)" } : undefined}
               >
                 {o.label}

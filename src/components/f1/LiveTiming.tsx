@@ -441,7 +441,7 @@ export default function LiveTiming({
       </div>
       <div className="timing-rows relative">
         {rows.map((r) => {
-          const mine = fav.codes.has(r.code) || (fav.team !== "" && r.team === fav.team);
+          const mine = fav.codes.has(r.code);
           const faded = r.out || (r.knockedOut && !race);
           const focused = focus === r.code;
           return (

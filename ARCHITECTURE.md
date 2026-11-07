@@ -1353,3 +1353,14 @@ Two things found on production straight after Round 20 went out.
 - **A recap gave one driver's long run to another** (`longRunNote` in `lib/live/f1-insight-prompts.ts`): told Antonelli's run and Hadjar's time, Gemini wrote that Hadjar averaged 1:15.80 over Antonelli's six laps, and left Antonelli out. The figure check only compares times and gaps, so a lap count got through. The facts now give the best run's time and laps and its margin over the next car, not that car's own time, so there is nothing of Hadjar's to borrow.
 - **"No history: a new venue" at Interlagos** (`raceOf` in `lib/live/f1-season.ts`): F1 says "São Paulo Grand Prix", Jolpica says "Brazilian Grand Prix" in São Paulo, Brazil, and neither the name nor the country matched. It now also tries the city, with accents ignored throughout. The circuit's history and lap benchmarks use the same lookup.
 - **Store keys and versions**: `f1:recap:v2:<session>` to `f1:recap:v3:<session>`, so sessions are written again with the new facts, including the wrong FP2. Copies under `v2` are no longer read and expire within 400 days. `f1:moments:v2` doesn't change.
+
+### Round 22: highlighted drivers, and three phone fixes (Nov 7 2026)
+
+The reader's own phone, after Round 20 went out.
+
+- **Only the selected drivers are highlighted** (`LiveTiming.tsx`): the table also lit up everyone in the favourite team. Alerts still cover the drivers and their team.
+- **A tapped driver is remembered** (new `f1/followed-driver.ts`, `LiveView` in `LiveCentre.tsx`): the driver followed in the live centre was forgotten on leaving. It now stays until another tap, whichever session is open. Tapping doesn't change the drivers picked on the main page, and changing those doesn't clear it.
+- **"Your drivers" on one line** (`Versus` in `YourPaddock.tsx`): the label wrapped inside a fixed-height pill and was cut off.
+- **Swipe rows only swipe sideways** (`.pulse-prices`, `.poll-leads` in `globals.css`): with only sideways scrolling set, browsers allow vertical too, and these two rows had 22 px to move. Every other sideways row on the paper and in the live centre was measured, and none could move.
+- **The Season table's frozen columns reach the card's edge** (`Season.tsx`): against a padded scroller they stopped 16 px short, and scrolled rounds showed to their left. The first column now holds that padding itself. The frozen cells take the card's own colour (`.matrix-frozen`): they were `--surface`, white on a grey card in light mode.
+- **Store keys and versions**: new in the browser: `daily-index:f1-followed:v1` (localStorage). Nothing older changes.
