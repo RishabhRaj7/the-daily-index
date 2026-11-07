@@ -1,10 +1,11 @@
 // A live figure its source didn't answer for this time: the last good
-// reading is shown, and this says when it was taken.
+// reading is shown, and this says when it was taken, in IST so the server and the
+// browser print the same words.
 export default function StaleTag({ asOf }: { asOf?: string }) {
   const d = asOf ? new Date(asOf) : null;
   const label =
     d && !Number.isNaN(d.getTime())
-      ? `${d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}, ${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`
+      ? `${d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" })}, ${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}`
       : "earlier";
   return (
     <span className="inline-flex items-center gap-1 font-mono text-[11px] text-ink-faint" title="The source didn't answer; this is its last good reading">

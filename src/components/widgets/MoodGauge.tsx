@@ -3,11 +3,11 @@ import type { MarketIndex, MarketMood } from "@/lib/types";
 import Fold from "@/components/chrome/Fold";
 import { moodZone, moodZones } from "@/lib/mood-zones";
 
-/** "30 Sep, 10:33" in the reader's zone. */
+/** "30 Sep, 10:33" in IST, so the server and the browser print the same words. */
 function when(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return `${d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}, ${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+  return `${d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" })}, ${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}`;
 }
 
 /** Today's move per index as bars either side of zero, largest move full width. */

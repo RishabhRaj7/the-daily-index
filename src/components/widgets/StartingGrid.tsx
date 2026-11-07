@@ -390,7 +390,7 @@ export default function StartingGrid({
                 <span className="font-mono text-[11px] text-ink-faint">R{race.round}</span>
                 <span className="font-sans text-[13px] truncate">{race.name}</span>
                 <span className="font-mono text-[11px] text-ink-soft">
-                  {new Date(race.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}
+                  {new Date(race.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "Asia/Kolkata" })}
                 </span>
               </li>
             ))}
