@@ -193,7 +193,7 @@ export default function MarketPulseSection({
   const [allTiles, setAllTiles] = useState(false);
   const minute = useSyncExternalStore(subscribe, minuteNow, () => null);
   const updated = updatedAt
-    ? new Date(updatedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+    ? new Date(updatedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })
     : null;
 
   const regions = REGIONS.filter((r) => indices.some((i) => i.market === r));
