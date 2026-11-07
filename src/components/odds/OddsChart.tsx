@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 // (the leader in the section's colour, the rest in quieter ones), a
 // legend that doubles as today's reading, a crosshair that reads every
 // line at once, and numbered pins where a headline lines up with a jump.
+// On a phone a sideways drag reads the chart and a vertical one scrolls the page.
 
 export interface ChartSeries {
   name: string;
@@ -114,9 +115,10 @@ export default function OddsChart({
       <svg
         width={width}
         height={height}
-        className="block touch-none"
+        className="block touch-pan-y"
         onPointerMove={onMove}
         onPointerLeave={() => setHover(null)}
+        onPointerCancel={() => setHover(null)}
         role="img"
         aria-label={`${lead.name}: ${Math.round(lead.points[lead.points.length - 1][1])}% now, between ${Math.round(lo)} and ${Math.round(hi)}% over the period`}
       >

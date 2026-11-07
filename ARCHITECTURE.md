@@ -1364,3 +1364,8 @@ The reader's own phone, after Round 20 went out.
 - **Swipe rows only swipe sideways** (`.pulse-prices`, `.poll-leads` in `globals.css`): with only sideways scrolling set, browsers allow vertical too, and these two rows had 22 px to move. Every other sideways row on the paper and in the live centre was measured, and none could move.
 - **The Season table's frozen columns reach the card's edge** (`Season.tsx`): against a padded scroller they stopped 16 px short, and scrolled rounds showed to their left. The first column now holds that padding itself. The frozen cells take the card's own colour (`.matrix-frozen`): they were `--surface`, white on a grey card in light mode.
 - **Store keys and versions**: new in the browser: `daily-index:f1-followed:v1` (localStorage). Nothing older changes.
+
+### Round 23: a drag on an odds chart scrolls the page (Nov 7 2026)
+
+- **The change** (`odds/OddsChart.tsx`): the chart took every touch (`touch-none`) so a finger could read it, so on a phone a drag starting there moved nothing, and the chart fills much of a Straw Poll card. A vertical drag now scrolls the page or the sheet (`touch-pan-y`), and the crosshair clears when it does. A sideways drag still reads the chart, so in Straw Poll's row a swipe to the next card starts from the card's text.
+- **Store keys and versions**: none changed.
